@@ -45,6 +45,14 @@ export function getDb(): Promise<Database> {
   if (!dbPromise) {
     dbPromise = (async () => {
       const db = await Database.load("sqlite:writing.db");
+      // Disable WAL (use a rollback journal). tauri-plugin-sql pools connections
+      // and does not expose journal config (plugins-workspace#2328); under WAL,
+      // a write commits to the -wal file on one pooled connection while a read on
+      // another sees a pre-write snapshot — so same-session read-after-write
+      // returns empty. DELETE mode makes writes immediately visible to all reads.
+      // journal_mode is file-level, so this one call converts the whole database
+      // (and checkpoints any existing WAL).
+      await db.execute("PRAGMA journal_mode=DELETE");
       for (const ddl of SCHEMA_DDL) {
         await db.execute(ddl);
       }

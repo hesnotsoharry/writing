@@ -116,7 +116,7 @@ Decisions that become authoritative after a subsequent wave cites them are promo
 
 | Phase | Dispatched | Completed (impl + gates) | Observation point hit |
 |---|---|---|---|
-| 1 — Walking skeleton | ✅ sonnet-implementer | ✅ lint 0 / 14 tests / tsc clean; adversarial review FLAG adjudicated (computeReorder = Phase 4 scope; loadScene async race fixed) | ⏳ pending manual smoke (relaunch persistence — user-run) |
+| 1 — Walking skeleton | ✅ sonnet-implementer | ✅ lint 0 / 14 tests / tsc clean; adversarial review FLAG adjudicated (computeReorder = Phase 4 scope; loadScene race fixed). Lane B fix bundle: WAL read-after-write (PRAGMA journal_mode=DELETE — tauri-plugin-sql pool+WAL snapshot isolation), StrictMode mountedRef reset, init error surfacing. | ✅ CONFIRMED (smoke): seeded tree renders (no dups), scenes click-to-open, per-scene prose persists across switching AND full relaunch. |
 | 2 — CRUD | — | — | — |
 | 3 — Project switcher | — | — | — |
 | 4 — Drag-reorder | — | — | — |

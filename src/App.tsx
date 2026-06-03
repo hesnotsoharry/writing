@@ -183,10 +183,14 @@ function useSceneLoader(
   };
 
   useEffect(() => {
+    // Restore on every (re)mount — StrictMode dev does mount→cleanup→remount,
+    // and the cleanup below sets this false; without this reset loadScene's
+    // mountedRef guard would bail on every call after the first cleanup.
+    mountedRef.current = true;
     const cancelled = { value: false };
-    void initializeProjectTree(cancelled, setTree, setLoading, (sceneId) =>
+    initializeProjectTree(cancelled, setTree, setLoading, (sceneId) =>
       loadScene(sceneId, ctx)
-    );
+    ).catch((err) => console.error("[db] initializeProjectTree failed", err));
     return () => {
       cancelled.value = true;
       mountedRef.current = false;
