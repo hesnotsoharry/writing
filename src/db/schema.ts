@@ -56,6 +56,12 @@ export function getDb(): Promise<Database> {
       for (const ddl of SCHEMA_DDL) {
         await db.execute(ddl);
       }
+      // One-time repair: recover scenes orphaned by a folder_id that no longer exists (drag bug). Safe no-op on clean DBs.
+      await db.execute(
+        `UPDATE scenes SET folder_id = NULL
+         WHERE folder_id IS NOT NULL
+           AND folder_id NOT IN (SELECT id FROM folders);`
+      );
       return db;
     })();
   }
