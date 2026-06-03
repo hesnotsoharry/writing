@@ -188,7 +188,9 @@ SQLite tables (structure + metadata):
 - `folders` — id, project_id, parent_id (nullable), title, sort_order. (Chapters are folders.)
 - `scenes` — id, project_id, folder_id (nullable), title, synopsis, sort_order, word_count
   (cached), session_goal.
-- `scene_docs` — scene_id, yjs_update_log (BLOB), plaintext_projection (TEXT, for FTS/counts).
+- `scene_docs` — scene_id, state_base64 (TEXT — the serialized Yjs doc; base64 text rather than a
+  raw BLOB because `tauri-plugin-sql` does not reliably round-trip binary columns,
+  tauri-apps/plugins-workspace#105), plaintext_projection (TEXT, for FTS/counts).
 - `characters` — id, project_id, name, notes.
 - `locations` — id, project_id, name, notes.
 - `scene_links` — scene_id, entity_type (character | location), entity_id. (Drives the inspector.)
