@@ -2,6 +2,40 @@ import Database from "@tauri-apps/plugin-sql";
 
 let dbPromise: Promise<Database> | null = null;
 
+/**
+ * Minimal interface covering the tauri-plugin-sql methods used in schema.ts.
+ * Extracted so ensureColumn can accept a test double without importing the plugin.
+ */
+export interface DbHandle {
+  select<T>(query: string, bindValues?: unknown[]): Promise<T>;
+  execute(query: string, bindValues?: unknown[]): Promise<unknown>;
+}
+
+/**
+ * Idempotent column migration: adds `column` (of type `ddlType`) to `table`
+ * only if it is absent. Uses PRAGMA table_info to check — not a try/catch on
+ * a duplicate-column error — so it is safe to call on every startup.
+ *
+ * SQLite PRAGMA table_info returns one row per column with fields:
+ *   cid INTEGER, name TEXT, type TEXT, notnull INTEGER, dflt_value, pk INTEGER
+ */
+export async function ensureColumn(
+  db: DbHandle,
+  table: string,
+  column: string,
+  ddlType: string
+): Promise<void> {
+  const rows = await db.select<{ name: string }[]>(
+    `PRAGMA table_info(${table})`
+  );
+  const exists = rows.some((r) => r.name === column);
+  if (!exists) {
+    await db.execute(
+      `ALTER TABLE ${table} ADD COLUMN ${column} ${ddlType}`
+    );
+  }
+}
+
 const SCHEMA_DDL = [
   `
     CREATE TABLE IF NOT EXISTS scene_docs (
@@ -91,6 +125,11 @@ export function getDb(): Promise<Database> {
       for (const ddl of SCHEMA_DDL) {
         await db.execute(ddl);
       }
+      // Idempotent column migrations — run after CREATE TABLE so fresh DBs already
+      // have the column and this is a no-op for them; existing DBs gain the column
+      // without data loss (existing state_base64 rows are preserved; new column
+      // is NULL until the next save, which the store already handles).
+      await ensureColumn(db, "scene_docs", "plaintext_projection", "TEXT");
       // One-time repair: recover scenes orphaned by a folder_id that no longer exists (drag bug). Safe no-op on clean DBs.
       await db.execute(
         `UPDATE scenes SET folder_id = NULL
