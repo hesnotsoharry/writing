@@ -6,7 +6,8 @@ const SCHEMA_DDL = [
   `
     CREATE TABLE IF NOT EXISTS scene_docs (
       scene_id TEXT PRIMARY KEY,
-      state_base64 TEXT NOT NULL
+      state_base64 TEXT NOT NULL,
+      plaintext_projection TEXT
     )
   `,
   `
@@ -37,6 +38,34 @@ const SCHEMA_DDL = [
       sort_order INTEGER NOT NULL,
       word_count INTEGER NOT NULL DEFAULT 0
     )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS characters (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      notes TEXT,
+      aliases TEXT
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS locations (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      notes TEXT,
+      aliases TEXT
+    )
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS scene_links (
+      scene_id TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL
+    )
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS idx_scene_links_scene_id ON scene_links (scene_id)
   `,
 ];
 
