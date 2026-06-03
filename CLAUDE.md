@@ -66,6 +66,12 @@ Lane A (build) for features, Lane B (fix) for bugs, with `roadmap/HANDOFF.md` as
 point. Phase 1 is sequenced as a series of plans (see HANDOFF "Roadmap"); the walking skeleton is
 first and gates everything else.
 
+**Implementation plans are authored with `/wave-plan` (or `/wave-plan-lite` for smaller slices) — the
+canonical Stage-3 tool — never `superpowers:writing-plans`, even when the brainstorming skill suggests
+writing-plans as its terminal step.** Canon: specs live in `docs/superpowers/specs/`; plans are wave
+files at `roadmap/wave-N-slug.md`. (Plan 1's plan predates this convention and lives under
+`docs/superpowers/plans/`; new plans follow the wave-file path.)
+
 ## What CLAUDE.md Does Not Cover
 
 Architecture rationale and the full data model live in the spec; step-by-step build instructions live
