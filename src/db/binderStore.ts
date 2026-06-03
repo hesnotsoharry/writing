@@ -52,6 +52,15 @@ export interface BinderStore {
    * folder_id = null (Short pieces). No scene_docs rows are touched.
    */
   deleteFolder(folderId: string): Promise<void>;
+  /** Rename a folder (chapter). */
+  renameFolder(folderId: string, title: string): Promise<void>;
+  /** Rename a scene. */
+  renameScene(sceneId: string, title: string): Promise<void>;
+  /**
+   * Delete a scene row only. Caller is responsible for also deleting the
+   * corresponding scene_docs row (App orchestrates both stores).
+   */
+  deleteScene(sceneId: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,5 +155,21 @@ export class InMemoryBinderStore implements BinderStore {
     );
     // Remove the folder itself.
     this.folders = this.folders.filter((f) => f.id !== folderId);
+  }
+
+  async renameFolder(folderId: string, title: string): Promise<void> {
+    this.folders = this.folders.map((f) =>
+      f.id === folderId ? { ...f, title } : f
+    );
+  }
+
+  async renameScene(sceneId: string, title: string): Promise<void> {
+    this.scenes = this.scenes.map((s) =>
+      s.id === sceneId ? { ...s, title } : s
+    );
+  }
+
+  async deleteScene(sceneId: string): Promise<void> {
+    this.scenes = this.scenes.filter((s) => s.id !== sceneId);
   }
 }

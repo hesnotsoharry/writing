@@ -104,4 +104,25 @@ export class SqliteBinderStore implements BinderStore {
     // Delete the folder row.
     await db.execute("DELETE FROM folders WHERE id = $1", [folderId]);
   }
+
+  async renameFolder(folderId: string, title: string): Promise<void> {
+    const db = await getDb();
+    await db.execute("UPDATE folders SET title=$1 WHERE id=$2", [
+      title,
+      folderId,
+    ]);
+  }
+
+  async renameScene(sceneId: string, title: string): Promise<void> {
+    const db = await getDb();
+    await db.execute("UPDATE scenes SET title=$1 WHERE id=$2", [
+      title,
+      sceneId,
+    ]);
+  }
+
+  async deleteScene(sceneId: string): Promise<void> {
+    const db = await getDb();
+    await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
+  }
 }

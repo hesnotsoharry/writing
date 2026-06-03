@@ -18,4 +18,9 @@ export class SqliteSceneDocStore implements SceneDocStore {
       [sceneId, base64]
     );
   }
+
+  async delete(sceneId: string): Promise<void> {
+    const db = await getDb();
+    await db.execute("DELETE FROM scene_docs WHERE scene_id=$1", [sceneId]);
+  }
 }

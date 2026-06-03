@@ -4,6 +4,8 @@ export interface SceneDocStore {
   load(sceneId: string): Promise<string | null>;
   /** Persist the base64-encoded doc for a scene (insert or replace). */
   save(sceneId: string, base64: string): Promise<void>;
+  /** Remove the stored doc for a scene (called when a scene is deleted). */
+  delete(sceneId: string): Promise<void>;
 }
 
 /** Test/in-memory implementation. */
@@ -16,5 +18,8 @@ export class InMemorySceneDocStore implements SceneDocStore {
   async save(sceneId: string, base64: string): Promise<void> {
     this.saveCount += 1;
     this.map.set(sceneId, base64);
+  }
+  async delete(sceneId: string): Promise<void> {
+    this.map.delete(sceneId);
   }
 }

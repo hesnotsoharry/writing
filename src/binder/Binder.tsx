@@ -1,81 +1,42 @@
 import type { Scene } from "../db/binderStore";
+import type { BinderCallbacks } from "./BinderCrud";
+import { ChapterHeader, SceneRow } from "./BinderCrud";
 import type { BinderTree } from "./buildTree";
 
 interface BinderProps {
   tree: BinderTree;
   selectedSceneId: string | null;
   onSelectScene: (sceneId: string) => void;
+  callbacks: BinderCallbacks;
 }
 
-/**
- * Scene button — single clickable row with selection highlight.
- */
-function SceneButton({
-  scene,
-  isSelected,
-  onSelect,
-}: {
-  scene: Scene;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <li key={scene.id}>
-      <button
-        onClick={onSelect}
-        style={{
-          display: "block",
-          width: "100%",
-          textAlign: "left",
-          padding: "5px 16px 5px 28px",
-          border: "none",
-          background: isSelected ? "#e8eaf6" : "transparent",
-          cursor: "pointer",
-          fontSize: 13,
-          color: isSelected ? "#1a237e" : "#333",
-          fontWeight: isSelected ? 600 : "normal",
-        }}
-      >
-        {scene.title}
-      </button>
-    </li>
-  );
-}
+// ---------------------------------------------------------------------------
+// Chapter section
+// ---------------------------------------------------------------------------
 
-/**
- * Chapter section — heading + list of scenes for one chapter.
- */
 function ChapterSection({
   chapter,
   selectedSceneId,
   onSelectScene,
+  callbacks,
 }: {
   chapter: BinderTree["chapters"][0];
   selectedSceneId: string | null;
   onSelectScene: (sceneId: string) => void;
+  callbacks: BinderCallbacks;
 }) {
   return (
-    <section key={chapter.folder.id} style={{ marginBottom: 8 }}>
-      <div
-        style={{
-          padding: "4px 16px",
-          fontWeight: 600,
-          fontSize: 12,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          color: "#555",
-          userSelect: "none",
-        }}
-      >
-        {chapter.folder.title}
-      </div>
+    <section style={{ marginBottom: 8 }}>
+      <ChapterHeader chapter={chapter} callbacks={callbacks} />
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {chapter.scenes.map((scene) => (
-          <SceneButton
+          <SceneRow
             key={scene.id}
             scene={scene}
             isSelected={scene.id === selectedSceneId}
             onSelect={() => onSelectScene(scene.id)}
+            onRenameScene={callbacks.onRenameScene}
+            onDeleteScene={callbacks.onDeleteScene}
           />
         ))}
       </ul>
@@ -83,43 +44,43 @@ function ChapterSection({
   );
 }
 
-/**
- * Short pieces section — "Short pieces" heading + list of uncategorized scenes.
- */
+// ---------------------------------------------------------------------------
+// Short pieces section
+// ---------------------------------------------------------------------------
+
 function ShortPiecesSection({
   scenes,
   selectedSceneId,
   onSelectScene,
+  callbacks,
 }: {
   scenes: Scene[];
   selectedSceneId: string | null;
   onSelectScene: (sceneId: string) => void;
+  callbacks: BinderCallbacks;
 }) {
-  if (scenes.length === 0) {
-    return null;
-  }
   return (
     <section>
-      <div
-        style={{
-          padding: "4px 16px",
-          fontWeight: 600,
-          fontSize: 12,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          color: "#555",
-          userSelect: "none",
-        }}
-      >
-        Short pieces
+      <div style={sectionHeadingStyle}>
+        <span style={{ flex: 1 }}>Short pieces</span>
+        <button
+          title="Add short piece"
+          onClick={() => callbacks.onCreateScene(null)}
+          style={addBtnStyle}
+          aria-label="Add short piece"
+        >
+          +
+        </button>
       </div>
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {scenes.map((scene) => (
-          <SceneButton
+          <SceneRow
             key={scene.id}
             scene={scene}
             isSelected={scene.id === selectedSceneId}
             onSelect={() => onSelectScene(scene.id)}
+            onRenameScene={callbacks.onRenameScene}
+            onDeleteScene={callbacks.onDeleteScene}
           />
         ))}
       </ul>
@@ -127,22 +88,35 @@ function ShortPiecesSection({
   );
 }
 
-/**
- * Binder content — renders chapters, short pieces, and empty state.
- */
+// ---------------------------------------------------------------------------
+// Binder content
+// ---------------------------------------------------------------------------
+
 function BinderContent({
   tree,
   selectedSceneId,
   onSelectScene,
+  callbacks,
 }: BinderProps) {
   return (
     <>
+      <div style={{ padding: "0 8px 8px" }}>
+        <button
+          onClick={callbacks.onCreateChapter}
+          style={addChapterBtnStyle}
+          aria-label="Add chapter"
+        >
+          + Chapter
+        </button>
+      </div>
+
       {tree.chapters.map((chapter) => (
         <ChapterSection
           key={chapter.folder.id}
           chapter={chapter}
           selectedSceneId={selectedSceneId}
           onSelectScene={onSelectScene}
+          callbacks={callbacks}
         />
       ))}
 
@@ -150,17 +124,11 @@ function BinderContent({
         scenes={tree.shortPieces}
         selectedSceneId={selectedSceneId}
         onSelectScene={onSelectScene}
+        callbacks={callbacks}
       />
 
       {tree.chapters.length === 0 && tree.shortPieces.length === 0 && (
-        <p
-          style={{
-            padding: "16px",
-            fontSize: 13,
-            color: "#999",
-            margin: 0,
-          }}
-        >
+        <p style={{ padding: "16px", fontSize: 13, color: "#999", margin: 0 }}>
           No scenes yet.
         </p>
       )}
@@ -168,16 +136,22 @@ function BinderContent({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Root Binder
+// ---------------------------------------------------------------------------
+
 /**
- * Read-only binder tree.
+ * Binder tree with full CRUD affordances (Phase 2).
  *
- * Renders chapters (folders + their scenes) followed by a "Short pieces"
- * section for folder_id=null scenes. Selecting a scene calls onSelectScene.
- *
- * Phase 1 — no CRUD affordances, no drag-reorder, no project switcher.
- * Those are Phase 2–4 additions.
+ * Renders "+ Chapter" at top, chapters with "+ Scene" / rename / delete, and
+ * a Short pieces section. All mutations are lifted to App via `callbacks`.
  */
-export function Binder({ tree, selectedSceneId, onSelectScene }: BinderProps) {
+export function Binder({
+  tree,
+  selectedSceneId,
+  onSelectScene,
+  callbacks,
+}: BinderProps) {
   return (
     <nav
       style={{
@@ -196,7 +170,47 @@ export function Binder({ tree, selectedSceneId, onSelectScene }: BinderProps) {
         tree={tree}
         selectedSceneId={selectedSceneId}
         onSelectScene={onSelectScene}
+        callbacks={callbacks}
       />
     </nav>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Shared styles
+// ---------------------------------------------------------------------------
+
+const sectionHeadingStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  padding: "4px 4px 4px 16px",
+  fontWeight: 600,
+  fontSize: 12,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "#555",
+  userSelect: "none",
+};
+
+const addBtnStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  cursor: "pointer",
+  fontSize: 13,
+  color: "#888",
+  padding: "0 7px 0 3px",
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+const addChapterBtnStyle: React.CSSProperties = {
+  width: "100%",
+  background: "transparent",
+  border: "1px dashed #ccc",
+  borderRadius: 4,
+  cursor: "pointer",
+  fontSize: 12,
+  color: "#888",
+  padding: "4px 8px",
+  textAlign: "left",
+};
