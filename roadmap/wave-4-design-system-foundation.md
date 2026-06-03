@@ -108,7 +108,8 @@ run-phase Run IDs: phase-1 = `wf_d431a5e1-4f3` (for resume).
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-03 | 2026-06-03 | this commit | Gates green (lint/tsc/build exit 0); reviewer FLAG (import-order lint) dismissed — `npm run lint` exits 0. **Live `tauri dev` smoke DEFERRED to Cole** (no GUI in build session). |
+| 1 | 2026-06-03 | 2026-06-03 | 158f78e | Gates green (lint/tsc/build exit 0); reviewer FLAG (import-order lint) dismissed — `npm run lint` exits 0. **Live `tauri dev` smoke DEFERRED to Cole** (no GUI in build session). |
+| 2 | 2026-06-03 | 2026-06-03 | this commit | Internal — no observation point. tsc + lint exit 0 (union-type `IconName` of 46 keys checks). Glyph fidelity rides on deferred visual smoke. |
 
 ## Follow-up candidates
 
