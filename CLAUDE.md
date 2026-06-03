@@ -10,15 +10,15 @@ backup. **No built-in AI** (deliberate — keeps running cost near zero).
 
 ## Commands
 
-The app is not scaffolded yet — `package.json` and these scripts are created by the walking-skeleton
-plan, **Task 1**. After that task, the canonical commands are:
+The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical commands:
 
 - `npm run tauri dev` — run the desktop app (Rust shell + Vite frontend) in development.
 - `npm run tauri build` — production build.
 - `npm run test` — Vitest unit/seam tests (`vitest run`).
 - `npm run test -- <name>` — run a single test file by name fragment.
-
-Until Task 1 runs, none of these exist. Do not assume an `npm` project is present.
+- `npm run lint` / `npm run lint:fix` — ESLint via the strict flat config `eslint.config.mjs`, which
+  mirrors the meta-framework spec (40-line functions, complexity 10, `simple-import-sort`,
+  `no-explicit-any: error`). Lint is a phase gate alongside `tsc` and `vitest`.
 
 ## Key Files
 
