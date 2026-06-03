@@ -19,6 +19,7 @@ import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { SceneInspector } from "./inspector/SceneInspector";
+import { WindowControls } from "./shell/WindowControls";
 import { StoryBibleView } from "./storybible/StoryBibleView";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded } from "./yjs/serialize";
@@ -137,14 +138,27 @@ const viewToggleStyle: React.CSSProperties = {
   cursor: "pointer", background: "#f0f0f0", textAlign: "left", zIndex: 1,
 };
 
+/** Phase 1 temporary titlebar — replace with real TitleBar/AppShell in Phases 2/3. */
+function TempTitlebar() {
+  return (
+    <div
+      data-tauri-drag-region
+      style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", height: 32, flexShrink: 0, background: "#f5f5f5", borderBottom: "1px solid #e0e0e0" }}
+    >
+      <WindowControls />
+    </div>
+  );
+}
+
 function AppContent({
   tree, selectedSceneId, doc, onSelectScene, callbacks,
   projects, activeProjectId, onSwitchProject, onCreateProject,
   dragCallbacks, view, onToggleView, linksVersion, onEntitiesChanged,
 }: AppContentProps) {
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <div style={{ position: "relative", flexShrink: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      <TempTitlebar />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}><div style={{ position: "relative", flexShrink: 0 }}>
         <Binder
           tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
           callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
@@ -172,6 +186,7 @@ function AppContent({
           refreshKey={linksVersion}
         />
       )}
+      </div>
     </div>
   );
 }

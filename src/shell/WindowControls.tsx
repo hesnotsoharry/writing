@@ -1,16 +1,44 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { ReactElement } from "react";
 
+import { Icon } from "../components/Icon";
+
 /**
- * Phase 1 stub — wave-5 (app shell + custom window frame).
+ * Custom window controls — minimize / maximize-restore / close.
  *
- * Real implementation wires minimize / maximize-restore / close buttons to
- * `getCurrentWindow()` from `@tauri-apps/api/window`. See
- * roadmap/wave-5-app-shell-custom-window-frame.md, Phase 1.
+ * Wired to Tauri 2's window API (`@tauri-apps/api/window`).
+ * Requires capabilities: core:window:allow-minimize,
+ * core:window:allow-toggle-maximize, core:window:allow-close.
  *
- * This stub renders a placeholder so the orchestrator-owned oracle test
- * (src/test/windowControls.contract.test.tsx) compiles and fails on the
- * missing controls (not on a setup error) before the implementer fills it in.
+ * Rendered inside a `data-tauri-drag-region` parent so buttons still
+ * receive clicks despite the drag region.
  */
 export function WindowControls(): ReactElement {
-  return <div data-testid="window-controls-stub" />;
+  const win = getCurrentWindow();
+
+  return (
+    <div style={{ display: "flex", gap: 4 }}>
+      <button
+        aria-label="Minimize"
+        onClick={() => { void win.minimize(); }}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", lineHeight: 0 }}
+      >
+        <Icon name="minus" style={{ width: 14, height: 14 }} />
+      </button>
+      <button
+        aria-label="Maximize"
+        onClick={() => { void win.toggleMaximize(); }}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", lineHeight: 0 }}
+      >
+        <Icon name="square" style={{ width: 14, height: 14 }} />
+      </button>
+      <button
+        aria-label="Close"
+        onClick={() => { void win.close(); }}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", lineHeight: 0 }}
+      >
+        <Icon name="x" style={{ width: 14, height: 14 }} />
+      </button>
+    </div>
+  );
 }
