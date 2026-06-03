@@ -1,13 +1,23 @@
-import type { Scene } from "../db/binderStore";
+import type { Project, Scene } from "../db/binderStore";
 import type { BinderCallbacks } from "./BinderCrud";
 import { ChapterHeader, SceneRow } from "./BinderCrud";
 import type { BinderTree } from "./buildTree";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 
-interface BinderProps {
+/** Props shared by the inner tree components (no switcher props). */
+interface BinderContentProps {
   tree: BinderTree;
   selectedSceneId: string | null;
   onSelectScene: (sceneId: string) => void;
   callbacks: BinderCallbacks;
+}
+
+/** Full props for the exported Binder, which includes the project switcher. */
+interface BinderProps extends BinderContentProps {
+  projects: Project[];
+  activeProjectId: string | null;
+  onSwitchProject: (projectId: string) => void;
+  onCreateProject: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,7 +107,7 @@ function BinderContent({
   selectedSceneId,
   onSelectScene,
   callbacks,
-}: BinderProps) {
+}: BinderContentProps) {
   return (
     <>
       <div style={{ padding: "0 8px 8px" }}>
@@ -141,37 +151,43 @@ function BinderContent({
 // ---------------------------------------------------------------------------
 
 /**
- * Binder tree with full CRUD affordances (Phase 2).
+ * Binder tree with full CRUD affordances (Phase 2) and project switcher (Phase 3).
  *
- * Renders "+ Chapter" at top, chapters with "+ Scene" / rename / delete, and
- * a Short pieces section. All mutations are lifted to App via `callbacks`.
+ * Renders the ProjectSwitcher at the top, then "+ Chapter", chapters with
+ * "+ Scene" / rename / delete, and a Short pieces section. All mutations
+ * are lifted to App via callbacks.
  */
+const navStyle: React.CSSProperties = {
+  width: 220,
+  minHeight: "100vh",
+  borderRight: "1px solid #e0e0e0",
+  padding: "0 0 16px",
+  boxSizing: "border-box",
+  backgroundColor: "#fafafa",
+  overflowY: "auto",
+  flexShrink: 0,
+};
+
 export function Binder({
-  tree,
-  selectedSceneId,
-  onSelectScene,
-  callbacks,
+  tree, selectedSceneId, onSelectScene, callbacks,
+  projects, activeProjectId, onSwitchProject, onCreateProject,
 }: BinderProps) {
   return (
-    <nav
-      style={{
-        width: 220,
-        minHeight: "100vh",
-        borderRight: "1px solid #e0e0e0",
-        padding: "16px 0",
-        boxSizing: "border-box",
-        backgroundColor: "#fafafa",
-        overflowY: "auto",
-        flexShrink: 0,
-      }}
-      aria-label="Binder"
-    >
-      <BinderContent
-        tree={tree}
-        selectedSceneId={selectedSceneId}
-        onSelectScene={onSelectScene}
-        callbacks={callbacks}
+    <nav style={navStyle} aria-label="Binder">
+      <ProjectSwitcher
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSwitchProject={onSwitchProject}
+        onCreateProject={onCreateProject}
       />
+      <div style={{ paddingTop: 8 }}>
+        <BinderContent
+          tree={tree}
+          selectedSceneId={selectedSceneId}
+          onSelectScene={onSelectScene}
+          callbacks={callbacks}
+        />
+      </div>
     </nav>
   );
 }

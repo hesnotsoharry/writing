@@ -6,6 +6,7 @@ import { Binder } from "./binder/Binder";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { BinderTree } from "./binder/buildTree";
 import { buildTree } from "./binder/buildTree";
+import type { Project } from "./db/binderStore";
 import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
 import { SqliteBinderStore } from "./db/sqliteBinderStore";
@@ -59,11 +60,15 @@ interface InitProjectTreeOpts {
   setTree: (tree: BinderTree | null) => void;
   setLoading: (loading: boolean) => void;
   loadSceneFn: (sceneId: string) => Promise<void>;
-  activeProjectIdRef: MutableRefObject<string | null>;
+  setProjects: (projects: Project[]) => void;
+  setActiveProjectId: (id: string | null) => void;
 }
 
 async function initializeProjectTree(opts: InitProjectTreeOpts): Promise<void> {
-  const { cancelled, setTree, setLoading, loadSceneFn, activeProjectIdRef } = opts;
+  const {
+    cancelled, setTree, setLoading, loadSceneFn,
+    setProjects, setActiveProjectId,
+  } = opts;
   await getDb();
   await seedIfEmpty(binderStore);
   if (cancelled.value) return;
@@ -71,13 +76,15 @@ async function initializeProjectTree(opts: InitProjectTreeOpts): Promise<void> {
   const projects = await binderStore.listProjects();
   if (projects.length === 0 || cancelled.value) { setLoading(false); return; }
 
+  setProjects(projects);
   const activeProject = projects[0];
+  setActiveProjectId(activeProject.id);
+
   const { folders, scenes } = await binderStore.loadProject(activeProject.id);
   if (cancelled.value) return;
 
   const builtTree = buildTree(folders, scenes);
   setTree(builtTree);
-  activeProjectIdRef.current = activeProject.id;
   setLoading(false);
 
   const firstScene =
@@ -105,12 +112,28 @@ interface AppContentProps {
   doc: Y.Doc | null;
   onSelectScene: (sceneId: string) => void;
   callbacks: BinderCallbacks;
+  projects: Project[];
+  activeProjectId: string | null;
+  onSwitchProject: (projectId: string) => void;
+  onCreateProject: () => void;
 }
 
-function AppContent({ tree, selectedSceneId, doc, onSelectScene, callbacks }: AppContentProps) {
+function AppContent({
+  tree, selectedSceneId, doc, onSelectScene, callbacks,
+  projects, activeProjectId, onSwitchProject, onCreateProject,
+}: AppContentProps) {
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <Binder tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene} callbacks={callbacks} />
+      <Binder
+        tree={tree}
+        selectedSceneId={selectedSceneId}
+        onSelectScene={onSelectScene}
+        callbacks={callbacks}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSwitchProject={onSwitchProject}
+        onCreateProject={onCreateProject}
+      />
       <EditorPane doc={doc} />
     </div>
   );
@@ -121,11 +144,15 @@ interface SceneLoaderOptions {
   setSelectedSceneId: (id: string | null) => void;
   setTree: (t: BinderTree | null) => void;
   setLoading: (v: boolean) => void;
-  activeProjectIdRef: MutableRefObject<string | null>;
+  setProjects: (projects: Project[]) => void;
+  setActiveProjectId: (id: string | null) => void;
 }
 
 function useSceneLoader(opts: SceneLoaderOptions) {
-  const { setDoc, setSelectedSceneId, setTree, setLoading, activeProjectIdRef } = opts;
+  const {
+    setDoc, setSelectedSceneId, setTree, setLoading,
+    setProjects, setActiveProjectId,
+  } = opts;
   const unbindRef = useRef<(() => void) | null>(null);
   const loadTokenRef = useRef(0);
   const mountedRef = useRef(true);
@@ -138,7 +165,8 @@ function useSceneLoader(opts: SceneLoaderOptions) {
     initializeProjectTree({
       cancelled, setTree, setLoading,
       loadSceneFn: (id) => loadScene(id, ctx),
-      activeProjectIdRef,
+      setProjects,
+      setActiveProjectId,
     }).catch((e) => console.error("[db] initializeProjectTree failed", e));
     return () => {
       cancelled.value = true;
@@ -220,30 +248,89 @@ function useCrudHandlers(
   return makeCrudHandlers(getProjectId, doReload, selectedSceneId, clearScene);
 }
 
+async function loadProject(projectId: string): Promise<BinderTree> {
+  const { folders, scenes } = await binderStore.loadProject(projectId);
+  return buildTree(folders, scenes);
+}
+
+interface UseProjectOpts {
+  activeProjectIdRef: MutableRefObject<string | null>;
+  loadProjectTokenRef: MutableRefObject<number>;
+  setTree: (t: BinderTree) => void;
+  setProjects: (ps: Project[]) => void;
+  setActiveProjectId: (id: string | null) => void;
+  handleSelectScene: (id: string) => void;
+  clearScene: () => void;
+}
+
+/** Encapsulates switch + create so App() stays under the 40-line limit. */
+function useProjectActions({
+  activeProjectIdRef, loadProjectTokenRef, setTree, setProjects,
+  setActiveProjectId, handleSelectScene, clearScene,
+}: UseProjectOpts) {
+  async function switchProject(projectId: string) {
+    if (projectId === activeProjectIdRef.current) return;
+    activeProjectIdRef.current = projectId;
+    setActiveProjectId(projectId);
+    clearScene();
+    const myToken = ++loadProjectTokenRef.current;
+    const newTree = await loadProject(projectId);
+    if (myToken !== loadProjectTokenRef.current) return;
+    setTree(newTree);
+    const first = newTree.chapters[0]?.scenes[0] ?? newTree.shortPieces[0] ?? null;
+    if (first) void handleSelectScene(first.id);
+  }
+
+  async function createProject() {
+    const title = window.prompt("Project title:", "New Project");
+    if (!title?.trim()) return;
+    const newId = await binderStore.createProject({ title: title.trim(), type: "novel" });
+    const refreshed = await binderStore.listProjects();
+    setProjects(refreshed);
+    await switchProject(newId);
+  }
+
+  return {
+    onSwitchProject: (id: string) => { switchProject(id).catch(logCrudError("switchProject")); },
+    onCreateProject: () => { createProject().catch(logCrudError("createProject")); },
+  };
+}
+
 export default function App() {
   const [tree, setTree] = useState<BinderTree | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [doc, setDoc] = useState<Y.Doc | null>(null);
   const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const activeProjectIdRef = useRef<string | null>(null);
+  const loadProjectTokenRef = useRef(0);
+
+  function setActiveProject(id: string | null) {
+    activeProjectIdRef.current = id ?? null;
+    setActiveProjectId(id);
+  }
 
   const { handleSelectScene, clearScene } = useSceneLoader({
-    setDoc, setSelectedSceneId, setTree, setLoading, activeProjectIdRef,
+    setDoc, setSelectedSceneId, setTree, setLoading,
+    setProjects, setActiveProjectId: setActiveProject,
+  });
+  const { onSwitchProject, onCreateProject } = useProjectActions({
+    activeProjectIdRef, loadProjectTokenRef,
+    setTree: setTree as (t: BinderTree) => void,
+    setProjects, setActiveProjectId: setActiveProject,
+    handleSelectScene, clearScene,
   });
   const callbacks = useCrudHandlers(activeProjectIdRef, setTree, selectedSceneId, clearScene);
 
-  if (loading) {
-    return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
-  }
+  if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
-
   return (
     <AppContent
-      tree={tree}
-      selectedSceneId={selectedSceneId}
-      doc={doc}
-      onSelectScene={handleSelectScene}
-      callbacks={callbacks}
+      tree={tree} selectedSceneId={selectedSceneId} doc={doc}
+      onSelectScene={handleSelectScene} callbacks={callbacks}
+      projects={projects} activeProjectId={activeProjectId}
+      onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
     />
   );
 }
