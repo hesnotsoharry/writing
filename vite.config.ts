@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -28,5 +29,11 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+  },
+
+  // Vitest config — pure unit/seam tests run under Node (no Tauri runtime).
+  test: {
+    environment: "node",
+    include: ["src/test/**/*.test.ts"],
   },
 }));
