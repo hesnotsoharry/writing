@@ -4,50 +4,40 @@ _Last updated: 2026-06-02. The sticky note for a fresh session: where we are, wh
 
 ## Where we are
 
-- **Phase:** Lane A, between Stage 3 (Plan locked) and Stage 4 (Implement). Foundation identified.
-- Design **approved and committed**: `docs/superpowers/specs/2026-06-02-creative-writing-app-design.md`.
-- First build plan **written and committed**: `docs/superpowers/plans/2026-06-02-phase-1-walking-skeleton.md`.
-- Architecture **locked** (ADR 0001): local-first stack — Tauri 2 + React/TS + TipTap 3 + Yjs (one
-  doc per scene) + SQLite (base64 text) + cloud backup; mobile + sync deferred to Phase 2.
-- **No app code exists yet.** Repo holds docs + roadmap only.
+- **Phase:** Lane A Stage 4 (Implement). Walking skeleton (Plan 1) **complete and verified**.
+- **What works:** type prose in TipTap → Yjs doc → base64 → SQLite. Full cold relaunch: text rehydrates. Smoke passed 2026-06-02.
+- All 8 skeleton tasks committed. 5/5 Vitest tests green. App builds + launches via `npm run tauri dev`. Acceptance criteria: ✓ persistence ✓ relaunch ✓ production-shaped code.
+- Stack proven: Tauri 2.11 + React 19 + TipTap 3.24 + Yjs 13.6 + tauri-plugin-sql 2.4. Architecture locked (ADR 0001).
+- App code live: `src/` (React frontend), `src-tauri/` (Rust shell). Dev toolchain confirmed (Node 24, Rust 1.96, VS 2026 C++).
 
 ## What's next (start here)
 
-1. **Confirm Windows prerequisites** with the user before building: Node 20+, Rust (rustup), VS Build
-   Tools w/ C++ (MSVC). These are hard blockers for `npm run tauri dev`. WebView2 is on Win 11.
-2. **Execute the walking-skeleton plan** (`.../plans/2026-06-02-phase-1-walking-skeleton.md`),
-   Tasks 1→8. Recommended: subagent-driven (fresh agent per task, review between). It is TDD on the
-   persistence seam + a manual relaunch smoke.
-3. **Gate:** do not start Phase-1 feature work until the smoke run passes — type a sentence, fully
-   relaunch, the sentence persists (plan Task 8). This proves the new architectural surface end-to-end.
+1. Author Plan 2 (binder: Project → Chapters → Scenes + drag-reorder) via writing-plans skill.
+2. Execute Plan 2 task-by-task (TDD, subagent-driven per seam).
+3. **Dev note:** `npm run tauri dev` is slow on first compile (~3-4 min). Run from real terminal. Tests + typecheck are fast.
 
 ## Roadmap (Phase 1 — desktop, sequence of plans)
 
-1. **Walking skeleton** ← plan written; build first. (editor ↔ Yjs ↔ SQLite ↔ relaunch)
-2. Binder — project tree (Project → Chapters → Scenes) + "Short pieces"; drag-reorder.
-3. Story bible + scene-notes inspector (characters, locations, scene links).
+1. ~~Walking skeleton~~ ✅ DONE (editor ↔ Yjs ↔ SQLite ↔ relaunch)
+2. **Binder** — Project → Chapters → Scenes; "Short pieces"; drag-reorder. ← NEXT, plan not written
+3. Story bible + scene-notes inspector (characters, locations, links).
 4. Corkboard — draggable index cards per scene.
-5. Quick capture (notes inbox) + Goals (optional, customizable).
-6. Export — Markdown/text, .docx, PDF, clipboard; scene/chapter/manuscript granularity.
+5. Quick capture (inbox) + Goals (optional, custom).
+6. Export — Markdown/text, .docx, PDF; scene/chapter/manuscript granularity.
 7. Backup — versioned cloud snapshots (Cloudflare R2 / Backblaze B2).
 
-Plans 2–7 are not written yet — author each (writing-plans) when its turn comes, not up front.
-
-Phase 2 (deferred): mobile (React Native + TenTap) + live two-way sync (self-hosted y-sweet → same
-backup bucket). See spec §11 for the load-bearing Phase-1 decisions that keep Phase 2 from being a
-rewrite.
+Plans 2–7 written one at a time, not upfront. Phase 2 (mobile + sync) deferred — see spec §11 for load-bearing Phase-1 decisions.
 
 ## How we work
 
-- Standard development pipeline: `~/.claude/rules/development-pipeline.md` (Lane A build / Lane B fix).
-- Dispatch reflex + agent catalog apply: route exploration/implementation to subagents; orchestrator
-  classifies, sequences, reviews, synthesizes.
-- Durable decisions → `roadmap/decisions/`. Follow-ups → `roadmap/follow-ups/`. Bugs → `roadmap/bugs/`.
-- Project orientation lives in `CLAUDE.md` (repo root) — read it after this.
+- Standard pipeline: `~/.claude/rules/development-pipeline.md` (Lane A build / Lane B fix).
+- Dispatch reflex + agent catalog: orchestrator routes, sequences, reviews, synthesizes.
+- Durable decisions → `roadmap/decisions/`. Follow-ups → `roadmap/follow-ups/` (wrap-team files, gate blocks manual writes). Bugs → `roadmap/bugs/`.
+- Read `CLAUDE.md` (repo root) after this for gotchas + tech debt.
 
 ## Open questions / notes
 
-- **Product name:** still "writing" (working name = root folder). Rename when chosen.
-- **Backup trigger timing** (on-save debounce vs interval vs on-close): decide during Plan 7.
-- UI visual polish (colors/type/motion): planned for the canvas-build moment — option to route through
-  claude.ai/design (`claude-design` skill) or build inline with `frontend-design`.
+- **Editor UX gap:** no placeholder/border on launch. Add `@tiptap/extension-placeholder` + visible surface + autofocus. Small enough to patch during Plan 2 or a quick polish dispatch.
+- **Product name:** still "writing" (placeholder). Rename when chosen.
+- **Backup trigger timing** (debounce vs interval vs on-close): decide Plan 7.
+- UI polish (colors/type/motion): route through `claude-design` skill or `frontend-design` rule when canvas-ready.
