@@ -117,13 +117,13 @@ Decisions that become authoritative after a subsequent wave cites them are promo
 | Phase | Dispatched | Completed (impl + gates) | Observation point hit |
 |---|---|---|---|
 | 1 — Walking skeleton | ✅ sonnet-implementer | ✅ lint 0 / 14 tests / tsc clean; adversarial review FLAG adjudicated (computeReorder = Phase 4 scope; loadScene race fixed). Lane B fix bundle: WAL read-after-write (PRAGMA journal_mode=DELETE — tauri-plugin-sql pool+WAL snapshot isolation), StrictMode mountedRef reset, init error surfacing. | ✅ CONFIRMED (smoke): seeded tree renders (no dups), scenes click-to-open, per-scene prose persists across switching AND full relaunch. |
-| 2 — CRUD | ✅ sonnet-implementer | ✅ lint 0 / 17 tests / tsc clean. Adversarial review (single) FLAG → all 3 addressed: InlineRename Escape-cancels-not-commits guard, active-project ref set before setLoading, scene-delete reloads tree even if doc-cleanup fails. Store: rename/delete folder+scene, SceneDocStore.delete. UI: +Chapter/+Scene, inline rename, delete (chapter→Short pieces, scene→confirm). | ⏳ pending manual smoke (create/rename/delete + relaunch — user-run) |
+| 2 — CRUD | ✅ sonnet-implementer | ✅ lint 0 / 17 tests / tsc clean. Adversarial review (single) FLAG → all 3 addressed: InlineRename Escape-cancels-not-commits guard, active-project ref set before setLoading, scene-delete reloads tree even if doc-cleanup fails. Store: rename/delete folder+scene, SceneDocStore.delete. UI: +Chapter/+Scene, inline rename, delete (chapter→Short pieces, scene→confirm). | ✅ CONFIRMED (smoke): add/rename/delete all work, Enter commits + Escape cancels rename, changes persist across relaunch. Minor gap: double-click-to-edit doesn't fire (✎ button works) — logged. |
 | 3 — Project switcher | — | — | — |
 | 4 — Drag-reorder | — | — | — |
 
 ## Follow-up candidates
 
-<!-- DEFAULT: empty. -->
+- Binder UX polish (small, in-wave-able): (a) double-click-on-title to rename doesn't fire — only the ✎ button does (needs care: single-click already selects the scene); (b) "+ Chapter/+ Scene" use a browser `window.prompt` — replace with an inline create input; (c) `ShortPiecesSection` hides when empty — keep it visible as a drop target before Phase 4 drag. Plus the standing editor-affordance gap (placeholder/visible surface/autofocus) noted in HANDOFF.
 
 ## Result
 
