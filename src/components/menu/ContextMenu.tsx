@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { Icon } from "../Icon";
+import { Icon, type IconName } from "../Icon";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ export interface MenuItemAction {
   type?: never;
   label: string;
   /** Icon name from the shared Icon set. */
-  icon?: string;
+  icon?: IconName;
   /** A CSS color string rendered as a color swatch (e.g. "#ff0000"). */
   swatch?: string;
   /** Show a checkmark tick on the right side. */
@@ -73,7 +73,7 @@ function ActionItem({ item, index, openSub, onOpenSub, onClose }: ActionItemProp
       {item.swatch ? (
         <span className="swatch" style={{ background: item.swatch }} />
       ) : item.icon ? (
-        <Icon name={item.icon as Parameters<typeof Icon>[0]["name"]} className="ic" />
+        <Icon name={item.icon} className="ic" />
       ) : (
         <span style={{ width: 15 }} />
       )}

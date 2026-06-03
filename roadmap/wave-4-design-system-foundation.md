@@ -119,4 +119,25 @@ run-phase Run IDs: phase-1 = `wf_d431a5e1-4f3` (for resume).
 
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+<!-- Wrap team fills delivery summary, promoted artifacts, telemetry below. -->
+
+### Mechanical review
+
+**Inputs resolved:**
+- Plan: `roadmap/wave-4-design-system-foundation.md`
+- Diff range: `bd9838e..a1f07ba` (feat(wave-4) phases 1–4)
+- Graph: fallback (grep + import-following — small contained wave)
+- Run: 2026-06-03
+
+- **Check 1 — forward-trace:** N new symbols (Icon, menu primitives, useTheme + types). All in phases declared `Internal — no observation point`; intra-wave consumers only (ContextMenu→Icon, `menu/index.ts` barrel) + tests. No production-consumer flag for Internal phases. Cross-checked in Check 3.
+- **Check 2 — plan universals:** "src/styles verbatim" (byte-identity under wave-end adversarial verification), "no `src/` file imports `design-reference/`" (confirmed: 0 matches), "no `@fontsource-variable`" (confirmed: static per D6). No narrowed-universal gap. PASS.
+- **Check 3 — dead exports:** FLAG (non-fatal). New exports (`Icon`, `ContextMenu`, `Toast`, `RenameInput`, `useTheme` + their types) have no production consumer yet. **Addressed in writing:** this is a foundation wave — phases 2–4 are each declared `Internal — no observation point`, and Scope explicitly defers all consumption to the wave-5 shell + per-screen ports. Not a mental-model gap; a planned deferral. **Expectation on wave-5:** it MUST consume these primitives — a second consecutive consumer-less wave would be a genuine dead-export signal.
+- **Checks N/A: 4–6** (no schema property removals; no cross-boundary phases — all internal-only; no `stryker.config` in project root).
+
+#### Verdict
+
+**FLAG** — sole flag is Check 3 (new primitives consumer-less), which is the expected, plan-declared property of a foundation wave (Internal phases; consumers deferred to wave-5). Flag addressed by written justification; no structural gap. Gates green (105/105 tests, lint, tsc). Proceeds to wrap.
+
+### Wave-end adversarial review (attack-diff, single tier)
+
+PASS on verbatim integrity (tokens.css + app.css confirmed byte-identical, 152/811 lines), scope discipline (no `design-reference` imports, no screen touched), decision adherence (D3/D5/D6), edge/error paths (RenameInput guard + rgbOf short-hex confirmed), and test honesty. **One FLAG addressed:** `MenuItemAction.icon` was typed `string` with a suppressing cast at the `<Icon>` call site — tightened to `IconName` and cast removed (commit follows) so invalid icon names now fail at compile time. Re-gated green (tsc/lint/16 menu tests).
