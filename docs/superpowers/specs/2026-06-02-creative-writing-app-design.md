@@ -108,7 +108,7 @@ product).
 | Desktop shell | **Tauri 2** (Rust core + system WebView2 on Windows) | The lightweight, fast app container. |
 | Editor engine | **TipTap 3 / ProseMirror** | The actual writing canvas. Most mature option, and the only one that binds cleanly to Yjs. |
 | Document substrate | **Yjs** (one `Y.Doc` per scene) | The "unscramble-proof" (CRDT) format that lets two devices merge edits cleanly. Adopted from day one even though Phase 1 is single-device — this is the load-bearing decision that keeps Phase 2 from being a rewrite. |
-| Local storage | **SQLite** via `tauri-plugin-sql` (libSQL) | A local DB file holding structure (binder tree, cards, story-bible, goals) + each scene's Yjs update-log as a BLOB + a plaintext projection for search/word-counts. |
+| Local storage | **SQLite** via `tauri-plugin-sql` (libSQL) | A local DB file holding structure (binder tree, cards, story-bible, goals) + each scene's Yjs update-log as base64 text + a plaintext projection for search/word-counts. |
 | Backup (Phase 1) | App-driven snapshot → **Cloudflare R2** or **Backblaze B2** object storage, with object versioning ON | Off-machine, versioned, restorable backup the user owns. No server to run. |
 | Sync (Phase 2) | **Self-hosted y-sweet** (Rust, MIT) persisting to the same R2/B2 bucket | When mobile arrives: the sync server *and* the backup are the same bucket. |
 | Mobile (Phase 2) | **React Native + TenTap** (RN WebView wrapping the same TipTap/ProseMirror core) | Reuses the identical editor; binder/corkboard/bible UI re-implemented natively. |
@@ -143,7 +143,7 @@ product).
 │  SQLite (tauri-plugin-sql)                                  │
 │   • tables: projects, folders, scenes, cards,               │
 │     characters, locations, scene_links, goals               │
-│   • per-scene Yjs update-log (BLOB)                         │
+│   • per-scene Yjs update-log (base64 TEXT)                  │
 │   • plaintext projection per scene (search + word counts)   │
 └───────────────────────────┬────────────────────────────────┘
                             │ scheduled snapshot (versioned)
@@ -200,7 +200,7 @@ SQLite tables (structure + metadata):
   deadline_pace | time_minutes | streak), target, deadline (nullable), progress, period. Multiple
   goal rows allowed; all hidden from UI when `enabled` is false. (F7.)
 
-Prose text lives in the per-scene Yjs doc (stored as `scene_docs.yjs_update_log`). The plaintext
+Prose text lives in the per-scene Yjs doc (stored as `scene_docs.state_base64`). The plaintext
 projection is regenerated on save for search and word counts.
 
 ---
