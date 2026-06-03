@@ -110,13 +110,13 @@ export function useDragHandlers(args: DragHookArgs): DragCallbacks {
       binderStore
         .moveScene(sceneId, toFolderId, toIndex)
         .then(doReload)
-        .catch(logCrudError("moveScene"));
+        .catch((err) => { logCrudError("moveScene")(err); doReload(); });
     },
     onMoveFolder: (folderId, toIndex) => {
       binderStore
         .moveFolder(folderId, toIndex)
         .then(doReload)
-        .catch(logCrudError("moveFolder"));
+        .catch((err) => { logCrudError("moveFolder")(err); doReload(); });
     },
   };
 }

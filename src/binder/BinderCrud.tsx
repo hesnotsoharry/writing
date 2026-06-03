@@ -35,7 +35,7 @@ export const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const sceneBtnBase: React.CSSProperties = {
+export const sceneBtnBase: React.CSSProperties = {
   flex: 1,
   textAlign: "left",
   padding: "5px 4px 5px 28px",
