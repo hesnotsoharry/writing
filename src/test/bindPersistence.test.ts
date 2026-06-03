@@ -22,7 +22,7 @@ describe("bindPersistence", () => {
   it("debounces saves and persists the latest state", async () => {
     const store = new InMemorySceneDocStore();
     const doc = new Y.Doc();
-    const unbind = bindPersistence(doc, "scene-1", store, 500);
+    const unbind = bindPersistence(doc, "scene-1", store, { debounceMs: 500 });
 
     appendParagraph(doc, "Hello");
     appendParagraph(doc, " world");
@@ -41,7 +41,7 @@ describe("bindPersistence", () => {
   it("stops saving after unbind", async () => {
     const store = new InMemorySceneDocStore();
     const doc = new Y.Doc();
-    const unbind = bindPersistence(doc, "scene-1", store, 500);
+    const unbind = bindPersistence(doc, "scene-1", store, { debounceMs: 500 });
     unbind();
     appendParagraph(doc, "ignored");
     await vi.advanceTimersByTimeAsync(500);

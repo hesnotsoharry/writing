@@ -104,11 +104,12 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 3 | 2026-06-03 | 2026-06-03 | (this commit) | Internal — 19-case oracle green; full suite 70/70 |
 | 4 | 2026-06-03 | 2026-06-03 | (this commit) | Internal — sync acceptance 6/6 (incl. serialization maxActive=1); suite 76/76 |
 | 5 | 2026-06-03 | 2026-06-03 | (this commit) | View CRUD via RTL 3/3; live view not run this session (manual smoke at wrap); suite 79/79 |
-| 6 | — | — | — | — |
+| 6 | 2026-06-03 | 2026-06-03 | (this commit) | RTL 3/3 (SceneInspector display contract); full suite 82/82; tsc + eslint clean; live reactivity not run this session (no tauri dev) — wiring path: onSaved→linkScene→linksVersion→inspector re-read; onEntitiesChanged→rescanProject→re-read |
 
 ## Follow-up candidates
 
-_(empty — stage here only Tier-3 items that clear the AND-gate; fix everything below the bar in-wave)_
+- **App detection-wiring has no automated coverage** (behavioralCoverageGap, Phase 6): the reactivity glue in `src/App.detection.ts` (onSaved→linkScene→linksVersion; onEntitiesChanged→rescanProject) is verified only by manual smoke. An App-level integration/RTL test would need a SQLite-mocked App harness (cross-boundary setup) — cannot be cleared by a single sonnet-implementer dispatch without that harness. Core logic (matcher, sync, inspector, view CRUD) IS unit-tested.
+- **`_currentTree` module-global stale-read race** (Phase 6 reviewer FLAG_UNCERTAIN, speculative): `src/App.detection.ts` reads scene ids from a module-level `_currentTree` synced via `useEffect`; if `rescanProject` fires in the same render as a project-tree change, `listSceneIds` could read a one-render-stale tree. Single-user, self-healing on next save/rescan; chosen to satisfy `react-hooks/refs`. Consider a non-global fresh-read approach.
 
 ## Result
 

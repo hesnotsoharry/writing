@@ -1,12 +1,11 @@
 import type { MutableRefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import * as Y from "yjs";
 
-import {
-  logCrudError,
-  useCrudHandlers,
-  useDragHandlers,
-} from "./App.handlers";
+import { useDetectionWiring } from "./App.detection";
+import { useCrudHandlers, useDragHandlers } from "./App.handlers";
+import type { AppView } from "./App.state";
+import { useAppState, useProjectActions } from "./App.state";
 import { Binder } from "./binder/Binder";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { DragCallbacks } from "./binder/BinderDrag";
@@ -19,6 +18,7 @@ import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
+import { SceneInspector } from "./inspector/SceneInspector";
 import { StoryBibleView } from "./storybible/StoryBibleView";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded } from "./yjs/serialize";
@@ -29,6 +29,7 @@ interface LoadSceneCtx {
   mountedRef: MutableRefObject<boolean>;
   setDoc: (doc: Y.Doc | null) => void;
   setSelectedSceneId: (id: string | null) => void;
+  onSavedRef: MutableRefObject<((sceneId: string) => void) | undefined>;
 }
 
 const sceneDocStore = new SqliteSceneDocStore();
@@ -48,7 +49,10 @@ async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
   if (myToken !== loadTokenRef.current || !mountedRef.current) return;
 
   applyEncoded(d, stored ?? "");
-  const unbind = bindPersistence(d, sceneId, sceneDocStore, 500);
+  const unbind = bindPersistence(d, sceneId, sceneDocStore, {
+    debounceMs: 500,
+    onSaved: (id) => { ctx.onSavedRef.current?.(id); },
+  });
 
   if (myToken !== loadTokenRef.current || !mountedRef.current) {
     unbind();
@@ -110,8 +114,6 @@ function EditorPane({ doc }: { doc: Y.Doc | null }) {
   );
 }
 
-type AppView = "editor" | "bible";
-
 interface AppContentProps {
   tree: BinderTree;
   selectedSceneId: string | null;
@@ -125,6 +127,8 @@ interface AppContentProps {
   dragCallbacks: DragCallbacks;
   view: AppView;
   onToggleView: () => void;
+  linksVersion: number;
+  onEntitiesChanged: () => void;
 }
 
 const viewToggleStyle: React.CSSProperties = {
@@ -136,7 +140,7 @@ const viewToggleStyle: React.CSSProperties = {
 function AppContent({
   tree, selectedSceneId, doc, onSelectScene, callbacks,
   projects, activeProjectId, onSwitchProject, onCreateProject,
-  dragCallbacks, view, onToggleView,
+  dragCallbacks, view, onToggleView, linksVersion, onEntitiesChanged,
 }: AppContentProps) {
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
@@ -152,9 +156,21 @@ function AppContent({
         </button>
       </div>
       {view === "bible" && activeProjectId ? (
-        <StoryBibleView store={storyBibleStore} projectId={activeProjectId} />
+        <StoryBibleView
+          store={storyBibleStore}
+          projectId={activeProjectId}
+          onEntitiesChanged={onEntitiesChanged}
+        />
       ) : (
         <EditorPane doc={doc} />
+      )}
+      {view === "editor" && activeProjectId && (
+        <SceneInspector
+          store={storyBibleStore}
+          projectId={activeProjectId}
+          sceneId={selectedSceneId}
+          refreshKey={linksVersion}
+        />
       )}
     </div>
   );
@@ -167,17 +183,18 @@ interface SceneLoaderOptions {
   setLoading: (v: boolean) => void;
   setProjects: (projects: Project[]) => void;
   setActiveProjectId: (id: string | null) => void;
+  onSavedRef: MutableRefObject<((sceneId: string) => void) | undefined>;
 }
 
 function useSceneLoader(opts: SceneLoaderOptions) {
   const {
     setDoc, setSelectedSceneId, setTree, setLoading,
-    setProjects, setActiveProjectId,
+    setProjects, setActiveProjectId, onSavedRef,
   } = opts;
   const unbindRef = useRef<(() => void) | null>(null);
   const loadTokenRef = useRef(0);
   const mountedRef = useRef(true);
-  const ctx: LoadSceneCtx = { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId };
+  const ctx: LoadSceneCtx = { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId, onSavedRef };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -208,93 +225,25 @@ function useSceneLoader(opts: SceneLoaderOptions) {
   return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene };
 }
 
-async function loadProject(projectId: string): Promise<BinderTree> {
-  const { folders, scenes } = await binderStore.loadProject(projectId);
-  return buildTree(folders, scenes);
-}
-
-interface UseProjectOpts {
-  activeProjectIdRef: MutableRefObject<string | null>;
-  loadProjectTokenRef: MutableRefObject<number>;
-  setTree: (t: BinderTree) => void;
-  setProjects: (ps: Project[]) => void;
-  setActiveProjectId: (id: string | null) => void;
-  handleSelectScene: (id: string) => void;
-  clearScene: () => void;
-}
-
-function useProjectActions({
-  activeProjectIdRef, loadProjectTokenRef, setTree, setProjects,
-  setActiveProjectId, handleSelectScene, clearScene,
-}: UseProjectOpts) {
-  async function switchProject(projectId: string) {
-    if (projectId === activeProjectIdRef.current) return;
-    activeProjectIdRef.current = projectId;
-    setActiveProjectId(projectId);
-    clearScene();
-    const myToken = ++loadProjectTokenRef.current;
-    const newTree = await loadProject(projectId);
-    if (myToken !== loadProjectTokenRef.current) return;
-    setTree(newTree);
-    const first = newTree.chapters[0]?.scenes[0] ?? newTree.shortPieces[0] ?? null;
-    if (first) void handleSelectScene(first.id);
-  }
-
-  async function createProject() {
-    const title = window.prompt("Project title:", "New Project");
-    if (!title?.trim()) return;
-    const newId = await binderStore.createProject({ title: title.trim(), type: "novel" });
-    const refreshed = await binderStore.listProjects();
-    setProjects(refreshed);
-    await switchProject(newId);
-  }
-
-  return {
-    onSwitchProject: (id: string) => { switchProject(id).catch(logCrudError("switchProject")); },
-    onCreateProject: () => { createProject().catch(logCrudError("createProject")); },
-  };
-}
-
-function useAppState() {
-  const [tree, setTree] = useState<BinderTree | null>(null);
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
-  const [doc, setDoc] = useState<Y.Doc | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [view, setView] = useState<AppView>("editor");
-  const activeProjectIdRef = useRef<string | null>(null);
-  const loadProjectTokenRef = useRef(0);
-
-  function setActiveProject(id: string | null) {
-    activeProjectIdRef.current = id ?? null;
-    setActiveProjectId(id);
-  }
-
-  return {
-    tree, setTree, selectedSceneId, setSelectedSceneId,
-    doc, setDoc, loading, setLoading,
-    projects, setProjects, activeProjectId,
-    view, setView,
-    activeProjectIdRef, loadProjectTokenRef, setActiveProject,
-  };
-}
 
 export default function App() {
   const {
     tree, setTree, selectedSceneId, setSelectedSceneId,
-    doc, setDoc, loading, setLoading,
-    projects, setProjects, activeProjectId,
-    view, setView,
+    doc, setDoc, loading, setLoading, projects, setProjects,
+    activeProjectId, view, setView, linksVersion, setLinksVersion,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
   } = useAppState();
 
+  const { onSavedRef, onEntitiesChanged } = useDetectionWiring({
+    tree, activeProjectIdRef, setLinksVersion, sceneDocStore, storyBibleStore,
+  });
+
   const { handleSelectScene, clearScene } = useSceneLoader({
     setDoc, setSelectedSceneId, setTree, setLoading,
-    setProjects, setActiveProjectId: setActiveProject,
+    setProjects, setActiveProjectId: setActiveProject, onSavedRef,
   });
   const { onSwitchProject, onCreateProject } = useProjectActions({
-    activeProjectIdRef, loadProjectTokenRef,
+    binderStore, activeProjectIdRef, loadProjectTokenRef,
     setTree: setTree as (t: BinderTree) => void,
     setProjects, setActiveProjectId: setActiveProject,
     handleSelectScene, clearScene,
@@ -312,9 +261,9 @@ export default function App() {
       onSelectScene={handleSelectScene} callbacks={callbacks}
       projects={projects} activeProjectId={activeProjectId}
       onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-      dragCallbacks={dragCallbacks}
-      view={view}
+      dragCallbacks={dragCallbacks} view={view}
       onToggleView={() => setView((v) => (v === "editor" ? "bible" : "editor"))}
+      linksVersion={linksVersion} onEntitiesChanged={onEntitiesChanged}
     />
   );
 }

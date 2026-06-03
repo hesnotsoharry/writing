@@ -41,7 +41,7 @@ describe("scene plaintext projection (save path)", () => {
       "Thornfield waited to the north.",
     ]);
 
-    const unbind = bindPersistence(doc, "scene-1", store, 500);
+    const unbind = bindPersistence(doc, "scene-1", store, { debounceMs: 500 });
     // bindPersistence schedules an initial save at bind time; a real edit
     // reschedules it. Nudge a transaction to exercise the debounced path.
     doc.transact(() => {
@@ -64,7 +64,7 @@ describe("scene plaintext projection (save path)", () => {
     const store = new InMemorySceneDocStore();
     const doc = docWithParagraphs(["Only line."]);
 
-    const unbind = bindPersistence(doc, "scene-2", store, 500);
+    const unbind = bindPersistence(doc, "scene-2", store, { debounceMs: 500 });
     doc.transact(() => {
       const frag = doc.getXmlFragment("content");
       const p = frag.firstChild as Y.XmlElement;

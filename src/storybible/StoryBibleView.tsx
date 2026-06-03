@@ -243,13 +243,14 @@ function EntitySection({ title, entities, type, addPlaceholder, addLabel, store,
 interface StoryBibleViewProps {
   store: StoryBibleStore;
   projectId: string;
+  onEntitiesChanged?: () => void;
 }
 
 async function fetchLists(store: StoryBibleStore, projectId: string) {
   return Promise.all([store.listCharacters(projectId), store.listLocations(projectId)]);
 }
 
-export function StoryBibleView({ store, projectId }: StoryBibleViewProps) {
+export function StoryBibleView({ store, projectId, onEntitiesChanged }: StoryBibleViewProps) {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -270,6 +271,7 @@ export function StoryBibleView({ store, projectId }: StoryBibleViewProps) {
       setCharacters(chars);
       setLocations(locs);
       setRefreshVersion((v) => v + 1);
+      onEntitiesChanged?.();
     }).catch((e: unknown) => console.error("[StoryBibleView] refresh failed", e));
   }
 

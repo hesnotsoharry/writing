@@ -16,7 +16,7 @@ describe("walking-skeleton seam", () => {
     // --- Session 1: open, hydrate (empty), bind, write, let it persist ---
     const docA = new Y.Doc();
     applyEncoded(docA, (await store.load(SCENE)) ?? "");
-    const unbindA = bindPersistence(docA, SCENE, store, 500);
+    const unbindA = bindPersistence(docA, SCENE, store, { debounceMs: 500 });
     const frag = docA.getXmlFragment("content");
     const p = new Y.XmlElement("paragraph");
     const t = new Y.XmlText();

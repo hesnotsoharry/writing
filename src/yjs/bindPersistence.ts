@@ -3,6 +3,11 @@ import * as Y from "yjs";
 import type { SceneDocStore } from "../db/sceneDocStore";
 import { encodeDoc, extractPlainText } from "./serialize";
 
+export interface BindPersistenceOpts {
+  debounceMs?: number;
+  onSaved?: (sceneId: string) => void;
+}
+
 /**
  * Subscribe to a Y.Doc and persist its full state to `store`, debounced.
  * Returns an unbind function that detaches the listener and cancels any
@@ -12,8 +17,9 @@ export function bindPersistence(
   doc: Y.Doc,
   sceneId: string,
   store: SceneDocStore,
-  debounceMs = 500
+  opts: BindPersistenceOpts = {}
 ): () => void {
+  const { debounceMs = 500, onSaved } = opts;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const scheduleSave = () => {
@@ -21,7 +27,8 @@ export function bindPersistence(
     timer = setTimeout(() => {
       timer = null;
       const text = extractPlainText(doc);
-      void store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null);
+      void store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null)
+        .then(() => { onSaved?.(sceneId); });
     }, debounceMs);
   };
 
