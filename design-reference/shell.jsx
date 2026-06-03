@@ -1,0 +1,189 @@
+/* AppShell — layout + context-menu construction + overlays. */
+
+function LeafPage({ scene }) {
+  const meta = STATUS_META[scene.status];
+  return (
+    <div className="leaf-page">
+      <div className="scene-eyebrow">
+        <span>{scene.chapterTitle}</span>
+        <span className="sep"></span>
+        <span style={{ color: meta.dot === "var(--ink-4)" ? "var(--ink-3)" : meta.dot }}>{meta.label}</span>
+      </div>
+      <h1 className="scene-h1">{scene.title}</h1>
+      <div className="scene-byline"><span>{(scene.words || 0).toLocaleString()} words</span></div>
+      <div className="prose">{proseFor(scene).slice(0, 6).map((para, i) => <p key={i}>{para}</p>)}</div>
+    </div>
+  );
+}
+
+function AppShell(p) {
+  const { t, setTweak, view, setView, tree, scene, activeId, setActiveId, focus, setFocus,
+    overlay, setOverlay, goalsOn, setGoalsOn, quickNotes, chars, locs, menu, setMenu, toast, setToast,
+    renaming, setRenaming, archived, projMeta, sessionWords, sessionTarget, actions } = p;
+
+  const at = (e) => ({ x: e.clientX, y: e.clientY });
+
+  function openStatus(e, sc) {
+    setMenu({ ...at(e), items: [
+      { type: "label", text: "Set status" },
+      ...STATUS_ORDER.map(k => ({ swatch: STATUS_META[k].dot, label: STATUS_META[k].label, tick: sc.status === k, onClick: () => actions.setStatus(sc.id, k) })),
+    ] });
+  }
+
+  function openMenu(e, kind, payload) {
+    e.preventDefault(); e.stopPropagation();
+    if (kind === "chapter") {
+      const ch = payload.chapter;
+      setMenu({ ...at(e), items: [
+        { icon: "edit", label: "Rename chapter", onClick: () => setRenaming(ch.id) },
+        { icon: "plus", label: "New scene", onClick: () => actions.addSceneTo(ch.id) },
+        { type: "sep" },
+        { icon: "download", label: "Export chapter…", onClick: () => setOverlay("export") },
+        { icon: "archive", label: "Archive chapter", onClick: () => actions.archiveChap(ch.id) },
+        { type: "sep" },
+        { icon: "trash", label: "Delete chapter", danger: true, onClick: () => actions.deleteChap(ch.id) },
+      ] });
+      return;
+    }
+    const sc = payload.scene;
+    setMenu({ ...at(e), items: [
+      { icon: "edit", label: "Rename", onClick: () => setRenaming(sc.id) },
+      { icon: "target", label: "Set status", submenu: STATUS_ORDER.map(k => ({ swatch: STATUS_META[k].dot, label: STATUS_META[k].label, tick: sc.status === k, onClick: () => actions.setStatus(sc.id, k) })) },
+      { icon: "copy", label: "Duplicate", onClick: () => actions.dupScene(sc.id) },
+      { icon: "download", label: "Export scene…", onClick: () => setOverlay("export") },
+      { type: "sep" },
+      { icon: "archive", label: "Archive", onClick: () => actions.archiveScene(sc.id) },
+      { icon: "trash", label: "Delete", danger: true, onClick: () => actions.deleteScene(sc.id) },
+    ] });
+  }
+
+  function openEntityMenu(e, entity, kind) {
+    e.preventDefault(); e.stopPropagation();
+    setMenu({ ...at(e), items: [
+      { icon: "edit", label: "Edit name", onClick: () => setRenaming(entity.id) },
+      { icon: "fileText", label: "Open full entry", onClick: () => {} },
+      { type: "sep" },
+      { icon: "trash", label: "Delete " + kind.toLowerCase(), danger: true, onClick: () => actions.deleteEntity(kind, entity.id) },
+    ] });
+  }
+
+  const binderHandlers = {
+    onSelect: setActiveId, onRename: actions.rename, setRenaming, onMenu: openMenu, onStatus: openStatus,
+    onAddChapter: actions.addChap, onAddScene: actions.addSceneTo,
+    onSwitchProject: actions.switchProject, onNewProject: actions.newProject,
+  };
+  const corkHandlers = {
+    onOpenScene: id => { setActiveId(id); setView("write"); }, onMenu: openMenu, onStatus: openStatus,
+    onRename: actions.rename, setRenaming,
+  };
+  const bibleHandlers = {
+    onEntityMenu: openEntityMenu, onRenameEntity: actions.renameEntity, setRenaming, onAddEntity: actions.addEntity,
+  };
+
+  // Page-flip: when the open scene changes (and motion is on), turn a paper leaf.
+  const prevSceneRef = React.useRef(activeId);
+  const flipNum = React.useRef(0);
+  const [flip, setFlip] = React.useState(null); // { key, dir } | null
+  React.useEffect(() => {
+    if (prevSceneRef.current === activeId) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const order = Object.keys(p.scenes);
+    const dir = order.indexOf(activeId) < order.indexOf(prevSceneRef.current) ? "back" : "fwd";
+    const outgoing = p.scenes[prevSceneRef.current];
+    prevSceneRef.current = activeId;
+    if (t.motion && !reduce && view === "write") {
+      const key = ++flipNum.current;
+      setFlip({ key, dir, scene: outgoing });
+      const id = setTimeout(() => setFlip(f => (f && f.key === key ? null : f)), 1250);
+      return () => clearTimeout(id);
+    }
+  }, [activeId]);
+
+  return (
+    <div className={"win" + (t.motion ? " anim" : "")}>
+      {!focus && (
+        <TitleBar view={view} setView={setView} projectTitle={projMeta.title}
+          openQuick={() => setOverlay("quick")} openExport={() => setOverlay("export")}
+          enterFocus={() => setFocus(true)} toggleGoals={() => setOverlay("goals")}
+          openSettings={() => setOverlay("settings")}
+          goalsOn={goalsOn} quickCount={quickNotes.length} />
+      )}
+
+      <div className="body">
+        {!focus && view === "write" && (
+          <Binder tree={tree} activeId={activeId} renaming={renaming} projects={PROJECTS}
+            activeProject={projMeta.id} handlers={binderHandlers}
+            quickCount={quickNotes.length} openInbox={() => setOverlay("inbox")}
+            archivedCount={archived.length} openArchive={() => setOverlay("archive")} />
+        )}
+
+        <div className="center">
+          {focus && (
+            <div className="focus-exit">
+              <span className="kbd">⌘.</span>
+              <button className="btn btn-ghost" style={{ background: "var(--parchment)" }} onClick={() => setFocus(false)}>
+                <Icon name="focus" className="ic" /> Exit focus
+              </button>
+            </div>
+          )}
+          <div className="view-stage" key={view}>
+            {view === "write" && scene && <Canvas key={activeId} scene={{ ...scene, ...(p.scenes[activeId] || {}) }} onStatus={openStatus} />}
+            {view === "write" && !scene && <div style={{ margin: "auto", color: "var(--ink-4)", fontFamily: "var(--font-prose)", fontStyle: "italic" }}>Select a scene to start writing.</div>}
+            {view === "cork" && <Corkboard tree={tree} handlers={corkHandlers} renaming={renaming} />}
+            {view === "bible" && <StoryBible chars={chars} locs={locs} handlers={bibleHandlers} renaming={renaming} />}
+          </div>
+          {view === "write" && flip && (
+            <div className={"page-turn-layer " + flip.dir} key={flip.key}
+              onAnimationEnd={() => setFlip(f => (f && f.key === flip.key ? null : f))}>
+              <div className="page-turn-cast"></div>
+              <div className="page-leaf">
+                <div className="face front">
+                  {flip.scene && <LeafPage scene={flip.scene} />}
+                  <div className="leaf-shade"></div>
+                </div>
+                <div className="face back"></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {!focus && view === "write" && scene && (
+          <Inspector scene={p.scenes[activeId] || scene} allChars={chars} allLocs={locs}
+            goalsOn={goalsOn} sessionWords={sessionWords} sessionTarget={sessionTarget} />
+        )}
+      </div>
+
+      {!focus && (
+        <StatusBar sceneWords={scene ? scene.words : 0} projectWords={projMeta.words} target={projMeta.target || 80000}
+          goalsOn={goalsOn} sessionWords={sessionWords} sessionTarget={sessionTarget} />
+      )}
+
+      {overlay === "quick" && <QuickCapture onClose={() => setOverlay(null)} onSave={actions.saveNote} />}
+      {overlay === "inbox" && <Inbox notes={quickNotes} onClose={() => setOverlay(null)} onEdit={actions.editNote} onPromote={actions.promoteNote} onDelete={actions.deleteNote} />}
+      {overlay === "archive" && <Archive items={archived} onClose={() => setOverlay(null)} onRestore={actions.restoreItem} onPurge={actions.purgeItem} />}
+      {overlay === "export" && <Export onClose={() => setOverlay(null)} />}
+      {overlay === "goals" && <Goals enabled={goalsOn} onToggle={() => { const v = !goalsOn; setGoalsOn(v); setTweak("goalsOn", v); }} onClose={() => setOverlay(null)} />}
+      {overlay === "settings" && <Settings t={t} setTweak={setTweak} onClose={() => setOverlay(null)}
+        onOpenGoals={() => setOverlay("goals")} onToast={(label) => setToast({ label })} />}
+
+      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      <Toast toast={toast} onUndo={() => { toast._restore && toast._restore(); setToast(null); }} onClose={() => setToast(null)} />
+
+      <TweaksPanel>
+        <TweakSection label="Theme" />
+        <TweakRadio label="Mode" value={t.theme} options={["light", "dark"]} onChange={v => setTweak("theme", v)} />
+        <TweakColor label="Accent" value={t.accent}
+          options={[["#b25a38","#99492b","#f1e2d8"], ["#3f6f9e","#315e89","#dde7f1"], ["#4e7c6b","#3c6354","#dfe9e3"], ["#7a5c8e","#634a74","#e8e0ee"]]}
+          onChange={v => setTweak("accent", v)} />
+        <TweakSection label="Writing canvas" />
+        <TweakSelect label="Prose font" value={t.proseFont} options={["Literata", "Newsreader", "Source Serif", "iA Mono"]} onChange={v => setTweak("proseFont", v)} />
+        <TweakSlider label="Prose size" value={t.proseSize} min={16} max={24} unit="px" onChange={v => setTweak("proseSize", v)} />
+        <TweakSection label="Features" />
+        <TweakToggle label="Goals enabled" value={goalsOn} onChange={v => { setGoalsOn(v); setTweak("goalsOn", v); }} />
+        <TweakToggle label="Page animations" value={t.motion} onChange={v => setTweak("motion", v)} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+window.AppShell = AppShell;

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Writers Nook — design tokens & components</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  body { margin: 0; font-family: var(--font-ui); color: var(--ink); background: var(--parchment); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 56px 40px 120px; }
+  .doc-head { margin-bottom: 48px; }
+  .doc-kicker { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  .doc-kicker svg { width: 20px; height: 20px; }
+  h1.doc-title { font-family: var(--font-prose); font-size: 44px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 12px; }
+  .doc-lede { font-family: var(--font-prose); font-size: 18px; line-height: 1.6; color: var(--ink-2); max-width: 60ch; font-style: italic; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .meta-pill { font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--paper); border: 1px solid var(--parchment-edge); border-radius: 999px; padding: 6px 13px; }
+
+  section { margin-top: 56px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 22px; padding-bottom: 12px; border-bottom: 1px solid var(--parchment-edge); }
+  .sec-num { font-family: var(--font-mono); font-size: 13px; color: var(--accent); font-weight: 500; }
+  .sec-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .sec-note { margin-left: auto; font-size: 12.5px; color: var(--ink-3); }
+
+  .grid { display: grid; gap: 14px; }
+  .card { background: var(--paper); border: 1px solid var(--parchment-edge); border-radius: 12px; padding: 18px; }
+
+  /* color swatches */
+  .swatches { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .sw { border: 1px solid var(--parchment-edge); border-radius: 10px; overflow: hidden; background: var(--paper); }
+  .sw .chip { height: 64px; }
+  .sw .info { padding: 10px 12px; }
+  .sw .nm { font-size: 12.5px; font-weight: 600; }
+  .sw .vr { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+  .sw .hx { font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); }
+
+  /* type specimens */
+  .type-row { display: flex; align-items: baseline; gap: 20px; padding: 14px 0; border-bottom: 1px dashed var(--line); }
+  .type-row:last-child { border-bottom: none; }
+  .type-label { width: 150px; flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+  .type-label b { display: block; font-family: var(--font-ui); font-size: 12px; color: var(--ink-2); font-weight: 600; margin-bottom: 2px; }
+  .type-sample { flex: 1; color: var(--ink); }
+
+  /* spacing/radius */
+  .scale-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .scale-item { text-align: center; }
+  .scale-box { background: var(--accent-wash); border: 1px solid var(--accent-ring); border-radius: 4px; margin: 0 auto 8px; }
+  .scale-nm { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); }
+  .scale-px { font-size: 11px; color: var(--ink-4); }
+  .radius-box { background: var(--accent); height: 56px; }
+  .shadow-box { background: var(--paper); height: 64px; border-radius: 10px; }
+
+  /* component previews */
+  .comp-grid { grid-template-columns: 1fr 1fr; }
+  .comp-card { background: var(--paper); border: 1px solid var(--parchment-edge); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+  .comp-card .lbl { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; padding: 8px 15px; border-radius: 8px; border: none; cursor: pointer; font-family: inherit; }
+  .btn.p { background: var(--accent); color: #fff; }
+  .btn.s { background: var(--accent-tint); color: var(--accent-deep); }
+  .btn.g { background: transparent; color: var(--ink-2); }
+  .chip2 { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+  .chip2.ch { background: var(--character-tint); color: var(--character); }
+  .chip2.lo { background: var(--location-tint); color: var(--location); }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .avatar.ch { background: var(--character-tint); color: var(--character); }
+  .avatar.lo { background: var(--location-tint); color: var(--location); border-radius: 8px; }
+  .toggle { width: 38px; height: 22px; border-radius: 999px; background: var(--accent); position: relative; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+  .input-demo { border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 12px; font-size: 14px; color: var(--ink-2); background: var(--paper); }
+  .scene-demo { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 6px; background: var(--accent-tint); position: relative; }
+  .scene-demo::before { content: ""; position: absolute; left: 3px; top: 6px; bottom: 6px; width: 3px; border-radius: 3px; background: var(--accent); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .principle { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px dashed var(--line); }
+  .principle:last-child { border-bottom: none; }
+  .principle .n { font-family: var(--font-prose); font-size: 26px; color: var(--accent); font-weight: 600; line-height: 1; width: 40px; flex: none; }
+  .principle .t b { font-size: 14px; font-weight: 700; }
+  .principle .t p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+  .mono { font-family: var(--font-mono); font-size: 12px; }
+  .toplink { position: fixed; top: 18px; right: 22px; font-size: 12.5px; font-weight: 600; color: var(--accent-deep); background: var(--paper); border: 1px solid var(--parchment-edge); border-radius: 999px; padding: 8px 16px; text-decoration: none; box-shadow: var(--shadow-sm); }
+</style>
+</head>
+<body>
+<a class="toplink" href="index.html">← Open the app ↗</a>
+<div class="wrap">
+  <div class="doc-head">
+    <div class="doc-kicker">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+      Writers Nook · design canon
+    </div>
+    <h1 class="doc-title">Quiet Study</h1>
+    <p class="doc-lede">The canonical design layer for a calm, local-first writing app. Scrivener's ownership and Dabble's fluid calm — minus the intimidation. Every token below is defined in <span class="mono">tokens.css</span>; drop it in and build against the variables.</p>
+    <div class="meta-row">
+      <span class="meta-pill">Light + dark</span>
+      <span class="meta-pill">Literata · Hanken Grotesk</span>
+      <span class="meta-pill">Themeable accent</span>
+      <span class="meta-pill">4px spacing base</span>
+      <span class="meta-pill">tokens.css → source of truth</span>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><span class="sec-title">Color</span><span class="sec-note">Warm neutral ramp + clay accent. Dark theme under <span class="mono">[data-theme="dark"]</span>.</span></div>
+    <div class="grid swatches" id="swatch-grid"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><span class="sec-title">Typography</span><span class="sec-note">Serif for prose, humanist sans for chrome.</span></div>
+    <div class="card">
+      <div class="type-row"><div class="type-label"><b>Display / prose H1</b>Literata 600 · 34px</div><div class="type-sample" style="font-family:var(--font-prose);font-size:34px;font-weight:600;letter-spacing:-0.01em">The Causeway</div></div>
+      <div class="type-row"><div class="type-label"><b>Prose body</b>Literata 400 · 19px / 1.75</div><div class="type-sample" style="font-family:var(--font-prose);font-size:19px;line-height:1.6">The ferry came in low against the morning, its one good engine coughing as she stepped onto the causeway.</div></div>
+      <div class="type-row"><div class="type-label"><b>Synopsis / italic</b>Literata 400 italic · 15px</div><div class="type-sample" style="font-family:var(--font-prose);font-size:15px;font-style:italic;color:var(--ink-2)">Maren returns to Thornwick three weeks after Edda's death.</div></div>
+      <div class="type-row"><div class="type-label"><b>UI heading</b>Hanken Grotesk 700 · 20px</div><div class="type-sample" style="font-size:20px;font-weight:700">Story bible</div></div>
+      <div class="type-row"><div class="type-label"><b>UI body / labels</b>Hanken Grotesk 500 · 14px</div><div class="type-sample" style="font-size:14px;font-weight:500">An Empty Lighthouse · 2,210 words</div></div>
+      <div class="type-row"><div class="type-label"><b>Eyebrow / caps</b>Hanken 700 · 12px · 0.07em</div><div class="type-sample" style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--ink-3)">Characters in scene</div></div>
+      <div class="type-row"><div class="type-label"><b>Mono / counts</b>IBM Plex Mono · 12px</div><div class="type-sample mono" style="font-size:13px;color:var(--ink-2)">41,280 / 80,000 words</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><span class="sec-title">Spacing &amp; radius</span><span class="sec-note">4px base. Calm, soft corners.</span></div>
+    <div class="card" style="margin-bottom:14px"><div class="grid scale-grid" id="space-grid"></div></div>
+    <div class="card"><div class="grid scale-grid" id="radius-grid"></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><span class="sec-title">Elevation</span><span class="sec-note">Low, warm shadows — paper lifting off paper.</span></div>
+    <div class="card"><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))" id="shadow-grid"></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><span class="sec-title">Components</span><span class="sec-note">The recurring pieces, in canon.</span></div>
+    <div class="grid comp-grid">
+      <div class="comp-card"><span class="lbl">Buttons</span><div class="row"><button class="btn p">Export</button><button class="btn s">Capture</button><button class="btn g">Cancel</button></div></div>
+      <div class="comp-card"><span class="lbl">Entity chips &amp; avatars</span><div class="row"><span class="chip2 ch">Maren</span><span class="chip2 lo">Lighthouse</span><div class="avatar ch">M</div><div class="avatar lo">L</div></div></div>
+      <div class="comp-card"><span class="lbl">Scene row (active)</span><div class="scene-demo"><span class="dot" style="background:var(--accent)"></span><span style="font-size:13px;font-weight:500">The Causeway</span><span class="mono" style="margin-left:auto;font-size:10px;color:var(--ink-4)">1,840</span></div></div>
+      <div class="comp-card"><span class="lbl">Status dots</span><div class="row" style="gap:18px"><span class="row" style="gap:6px"><span class="dot" style="background:var(--ink-4)"></span><span style="font-size:12px">To write</span></span><span class="row" style="gap:6px"><span class="dot" style="background:var(--note)"></span><span style="font-size:12px">Outlined</span></span><span class="row" style="gap:6px"><span class="dot" style="background:var(--accent)"></span><span style="font-size:12px">Drafted</span></span><span class="row" style="gap:6px"><span class="dot" style="background:var(--location)"></span><span style="font-size:12px">Revising</span></span></div></div>
+      <div class="comp-card"><span class="lbl">Input &amp; toggle</span><div class="row"><div class="input-demo" style="flex:1">500</div><div class="toggle"></div></div></div>
+      <div class="comp-card"><span class="lbl">Synopsis well</span><div style="font-family:var(--font-prose);font-style:italic;font-size:14px;line-height:1.5;color:var(--ink-2);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:11px 12px">The keeper's rooms, exactly as left.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><span class="sec-title">Principles</span><span class="sec-note">What "calm" means in practice.</span></div>
+    <div class="card">
+      <div class="principle"><div class="n">1</div><div class="t"><b>The page is the hero.</b><p>Chrome is quiet parchment; the canvas is the brightest surface. Generous margins, a 38rem measure, serif body. Nothing competes with the words.</p></div></div>
+      <div class="principle"><div class="n">2</div><div class="t"><b>Everything in reach, nothing shouting.</b><p>Binder left, inspector right, both dismissible. Actions are icon-quiet until hovered. One restrained accent carries selection, primary action, and goal progress.</p></div></div>
+      <div class="principle"><div class="n">3</div><div class="t"><b>Forgiving by default.</b><p>Goals are off until asked for. Deleting a chapter never loses prose. Quick capture never loses your place. Backup status sits calm in the status bar.</p></div></div>
+      <div class="principle"><div class="n">4</div><div class="t"><b>Warm, not clinical.</b><p>Paper whites over pure white, ink over black, clay over blue. A literary tool should feel like a good notebook, not a control panel.</p></div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const COLORS = [
+    ["Paper", "--paper", "the writing surface"],
+    ["Parchment", "--parchment", "app chrome"],
+    ["Parchment deep", "--parchment-deep", "wells / hover"],
+    ["Parchment edge", "--parchment-edge", "warm hairline"],
+    ["Ink", "--ink", "primary text"],
+    ["Ink 2", "--ink-2", "secondary"],
+    ["Ink 3", "--ink-3", "metadata"],
+    ["Ink 4", "--ink-4", "faint"],
+    ["Line", "--line", "hairline on paper"],
+    ["Accent", "--accent", "clay · primary"],
+    ["Accent deep", "--accent-deep", "pressed"],
+    ["Accent tint", "--accent-tint", "active row fill"],
+    ["Character", "--character", "story-bible people"],
+    ["Location", "--location", "story-bible places"],
+    ["Note", "--note", "misc / ochre"],
+    ["Good", "--good", "backup OK"],
+  ];
+  const css = getComputedStyle(document.documentElement);
+  const resolve = v => css.getPropertyValue(v).trim();
+  document.getElementById("swatch-grid").innerHTML = COLORS.map(([nm, v, d]) => `
+    <div class="sw"><div class="chip" style="background:var(${v})"></div>
+    <div class="info"><div class="nm">${nm}</div><div class="vr">var(${v})</div><div class="hx">${resolve(v)}</div></div></div>`).join("");
+
+  const SPACE = [["s-1",4],["s-2",8],["s-3",12],["s-4",16],["s-5",20],["s-6",24],["s-8",32],["s-10",40]];
+  document.getElementById("space-grid").innerHTML = SPACE.map(([n,px]) => `
+    <div class="scale-item"><div class="scale-box" style="width:${px}px;height:${px}px"></div><div class="scale-nm">--${n}</div><div class="scale-px">${px}px</div></div>`).join("");
+
+  const RADII = [["r-xs",4],["r-sm",6],["r-md",8],["r-lg",12],["r-xl",16],["r-pill","999"]];
+  document.getElementById("radius-grid").innerHTML = RADII.map(([n,px]) => `
+    <div class="scale-item"><div class="radius-box" style="border-radius:var(--${n})"></div><div class="scale-nm" style="margin-top:8px">--${n}</div><div class="scale-px">${px==="999"?"pill":px+"px"}</div></div>`).join("");
+
+  const SHADOWS = [["shadow-xs","subtle"],["shadow-sm","cards"],["shadow-md","popovers"],["shadow-lg","dialogs"]];
+  document.getElementById("shadow-grid").innerHTML = SHADOWS.map(([n,d]) => `
+    <div class="scale-item"><div class="shadow-box" style="box-shadow:var(--${n})"></div><div class="scale-nm" style="margin-top:10px">--${n}</div><div class="scale-px">${d}</div></div>`).join("");
+</script>
+</body>
+</html>
