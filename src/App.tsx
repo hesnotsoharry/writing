@@ -2,8 +2,14 @@ import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import {
+  logCrudError,
+  useCrudHandlers,
+  useDragHandlers,
+} from "./App.handlers";
 import { Binder } from "./binder/Binder";
 import type { BinderCallbacks } from "./binder/BinderCrud";
+import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
 import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
@@ -48,11 +54,6 @@ async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
   unbindRef.current = unbind;
   setSelectedSceneId(sceneId);
   setDoc(d);
-}
-
-async function reloadTree(projectId: string, setTree: (t: BinderTree) => void) {
-  const { folders, scenes } = await binderStore.loadProject(projectId);
-  setTree(buildTree(folders, scenes));
 }
 
 interface InitProjectTreeOpts {
@@ -116,11 +117,13 @@ interface AppContentProps {
   activeProjectId: string | null;
   onSwitchProject: (projectId: string) => void;
   onCreateProject: () => void;
+  dragCallbacks: DragCallbacks;
 }
 
 function AppContent({
   tree, selectedSceneId, doc, onSelectScene, callbacks,
   projects, activeProjectId, onSwitchProject, onCreateProject,
+  dragCallbacks,
 }: AppContentProps) {
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
@@ -133,6 +136,7 @@ function AppContent({
         activeProjectId={activeProjectId}
         onSwitchProject={onSwitchProject}
         onCreateProject={onCreateProject}
+        dragCallbacks={dragCallbacks}
       />
       <EditorPane doc={doc} />
     </div>
@@ -161,7 +165,6 @@ function useSceneLoader(opts: SceneLoaderOptions) {
   useEffect(() => {
     mountedRef.current = true;
     const cancelled = { value: false };
-    // Restore mountedRef on every (re)mount — StrictMode does mount→cleanup→remount.
     initializeProjectTree({
       cancelled, setTree, setLoading,
       loadSceneFn: (id) => loadScene(id, ctx),
@@ -171,7 +174,6 @@ function useSceneLoader(opts: SceneLoaderOptions) {
     return () => {
       cancelled.value = true;
       mountedRef.current = false;
-      // Snapshot at cleanup time to satisfy react-hooks/exhaustive-deps.
       const unbind = unbindRef.current;
       unbind?.();
     };
@@ -189,65 +191,6 @@ function useSceneLoader(opts: SceneLoaderOptions) {
   return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene };
 }
 
-function logCrudError(op: string) {
-  return (e: unknown) => console.error(`[crud] ${op}`, e);
-}
-
-function makeCrudHandlers(
-  getProjectId: () => string,
-  doReload: () => Promise<void>,
-  selectedSceneId: string | null,
-  clearScene: () => void
-): BinderCallbacks {
-  return {
-    onCreateChapter: () => {
-      const title = window.prompt("Chapter title:", "New Chapter");
-      if (!title?.trim()) return;
-      binderStore.createFolder({ projectId: getProjectId(), title: title.trim() })
-        .then(doReload).catch(logCrudError("createFolder"));
-    },
-    onCreateScene: (folderId) => {
-      const title = window.prompt("Scene title:", "New Scene");
-      if (!title?.trim()) return;
-      binderStore.createScene({ projectId: getProjectId(), folderId, title: title.trim() })
-        .then(doReload).catch(logCrudError("createScene"));
-    },
-    onRenameFolder: (id, title) => {
-      binderStore.renameFolder(id, title).then(doReload).catch(logCrudError("renameFolder"));
-    },
-    onRenameScene: (id, title) => {
-      binderStore.renameScene(id, title).then(doReload).catch(logCrudError("renameScene"));
-    },
-    onDeleteChapter: (id) => {
-      binderStore.deleteFolder(id).then(doReload).catch(logCrudError("deleteFolder"));
-    },
-    onDeleteScene: (id) => {
-      if (id === selectedSceneId) clearScene();
-      binderStore.deleteScene(id)
-        .then(() => sceneDocStore.delete(id).catch(logCrudError("deleteScene:docCleanup")))
-        .then(doReload)
-        .catch(logCrudError("deleteScene"));
-    },
-  };
-}
-
-function useCrudHandlers(
-  activeProjectIdRef: MutableRefObject<string | null>,
-  setTree: (t: BinderTree | null) => void,
-  selectedSceneId: string | null,
-  clearScene: () => void
-): BinderCallbacks {
-  function getProjectId() {
-    const id = activeProjectIdRef.current;
-    if (!id) throw new Error("No active project");
-    return id;
-  }
-  async function doReload() {
-    await reloadTree(getProjectId(), setTree as (t: BinderTree) => void);
-  }
-  return makeCrudHandlers(getProjectId, doReload, selectedSceneId, clearScene);
-}
-
 async function loadProject(projectId: string): Promise<BinderTree> {
   const { folders, scenes } = await binderStore.loadProject(projectId);
   return buildTree(folders, scenes);
@@ -263,7 +206,6 @@ interface UseProjectOpts {
   clearScene: () => void;
 }
 
-/** Encapsulates switch + create so App() stays under the 40-line limit. */
 function useProjectActions({
   activeProjectIdRef, loadProjectTokenRef, setTree, setProjects,
   setActiveProjectId, handleSelectScene, clearScene,
@@ -321,7 +263,10 @@ export default function App() {
     setProjects, setActiveProjectId: setActiveProject,
     handleSelectScene, clearScene,
   });
-  const callbacks = useCrudHandlers(activeProjectIdRef, setTree, selectedSceneId, clearScene);
+  const callbacks = useCrudHandlers({
+    binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene,
+  });
+  const dragCallbacks = useDragHandlers({ binderStore, activeProjectIdRef, setTree });
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
@@ -331,6 +276,7 @@ export default function App() {
       onSelectScene={handleSelectScene} callbacks={callbacks}
       projects={projects} activeProjectId={activeProjectId}
       onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
+      dragCallbacks={dragCallbacks}
     />
   );
 }

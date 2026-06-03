@@ -1,6 +1,15 @@
 import type { Project, Scene } from "../db/binderStore";
 import type { BinderCallbacks } from "./BinderCrud";
 import { ChapterHeader, SceneRow } from "./BinderCrud";
+import type { DragCallbacks, ItemsMap } from "./BinderDrag";
+import {
+  BinderDragProvider,
+  CHAPTERS_GROUP,
+  SHORT_PIECES_GROUP,
+  useDroppableContainer,
+  useSortableChapter,
+  useSortableScene,
+} from "./BinderDrag";
 import type { BinderTree } from "./buildTree";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
@@ -18,44 +27,124 @@ interface BinderProps extends BinderContentProps {
   activeProjectId: string | null;
   onSwitchProject: (projectId: string) => void;
   onCreateProject: () => void;
+  dragCallbacks: DragCallbacks;
 }
 
 // ---------------------------------------------------------------------------
-// Chapter section
+// DraggableScene
 // ---------------------------------------------------------------------------
 
-function ChapterSection({
+function DraggableScene({
+  scene,
+  index,
+  group,
+  selectedSceneId,
+  onSelectScene,
+  callbacks,
+}: {
+  scene: Scene;
+  index: number;
+  group: string;
+  selectedSceneId: string | null;
+  onSelectScene: (sceneId: string) => void;
+  callbacks: BinderCallbacks;
+}) {
+  const { ref, isDragging } = useSortableScene(scene.id, index, group);
+  return (
+    <div
+      ref={ref}
+      style={{ opacity: isDragging ? 0.4 : 1, touchAction: "none" }}
+    >
+      <SceneRow
+        scene={scene}
+        isSelected={scene.id === selectedSceneId}
+        onSelect={() => onSelectScene(scene.id)}
+        onRenameScene={callbacks.onRenameScene}
+        onDeleteScene={callbacks.onDeleteScene}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DroppableSceneList — registers container + renders sortable children
+// ---------------------------------------------------------------------------
+
+function DroppableSceneList({
+  groupId,
+  scenes,
+  selectedSceneId,
+  onSelectScene,
+  callbacks,
+}: {
+  groupId: string;
+  scenes: Scene[];
+  selectedSceneId: string | null;
+  onSelectScene: (sceneId: string) => void;
+  callbacks: BinderCallbacks;
+}) {
+  const { ref: dropRef } = useDroppableContainer(groupId);
+  return (
+    <ul
+      ref={dropRef}
+      style={{ listStyle: "none", margin: 0, padding: 0, minHeight: 8 }}
+    >
+      {scenes.map((scene, i) => (
+        <DraggableScene
+          key={scene.id}
+          scene={scene}
+          index={i}
+          group={groupId}
+          selectedSceneId={selectedSceneId}
+          onSelectScene={onSelectScene}
+          callbacks={callbacks}
+        />
+      ))}
+    </ul>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DraggableChapterSection
+// ---------------------------------------------------------------------------
+
+function DraggableChapterSection({
   chapter,
+  chapterIndex,
   selectedSceneId,
   onSelectScene,
   callbacks,
 }: {
   chapter: BinderTree["chapters"][0];
+  chapterIndex: number;
   selectedSceneId: string | null;
   onSelectScene: (sceneId: string) => void;
   callbacks: BinderCallbacks;
 }) {
+  const { ref, isDragging } = useSortableChapter(
+    chapter.folder.id,
+    chapterIndex
+  );
+  const group = chapter.folder.id;
   return (
-    <section style={{ marginBottom: 8 }}>
+    <section
+      ref={ref}
+      style={{ marginBottom: 8, opacity: isDragging ? 0.4 : 1, touchAction: "none" }}
+    >
       <ChapterHeader chapter={chapter} callbacks={callbacks} />
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {chapter.scenes.map((scene) => (
-          <SceneRow
-            key={scene.id}
-            scene={scene}
-            isSelected={scene.id === selectedSceneId}
-            onSelect={() => onSelectScene(scene.id)}
-            onRenameScene={callbacks.onRenameScene}
-            onDeleteScene={callbacks.onDeleteScene}
-          />
-        ))}
-      </ul>
+      <DroppableSceneList
+        groupId={group}
+        scenes={chapter.scenes}
+        selectedSceneId={selectedSceneId}
+        onSelectScene={onSelectScene}
+        callbacks={callbacks}
+      />
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Short pieces section
+// ShortPiecesSection
 // ---------------------------------------------------------------------------
 
 function ShortPiecesSection({
@@ -82,25 +171,43 @@ function ShortPiecesSection({
           +
         </button>
       </div>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {scenes.map((scene) => (
-          <SceneRow
-            key={scene.id}
-            scene={scene}
-            isSelected={scene.id === selectedSceneId}
-            onSelect={() => onSelectScene(scene.id)}
-            onRenameScene={callbacks.onRenameScene}
-            onDeleteScene={callbacks.onDeleteScene}
-          />
-        ))}
-      </ul>
+      <DroppableSceneList
+        groupId={SHORT_PIECES_GROUP}
+        scenes={scenes}
+        selectedSceneId={selectedSceneId}
+        onSelectScene={onSelectScene}
+        callbacks={callbacks}
+      />
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
+// buildItemsMap — derives ItemsMap from the binder tree
+// ---------------------------------------------------------------------------
+
+function buildItemsMap(tree: BinderTree): ItemsMap {
+  const map: ItemsMap = {
+    [CHAPTERS_GROUP]: tree.chapters.map((ch) => ch.folder.id),
+    [SHORT_PIECES_GROUP]: tree.shortPieces.map((s) => s.id),
+  };
+  for (const ch of tree.chapters) {
+    map[ch.folder.id] = ch.scenes.map((s) => s.id);
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
 // Binder content
 // ---------------------------------------------------------------------------
+
+function EmptyBinderHint() {
+  return (
+    <p style={{ padding: "16px", fontSize: 13, color: "#999", margin: 0 }}>
+      No scenes yet.
+    </p>
+  );
+}
 
 function BinderContent({
   tree,
@@ -108,6 +215,7 @@ function BinderContent({
   onSelectScene,
   callbacks,
 }: BinderContentProps) {
+  const isEmpty = tree.chapters.length === 0 && tree.shortPieces.length === 0;
   return (
     <>
       <div style={{ padding: "0 8px 8px" }}>
@@ -119,29 +227,23 @@ function BinderContent({
           + Chapter
         </button>
       </div>
-
-      {tree.chapters.map((chapter) => (
-        <ChapterSection
+      {tree.chapters.map((chapter, i) => (
+        <DraggableChapterSection
           key={chapter.folder.id}
           chapter={chapter}
+          chapterIndex={i}
           selectedSceneId={selectedSceneId}
           onSelectScene={onSelectScene}
           callbacks={callbacks}
         />
       ))}
-
       <ShortPiecesSection
         scenes={tree.shortPieces}
         selectedSceneId={selectedSceneId}
         onSelectScene={onSelectScene}
         callbacks={callbacks}
       />
-
-      {tree.chapters.length === 0 && tree.shortPieces.length === 0 && (
-        <p style={{ padding: "16px", fontSize: 13, color: "#999", margin: 0 }}>
-          No scenes yet.
-        </p>
-      )}
+      {isEmpty && <EmptyBinderHint />}
     </>
   );
 }
@@ -151,11 +253,10 @@ function BinderContent({
 // ---------------------------------------------------------------------------
 
 /**
- * Binder tree with full CRUD affordances (Phase 2) and project switcher (Phase 3).
+ * Binder tree with drag-reorder (Phase 4), CRUD, and project switcher.
  *
- * Renders the ProjectSwitcher at the top, then "+ Chapter", chapters with
- * "+ Scene" / rename / delete, and a Short pieces section. All mutations
- * are lifted to App via callbacks.
+ * Wraps the entire tree in BinderDragProvider so useSortable hooks can access
+ * the DragDropManager context. Drag callbacks are threaded from App.
  */
 const navStyle: React.CSSProperties = {
   width: 220,
@@ -171,7 +272,9 @@ const navStyle: React.CSSProperties = {
 export function Binder({
   tree, selectedSceneId, onSelectScene, callbacks,
   projects, activeProjectId, onSwitchProject, onCreateProject,
+  dragCallbacks,
 }: BinderProps) {
+  const items = buildItemsMap(tree);
   return (
     <nav style={navStyle} aria-label="Binder">
       <ProjectSwitcher
@@ -180,14 +283,16 @@ export function Binder({
         onSwitchProject={onSwitchProject}
         onCreateProject={onCreateProject}
       />
-      <div style={{ paddingTop: 8 }}>
-        <BinderContent
-          tree={tree}
-          selectedSceneId={selectedSceneId}
-          onSelectScene={onSelectScene}
-          callbacks={callbacks}
-        />
-      </div>
+      <BinderDragProvider callbacks={dragCallbacks} items={items}>
+        <div style={{ paddingTop: 8 }}>
+          <BinderContent
+            tree={tree}
+            selectedSceneId={selectedSceneId}
+            onSelectScene={onSelectScene}
+            callbacks={callbacks}
+          />
+        </div>
+      </BinderDragProvider>
     </nav>
   );
 }

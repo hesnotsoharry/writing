@@ -1,3 +1,4 @@
+import { computeReorder } from "../binder/computeReorder";
 import type { BinderStore, Folder, Project, Scene } from "./binderStore";
 import { getDb } from "./schema";
 
@@ -124,5 +125,69 @@ export class SqliteBinderStore implements BinderStore {
   async deleteScene(sceneId: string): Promise<void> {
     const db = await getDb();
     await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
+  }
+
+  async moveScene(
+    sceneId: string,
+    toFolderId: string | null,
+    toIndex: number
+  ): Promise<void> {
+    const db = await getDb();
+    // Look up scene to get project_id before mutating.
+    const rows = await db.select<Pick<Scene, "id" | "project_id">[]>(
+      "SELECT id, project_id FROM scenes WHERE id=$1",
+      [sceneId]
+    );
+    if (rows.length === 0) return;
+    const { project_id } = rows[0];
+    // Move the scene to the target folder.
+    await db.execute("UPDATE scenes SET folder_id=$1 WHERE id=$2", [
+      toFolderId,
+      sceneId,
+    ]);
+    // Load the destination container (includes moved item now).
+    let container: { id: string }[];
+    if (toFolderId !== null) {
+      container = await db.select<{ id: string }[]>(
+        "SELECT id FROM scenes WHERE project_id=$1 AND folder_id=$2 ORDER BY sort_order ASC",
+        [project_id, toFolderId]
+      );
+    } else {
+      container = await db.select<{ id: string }[]>(
+        "SELECT id FROM scenes WHERE project_id=$1 AND folder_id IS NULL ORDER BY sort_order ASC",
+        [project_id]
+      );
+    }
+    // Renormalize sort_orders.
+    const updates = computeReorder(container, sceneId, toIndex);
+    for (const u of updates) {
+      await db.execute("UPDATE scenes SET sort_order=$1 WHERE id=$2", [
+        u.sort_order,
+        u.id,
+      ]);
+    }
+  }
+
+  async moveFolder(folderId: string, toIndex: number): Promise<void> {
+    const db = await getDb();
+    const folderRows = await db.select<Pick<Folder, "id" | "project_id">[]>(
+      "SELECT id, project_id FROM folders WHERE id=$1",
+      [folderId]
+    );
+    if (folderRows.length === 0) return;
+    const { project_id } = folderRows[0];
+    // Load all folders for this project in current sort_order.
+    const siblings = await db.select<{ id: string }[]>(
+      "SELECT id FROM folders WHERE project_id=$1 ORDER BY sort_order ASC",
+      [project_id]
+    );
+    // Renormalize sort_orders.
+    const updates = computeReorder(siblings, folderId, toIndex);
+    for (const u of updates) {
+      await db.execute("UPDATE folders SET sort_order=$1 WHERE id=$2", [
+        u.sort_order,
+        u.id,
+      ]);
+    }
   }
 }
