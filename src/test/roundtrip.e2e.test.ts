@@ -3,7 +3,7 @@ import * as Y from "yjs";
 
 import { InMemorySceneDocStore } from "../db/sceneDocStore";
 import { bindPersistence } from "../yjs/bindPersistence";
-import { applyEncoded } from "../yjs/serialize";
+import { applyEncoded, extractPlainText } from "../yjs/serialize";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -17,7 +17,12 @@ describe("walking-skeleton seam", () => {
     const docA = new Y.Doc();
     applyEncoded(docA, (await store.load(SCENE)) ?? "");
     const unbindA = bindPersistence(docA, SCENE, store, 500);
-    docA.getText("content").insert(0, "The salt road ran north.");
+    const frag = docA.getXmlFragment("content");
+    const p = new Y.XmlElement("paragraph");
+    const t = new Y.XmlText();
+    t.insert(0, "The salt road ran north.");
+    p.insert(0, [t]);
+    frag.insert(0, [p]);
     await vi.advanceTimersByTimeAsync(500);
     unbindA();
 
@@ -25,6 +30,6 @@ describe("walking-skeleton seam", () => {
     const docB = new Y.Doc();
     applyEncoded(docB, (await store.load(SCENE))!);
 
-    expect(docB.getText("content").toString()).toBe("The salt road ran north.");
+    expect(extractPlainText(docB)).toBe("The salt road ran north.");
   });
 });

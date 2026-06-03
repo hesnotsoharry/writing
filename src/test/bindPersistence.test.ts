@@ -3,10 +3,20 @@ import * as Y from "yjs";
 
 import { InMemorySceneDocStore } from "../db/sceneDocStore";
 import { bindPersistence } from "../yjs/bindPersistence";
-import { applyEncoded } from "../yjs/serialize";
+import { applyEncoded, extractPlainText } from "../yjs/serialize";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
+
+/** Append a paragraph with the given text to the doc's XmlFragment. */
+function appendParagraph(doc: Y.Doc, text: string): void {
+  const frag = doc.getXmlFragment("content");
+  const p = new Y.XmlElement("paragraph");
+  const t = new Y.XmlText();
+  t.insert(0, text);
+  p.insert(0, [t]);
+  frag.insert(frag.length, [p]);
+}
 
 describe("bindPersistence", () => {
   it("debounces saves and persists the latest state", async () => {
@@ -14,8 +24,8 @@ describe("bindPersistence", () => {
     const doc = new Y.Doc();
     const unbind = bindPersistence(doc, "scene-1", store, 500);
 
-    doc.getText("content").insert(0, "Hello");
-    doc.getText("content").insert(5, " world");
+    appendParagraph(doc, "Hello");
+    appendParagraph(doc, " world");
     expect(store.saveCount).toBe(0); // nothing saved before debounce elapses
 
     await vi.advanceTimersByTimeAsync(500);
@@ -23,7 +33,7 @@ describe("bindPersistence", () => {
 
     const restored = new Y.Doc();
     applyEncoded(restored, (await store.load("scene-1"))!);
-    expect(restored.getText("content").toString()).toBe("Hello world");
+    expect(extractPlainText(restored)).toBe("Hello\n world");
 
     unbind();
   });
@@ -33,7 +43,7 @@ describe("bindPersistence", () => {
     const doc = new Y.Doc();
     const unbind = bindPersistence(doc, "scene-1", store, 500);
     unbind();
-    doc.getText("content").insert(0, "ignored");
+    appendParagraph(doc, "ignored");
     await vi.advanceTimersByTimeAsync(500);
     expect(store.saveCount).toBe(0);
   });
