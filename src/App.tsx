@@ -17,7 +17,9 @@ import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
 import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
+import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
+import { StoryBibleView } from "./storybible/StoryBibleView";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded } from "./yjs/serialize";
 
@@ -31,6 +33,7 @@ interface LoadSceneCtx {
 
 const sceneDocStore = new SqliteSceneDocStore();
 const binderStore = new SqliteBinderStore();
+const storyBibleStore = new SqliteStoryBibleStore();
 
 async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
   const { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId } =
@@ -107,6 +110,8 @@ function EditorPane({ doc }: { doc: Y.Doc | null }) {
   );
 }
 
+type AppView = "editor" | "bible";
+
 interface AppContentProps {
   tree: BinderTree;
   selectedSceneId: string | null;
@@ -118,27 +123,39 @@ interface AppContentProps {
   onSwitchProject: (projectId: string) => void;
   onCreateProject: () => void;
   dragCallbacks: DragCallbacks;
+  view: AppView;
+  onToggleView: () => void;
 }
+
+const viewToggleStyle: React.CSSProperties = {
+  position: "absolute", bottom: 12, left: 8, right: 8, fontSize: 12,
+  border: "1px solid #ddd", borderRadius: 4, padding: "5px 8px",
+  cursor: "pointer", background: "#f0f0f0", textAlign: "left", zIndex: 1,
+};
 
 function AppContent({
   tree, selectedSceneId, doc, onSelectScene, callbacks,
   projects, activeProjectId, onSwitchProject, onCreateProject,
-  dragCallbacks,
+  dragCallbacks, view, onToggleView,
 }: AppContentProps) {
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <Binder
-        tree={tree}
-        selectedSceneId={selectedSceneId}
-        onSelectScene={onSelectScene}
-        callbacks={callbacks}
-        projects={projects}
-        activeProjectId={activeProjectId}
-        onSwitchProject={onSwitchProject}
-        onCreateProject={onCreateProject}
-        dragCallbacks={dragCallbacks}
-      />
-      <EditorPane doc={doc} />
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <Binder
+          tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
+          callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
+          onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
+          dragCallbacks={dragCallbacks}
+        />
+        <button style={viewToggleStyle} onClick={onToggleView}>
+          {view === "editor" ? "Story Bible" : "Editor"}
+        </button>
+      </div>
+      {view === "bible" && activeProjectId ? (
+        <StoryBibleView store={storyBibleStore} projectId={activeProjectId} />
+      ) : (
+        <EditorPane doc={doc} />
+      )}
     </div>
   );
 }
@@ -238,13 +255,14 @@ function useProjectActions({
   };
 }
 
-export default function App() {
+function useAppState() {
   const [tree, setTree] = useState<BinderTree | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [doc, setDoc] = useState<Y.Doc | null>(null);
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [view, setView] = useState<AppView>("editor");
   const activeProjectIdRef = useRef<string | null>(null);
   const loadProjectTokenRef = useRef(0);
 
@@ -252,6 +270,24 @@ export default function App() {
     activeProjectIdRef.current = id ?? null;
     setActiveProjectId(id);
   }
+
+  return {
+    tree, setTree, selectedSceneId, setSelectedSceneId,
+    doc, setDoc, loading, setLoading,
+    projects, setProjects, activeProjectId,
+    view, setView,
+    activeProjectIdRef, loadProjectTokenRef, setActiveProject,
+  };
+}
+
+export default function App() {
+  const {
+    tree, setTree, selectedSceneId, setSelectedSceneId,
+    doc, setDoc, loading, setLoading,
+    projects, setProjects, activeProjectId,
+    view, setView,
+    activeProjectIdRef, loadProjectTokenRef, setActiveProject,
+  } = useAppState();
 
   const { handleSelectScene, clearScene } = useSceneLoader({
     setDoc, setSelectedSceneId, setTree, setLoading,
@@ -277,6 +313,8 @@ export default function App() {
       projects={projects} activeProjectId={activeProjectId}
       onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
       dragCallbacks={dragCallbacks}
+      view={view}
+      onToggleView={() => setView((v) => (v === "editor" ? "bible" : "editor"))}
     />
   );
 }

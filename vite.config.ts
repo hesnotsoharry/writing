@@ -32,8 +32,9 @@ export default defineConfig(async () => ({
   },
 
   // Vitest config — pure unit/seam tests run under Node (no Tauri runtime).
+  // .tsx acceptance tests override environment to jsdom via per-file comment.
   test: {
     environment: "node",
-    include: ["src/test/**/*.test.ts"],
+    include: ["src/test/**/*.test.{ts,tsx}"],
   },
 }));
