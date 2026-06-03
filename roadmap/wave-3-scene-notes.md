@@ -102,7 +102,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 1 | 2026-06-03 | 2026-06-03 | d299a5c | Internal — contract suite 16/16 green; DDL present |
 | 2 | 2026-06-03 | 2026-06-03 | (this commit) | Internal — acceptance test 4/4; full suite 51/51; XmlFragment migration done |
 | 3 | 2026-06-03 | 2026-06-03 | (this commit) | Internal — 19-case oracle green; full suite 70/70 |
-| 4 | — | — | — | — |
+| 4 | 2026-06-03 | 2026-06-03 | (this commit) | Internal — sync acceptance 6/6 (incl. serialization maxActive=1); suite 76/76 |
 | 5 | — | — | — | — |
 | 6 | — | — | — | — |
 
