@@ -18,7 +18,7 @@
 
 ### Architecture Shift: Legacy → @dnd-kit/react
 
-**Finding:** The dnd-kit project has **deprecated the old modular pattern** (`@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`). New projects should use **`@dnd-kit/react`** + **`@dnd-kit/helpers`** instead.
+**Finding (2026-06-02):** The dnd-kit project has **deprecated the old modular pattern** (`@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`). New projects should use **`@dnd-kit/react`** + **`@dnd-kit/helpers`** instead.
 
 - `@dnd-kit/react` = thin React integration layer on top of the vanilla library.
 - `@dnd-kit/helpers` = utility functions like `move()` for cross-list transfers.
@@ -61,6 +61,8 @@ npm install @dnd-kit/react @dnd-kit/helpers
 ```
 
 **Note:** Do NOT install the legacy `@dnd-kit/core` or `@dnd-kit/sortable` — the modern package replaces both.
+
+**Update (2026-06-03):** During Phase 4 implementation, `@dnd-kit/react` 0.4.0 alpha was found to be unstable — it was reverse-engineered during a Context7 outage and produced multiple structural bugs during the initial attempt (off-by-one reorder, stuck drag state, cross-container transfer unreliability). The implementer reverted to the mature stable packages: `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities`. The stable API is more verbose but proven and handles the binder's full scope (cross-container, reorder with renormalize, empty-container drops). Final implementation lives in `src/binder/BinderDrag.tsx` using `DndContext` + `SortableContext` + `useSortable` + `useDroppable` (see commits 9ae77d0, 8512a22).
 
 ---
 

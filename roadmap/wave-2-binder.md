@@ -111,6 +111,8 @@ Decisions that become authoritative after a subsequent wave cites them are promo
 > `tauri-plugin-sql` exposes none — research #886). **(b) Drag library = `@dnd-kit/react` + `@dnd-kit/helpers`**
 > (React 19-compatible; mature `@dnd-kit/core`+`@dnd-kit/sortable` is the named fallback if the newer
 > packages prove unstable at Phase 4).
+>
+> **Update (2026-06-03):** Migrated to stable `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities`. The `@dnd-kit/react` 0.4.0 alpha was reverse-engineered (Context7 was down), produced multiple structural drag bugs (off-by-one, stuck state, cross-container transfer reliability), and was replaced during Phase 4. Drag system is now feature-complete (cross-container live preview, unified scene/chapter single-source-of-truth model, reorder with renormalize). See commits 9ae77d0 (core+sortable), 8512a22 (rebase after core switch).
 
 ## Status
 
@@ -124,6 +126,10 @@ Decisions that become authoritative after a subsequent wave cites them are promo
 ## Follow-up candidates
 
 - Binder UX polish (small, in-wave-able): (a) double-click-on-title to rename doesn't fire — only the ✎ button does (needs care: single-click already selects the scene); (b) "+ Chapter/+ Scene" use a browser `window.prompt` — replace with an inline create input; (c) `ShortPiecesSection` hides when empty — keep it visible as a drop target before Phase 4 drag. Plus the standing editor-affordance gap (placeholder/visible surface/autofocus) noted in HANDOFF.
+- dnd-distinct-droppable-id: `useSortableChapter` and `SortableSceneList.useDroppable` both register folder.id (type collision: "chapter" vs "container"). Give scene-container a distinct id (e.g., `${folderId}-scenes`); update `findContainer` + collision drill-down to map it back. Removes the `isChapterHeaderHover` workaround and simplifies drop-target resolution.
+- dnd-keyboard-accessibility: Add `KeyboardSensor` + `sortableKeyboardCoordinates` (@dnd-kit/sortable) to enable keyboard-based reorder (Arrow Up/Down). Pointer-only currently; new accessibility surface.
+- drop-on-chapter-header-append: Dropping a scene on a NON-empty chapter's header is currently a no-op (guard prevents collision with first scene). Enhancement: optionally append to the chapter's end instead. UX nicety, low priority.
+- drag-behavioral-test-coverage: The drag system (commitSceneFromLive, commitChapterFromLive, applyAtomicDragOver, liveItems lifecycle, empty-container drop, off-by-one) is verified by manual smoke only. Add vitest behavioral tests for commit-index math and liveItems lifecycle — the off-by-one and stuck-state bugs that recurred during Phase 4 would be catchable.
 
 ## Result
 
