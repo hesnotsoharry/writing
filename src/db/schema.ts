@@ -61,7 +61,13 @@ const SCHEMA_DDL = [
     CREATE TABLE IF NOT EXISTS scene_links (
       scene_id TEXT NOT NULL,
       entity_type TEXT NOT NULL,
-      entity_id TEXT NOT NULL
+      entity_id TEXT NOT NULL,
+      -- Enforce the no-duplicate-link invariant at the DB layer.
+      -- detectEntities returns unique ids and replaceSceneLinks does DELETE-then-INSERT
+      -- so this constraint never fires in normal flow.
+      -- Note: existing dev DBs created before this DDL won't gain the constraint
+      -- retroactively under CREATE TABLE IF NOT EXISTS; delete your local writing.db to pick it up.
+      UNIQUE(scene_id, entity_id)
     )
   `,
   `

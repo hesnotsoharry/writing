@@ -78,11 +78,11 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     name: string
   ): Promise<void> {
     const db = await getDb();
-    const table = type === "character" ? "characters" : "locations";
-    await db.execute(`UPDATE ${table} SET name = $1 WHERE id = $2`, [
-      name,
-      id,
-    ]);
+    if (type === "character") {
+      await db.execute("UPDATE characters SET name = $1 WHERE id = $2", [name, id]);
+    } else {
+      await db.execute("UPDATE locations SET name = $1 WHERE id = $2", [name, id]);
+    }
   }
 
   async updateEntityNotes(
@@ -91,17 +91,20 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     notes: string | null
   ): Promise<void> {
     const db = await getDb();
-    const table = type === "character" ? "characters" : "locations";
-    await db.execute(`UPDATE ${table} SET notes = $1 WHERE id = $2`, [
-      notes,
-      id,
-    ]);
+    if (type === "character") {
+      await db.execute("UPDATE characters SET notes = $1 WHERE id = $2", [notes, id]);
+    } else {
+      await db.execute("UPDATE locations SET notes = $1 WHERE id = $2", [notes, id]);
+    }
   }
 
   async deleteEntity(type: EntityType, id: string): Promise<void> {
     const db = await getDb();
-    const table = type === "character" ? "characters" : "locations";
-    await db.execute(`DELETE FROM ${table} WHERE id = $1`, [id]);
+    if (type === "character") {
+      await db.execute("DELETE FROM characters WHERE id = $1", [id]);
+    } else {
+      await db.execute("DELETE FROM locations WHERE id = $1", [id]);
+    }
     await db.execute(
       "DELETE FROM scene_links WHERE entity_id = $1 AND entity_type = $2",
       [id, type]
@@ -135,6 +138,8 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
 
   async findScenesForEntity(entityId: string): Promise<string[]> {
     const db = await getDb();
+    // No entity_type discriminator needed: entity ids are UUIDs (crypto.randomUUID),
+    // so they are unique across both characters and locations tables.
     const rows = await db.select<{ scene_id: string }[]>(
       "SELECT scene_id FROM scene_links WHERE entity_id = $1",
       [entityId]

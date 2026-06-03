@@ -235,7 +235,7 @@ export default function App() {
   } = useAppState();
 
   const { onSavedRef, onEntitiesChanged } = useDetectionWiring({
-    tree, activeProjectIdRef, setLinksVersion, sceneDocStore, storyBibleStore,
+    activeProjectIdRef, setLinksVersion, sceneDocStore, storyBibleStore, binderStore,
   });
 
   const { handleSelectScene, clearScene } = useSceneLoader({

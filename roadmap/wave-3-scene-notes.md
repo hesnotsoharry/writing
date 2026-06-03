@@ -109,7 +109,9 @@ Before declaring a phase complete, restate the observation point from the Phases
 ## Follow-up candidates
 
 - **App detection-wiring has no automated coverage** (behavioralCoverageGap, Phase 6): the reactivity glue in `src/App.detection.ts` (onSaved→linkScene→linksVersion; onEntitiesChanged→rescanProject) is verified only by manual smoke. An App-level integration/RTL test would need a SQLite-mocked App harness (cross-boundary setup) — cannot be cleared by a single sonnet-implementer dispatch without that harness. Core logic (matcher, sync, inspector, view CRUD) IS unit-tested.
-- **`_currentTree` module-global stale-read race** (Phase 6 reviewer FLAG_UNCERTAIN, speculative): `src/App.detection.ts` reads scene ids from a module-level `_currentTree` synced via `useEffect`; if `rescanProject` fires in the same render as a project-tree change, `listSceneIds` could read a one-render-stale tree. Single-user, self-healing on next save/rescan; chosen to satisfy `react-hooks/refs`. Consider a non-global fresh-read approach.
+- **`StoryBibleView.onEntitiesChanged` is optional-but-load-bearing** (wave-end review, minor): typed `?:` yet always passed by App and required for the entity-mutation→rescan reactivity. A future caller could omit it and silently drop rescans with no type error. Consider making it required or documenting the contract.
+
+_Resolved at wave-end (not deferred): SQL table-name interpolation hardened to per-type hardcoded queries; `scene_links` gained `UNIQUE(scene_id, entity_id)`; `listSceneIds` now scopes by `projectId` via the binder store (removed the `_currentTree` module global + its stale-read race)._
 
 ## Result
 
