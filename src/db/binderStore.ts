@@ -1,0 +1,150 @@
+/** Domain types for the binder data model. */
+
+export interface Project {
+  id: string;
+  title: string;
+  type: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Folder {
+  id: string;
+  project_id: string;
+  title: string;
+  sort_order: number;
+}
+
+export interface Scene {
+  id: string;
+  project_id: string;
+  folder_id: string | null;
+  title: string;
+  synopsis: string | null;
+  sort_order: number;
+  word_count: number;
+}
+
+/** Abstraction over binder persistence (project/folder/scene structure). */
+export interface BinderStore {
+  /** List all projects in creation/sort_order order. */
+  listProjects(): Promise<Project[]>;
+  /** Create a project; returns its new id. */
+  createProject(args: { title: string; type: string }): Promise<string>;
+  /** Create a folder (chapter) in a project; returns its new id. */
+  createFolder(args: { projectId: string; title: string }): Promise<string>;
+  /**
+   * Create a scene in a project. `folderId` is null for a Short piece
+   * (no containing chapter). Returns the new scene's id.
+   */
+  createScene(args: {
+    projectId: string;
+    folderId: string | null;
+    title: string;
+  }): Promise<string>;
+  /** Load a project's folders and scenes (for buildTree). */
+  loadProject(
+    projectId: string
+  ): Promise<{ folders: Folder[]; scenes: Scene[] }>;
+  /**
+   * Delete a folder. Its scenes are NOT deleted — they are moved to
+   * folder_id = null (Short pieces). No scene_docs rows are touched.
+   */
+  deleteFolder(folderId: string): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// In-memory fake — used in tests; mirrors the same seam discipline as
+// InMemorySceneDocStore.
+// ---------------------------------------------------------------------------
+
+export class InMemoryBinderStore implements BinderStore {
+  private projects: Project[] = [];
+  private folders: Folder[] = [];
+  private scenes: Scene[] = [];
+
+  async listProjects(): Promise<Project[]> {
+    return [...this.projects].sort((a, b) => a.sort_order - b.sort_order);
+  }
+
+  async createProject(args: { title: string; type: string }): Promise<string> {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    // Gap-based sort_order: (siblingCount + 1) * 1000
+    const sort_order = (this.projects.length + 1) * 1000;
+    this.projects.push({
+      id,
+      title: args.title,
+      type: args.type,
+      sort_order,
+      created_at: now,
+      updated_at: now,
+    });
+    return id;
+  }
+
+  async createFolder(args: {
+    projectId: string;
+    title: string;
+  }): Promise<string> {
+    const id = crypto.randomUUID();
+    const siblings = this.folders.filter(
+      (f) => f.project_id === args.projectId
+    );
+    const sort_order = (siblings.length + 1) * 1000;
+    this.folders.push({
+      id,
+      project_id: args.projectId,
+      title: args.title,
+      sort_order,
+    });
+    return id;
+  }
+
+  async createScene(args: {
+    projectId: string;
+    folderId: string | null;
+    title: string;
+  }): Promise<string> {
+    const id = crypto.randomUUID();
+    // Sort_order scoped to the container (a folder, or the null-folder bucket
+    // within the project).
+    const siblings = this.scenes.filter(
+      (s) =>
+        s.project_id === args.projectId && s.folder_id === args.folderId
+    );
+    const sort_order = (siblings.length + 1) * 1000;
+    this.scenes.push({
+      id,
+      project_id: args.projectId,
+      folder_id: args.folderId,
+      title: args.title,
+      synopsis: null,
+      sort_order,
+      word_count: 0,
+    });
+    return id;
+  }
+
+  async loadProject(
+    projectId: string
+  ): Promise<{ folders: Folder[]; scenes: Scene[] }> {
+    const folders = this.folders
+      .filter((f) => f.project_id === projectId)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const scenes = this.scenes
+      .filter((s) => s.project_id === projectId)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    return { folders, scenes };
+  }
+
+  async deleteFolder(folderId: string): Promise<void> {
+    // Move all scenes in this folder to Short pieces (folder_id = null).
+    this.scenes = this.scenes.map((s) =>
+      s.folder_id === folderId ? { ...s, folder_id: null } : s
+    );
+    // Remove the folder itself.
+    this.folders = this.folders.filter((f) => f.id !== folderId);
+  }
+}

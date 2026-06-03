@@ -1,6 +1,7 @@
 import * as Y from "yjs";
-import { encodeDoc } from "./serialize";
+
 import type { SceneDocStore } from "../db/sceneDocStore";
+import { encodeDoc } from "./serialize";
 
 /**
  * Subscribe to a Y.Doc and persist its full state to `store`, debounced.

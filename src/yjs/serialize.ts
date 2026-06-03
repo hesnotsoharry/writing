@@ -1,5 +1,5 @@
-import * as Y from "yjs";
 import { fromUint8Array, toUint8Array } from "js-base64";
+import * as Y from "yjs";
 
 /**
  * Serialize an entire Y.Doc to a base64 string.

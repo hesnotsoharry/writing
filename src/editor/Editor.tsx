@@ -1,6 +1,6 @@
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
+import { EditorContent,useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import * as Y from "yjs";
 
 export function Editor({ doc }: { doc: Y.Doc }) {

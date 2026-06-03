@@ -114,7 +114,12 @@ Decisions that become authoritative after a subsequent wave cites them are promo
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed (impl + gates) | Observation point hit |
+|---|---|---|---|
+| 1 — Walking skeleton | ✅ sonnet-implementer | ✅ lint 0 / 14 tests / tsc clean; adversarial review FLAG adjudicated (computeReorder = Phase 4 scope; loadScene async race fixed) | ⏳ pending manual smoke (relaunch persistence — user-run) |
+| 2 — CRUD | — | — | — |
+| 3 — Project switcher | — | — | — |
+| 4 — Drag-reorder | — | — | — |
 
 ## Follow-up candidates
 

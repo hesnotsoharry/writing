@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach,beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
+
 import { InMemorySceneDocStore } from "../db/sceneDocStore";
 import { bindPersistence } from "../yjs/bindPersistence";
 import { applyEncoded } from "../yjs/serialize";

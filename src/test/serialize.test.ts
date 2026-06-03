@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect,it } from "vitest";
 import * as Y from "yjs";
-import { encodeDoc, applyEncoded } from "../yjs/serialize";
+
+import { applyEncoded,encodeDoc } from "../yjs/serialize";
 
 describe("yjs serialize", () => {
   it("round-trips a document's text through base64", () => {
