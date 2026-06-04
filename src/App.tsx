@@ -159,8 +159,10 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     setTree: setTree as (t: BinderTree) => void,
     setProjects, setActiveProjectId: setActiveProject, handleSelectScene, clearScene,
   });
+  const { bumpArchivedVersion } = state;
   const callbacks = useCrudHandlers({
     binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene,
+    onArchived: bumpArchivedVersion,
   });
   const dragCallbacks = useDragHandlers({ binderStore, activeProjectIdRef, setTree });
   function doReloadTree() {
@@ -179,7 +181,7 @@ export default function App() {
   const { setTheme, setAccent } = useTheme();
   const wiring = useAppWiring(state);
   const { tree, loading, selectedSceneId, doc, projects, activeProjectId,
-    view, setView, linksVersion,
+    view, setView, linksVersion, archivedVersion, bumpArchivedVersion,
     showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
     showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
     showExport, setShowExport, showSettings, setShowSettings,
@@ -187,6 +189,10 @@ export default function App() {
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
+  function onArchiveChanged() {
+    bumpArchivedVersion();
+    wiring.reloadTree();
+  }
   return (
     <AppContent
       tree={tree} selectedSceneId={selectedSceneId} doc={doc}
@@ -196,12 +202,14 @@ export default function App() {
       dragCallbacks={wiring.dragCallbacks} view={view} onViewChange={setView}
       linksVersion={linksVersion} onEntitiesChanged={wiring.onEntitiesChanged}
       storyBibleStore={storyBibleStore} reloadTree={wiring.reloadTree}
+      archivedVersion={archivedVersion}
       overlays={{ showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
         showArchive, setShowArchive, showGoals, setShowGoals,
         goalsInitialScope, setGoalsInitialScope,
         showExport, setShowExport,
         showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, setGoalsOn,
-        hasQuickItems, setHasQuickItems, setTheme, setAccent }}
+        hasQuickItems, setHasQuickItems, setTheme, setAccent,
+        binderStore, onArchiveChanged }}
     />
   );
 }

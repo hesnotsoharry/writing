@@ -57,6 +57,7 @@ interface SceneMenuArgs {
   onAfterStatusWrite?: () => void;
   onAfterDelete?: () => void;
   onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
+  onArchiveScene?: (sceneId: string) => void;
 }
 
 function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
@@ -80,7 +81,9 @@ function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
         },
         onDuplicate: () => setToast({ label: "Duplicate — coming in a later wave" }),
         onExport: () => setToast({ label: "Export — coming in a later wave" }),
-        onArchive: () => setToast({ label: "Archive — coming in a later wave" }),
+        onArchive: a.onArchiveScene
+          ? () => { setMenu(null); a.onArchiveScene!(scene.id); }
+          : () => setToast({ label: "Archive — coming in a later wave" }),
         onDelete: () => {
           setMenu(null);
           defaultBinderStore.deleteScene(scene.id)
@@ -243,6 +246,8 @@ interface CorkboardProps {
   dragCallbacks?: DragCallbacks;
   /** Opens the Goals modal pre-scoped to a scene. Optional. */
   onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
+  /** Archives a scene via the real store; when absent falls back to the "coming later" toast. */
+  onArchiveScene?: (sceneId: string) => void;
 }
 
 export function Corkboard({
@@ -253,11 +258,12 @@ export function Corkboard({
   reloadTree,
   dragCallbacks,
   onAddGoal,
+  onArchiveScene,
 }: CorkboardProps) {
   const { overrides, statusOf, cycleStatus, setOverride } = useCorkStatus(setSceneStatus, reloadTree);
   const { localTree, reload } = useLocalTree(tree);
   const { menu, toast, renamingSceneId, setMenu, setToast, setRenamingSceneId, handleContextMenu } =
-    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree, onAddGoal });
+    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree, onAddGoal, onArchiveScene });
   const shared: SharedGroupProps = {
     onSelectScene, onViewChange, onCycleStatus: cycleStatus, onContextMenu: handleContextMenu,
     onReload: reload, renamingSceneId, onRenameEnd: () => setRenamingSceneId(null),

@@ -101,6 +101,7 @@ export function useAppState() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [view, setView] = useState<AppView>("editor");
   const [linksVersion, setLinksVersion] = useState(0);
+  const [archivedVersion, setArchivedVersion] = useState(0);
   const modalFlags = useModalFlags();
   const activeProjectIdRef = useRef<string | null>(null);
   const loadProjectTokenRef = useRef(0);
@@ -110,11 +111,16 @@ export function useAppState() {
     setActiveProjectId(id);
   }
 
+  function bumpArchivedVersion() {
+    setArchivedVersion((v) => v + 1);
+  }
+
   return {
     tree, setTree, selectedSceneId, setSelectedSceneId,
     doc, setDoc, loading, setLoading,
     projects, setProjects, activeProjectId,
     view, setView, linksVersion, setLinksVersion,
+    archivedVersion, bumpArchivedVersion,
     ...modalFlags,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
   };

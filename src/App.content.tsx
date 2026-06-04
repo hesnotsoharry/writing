@@ -21,6 +21,7 @@ import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
 import { usePageFlip } from "./editor/usePageFlip";
+import { useArchivedCount } from "./features/archive/useArchivedCount";
 import { Corkboard } from "./features/corkboard/Corkboard";
 import { useDailyGoalProgress } from "./features/goals/useDailyGoalProgress";
 import { useQuickCount } from "./features/quickcapture/useQuickCount";
@@ -64,6 +65,8 @@ export interface AppContentProps {
   storyBibleStore: SqliteStoryBibleStore;
   /** Reload the binder tree from the store — exposed for downstream phases (Corkboard P5, Inspector P4). */
   reloadTree: () => void;
+  /** Bump counter for archive-count recomputation — increment after any archive or restore. */
+  archivedVersion: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +145,7 @@ function buildSideSlots(p: {
   callbacks: AppContentProps["callbacks"]; projects: AppContentProps["projects"];
   activeProjectId: string | null; onSwitchProject: (id: string) => void;
   onCreateProject: () => void; dragCallbacks: DragCallbacks;
-  quickCount: number; manuscriptTotal: number; overlays: OverlayFlags;
+  quickCount: number; archivedCount: number; manuscriptTotal: number; overlays: OverlayFlags;
   storyBibleStore: AppContentProps["storyBibleStore"]; activeScene: Scene | null;
   linksVersion: number; liveWordCount: number;
   chapterId: string | null; chapterTotal: number | null;
@@ -156,6 +159,7 @@ function buildSideSlots(p: {
         callbacks={callbacksWithGoal} projects={p.projects} activeProjectId={p.activeProjectId}
         onSwitchProject={p.onSwitchProject} onCreateProject={p.onCreateProject}
         dragCallbacks={p.dragCallbacks} quickCount={p.quickCount}
+        archivedCount={p.archivedCount}
         manuscriptTotal={p.manuscriptTotal}
         onOpenQuickNotes={() => p.overlays.setShowInbox(true)}
         onOpenArchive={() => setShowArchive(true)} />
@@ -172,7 +176,7 @@ function buildSideSlots(p: {
 function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
-    onEntitiesChanged, overlays, storyBibleStore } = props;
+    onEntitiesChanged, overlays, storyBibleStore, archivedVersion } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals,
     setShowQuickCapture, setShowSettings, setShowExport } = overlays;
   useGlobalKeybindings(overlays);
@@ -183,6 +187,7 @@ function useAppContentSlots(props: AppContentProps) {
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
   const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", scope: "manuscript", targetId: null, currentScopeTotal: manuscriptTotal });
   const quickCount = useQuickCount(activeProjectId);
+  const archivedCount = useArchivedCount(activeProjectId, archivedVersion);
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);
   const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
@@ -193,13 +198,14 @@ function useAppContentSlots(props: AppContentProps) {
   const showSidePanels = !focusMode && view !== "cork" && view !== "bible";
   const { binderSlot, inspectorSlot } = buildSideSlots({
     tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
-    onSwitchProject, onCreateProject, dragCallbacks, quickCount, manuscriptTotal, overlays,
-    storyBibleStore, activeScene, linksVersion, liveWordCount, chapterId, chapterTotal,
-    onAddGoal, showSidePanels, view,
+    onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
+    manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
+    chapterId, chapterTotal, onAddGoal, showSidePanels, view,
   });
   const { reloadTree } = props;
   const viewStageContent = buildViewStage(view, doc, activeProjectId,
-    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal });
+    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId,
+      linksVersion, reloadTree, dragCallbacks, onAddGoal, onArchiveScene: callbacks.onArchiveScene });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
     binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn };
@@ -245,6 +251,8 @@ interface ViewStageCtx {
   dragCallbacks: DragCallbacks;
   /** Opens Goals modal pre-scoped; passed to Corkboard for right-click "Add goal". */
   onAddGoal: (scope: "scene" | "chapter", targetId: string) => void;
+  /** Archives a scene; passed to Corkboard so its context-menu archive is real, not a toast. */
+  onArchiveScene: (sceneId: string) => void;
 }
 
 function buildViewStage(
@@ -259,6 +267,7 @@ function buildViewStage(
         reloadTree={ctx.reloadTree}
         dragCallbacks={ctx.dragCallbacks}
         onAddGoal={ctx.onAddGoal}
+        onArchiveScene={ctx.onArchiveScene}
       />
     );
   }

@@ -6,6 +6,7 @@
  */
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 
+import type { BinderStore } from "./db/binderStore";
 import { Archive } from "./features/archive/Archive";
 import { Export } from "./features/export/Export";
 import type { GoalsInitialScope } from "./features/goals/Goals";
@@ -35,39 +36,42 @@ export interface OverlayStackProps {
   setAccent: (a: AccentPalette) => void;
   setGoalsOn: Dispatch<SetStateAction<boolean>>;
   setHasQuickItems: Dispatch<SetStateAction<boolean>>;
+  /** Binder store passed to the Archive overlay for DI. */
+  binderStore: BinderStore;
+  /** Called after a restore inside Archive so the binder count and tree refresh. */
+  onArchiveChanged: () => void;
 }
 
-export function OverlayStack({
-  showQuickCapture, setShowQuickCapture,
-  showInbox, setShowInbox,
-  showArchive, setShowArchive,
-  showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
-  showExport, setShowExport,
-  showSettings, setShowSettings,
-  setTheme, setAccent,
-  setGoalsOn, setHasQuickItems,
-  goalsOn, activeProjectId,
-}: OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null }): ReactElement {
-  const closeGoals = () => { setShowGoals(false); setGoalsInitialScope(undefined); };
+type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
+
+export function OverlayStack(p: OverlayStackAllProps): ReactElement {
+  const closeGoals = () => { p.setShowGoals(false); p.setGoalsInitialScope(undefined); };
   return (
     <>
-      {showQuickCapture && (
-        <QuickCapture onClose={() => setShowQuickCapture(false)}
-          activeProjectId={activeProjectId} setHasQuickItems={setHasQuickItems} />
+      {p.showQuickCapture && (
+        <QuickCapture onClose={() => p.setShowQuickCapture(false)}
+          activeProjectId={p.activeProjectId} setHasQuickItems={p.setHasQuickItems} />
       )}
-      {showInbox && (
-        <Inbox onClose={() => setShowInbox(false)}
-          activeProjectId={activeProjectId} setHasQuickItems={setHasQuickItems} />
+      {p.showInbox && (
+        <Inbox onClose={() => p.setShowInbox(false)}
+          activeProjectId={p.activeProjectId} setHasQuickItems={p.setHasQuickItems} />
       )}
-      {showArchive && <Archive onClose={() => setShowArchive(false)} />}
-      {showGoals && (
-        <Goals onClose={closeGoals} goalsOn={goalsOn} setGoalsOn={setGoalsOn}
-          activeProjectId={activeProjectId} initialScope={goalsInitialScope} />
+      {p.showArchive && (
+        <Archive
+          projectId={p.activeProjectId ?? undefined}
+          store={p.binderStore}
+          onClose={() => p.setShowArchive(false)}
+          onChanged={p.onArchiveChanged}
+        />
       )}
-      {showExport && <Export onClose={() => setShowExport(false)} />}
-      {showSettings && (
-        <Settings onClose={() => setShowSettings(false)} setTheme={setTheme} setAccent={setAccent}
-          onOpenGoals={() => { setShowSettings(false); setShowGoals(true); }} />
+      {p.showGoals && (
+        <Goals onClose={closeGoals} goalsOn={p.goalsOn} setGoalsOn={p.setGoalsOn}
+          activeProjectId={p.activeProjectId} initialScope={p.goalsInitialScope} />
+      )}
+      {p.showExport && <Export onClose={() => p.setShowExport(false)} />}
+      {p.showSettings && (
+        <Settings onClose={() => p.setShowSettings(false)} setTheme={p.setTheme} setAccent={p.setAccent}
+          onOpenGoals={() => { p.setShowSettings(false); p.setShowGoals(true); }} />
       )}
     </>
   );

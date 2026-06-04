@@ -31,10 +31,28 @@ interface CrudDeps {
   doReload: () => Promise<void>;
   selectedSceneId: string | null;
   clearScene: () => void;
+  /** Called after a successful archive operation so callers can bump version counters. */
+  onArchived?: () => void;
+}
+
+function buildArchiveCallbacks(
+  binderStore: SqliteBinderStore, getProjectId: () => string,
+  doReload: () => Promise<void>, onArchived: (() => void) | undefined,
+): Pick<BinderCallbacks, "onArchiveScene" | "onArchiveChapter"> {
+  return {
+    onArchiveScene: (sceneId) => {
+      binderStore.archiveScene(sceneId, getProjectId())
+        .then(doReload).then(() => onArchived?.()).catch(logCrudError("archiveScene"));
+    },
+    onArchiveChapter: (folderId) => {
+      binderStore.archiveChapter(folderId, getProjectId())
+        .then(doReload).then(() => onArchived?.()).catch(logCrudError("archiveChapter"));
+    },
+  };
 }
 
 function buildCrudCallbacks(deps: CrudDeps): BinderCallbacks {
-  const { binderStore, sceneDocStore, getProjectId, doReload, selectedSceneId, clearScene } = deps;
+  const { binderStore, sceneDocStore, getProjectId, doReload, selectedSceneId, clearScene, onArchived } = deps;
   return {
     onCreateChapter: () => {
       // Creates inline at list bottom (no prompt) — user double-clicks to rename.
@@ -65,9 +83,7 @@ function buildCrudCallbacks(deps: CrudDeps): BinderCallbacks {
     onSetSceneStatus: (id, status) => {
       binderStore.setSceneStatus(id, status).then(doReload).catch(logCrudError("setSceneStatus"));
     },
-    // Archive stubs — real DB writes wired in wave-17.
-    onArchiveScene: () => {},
-    onArchiveChapter: () => {},
+    ...buildArchiveCallbacks(binderStore, getProjectId, doReload, onArchived),
   };
 }
 
@@ -78,10 +94,12 @@ interface CrudHookArgs {
   setTree: (t: BinderTree | null) => void;
   selectedSceneId: string | null;
   clearScene: () => void;
+  /** Called after a successful archive operation so callers can bump version counters. */
+  onArchived?: () => void;
 }
 
 export function useCrudHandlers(args: CrudHookArgs): BinderCallbacks {
-  const { binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene } = args;
+  const { binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene, onArchived } = args;
   function getProjectId() {
     const id = activeProjectIdRef.current;
     if (!id) throw new Error("No active project");
@@ -90,7 +108,7 @@ export function useCrudHandlers(args: CrudHookArgs): BinderCallbacks {
   async function doReload() {
     await reloadTree(binderStore, getProjectId(), setTree as (t: BinderTree) => void);
   }
-  return buildCrudCallbacks({ binderStore, sceneDocStore, getProjectId, doReload, selectedSceneId, clearScene });
+  return buildCrudCallbacks({ binderStore, sceneDocStore, getProjectId, doReload, selectedSceneId, clearScene, onArchived });
 }
 
 interface DragHookArgs {
