@@ -1,4 +1,8 @@
+import { appConfigDir } from "@tauri-apps/api/path";
+import { useEffect, useState } from "react";
+
 import { Icon } from "../../components/Icon";
+import { openPath } from "../../lib/ipc";
 import type { AccentPalette, Theme } from "../../theme/useTheme";
 import { Seg, SetRow, SetSelect, SetToggle } from "./Settings.primitives";
 import type { Tweaks } from "./settings.store";
@@ -192,7 +196,12 @@ function BackupStatusBar({ showToast }: { showToast: (msg: string) => void }) {
   );
 }
 
-function BackupControlRows({ tweaks, setTweak, showToast }: BackupSectionProps) {
+interface BackupControlRowsProps extends BackupSectionProps {
+  displayPath: string;
+  onReveal: () => void;
+}
+
+function BackupControlRows({ tweaks, setTweak, showToast, displayPath, onReveal }: BackupControlRowsProps) {
   return (
     <>
       <SetRow label="Destination" desc="Off-machine object storage you own.">
@@ -219,8 +228,8 @@ function BackupControlRows({ tweaks, setTweak, showToast }: BackupSectionProps) 
       <SetRow label="Library location" desc="Your words live here, on this machine." last>
         <div className="set-path">
           <Icon name="folder" style={{ width: 14, height: 14, color: "var(--ink-3)" }} />
-          <span>C:\Users\you\Writers Nook</span>
-          <button onClick={() => showToast("Revealing in Explorer…")}>Reveal</button>
+          <span>{displayPath}</span>
+          <button onClick={onReveal}>Reveal</button>
         </div>
       </SetRow>
     </>
@@ -228,10 +237,36 @@ function BackupControlRows({ tweaks, setTweak, showToast }: BackupSectionProps) 
 }
 
 export function BackupSection({ tweaks, setTweak, showToast }: BackupSectionProps) {
+  const [libDir, setLibDir] = useState<string | null>(null);
+  const [resolveFailed, setResolveFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    appConfigDir()
+      .then((d) => { if (active) setLibDir(d); })
+      .catch(() => { if (active) setResolveFailed(true); });
+    return () => { active = false; };
+  }, []);
+
+  const displayPath = libDir ?? (resolveFailed ? "Library folder unavailable" : "Resolving…");
+
+  async function handleReveal() {
+    try {
+      const dir = libDir ?? (await appConfigDir());
+      await openPath(dir);
+    } catch (err) {
+      console.error("reveal failed", err);
+      showToast("Couldn't open the library folder");
+    }
+  }
+
   return (
     <>
       <BackupStatusBar showToast={showToast} />
-      <BackupControlRows tweaks={tweaks} setTweak={setTweak} showToast={showToast} />
+      <BackupControlRows
+        tweaks={tweaks} setTweak={setTweak} showToast={showToast}
+        displayPath={displayPath} onReveal={() => void handleReveal()}
+      />
     </>
   );
 }
