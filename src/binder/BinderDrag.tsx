@@ -309,7 +309,7 @@ export function SortableSceneList({ containerId, sceneIds, children }: SortableS
   const sortableIds = isLive ? (liveItems[containerId] ?? []) : sceneIds;
   return (
     <SortableContext id={containerId} items={sortableIds} strategy={verticalListSortingStrategy}>
-      <ul ref={setNodeRef} style={{ listStyle: "none", margin: 0, padding: 0, minHeight: 40 }}>
+      <ul ref={setNodeRef} className="scene-list" style={{ listStyle: "none", minHeight: 40 }}>
         {children}
       </ul>
     </SortableContext>
@@ -336,11 +336,11 @@ export function SortableChapterList({ chapterIds, children }: SortableChapterLis
 // useSortableScene / useSortableChapter hooks
 // ---------------------------------------------------------------------------
 
-// Prominent in-place drop-slot: white lifted card at the projected landing position.
-// Matches the visual weight the floating overlay had — white surface, neutral border, elevation.
+// Prominent in-place drop-slot: paper-white lifted card at the projected landing position.
+// Matches the visual weight the floating overlay had — paper surface, line border, elevation.
 const dropSlot: React.CSSProperties = {
-  background: "#fff", border: "1px solid #e0e0e0", borderRadius: 4,
-  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+  background: "var(--paper)", border: "1px solid var(--line)", borderRadius: "var(--r-xs)",
+  boxShadow: "var(--shadow-sm)",
 };
 
 export function useSortableScene(id: string, containerId: string) {
