@@ -51,7 +51,7 @@ After this wave, the writing app's right-hand Inspector panel renders the full d
 - [ ] Empty states render an `.empty-hint` when a scene has no linked characters / no linked locations.
 - [ ] No inline `style={…}` object literals remain in `SceneInspector.tsx` (all styling via classes; per-icon `width/height` sizing on `<Icon>` is allowed as in the design-reference).
 - [ ] `App.tsx` passes `scene={activeScene}` (the `Scene` matching `selectedSceneId`) to `SceneInspector`.
-- [ ] The `EditorPane` block in `App.tsx` (~107–119) uses `.center` / `.view-stage` classes with no inline `style` object literals remaining in that block.
+- [~] DEFERRED (Phase 3, follow-up): The `EditorPane` block in `App.tsx` (~107–119) uses CSS classes with no inline `style` object literals remaining — blocked by the `app.css` freeze (empty-state needs a new class); see follow-up candidates.
 - [ ] `git diff` shows **no** changes to `src/styles/app.css`, `src/styles/tokens.css`, `src/App.state.ts`, `src/db/migrations.ts`, or `src/db/schema.ts`.
 - [ ] `npm run test`, `npm run lint`, and `tsc` (via `npm run tauri build` typecheck or `tsc --noEmit`) all exit 0.
 
@@ -112,12 +112,13 @@ Before declaring a phase complete, restate the observation point from the Phases
 |---|---|---|---|---|
 | 1 — loadSceneEntities read-query | yes | yes | 4f4f5fa (test+stub) · cf37261 (impl) | Internal — acceptance 4/4 (incl. ordering); FLAGs (ORDER BY, non-atomic-read comment) fixed inline |
 | 2 — inspector component + App threading | yes | yes | 1c2ce57 (test) · this commit (impl) | Pending wave-end live smoke (`npm run tauri dev`): inspector renders synopsis + cards + goal ring. Component+store verified 8/8; panel 3×FLAG→fixed inline, 0 BLOCK |
-| 3 — EditorPane inline-style cleanup | pending | — | — | — |
+| 3 — EditorPane inline-style cleanup | DEFERRED | — | — | Deferred (Cole's call): clean conversion needs a new `app.css` class for the empty-state placeholder, but `app.css` is frozen in this lane (coordination rule #1); also unverifiable layout without `tauri dev`. Filed as follow-up. |
 
 ## Follow-up candidates
 
 - Persistent writing-streak in the goal ring: requires a new `writing_sessions` (day-keyed) table = schema migration, forbidden in this screen-port lane and naturally owned by the future Goals feature wave. | present-harm: K2 — the Inspector goal section renders without the design-reference's "N-day streak 🔥" line (see `design-reference/inspector.jsx` line 55 vs the shipped `src/inspector/SceneInspector.tsx` goal-card); a named, designed UI element is absent until the Goals wave adds the schema.
 - Wire the inspector's interactive affordances (edit-synopsis button, per-group "+" add buttons, "Link a character"/"Link a location" buttons): they render per the design-reference but carry no `onClick` this wave — they front the entity-link picker + synopsis-edit features, which are unbuilt (new UI primitives, multi-wave). | present-harm: K2 — named interactive `<button>`s in the shipped `src/inspector/SceneInspector.tsx` (EntityCard/EntityGroup/SynopsisGroup) do nothing on click; the user can press them with no effect until the link-picker and synopsis-edit features ship.
+- EditorPane inline-style cleanup (deferred Phase 3): replace the two inline `style={{…}}` blocks in `EditorPane` (`src/App.tsx` ~107–119) with CSS classes. Blocked in this lane because the centered empty-state `<div>` has no existing `app.css` class and `app.css` is consume-only/frozen for the parallel screen-port batch (coordination rule #1); also needs a `tauri dev` layout smoke this environment can't run. Do once `app.css` is editable (post-merge or shared-CSS owner). | present-harm: K1 — `src/App.tsx` lines ~109 + ~113 still carry hardcoded inline styles (`flex/overflow` wrapper + a `display:flex;…;color:#aaa` empty-state), the last inline-style debt in App.tsx the design-token migration is meant to eliminate.
 
 ## Result
 
