@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Scene } from "../db/binderStore";
 import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
@@ -156,5 +156,105 @@ describe("SceneInspector", () => {
     );
     await screen.findByText(/no characters linked yet/i);
     expect(screen.queryByText("Sarah")).toBeNull();
+  });
+
+  it("footer 'Link a character' picker calls replaceSceneLinks and the entity appears in the list", async () => {
+    // Start with an empty scene (s2), one character exists but not linked.
+    const store = new InMemoryStoryBibleStore();
+    const rex = await store.createCharacter("p1", "Rex", "A loyal dog.");
+    // s2 has no links yet.
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s2"
+        scene={makeScene({ id: "s2" })}
+        refreshKey={0}
+        liveWordCount={0}
+      />
+    );
+    await screen.findByText(/no characters linked yet/i);
+
+    // Clicking "Link a character" opens the picker menu.
+    const linkBtn = screen.getByRole("button", { name: /link a character/i });
+    fireEvent.click(linkBtn);
+
+    // The picker builds a ContextMenu with items; wait for Rex to appear.
+    await screen.findByText("Rex");
+
+    // Clicking Rex in the menu triggers the link.
+    fireEvent.click(screen.getByText("Rex"));
+
+    // After the async link + bump, Rex should appear as an entity card.
+    await waitFor(() => {
+      expect(screen.getByText("Rex")).toBeTruthy();
+    });
+
+    // Confirm the store actually has the link persisted.
+    const links = await store.loadSceneLinks("s2");
+    expect(links).toHaveLength(1);
+    expect(links[0].entityId).toBe(rex.id);
+    expect(links[0].entityType).toBe("character");
+  });
+
+  it("section '+' creates a new character, links it to the scene, and the entity appears in the list", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const openEntry = vi.fn();
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s3"
+        scene={makeScene({ id: "s3" })}
+        refreshKey={0}
+        liveWordCount={0}
+        onOpenEntry={openEntry}
+      />
+    );
+    await screen.findByText(/no characters linked yet/i);
+
+    // The header '+' button has title "Add new character".
+    const createBtn = screen.getByTitle(/add new character/i);
+    fireEvent.click(createBtn);
+
+    // After the async create+link, "New Character" should appear in the list.
+    await waitFor(() => {
+      expect(screen.getByText("New Character")).toBeTruthy();
+    });
+
+    // Store should have the new character linked.
+    const links = await store.loadSceneLinks("s3");
+    expect(links).toHaveLength(1);
+    expect(links[0].entityType).toBe("character");
+
+    // openEntry deferred no-op should have been called once.
+    expect(openEntry).toHaveBeenCalledTimes(1);
+    expect(openEntry).toHaveBeenCalledWith(links[0].entityId, "character");
+  });
+
+  it("saved synopsis renders with the same CSS class as the edit-state textarea (synopsis parity)", async () => {
+    const store = new InMemoryStoryBibleStore();
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s1"
+        scene={makeScene({ synopsis: "First draft." })}
+        refreshKey={0}
+        liveWordCount={0}
+      />
+    );
+
+    // Display state: the .synopsis div is present.
+    const displayEl = await screen.findByText("First draft.");
+    expect(displayEl.className).toContain("synopsis");
+
+    // Trigger edit state via the pencil button (aria-label="Edit synopsis").
+    const editBtn = screen.getByRole("button", { name: /edit synopsis/i });
+    fireEvent.click(editBtn);
+
+    // Edit state: the textarea should also carry className="synopsis".
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    expect(textarea.className).toContain("synopsis");
   });
 });

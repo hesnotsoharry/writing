@@ -100,9 +100,12 @@ function SynopsisEditField({ sceneId, localSynopsis, onCommit, onCancel }: Synop
     if (e.key === "Escape") { onCancel(); }
   };
 
+  // className="synopsis" gives the same font/border/bg/padding as the display div,
+  // producing visual parity between edit and saved states (Item B fix).
   return (
     <textarea
       autoFocus
+      className="synopsis"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
@@ -139,7 +142,7 @@ function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
     <div className="insp-group">
       <div className="insp-label">
         <Icon name="fileText" className="ic" /> Synopsis
-        <button className="add" onClick={() => { if (sceneId) setEditing(true); }}>
+        <button className="add" aria-label="Edit synopsis" onClick={() => { if (sceneId) setEditing(true); }}>
           <Icon name="edit" style={{ width: 13, height: 13 }} />
         </button>
       </div>
@@ -171,7 +174,7 @@ function GoalGroup({ pct, words, target }: GoalGroupProps) {
   );
 }
 
-// -- useEntityPicker — async picker logic for EntityGroup ------------------
+// -- useEntityPicker — async picker logic for linking existing entities -----
 interface PickerState { menu: MenuDescriptor | null; openPicker: (e: React.MouseEvent<HTMLButtonElement>) => void; closeMenu: () => void; }
 
 interface PickerArgs {
@@ -184,6 +187,9 @@ function useEntityPicker(args: PickerArgs): PickerState {
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
   const openPicker = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!sceneId) return;
+    // Capture the button element synchronously before any await — React clears
+    // e.currentTarget after the event handler yields to the microtask queue.
+    const triggerEl = e.currentTarget as HTMLElement;
     try {
       const listFn = entityType === "character"
         ? () => store.listCharacters(projectId)
@@ -194,7 +200,7 @@ function useEntityPicker(args: PickerArgs): PickerState {
       );
       const unlinked = allEntities.filter((en) => !linkedIds.has(en.id));
       if (unlinked.length === 0) return;
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const rect = triggerEl.getBoundingClientRect();
       const items = unlinked.map((en) => ({
         label: en.name,
         onClick: async () => {
@@ -215,30 +221,54 @@ function useEntityPicker(args: PickerArgs): PickerState {
   return { menu, openPicker, closeMenu: () => setMenu(null) };
 }
 
-// -- EntityGroup — one labelled group of entity cards with add picker -------
+// -- EntityGroup — one labelled group of entity cards with create + link ----
 interface EntityGroupProps {
   iconName: "users" | "mapPin"; label: string; entities: Entity[];
   ready: boolean; emptyHint: string; linkLabel: string;
   entityType: EntityType; projectId: string; sceneId: string | null;
   store: StoryBibleStore; onLinked: () => void;
+  /** Called after a new entity is created and linked. Lane 24 will wire full-entry
+   *  navigation here; for now it is a deferred no-op (Decision 3 — Wave 25). */
+  onOpenEntry?: (entityId: string, type: EntityType) => void;
 }
 
 function EntityGroup({
   iconName, label, entities, ready, emptyHint, linkLabel,
-  entityType, projectId, sceneId, store, onLinked,
+  entityType, projectId, sceneId, store, onLinked, onOpenEntry,
 }: EntityGroupProps) {
   const { menu, openPicker, closeMenu } = useEntityPicker({ entityType, projectId, sceneId, store, onLinked });
+
+  const handleCreate = async () => {
+    if (!sceneId) return;
+    try {
+      const defaultName = entityType === "character" ? "New Character" : "New Location";
+      const created = entityType === "character"
+        ? await store.createCharacter(projectId, defaultName, null)
+        : await store.createLocation(projectId, defaultName, null);
+      const existingLinks = await store.loadSceneLinks(sceneId);
+      await store.replaceSceneLinks(sceneId, [...existingLinks, { entityType, entityId: created.id }]);
+      onLinked();
+      // Deferred: open the entity's full-entry view for inline rename.
+      // Lane 24 integration will replace this no-op with openEntry(created, entityType).
+      onOpenEntry?.(created.id, entityType);
+    } catch (err: unknown) {
+      console.error("[SceneInspector] createEntity failed", err);
+    }
+  };
+
   return (
     <div className="insp-group">
       <div className="insp-label">
         <Icon name={iconName} className="ic" /> {label}
-        <button className="add" onClick={openPicker}>
+        {/* header + = ADD NEW entity (create + link + deferred open-entry) */}
+        <button className="add" title={`Add new ${entityType}`} onClick={() => { void handleCreate(); }}>
           <Icon name="plus" style={{ width: 14, height: 14 }} />
         </button>
       </div>
       {ready && entities.length > 0
         ? entities.map((e) => <EntityCard key={e.id} entity={e} />)
         : ready && <div className="empty-hint">{emptyHint}</div>}
+      {/* footer "Link a …" = LINK EXISTING entity (picker) */}
       <button className="add-entity" onClick={openPicker}>
         <Icon name="plus" style={{ width: 13, height: 13 }} /> {linkLabel}
       </button>
@@ -274,9 +304,15 @@ export interface SceneInspectorProps {
   scene: Scene | null; refreshKey?: number;
   /** Live prose word count from useLiveWordCount — updates on every keystroke. */
   liveWordCount: number;
+  /**
+   * Called when a newly created entity should be opened in the full-entry view.
+   * Deferred no-op until Lane 24 wires it; supplying it is optional.
+   * Signature: (entityId: string, type: EntityType) => void
+   */
+  onOpenEntry?: (entityId: string, type: EntityType) => void;
 }
 
-export function SceneInspector({ store, projectId, sceneId, scene, refreshKey, liveWordCount }: SceneInspectorProps) {
+export function SceneInspector({ store, projectId, sceneId, scene, refreshKey, liveWordCount, onOpenEntry }: SceneInspectorProps) {
   const [localRev, setLocalRev] = useState(0);
   const effectiveDep = (refreshKey ?? 0) + localRev;
   const { characters, locations, ready } = useSceneEntities(store, sceneId, effectiveDep);
@@ -290,10 +326,12 @@ export function SceneInspector({ store, projectId, sceneId, scene, refreshKey, l
         {on && <GoalGroup pct={pct * 100} words={words} target={target} />}
         <EntityGroup iconName="users" label="Characters in scene" entities={characters} ready={ready}
           emptyHint="No characters linked yet." linkLabel="Link a character"
-          entityType="character" projectId={projectId} sceneId={sceneId} store={store} onLinked={bump} />
+          entityType="character" projectId={projectId} sceneId={sceneId} store={store}
+          onLinked={bump} onOpenEntry={onOpenEntry} />
         <EntityGroup iconName="mapPin" label="Locations in scene" entities={locations} ready={ready}
           emptyHint="No locations linked yet." linkLabel="Link a location"
-          entityType="location" projectId={projectId} sceneId={sceneId} store={store} onLinked={bump} />
+          entityType="location" projectId={projectId} sceneId={sceneId} store={store}
+          onLinked={bump} onOpenEntry={onOpenEntry} />
       </div>
     </div>
   );
