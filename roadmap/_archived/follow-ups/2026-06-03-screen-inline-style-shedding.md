@@ -1,5 +1,6 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved: 2026-06-03
 created: 2026-06-03
 source: wave-5
 qualifying-criterion: multi-file
@@ -38,3 +39,5 @@ Each wave includes smoke verification: the screen renders with correct spacing, 
 ---
 
 *Filed from wave-5 follow-up candidates; Binder port is HANDOFF step 2. Coordinates with shell landing and token-adoption rollout.*
+
+**Resolved** by the screen-port batch (waves 7–10, merged 2026-06-03) — all four screens now consume design tokens; the white-pane/double-border defect is fixed.
