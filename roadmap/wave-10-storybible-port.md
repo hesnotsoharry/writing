@@ -1,5 +1,5 @@
 ---
-status: PLANNED
+status: COMPLETE (pending lead merge)
 created: 2026-06-03
 ---
 
@@ -142,7 +142,7 @@ live, say so explicitly — "tests pass" is necessary but not sufficient for a v
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
+| 1 | 2026-06-03 | 2026-06-03 | d127d9d | Tests/static only — live visual smoke deferred to lead's post-merge integrated pass (see Result) |
 
 ## Follow-up candidates
 
@@ -150,4 +150,35 @@ live, say so explicitly — "tests pass" is necessary but not sufficient for a v
 
 ## Result
 
-<!-- filled at ship by wrap team -->
+**Lane complete — pending lead merge** (commit `d127d9d` on `wave-10-storybible-port`).
+
+**Delivered:** `StoryBibleView.tsx` ported to shared design-system classes. All 11
+inline-style constants + root/header inline styles removed (199-line file, +82/−117).
+Extracted `useStoryBibleLists` hook to satisfy `max-lines-per-function`. Avatar color
+type-based; `.be-role` = entity kind. Residual inline scoped to edit-chrome (notes
+textarea, delete ×, add input) + two design overrides (`.add-entity` dashed border,
+`.corkboard-inner` maxWidth:960).
+
+**Gates (run in worktree):** `tsc --noEmit` clean · `eslint StoryBibleView.tsx` clean ·
+`vitest run storyBibleView` 3/3 GREEN. `git diff --stat`: only `StoryBibleView.tsx`
+touched — no App.tsx / app.css / tokens.css / src/db (coordination rules honored).
+`npm install` run on branch (exit 0).
+
+**Adversarial review (single tier, attack-diff):** PASS. 4/5 angles clean (behavior
+regression, locked-label drift, scope violation, residual-inline). 5th angle
+(FLAG_UNCERTAIN: `<div className="add-entity">` vs design's `<button>`) adjudicated
+PASS — the div-wrapping-input+button structure is **pre-existing** (was `<div
+style={addRowStyle}>`) and is mandated by the locked test's add-input + "Add character"
+button model; a single `<button>` is impossible here. Cosmetic only.
+
+**Observation point — NOT directly observed live.** Verification floor here is gates +
+static review + class-contract verification against app.css, NOT a rendered-view smoke.
+Live visual confirmation is deferred to the lead's **post-merge integrated smoke**: in
+an isolated worktree the Story Bible screen can't be seen in context (Binder/Editor/
+Inspector lane changes aren't present), and a Tauri GUI launch per-lane is heavyweight.
+Minor cosmetic to eyeball at integrated smoke: `.add-entity` styling (color:ink-3,
+flex) applies to the add-row wrapper div — confirm the "Add character/location" button
+still reads clearly.
+
+**Merge:** per coordination rule 6, lead merges in order Editor → **Story Bible** →
+Binder → Inspector. This lane is ready for slot 2.
