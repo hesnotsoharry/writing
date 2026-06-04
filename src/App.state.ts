@@ -20,7 +20,13 @@ export interface ExportTarget {
   targetId: string;
 }
 
-export type AppView = "editor" | "bible" | "cork";
+export type AppView = "editor" | "bible" | "cork" | "entry";
+
+/** A single frame on the entry navigation stack. */
+export interface EntryFrame {
+  id: string;
+  kind: "Character" | "Location";
+}
 
 export async function loadProject(
   binderStore: SqliteBinderStore,
@@ -100,6 +106,47 @@ function useModalFlags() {
   };
 }
 
+/**
+ * Entry navigation: entryStack (the current path), entryOrigin (where the user came from),
+ * and the four actions the lead wires into open-triggers and FullEntry nav callbacks.
+ */
+function useEntryNav(setView: (v: AppView) => void, getView: () => AppView) {
+  const [entryStack, setEntryStack] = useState<EntryFrame[]>([]);
+  const [entryOrigin, setEntryOrigin] = useState<"write" | "bible">("bible");
+
+  /** Open a fresh entry journey — resets the stack, captures the current view as origin. */
+  function openEntry(id: string, kind: "Character" | "Location") {
+    const origin = getView() === "editor" ? "write" : "bible";
+    setEntryOrigin(origin as "write" | "bible");
+    setEntryStack([{ id, kind }]);
+    setView("entry");
+  }
+
+  /** Push onto the stack (navigate into a related entity from within an entry). */
+  function pushEntry(id: string, kind: "Character" | "Location") {
+    setEntryStack((prev) => [...prev, { id, kind }]);
+  }
+
+  /** Pop one level; when the stack depth reaches 0 exit back to the origin view. */
+  function entryBack() {
+    setEntryStack((prev) => {
+      if (prev.length <= 1) {
+        setView(entryOrigin === "write" ? "editor" : "bible");
+        return [];
+      }
+      return prev.slice(0, -1);
+    });
+  }
+
+  /** Root-crumb tap — clear the stack and return to the origin view immediately. */
+  function exitEntry() {
+    setEntryStack([]);
+    setView(entryOrigin === "write" ? "editor" : "bible");
+  }
+
+  return { entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry };
+}
+
 export function useAppState() {
   const [tree, setTree] = useState<BinderTree | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
@@ -113,6 +160,15 @@ export function useAppState() {
   const modalFlags = useModalFlags();
   const activeProjectIdRef = useRef<string | null>(null);
   const loadProjectTokenRef = useRef(0);
+  // viewRef keeps a readable current value for useEntryNav's closures (avoids stale capture).
+  const viewRef = useRef<AppView>("editor");
+
+  function setViewAndRef(v: AppView) {
+    viewRef.current = v;
+    setView(v);
+  }
+
+  const entryNav = useEntryNav(setViewAndRef, () => viewRef.current);
 
   function setActiveProject(id: string | null) {
     activeProjectIdRef.current = id ?? null;
@@ -127,10 +183,11 @@ export function useAppState() {
     tree, setTree, selectedSceneId, setSelectedSceneId,
     doc, setDoc, loading, setLoading,
     projects, setProjects, activeProjectId,
-    view, setView, linksVersion, setLinksVersion,
+    view, setView: setViewAndRef, linksVersion, setLinksVersion,
     archivedVersion, bumpArchivedVersion,
     ...modalFlags,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
+    ...entryNav,
   };
 }
 

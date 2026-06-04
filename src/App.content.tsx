@@ -7,10 +7,11 @@ import type { Dispatch, SetStateAction } from "react";
 import { useRef } from "react";
 import type * as Y from "yjs";
 
+import { EntryViewStage } from "./App.entryView";
 import { useGlobalKeybindings } from "./App.keybindings";
 import type { OverlayStackProps } from "./App.overlays";
 import { OverlayStack } from "./App.overlays";
-import type { AppView } from "./App.state";
+import type { AppView, EntryFrame } from "./App.state";
 import { Binder } from "./binder/Binder";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { DragCallbacks } from "./binder/BinderDrag";
@@ -67,6 +68,13 @@ export interface AppContentProps {
   reloadTree: () => void;
   /** Bump counter for archive-count recomputation — increment after any archive or restore. */
   archivedVersion: number;
+  // Entry nav — supplied by useAppState().entryNav, wired through App.tsx
+  entryStack: EntryFrame[];
+  entryOrigin: "write" | "bible";
+  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
+  onPushEntry: (id: string, kind: "Character" | "Location") => void;
+  onEntryBack: () => void;
+  onExitEntry: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +160,7 @@ function buildSideSlots(p: {
   onAddGoal: (s: "scene" | "chapter", id: string) => void;
   onExport: (s: "scene" | "chapter", id: string) => void;
   showSidePanels: boolean; view: AppView;
+  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
 }) {
   const { setShowArchive } = p.overlays;
   const callbacksWithGoal = { ...p.callbacks, onAddGoal: p.onAddGoal, onExport: p.onExport };
@@ -165,25 +174,43 @@ function buildSideSlots(p: {
         onOpenQuickNotes={() => p.overlays.setShowInbox(true)}
         onOpenArchive={() => setShowArchive(true)} />
     : null;
+  // Inspector is hidden when the full-entry view is active (it renders its own right rail).
   const inspectorSlot = (p.showSidePanels && p.view === "editor" && p.activeProjectId)
     ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId}
         sceneId={p.selectedSceneId} scene={p.activeScene}
         refreshKey={p.linksVersion} liveWordCount={p.liveWordCount}
-        manuscriptTotal={p.manuscriptTotal} chapterId={p.chapterId} chapterTotal={p.chapterTotal} />
+        manuscriptTotal={p.manuscriptTotal} chapterId={p.chapterId} chapterTotal={p.chapterTotal}
+        onOpenEntry={(entityId, type) => {
+          const kind = type === "character" ? "Character" : "Location";
+          p.onOpenEntry(entityId, kind);
+        }} />
     : null;
   return { binderSlot, inspectorSlot };
+}
+
+/** Pure helpers for entity rename/delete wired to the store — extracted to trim useAppContentSlots. */
+function makeEntityHandlers(store: SqliteStoryBibleStore, onEntitiesChanged: () => void) {
+  const onRenameEntity = (kind: string, id: string, name: string) => {
+    store.renameEntity(kind === "Character" ? "character" : "location", id, name)
+      .catch((e: unknown) => console.error("[AppContent] renameEntity failed", e));
+  };
+  const onDeleteEntity = (kind: string, id: string) => {
+    store.deleteEntity(kind === "character" ? "character" : "location", id)
+      .then(onEntitiesChanged)
+      .catch((e: unknown) => console.error("[AppContent] deleteEntity failed", e));
+  };
+  return { onRenameEntity, onDeleteEntity };
 }
 
 function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
-    onEntitiesChanged, overlays, storyBibleStore, archivedVersion } = props;
+    onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree,
+    entryStack, entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals,
     setShowQuickCapture, setShowSettings, setShowExport, setExportTarget } = overlays;
-  useGlobalKeybindings(overlays);
-  useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
-  useEditorStyle();
-  const motionOn = useMotion();
+  useGlobalKeybindings(overlays); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
+  useEditorStyle(); const motionOn = useMotion();
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
   const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", scope: "manuscript", targetId: null, currentScopeTotal: manuscriptTotal });
@@ -195,20 +222,21 @@ function useAppContentSlots(props: AppContentProps) {
   const onAddGoal = (scope: "scene" | "chapter", id: string) => {
     overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true);
   };
-  const onExport = (scope: "scene" | "chapter", id: string) => {
-    setExportTarget(scope, id); setShowExport(true);
-  };
-  const showSidePanels = !focusMode && view !== "cork" && view !== "bible";
+  const onExport = (scope: "scene" | "chapter", id: string) => { setExportTarget(scope, id); setShowExport(true); };
+  // Side panels (binder + inspector) hidden in cork, bible, and entry views.
+  const showSidePanels = !focusMode && view !== "cork" && view !== "bible" && view !== "entry";
   const { binderSlot, inspectorSlot } = buildSideSlots({
     tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
-    chapterId, chapterTotal, onAddGoal, onExport, showSidePanels, view,
+    chapterId, chapterTotal, onAddGoal, onExport, showSidePanels, view, onOpenEntry,
   });
-  const { reloadTree } = props;
+  const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);
   const viewStageContent = buildViewStage(view, doc, activeProjectId,
     { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId,
-      linksVersion, reloadTree, dragCallbacks, onAddGoal, onArchiveScene: callbacks.onArchiveScene, onExport });
+      linksVersion, reloadTree, dragCallbacks, onAddGoal, onArchiveScene: callbacks.onArchiveScene,
+      onExport, entryStack, entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry,
+      onRenameEntity, onDeleteEntity });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, setExportTarget, onExport, liveWordCount, manuscriptTotal,
     goalProgress, docName, binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn };
@@ -242,7 +270,7 @@ export function AppContent(props: AppContentProps) {
 }
 
 // ---------------------------------------------------------------------------
-// View-stage builder (pure — no hooks)
+// View-stage builder
 // ---------------------------------------------------------------------------
 
 interface ViewStageCtx {
@@ -261,29 +289,39 @@ interface ViewStageCtx {
   onArchiveScene: (sceneId: string) => void;
   /** Opens Export overlay pre-scoped to a scene; passed to Corkboard. */
   onExport: (scope: "scene", targetId: string) => void;
+  // Entry nav
+  entryStack: EntryFrame[];
+  entryOrigin: "write" | "bible";
+  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
+  onPushEntry: (id: string, kind: "Character" | "Location") => void;
+  onEntryBack: () => void;
+  onExitEntry: () => void;
+  onRenameEntity: (kind: string, id: string, name: string) => void;
+  onDeleteEntity: (kind: string, id: string) => void;
 }
 
 function buildViewStage(
   view: AppView, doc: Y.Doc | null, activeProjectId: string | null, ctx: ViewStageCtx,
 ) {
   if (view === "cork") {
-    return (
-      <Corkboard
-        tree={ctx.tree}
-        onSelectScene={ctx.onSelectScene}
-        onViewChange={ctx.onViewChange}
-        reloadTree={ctx.reloadTree}
-        dragCallbacks={ctx.dragCallbacks}
-        onAddGoal={ctx.onAddGoal}
-        onArchiveScene={ctx.onArchiveScene}
-        onExport={ctx.onExport}
-      />
-    );
+    return <Corkboard tree={ctx.tree} onSelectScene={ctx.onSelectScene}
+      onViewChange={ctx.onViewChange} reloadTree={ctx.reloadTree}
+      dragCallbacks={ctx.dragCallbacks} onAddGoal={ctx.onAddGoal}
+      onArchiveScene={ctx.onArchiveScene} onExport={ctx.onExport} />;
   }
   if (view === "bible" && activeProjectId) {
     return <StoryBibleView store={ctx.storyBibleStore} projectId={activeProjectId}
-      onEntitiesChanged={ctx.onEntitiesChanged} />;
+      onEntitiesChanged={ctx.onEntitiesChanged} onOpenEntry={ctx.onOpenEntry} />;
+  }
+  if (view === "entry") {
+    return <EntryViewStage
+      store={ctx.storyBibleStore} entryStack={ctx.entryStack}
+      entryOrigin={ctx.entryOrigin} tree={ctx.tree}
+      onSelectScene={ctx.onSelectScene} onPushEntry={ctx.onPushEntry}
+      onEntryBack={ctx.onEntryBack} onExitEntry={ctx.onExitEntry}
+      onRenameEntity={ctx.onRenameEntity} onDeleteEntity={ctx.onDeleteEntity} />;
   }
   return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
     storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion} />;
 }
+

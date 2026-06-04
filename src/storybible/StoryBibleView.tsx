@@ -213,6 +213,7 @@ interface EntitySectionProps {
   projectId: string;
   onMutated: () => void;
   refreshVersion: number;
+  onOpenEntry?: (id: string, kind: "Character" | "Location") => void;
 }
 
 type RenameRequest = { id: string; version: number } | null;
@@ -227,7 +228,12 @@ interface EntitySectionState {
   closeMenu: () => void;
 }
 
-function useEntitySectionState(type: "character" | "location", store: StoryBibleStore, onMutated: () => void): EntitySectionState {
+function useEntitySectionState(
+  type: "character" | "location",
+  store: StoryBibleStore,
+  onMutated: () => void,
+  onOpenEntry?: (id: string, kind: "Character" | "Location") => void,
+): EntitySectionState {
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
   const [renameRequest, setRenameRequest] = useState<RenameRequest>(null);
@@ -237,7 +243,13 @@ function useEntitySectionState(type: "character" | "location", store: StoryBible
     setMenu({ x: e.clientX, y: e.clientY, items: buildEntityMenu({
       kind: kind as "Character" | "Location",
       onEditName: () => setRenameRequest((prev) => ({ id, version: (prev?.version ?? 0) + 1 })),
-      onOpenFullEntry: () => console.warn("[StoryBibleView] Open full entry — deferred (Lane 24)"),
+      onOpenFullEntry: () => {
+        if (onOpenEntry) {
+          onOpenEntry(id, kind as "Character" | "Location");
+        } else {
+          console.warn("[StoryBibleView] Open full entry — no handler provided");
+        }
+      },
       onDelete: () => {
         store.deleteEntity(type, id).then(onMutated)
           .catch((err: unknown) => console.error("[StoryBibleView] delete failed", err));
@@ -248,8 +260,8 @@ function useEntitySectionState(type: "character" | "location", store: StoryBible
   return { justCreatedId, setJustCreatedId, menu, renameRequest, setRenameRequest, handleContextMenu, closeMenu: () => setMenu(null) };
 }
 
-function EntitySection({ colTitle, entities, type, roleLabel, iconName, iconColor, addLabel, store, projectId, onMutated, refreshVersion }: EntitySectionProps) {
-  const { justCreatedId, setJustCreatedId, menu, renameRequest, setRenameRequest, handleContextMenu, closeMenu } = useEntitySectionState(type, store, onMutated);
+function EntitySection({ colTitle, entities, type, roleLabel, iconName, iconColor, addLabel, store, projectId, onMutated, refreshVersion, onOpenEntry }: EntitySectionProps) {
+  const { justCreatedId, setJustCreatedId, menu, renameRequest, setRenameRequest, handleContextMenu, closeMenu } = useEntitySectionState(type, store, onMutated, onOpenEntry);
 
   function handleAdd() {
     const create = type === "character"
@@ -286,6 +298,8 @@ interface StoryBibleViewProps {
   store: StoryBibleStore;
   projectId: string;
   onEntitiesChanged?: () => void;
+  /** Called when the "Open full entry" context-menu item fires. Wired by the lead on merge. */
+  onOpenEntry?: (id: string, kind: "Character" | "Location") => void;
 }
 
 async function fetchLists(store: StoryBibleStore, projectId: string) {
@@ -328,10 +342,10 @@ function useCursorReset() {
   }, []);
 }
 
-export function StoryBibleView({ store, projectId, onEntitiesChanged }: StoryBibleViewProps) {
+export function StoryBibleView({ store, projectId, onEntitiesChanged, onOpenEntry }: StoryBibleViewProps) {
   const { characters, locations, refreshVersion, refresh } = useStoryBibleLists(store, projectId, onEntitiesChanged);
   useCursorReset();
-  const shared = { store, projectId, onMutated: refresh, refreshVersion };
+  const shared = { store, projectId, onMutated: refresh, refreshVersion, onOpenEntry };
   return (
     <main className="corkboard">
       <div className="corkboard-inner" style={{ maxWidth: 960 }}>

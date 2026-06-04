@@ -185,7 +185,8 @@ export default function App() {
     showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
     showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
     showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
-    focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems } = state;
+    focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
+    entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
   const onArchiveChanged = () => { bumpArchivedVersion(); wiring.reloadTree(); };
@@ -199,6 +200,9 @@ export default function App() {
       linksVersion={linksVersion} onEntitiesChanged={wiring.onEntitiesChanged}
       storyBibleStore={storyBibleStore} reloadTree={wiring.reloadTree}
       archivedVersion={archivedVersion}
+      entryStack={entryStack} entryOrigin={entryOrigin}
+      onOpenEntry={openEntry} onPushEntry={pushEntry}
+      onEntryBack={entryBack} onExitEntry={exitEntry}
       overlays={{ showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
         showArchive, setShowArchive, showGoals, setShowGoals,
         goalsInitialScope, setGoalsInitialScope,
