@@ -69,6 +69,8 @@ export interface BinderStore {
   renameScene(sceneId: string, title: string): Promise<void>;
   /** Update a scene's status. */
   setSceneStatus(sceneId: string, status: SceneStatus): Promise<void>;
+  /** Update a scene's synopsis. null clears it. */
+  setSceneSynopsis(sceneId: string, synopsis: string | null): Promise<void>;
   /**
    * Delete a scene row only. Caller is responsible for also deleting the
    * corresponding scene_docs row (App orchestrates both stores).
@@ -201,6 +203,12 @@ export class InMemoryBinderStore implements BinderStore {
   async setSceneStatus(sceneId: string, status: SceneStatus): Promise<void> {
     this.scenes = this.scenes.map((s) =>
       s.id === sceneId ? { ...s, status } : s
+    );
+  }
+
+  async setSceneSynopsis(sceneId: string, synopsis: string | null): Promise<void> {
+    this.scenes = this.scenes.map((s) =>
+      s.id === sceneId ? { ...s, synopsis } : s
     );
   }
 
