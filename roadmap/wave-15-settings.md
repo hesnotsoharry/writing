@@ -165,13 +165,28 @@ consumer at `App.overlays.tsx:30`); no backup infra exists in Phase 1.
 **Consequences:** Two design affordances ship as stubs/omissions — filed under `## Follow-up candidates`.
 **Enforcement:** none (convention).
 
+### Decision 6: grammar/styleHints store keys, but NO UI toggle rows in wave 15
+
+**Context:** Phase 3 review FLAGged that the store declares `grammar`/`styleHints` keys (wave-16 read
+contract) but the Settings sheet has no toggle rows for them.
+**Pick:** Wave 15 ships the KEYS + defaults in the store only (per the lead's brief: *"you own the …
+toggle KEYS in the shared settings store — wave 16 reads them"*). The grammar/styleHints toggle ROWS are
+NOT added in wave 15.
+**Rationale:** The design-reference has no such rows; `grammar` is OFF "until S2 ships." Adding live
+toggles for behavior that doesn't exist yet is UI-without-wiring (anti-pattern). Wave 16 adds the rows to
+the Editor section when it lands the backing spell/grammar behavior.
+**Consequences:** Wave 16 must add two `SetToggle` rows (reading `tweaks.grammar`/`tweaks.styleHints` via
+`setTweak`) to `Settings.sections.tsx` `EditorSection` — **flag to lead/wave-16.**
+**Enforcement:** advisory-only (coordination note).
+`durable: candidate`
+
 ## Status
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
-| 2 | — | — | — | — |
-| 3 | — | — | — | — |
+| 1 | ✅ | ✅ | 23bae22 | Internal — 13 store tests (exact keys+defaults, corrupt/null fallback, persistence) |
+| 2 | ✅ | ✅ | fbd9412 | Unit boundary — 4 oracle tests (remount restores theme+accent). Runtime reload NOT observed (no live Tauri app in this lane) — deferred to wave-end smoke |
+| 3 | ✅ | ✅ | (this commit) | Unit boundary — 11 render/interaction tests (5 sections, section-switch, store write, prop calls, toast, scrim-close). Live overlay render NOT observed (overlay mounts only in running shell) — deferred to wave-end smoke |
 
 ## Follow-up candidates
 
