@@ -20,6 +20,7 @@ import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
 import { Corkboard } from "./features/corkboard/Corkboard";
+import { useQuickItemsBadge } from "./features/quickcapture/useQuickItemsBadge";
 import { SceneInspector } from "./inspector/SceneInspector";
 import { AppShell } from "./shell/AppShell";
 import { StatusBar } from "./shell/StatusBar";
@@ -96,8 +97,8 @@ export function AppContent({
 }: AppContentProps) {
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport } = overlays;
   useGlobalKeybindings(overlays);
-  const liveWordCount = useLiveWordCount(doc);
-  const docName = projects.find((p) => p.id === activeProjectId)?.title;
+  useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems); // wave-13:
+  const liveWordCount = useLiveWordCount(doc), docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);
   const binderSlot = focusMode ? null : (
     <Binder tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
