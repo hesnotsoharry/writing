@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AppView } from "../App.state";
 import type { BinderTree } from "../binder/buildTree";
 import { getTweak } from "../features/settings/settings.store";
+import { normalizeStatus, type SceneStatus } from "../lib/status";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -10,9 +11,18 @@ import { getTweak } from "../features/settings/settings.store";
 
 export type FlipDir = "fwd" | "back";
 
+export interface LeafContent {
+  chapterTitle: string;  // "" for short pieces (no containing chapter)
+  title: string;
+  status: SceneStatus;
+  words: number;
+  proseHTML: string;     // best-effort snapshot; "" if unavailable
+}
+
 export interface FlipState {
   key: number;
   dir: FlipDir;
+  outgoing: LeafContent | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,6 +44,39 @@ export function computeFlip(args: {
   const { prevIndex, nextIndex, motion, reduced, view } = args;
   if (!motion || reduced || view !== "editor") return null;
   return { dir: nextIndex < prevIndex ? "back" : "fwd" };
+}
+
+// ---------------------------------------------------------------------------
+// Pure helper — exported for unit tests
+// ---------------------------------------------------------------------------
+
+/**
+ * buildLeafContent — derive the outgoing leaf metadata from the tree.
+ * Returns null when the scene is not found (e.g. it was deleted mid-session).
+ */
+export function buildLeafContent(
+  tree: BinderTree,
+  sceneId: string,
+  proseHTML: string,
+): LeafContent | null {
+  const allScenes = [
+    ...tree.chapters.flatMap((ch) => ch.scenes),
+    ...tree.shortPieces,
+  ];
+  const scene = allScenes.find((s) => s.id === sceneId);
+  if (!scene) return null;
+
+  const chapter = tree.chapters.find((ch) =>
+    ch.scenes.some((s) => s.id === sceneId),
+  );
+
+  return {
+    chapterTitle: chapter?.folder.title ?? "",
+    title: scene.title,
+    status: normalizeStatus(scene.status),
+    words: scene.word_count,
+    proseHTML,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -62,10 +105,11 @@ interface SceneChangeArgs {
   tree: BinderTree;
   view: AppView;
   setFlip: (value: FlipState | null | ((prev: FlipState | null) => FlipState | null)) => void;
+  captureProse: () => string;
 }
 
 function handleSceneChange(args: SceneChangeArgs): (() => void) | void {
-  const { prevSceneRef, flipNum, selectedSceneId, tree, view, setFlip } = args;
+  const { prevSceneRef, flipNum, selectedSceneId, tree, view, setFlip, captureProse } = args;
   if (prevSceneRef.current === selectedSceneId) return;
 
   const prevId = prevSceneRef.current;
@@ -78,8 +122,16 @@ function handleSceneChange(args: SceneChangeArgs): (() => void) | void {
   const result = computeFlip({ prevIndex, nextIndex, motion, reduced, view });
   if (result === null) return;
 
+  // Capture outgoing prose snapshot before React applies the incoming scene.
+  // NOTE: timing caveat — the DOM snapshot may occasionally reflect the
+  // incoming scene if Yjs hydrates synchronously before this effect runs.
+  // An empty string is an acceptable fallback (renders header-only leaf).
+  let proseHTML = "";
+  try { proseHTML = prevId ? captureProse() : ""; } catch { /* best-effort */ }
+
+  const outgoing = prevId ? buildLeafContent(tree, prevId, proseHTML) : null;
   const key = ++flipNum.current;
-  setFlip({ key, dir: result.dir });
+  setFlip({ key, dir: result.dir, outgoing });
 
   // Self-cleanup: clear after animation completes (~1250ms), but only if
   // this is still the active flip (guard against a newer flip clearing it).
@@ -102,10 +154,12 @@ export function usePageFlip({
   selectedSceneId,
   tree,
   view,
+  captureProse,
 }: {
   selectedSceneId: string | null;
   tree: BinderTree;
   view: AppView;
+  captureProse: () => string;
 }): {
   flip: FlipState | null;
   onAnimationEnd: (key: number) => void;
@@ -115,10 +169,15 @@ export function usePageFlip({
   const [flip, setFlip] = useState<FlipState | null>(null);
 
   useEffect(() => {
-    return handleSceneChange({ prevSceneRef, flipNum, selectedSceneId, tree, view, setFlip });
+    return handleSceneChange({
+      prevSceneRef, flipNum, selectedSceneId, tree, view, setFlip, captureProse,
+    });
   }, [selectedSceneId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Intentional: tree/view reads inside the effect are synchronous snapshots;
-  // adding them as deps would cause spurious re-runs on every binder update.
+  // Intentional deps = [selectedSceneId] only. tree/view/captureProse are read
+  // inside the effect as synchronous snapshots; adding them would cause spurious
+  // re-runs on every binder update. captureProse is stable (useCallback([editor]))
+  // and the effect re-captures it on each scene change, so it's always current by
+  // the time a flip fires; a null-editor window degrades to "" (header-only leaf).
 
   function onAnimationEnd(key: number): void {
     setFlip((f) => (f !== null && f.key === key ? null : f));
