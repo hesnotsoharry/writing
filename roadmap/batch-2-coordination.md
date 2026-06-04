@@ -97,21 +97,41 @@ not the menu callback.
 
 ## LANE 24 — Full-Entry (character + location full pages)
 
-Mirrored pages — character + location share layout, content differs. **Design-reference incoming** (Cole).
+**DESIGN IS IN.** Read `design-reference/FULL-ENTRY-SPEC.md` (authoritative) + `full-entry.jsx` +
+`full-entry.css` + `entry.jsx` (working prototype). Mirrored pages — character + location share layout,
+content differs. **Direction B (Split) is decided**: prose (left) + details rail (right), reusing
+`.panel-inspector`/`.insp-group`. It is a **VIEW, not an overlay** (renders in `.center` like Corkboard;
+hide the global Inspector while in it).
 
-Entity model is minimal (`storyBibleStore.ts`): `Entity { id, projectId, type:"character"|"location",
-name, notes, aliases }`. NO stored `description`/`avatar`/`role` (role = static label, avatar = computed
-initial). `aliases` exists but is dead (always NULL, never edited).
+Entity model is minimal (`storyBibleStore.ts`): `Entity { id, projectId, type, name, notes, aliases }`.
+NO stored role/facts/sections/arc/portrait/relationships. Per spec §3:
 
-- `src/storybible/fullEntry/*` — the full-entry page component(s) for one entity. Define prop contract:
-  `{ entity, onSave, onClose, scenesUsingEntity }` (refine against the design).
-- Load one entity: no `getEntity` exists. **Add additive `getEntity(type, id)` to `StoryBibleStore` +
-  both impls** (cleaner than client-side filter). If the design surfaces aliases as editable, also add
-  `updateEntityAliases(type, id, aliases)`. Save name → `renameEntity`; notes → `updateEntityNotes`.
-  Scenes-using-entity → `findScenesForEntity(entityId)`.
-- **Lead integrates on master:** add the open trigger. Open-as-overlay (boolean flag + OverlayStack) OR
-  open-as-view (`AppView` += "entityDetail" + `buildViewStage` branch + `activeEntityId` state) — lead
-  decides from the design. Wire the story-bible right-click "Open full entry" (cleanup #18.4) → this page.
+**NEW TABLES (additive migrations — `setSceneSynopsis` precedent; ⚠ adding a migration breaks prior
+migration tests — run the FULL suite after, see memory `adding-migration-breaks-prior-migration-tests`):**
+- `entity_fields(entity_id, key, value, sort)` — generic custom fields (the design's `+ Add field`) vs a
+  column per field. ADR-worthy (spec §7.4 open) → resolve via `sonnet-architect` at plan time; recommended generic.
+- `entity_links(from_id, to_id, relation)` — entity→entity relationships (character Relationships /
+  location Characters-here, reversed).
+- Portrait field (path/blob) + asset storage (spec §7.3); empty = monogram fallback.
+- Additive store methods: `getEntity(type,id)`, field CRUD, link CRUD, portrait set — contract-tested.
+- **Zero-schema first cut is acceptable** (spec §3): render `name` + `notes` (one prose section) + the
+  live `Appears in` list, stub the rest behind `+ Add field`. Decide scope at plan time WITH Cole.
+
+`Appears in` is buildable TODAY: `findScenesForEntity(id)` → scene_ids → join the BinderTree for
+`{title, chapterTitle, status, words}`; row click = `setActiveId(sceneId)` + `setView("write")`.
+
+- Own: `src/storybible/fullEntry/*` (the `FullEntry` view component) + additive `storyBibleStore` methods.
+  State the component PROP CONTRACT (entity, onBack, onPushEntry, scenesUsingEntity, origin, store hooks)
+  in the handoff.
+- **Lead integrates on master (App-owned nav + entry points — spec §4, §8):**
+  - View/nav state: `entryStack: {id,kind}[]` + `entryOrigin: "write"|"bible"` + `openEntry`/`pushEntry`/
+    `entryBack`/`exitEntry`; add to `AppView`/view-switch (or sub-mode of `"bible"`).
+  - Story-bible right-click "Open full entry" (cleanup #18.4) → `openEntry`.
+  - **Write-panel inspector entry points (cleanup #14 — SAME flow):** header `+` = add-new (create →
+    `replaceSceneLinks` auto-link to open scene → `openEntry` in rename mode); footer "Link a
+    character/location" = picker for EXISTING → `replaceSceneLinks`; card click = `openEntry`. These use
+    the EXISTING `replaceSceneLinks` (scene→entity), NOT the new `entity_links` table — so #14 is
+    DECOUPLED from Lane 24's new tables and can be fixed independently in the cleanup sweep.
 
 ---
 
