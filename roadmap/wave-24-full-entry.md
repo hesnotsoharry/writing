@@ -162,7 +162,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 2 — Tauri portrait plumbing | ✓ | ✓ | (this commit) | Single review BLOCK→fixed (fs caps: granular allow-mkdir/write-file/remove + fs:scope, ctx7-verified); cargo check 0, suite 516/516. ⚠ runtime: dialog copy-mode read-grant for picked file = post-merge smoke |
 | 3 — FullEntry view | ✓ | ✓ | (this commit) | Single review FLAG→adjudicated: arc omitted (no store field, justified); Editable stays key-remount (project lint forbids setState-in-effect); addEntityField-dup flag was stale (idempotent since P1). Gates green, suite 532/532 |
 | 4 — Relationships + picker | ✓ | ✓ | (this commit) | PeopleGroup (relationships/characters-here) + FePersonCard + LivePicker wired to entity_links; single review FLAG→fixed (onOpenEntity→onPushEntry per spec §8 stack semantics). Gates green, suite 540/540 |
-| 5 — Portrait UI | ✓ | ✓ | (this commit) | Portrait hero wired (add/remove/onError→clear + delete-flow unlink) to portraitService + setPortrait/clearPortrait; kind→type mapped. Single review FLAG→fixed (delete unlinks LIVE path, not stale snapshot — prevents orphaned file on add-then-delete). Gates green, suite 540/540. ⚠ round-trip = post-merge smoke |
+| 5 — Portrait UI | ✓ | ✓ | aac930d | Portrait hero wired (add/remove/onError→clear + delete-flow unlink) to portraitService + setPortrait/clearPortrait; kind→type mapped. Single review FLAG→fixed (delete unlinks LIVE path, not stale snapshot — prevents orphaned file on add-then-delete). Gates green, suite 540/540. ⚠ round-trip = post-merge smoke |
+| 6 — Lane wrap | ✓ | ✓ | (this commit) | Full gates: lint P · tsc P · suite 540/540 (67 files). Wave-end cross-phase attack-diff review: FLAG (no BLOCK) — both flags are lead integration items (read-permission post-merge smoke; onPushEntry prop-name) captured in the handoff below. Lane done; lead merges. |
 
 ## Follow-up candidates
 
@@ -170,4 +171,48 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Result
 
-<!-- Filled at wave wrap. -->
+### Lane handoff for merge (Wave 24 Full-Entry → lead)
+
+- **Branch:** wave-24-full-entry · **Plan:** roadmap/wave-24-full-entry.md · **Commits:** d3206c3..(wrap)
+- **Gates:** lint PASS · tsc PASS · full suite 540/540 (67 files) · cargo check 0
+- **Reviewer verdict:** PASS/FLAG — per-phase: P1 panel 3×FLAG→addressed (0 BLOCK), P2–P5 single FLAG→each fixed; wave-end cross-phase attack-diff FLAG (no BLOCK), both flags = lead integration items below.
+
+**What shipped:**
+- Additive store content model: generic `entity_fields` (facts + prose sections, UNIQUE-keyed upsert) + directional `entity_links` (relationships / characters-here) + on-disk portrait (`portrait_path`), via append-only migrations 6/7/8 + 12 additive store methods on both impls.
+- Tauri portrait pipeline: plugin-fs + plugin-dialog registered, asset-protocol + capability scope for `$APPDATA/portraits/**`, `portraitService` (pick/save/delete/convertFileSrc).
+- `FullEntry` Direction-B view (chars + locations, mirrored): topbar, monogram/portrait hero, inline-edit facts + prose sections, live Appears-in, relationships + link picker, entity→entity push-nav. Faithful port of `design-reference/entry.jsx`.
+
+**Files touched (lane-owned + Decision-5 src-tauri + tests + roadmap):** src/db/{migrations,storyBibleStore,sqliteStoryBibleStore,inMemoryEntityDetail,sqliteEntityDetail}.ts · src/storybible/fullEntry/{FullEntry,FeSubcomponents,Editable,PeopleGroup,portraitHooks,portraitService}.{ts,tsx} + defs.ts + fullEntry.css · src-tauri/{Cargo.toml,Cargo.lock,src/lib.rs,capabilities/default.json,tauri.conf.json} · package.json + lock · src/test/{fullEntryStore.contract,fullEntryView,peopleGroup,portraitService}.test.ts
+
+**NEW store methods (additive, both impls; contract tests in src/test/fullEntryStore.contract.test.ts):**
+`getEntity(type,id)→EntityWithPortrait|null` · `getEntityFields(id)` · `setEntityField(id,kind,key,value)` · `addEntityField(id,kind,key)` (idempotent) · `deleteEntityField(fieldId)` · `reorderEntityFields(updates)` · `listLinksFor(id)` · `addLink(from,to,relation)` (dedup) · `removeLink(linkId)` · `updateLinkRelation(linkId,relation)` · `setPortrait(type,id,path)` · `clearPortrait(type,id)`. `deleteEntity` extended to purge entity_fields + entity_links. (`portraitPath` is ONLY on `getEntity`'s return — NOT on base `Entity`.)
+
+**COMPONENT PROP CONTRACT (FullEntry — the lead supplies these from App.*; ALL optional + guarded):**
+```ts
+entity?: EntityWithPortrait | null   // load via store.getEntity(type,id) — NOT listCharacters (needs portraitPath)
+kind?: "Character" | "Location"      // defaults from entity.type
+origin?: "write" | "bible"           // breadcrumb root label + exit target
+store?: StoryBibleStore
+folders?: Folder[]; scenes?: Scene[] // live binder tree — drives Appears-in (empty ⇒ Appears-in shows nothing)
+onBack?(); onExit?()
+onRename?(kind, id, newName); onDelete?(kind, id)   // ⚠ kind is Title-case → map to lowercase for store.deleteEntity
+onOpenScene?(sceneId)                // Appears-in row → open scene in editor
+onPushEntry?(entityId, kind)         // drill into a relationship card / add-new (wire to pushEntry stack action)
+```
+Lead also: render with **`key={entity.id}`** (resets portrait state on nav — mandatory); hide the global `<Inspector>` while the entry view is active (spec §4); wire the right-click "Open full entry" + the nav stack (entryStack/origin/back/exit).
+
+**⚠ Needs Cole's eyes post-merge (no Tauri runtime in-lane):**
+1. Open full entry (char + location) renders the split view; inline-edit a fact/section persists across re-open.
+2. Appears-in lists real scenes; row click opens the scene.
+3. Relationships: link via picker / unlink / relabel; card click navigates.
+4. **Portrait round-trip** — Add→picker→image renders; Remove→monogram; restart→persists; stale file→monogram fallback. **⚠ READ-PERMISSION (uncertain, must verify):** `readFile(picked)` reads the user-picked source path. ctx7 says plugin-dialog default `copy` mode copies it into the app sandbox so it's readable with NO extra scope; the wave-end reviewer argued `fs:default` lacks read-file so it may be DENIED. If the first pick fails with a permission error → either force `fileAccessMode:'copy'` in `open()` or add a scoped `fs:allow-read-file`. Do NOT add an unscoped read grant.
+5. `cargo check` after resolving the Cargo.toml conflict.
+
+**Flags / deviations:**
+- **⚠ `src-tauri/Cargo.toml` will conflict on merge** (lane added 2 crates; file is concurrently `M` on master from the cleanup sweep — Decision 5). Hand-resolve, keep both crate sets, re-run `cargo check`.
+- `arc` metaline not rendered — no store field for it (spec §3); would be a TS error on `EntityWithPortrait`.
+- `Editable` resets via `key`-remount, NOT a `setState`-in-effect (project lint `react-hooks/set-state-in-effect` forbids the entry.jsx pattern). Any reuse must follow the key pattern.
+- Custom-field quick-add uses a hardcoded `"New field"` key (idempotent) — minimal custom-field UX this wave; reorder/multi-named-field UI deferred.
+- `onPushEntry` consolidates the spec's open/push for in-entry nav (every entity nav from inside an entry is a push); the Bible/Write "open fresh" path is lead-side.
+
+> Master wrap team finalizes this `## Result` (decision promotion / HANDOFF / push) post-merge.
