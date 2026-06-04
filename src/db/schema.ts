@@ -1,5 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
 
+import { runMigrations } from "./migrations";
+
 let dbPromise: Promise<Database> | null = null;
 
 /**
@@ -36,79 +38,6 @@ export async function ensureColumn(
   }
 }
 
-const SCHEMA_DDL = [
-  `
-    CREATE TABLE IF NOT EXISTS scene_docs (
-      scene_id TEXT PRIMARY KEY,
-      state_base64 TEXT NOT NULL,
-      plaintext_projection TEXT
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      type TEXT NOT NULL,
-      sort_order INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS folders (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      sort_order INTEGER NOT NULL
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS scenes (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      folder_id TEXT,
-      title TEXT NOT NULL,
-      synopsis TEXT,
-      sort_order INTEGER NOT NULL,
-      word_count INTEGER NOT NULL DEFAULT 0
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS characters (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      notes TEXT,
-      aliases TEXT
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS locations (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      notes TEXT,
-      aliases TEXT
-    )
-  `,
-  `
-    CREATE TABLE IF NOT EXISTS scene_links (
-      scene_id TEXT NOT NULL,
-      entity_type TEXT NOT NULL,
-      entity_id TEXT NOT NULL,
-      -- Enforce the no-duplicate-link invariant at the DB layer.
-      -- detectEntities returns unique ids and replaceSceneLinks does DELETE-then-INSERT
-      -- so this constraint never fires in normal flow.
-      -- Note: existing dev DBs created before this DDL won't gain the constraint
-      -- retroactively under CREATE TABLE IF NOT EXISTS; delete your local writing.db to pick it up.
-      UNIQUE(scene_id, entity_id)
-    )
-  `,
-  `
-    CREATE INDEX IF NOT EXISTS idx_scene_links_scene_id ON scene_links (scene_id)
-  `,
-];
-
 /** Open (once) the app's SQLite database and ensure the schema exists. */
 export function getDb(): Promise<Database> {
   if (!dbPromise) {
@@ -122,14 +51,7 @@ export function getDb(): Promise<Database> {
       // journal_mode is file-level, so this one call converts the whole database
       // (and checkpoints any existing WAL).
       await db.execute("PRAGMA journal_mode=DELETE");
-      for (const ddl of SCHEMA_DDL) {
-        await db.execute(ddl);
-      }
-      // Idempotent column migrations — run after CREATE TABLE so fresh DBs already
-      // have the column and this is a no-op for them; existing DBs gain the column
-      // without data loss (existing state_base64 rows are preserved; new column
-      // is NULL until the next save, which the store already handles).
-      await ensureColumn(db, "scene_docs", "plaintext_projection", "TEXT");
+      await runMigrations(db);
       // One-time repair: recover scenes orphaned by a folder_id that no longer exists (drag bug). Safe no-op on clean DBs.
       await db.execute(
         `UPDATE scenes SET folder_id = NULL
