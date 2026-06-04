@@ -9,11 +9,10 @@ import { Corkboard } from "../features/corkboard/Corkboard";
 /**
  * Orchestrator-owned acceptance test for Wave 12 Phase 2 (Corkboard render contract).
  *
- * Three-state status model per the locked product decision (blank/draft/done) — NOT the
- * design-reference data.jsx five-state mock. STATUS_META labels: "To write"/"Drafting"/"Done".
- *
- * The implementer makes the render assertions pass and MUST NOT modify this file.
- * (Interaction assertions — click-to-open, status-cycle — are added for Phase 3.)
+ * Updated for Wave 17: SceneStatus widened to the 5-value canon set
+ * (blank/outline/draft/revise/final). Legacy "done" is no longer a valid
+ * value — fixtures updated to "final" accordingly. STATUS_CYCLE now advances
+ * through STATUS_ORDER (blank→outline→draft→revise→final→blank).
  */
 
 afterEach(() => {
@@ -47,7 +46,7 @@ const TREE: BinderTree = {
     },
   ],
   shortPieces: [
-    scene({ id: "sp1", title: "Stray Idea", synopsis: null, word_count: 0, status: "done" }),
+    scene({ id: "sp1", title: "Stray Idea", synopsis: null, word_count: 0, status: "final" }),
   ],
 };
 
@@ -89,12 +88,12 @@ describe("Corkboard — render contract (Wave 12 Phase 2)", () => {
     expect(screen.getAllByText("—").length).toBe(2);
   });
 
-  it("shows the status label and a colored dot per status; 'done' renders a check", () => {
+  it("shows the status label and a colored dot per status; 'final' renders a check", () => {
     const { container } = renderBoard();
     expect(screen.getByText("Drafting")).toBeTruthy(); // s1 draft
     expect(screen.getByText("To write")).toBeTruthy(); // s2 blank
-    expect(screen.getByText("Done")).toBeTruthy(); // sp1 done
-    // The done scene renders a check; non-done scenes render dots.
+    expect(screen.getByText("Final")).toBeTruthy(); // sp1 final
+    // The final scene renders a check; non-final scenes render dots.
     expect(container.querySelector(".scene-check")).toBeTruthy();
     expect(container.querySelectorAll(".card-status .dot").length).toBe(2); // s1, s2
   });
@@ -122,9 +121,9 @@ describe("Corkboard — render contract (Wave 12 Phase 2)", () => {
   });
 
   it("the status indicator carries a typed status for each card", () => {
-    // Type-level guard: STATUS_META must cover the closed three-state union.
-    const all: SceneStatus[] = ["blank", "draft", "done"];
-    expect(all).toHaveLength(3);
+    // Type-level guard: STATUS_META must cover the closed five-state union.
+    const all: SceneStatus[] = ["blank", "outline", "draft", "revise", "final"];
+    expect(all).toHaveLength(5);
   });
 });
 
@@ -142,35 +141,34 @@ describe("Corkboard — status cycle (Wave 12 Phase 3)", () => {
     return { opened };
   }
 
-  it("blank → draft on dot click: persists, does NOT open the scene, updates the label", () => {
+  it("blank → outline on dot click: persists, does NOT open the scene, updates the label", () => {
     const calls: [string, SceneStatus][] = [];
     const { opened } = renderWithStatus((id, s) => calls.push([id, s]));
 
     const card = screen.getByText("The Letter").closest(".card") as HTMLElement; // s2, blank
     fireEvent.click(card.querySelector(".dot") as Element);
 
-    expect(calls).toEqual([["s2", "draft"]]); // persisted with the next status
+    expect(calls).toEqual([["s2", "outline"]]); // next step in STATUS_ORDER
     expect(opened).toEqual([]); // stopPropagation — card did not open
-    expect(within(card).getByText("Drafting")).toBeTruthy(); // optimistic label update
+    expect(within(card).getByText("Outlined")).toBeTruthy(); // optimistic label update
   });
 
-  it("draft → done on dot click: optimistic indicator becomes the check + 'Done'", () => {
+  it("draft → revise on dot click: optimistic label updates", () => {
     const calls: [string, SceneStatus][] = [];
     renderWithStatus((id, s) => calls.push([id, s]));
 
     const card = screen.getByText("Opening").closest(".card") as HTMLElement; // s1, draft
     fireEvent.click(card.querySelector(".dot") as Element);
 
-    expect(calls).toEqual([["s1", "done"]]);
-    expect(within(card).getByText("Done")).toBeTruthy();
-    expect(card.querySelector(".scene-check")).toBeTruthy(); // dot → check after reaching done
+    expect(calls).toEqual([["s1", "revise"]]);
+    expect(within(card).getByText("Revising")).toBeTruthy();
   });
 
-  it("done → blank wraps the cycle when the check is clicked", () => {
+  it("final → blank wraps the cycle when the check is clicked", () => {
     const calls: [string, SceneStatus][] = [];
     const { opened } = renderWithStatus((id, s) => calls.push([id, s]));
 
-    const card = screen.getByText("Stray Idea").closest(".card") as HTMLElement; // sp1, done
+    const card = screen.getByText("Stray Idea").closest(".card") as HTMLElement; // sp1, final
     fireEvent.click(card.querySelector(".scene-check") as Element);
 
     expect(calls).toEqual([["sp1", "blank"]]); // wraps back to blank

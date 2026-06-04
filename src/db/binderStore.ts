@@ -2,7 +2,13 @@ import { computeReorder } from "../binder/computeReorder";
 
 /** Domain types for the binder data model. */
 
-export type SceneStatus = "blank" | "draft" | "done";
+/**
+ * SceneStatus — 5-value canon set (wave 17).
+ * The DB column is free-form TEXT; always read raw values through
+ * `normalizeStatus` (src/lib/status.ts) before assigning to this type.
+ * Legacy "done" rows are normalized to "final" at the store read layer.
+ */
+export type SceneStatus = "blank" | "outline" | "draft" | "revise" | "final";
 
 export interface Project {
   id: string;

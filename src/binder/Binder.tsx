@@ -27,6 +27,11 @@ interface BinderContentProps {
 interface BinderProps extends BinderContentProps {
   projects: Project[]; activeProjectId: string | null;
   onSwitchProject: (projectId: string) => void; onCreateProject: () => void; dragCallbacks: DragCallbacks;
+  // Footer props — wave 17 stamps; lane 18 consumes.
+  quickCount?: number;
+  archivedCount?: number;
+  onOpenQuickNotes?: () => void;
+  onOpenArchive?: () => void;
 }
 
 // ---------------------------------------------------------------------------
