@@ -49,12 +49,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   border-bottom: 1px solid var(--parchment-edge);
   user-select: none; position: relative;
 }
-.titlebar .brand {
-  display: flex; align-items: center; gap: var(--s-2); white-space: nowrap;
-  font-weight: var(--w-semi); font-size: var(--text-sm); letter-spacing: 0.01em;
-  color: var(--ink-2); flex: none;
-}
-.titlebar .brand .glyph { width: 16px; height: 16px; color: var(--accent); }
+.titlebar .brand { display: flex; align-items: center; flex: none; }
 .tb-divider { width: 1px; height: 22px; background: var(--parchment-edge); flex: none; }
 .tb-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: none; }
 .titlebar .doc-name {
@@ -72,17 +67,15 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .wbtn:hover { background: var(--parchment-deep); color: var(--ink); }
 .wbtn.close:hover { background: #d6573e; color: #fff; }
 
-/* tb-logo: theme-aware logo at the far right of the title bar.
- * Mapping: LIGHT theme (no data-theme) → darklogo.png (dark mark on light bg).
- *          DARK theme ([data-theme="dark"]) → lightlogo.png (light mark on dark bg).
- * To flip: swap the display:block / display:none assignments below. */
-.tb-logo { display: flex; align-items: center; margin-left: var(--s-2); flex: none; }
-.tb-logo img { height: 20px; width: auto; object-fit: contain; display: none; }
-/* light theme: show the dark-coloured logo */
-.tb-logo .logo-dark  { display: block; }
-/* dark theme: swap to the light-coloured logo */
-[data-theme="dark"] .tb-logo .logo-dark  { display: none; }
-[data-theme="dark"] .tb-logo .logo-light { display: block; }
+/* brand logo: theme-aware logo at the far LEFT of the title bar (replaces the
+ * former feather + "Writers Nook" wordmark).
+ * Mapping: LIGHT theme (no data-theme) → lightlogo.png.
+ *          DARK theme ([data-theme="dark"]) → darklogo.png.
+ * To flip: swap the two display:block assignments below. */
+.titlebar .brand img { height: 30px; width: auto; object-fit: contain; display: none; }
+.titlebar .brand .logo-light { display: block; }
+[data-theme="dark"] .titlebar .brand .logo-light { display: none; }
+[data-theme="dark"] .titlebar .brand .logo-dark { display: block; }
 
 /* ---- Top bar ------------------------------------------------------------- */
 .topbar {

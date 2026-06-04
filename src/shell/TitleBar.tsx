@@ -106,8 +106,9 @@ export function TitleBar({
   return (
     <div className="titlebar" data-tauri-drag-region>
       <div className="brand">
-        <Icon name="feather" className="glyph" />
-        <span>Writers Nook</span>
+        {/* Theme-aware logo — replaces the former feather + "Writers Nook" wordmark. */}
+        <img className="logo-light" src={lightLogo} alt="Writers Nook" />
+        <img className="logo-dark" src={darkLogo} alt="Writers Nook" />
       </div>
       <div className="tb-divider" />
       <ViewSwitch view={view} onViewChange={onViewChange} />
@@ -127,10 +128,6 @@ export function TitleBar({
         onOpenSettings={onOpenSettings ?? (() => {})}
         onOpenExport={onOpenExport ?? (() => {})}
       />
-      <span className="tb-logo">
-        <img className="logo-dark"  src={darkLogo}  alt="" />
-        <img className="logo-light" src={lightLogo} alt="" />
-      </span>
       <div className="tb-divider" />
       <div className="wbtns">
         <WindowControls />
