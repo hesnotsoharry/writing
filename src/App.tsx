@@ -19,7 +19,8 @@ import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { SceneInspector } from "./inspector/SceneInspector";
-import { WindowControls } from "./shell/WindowControls";
+import { StatusBar } from "./shell/StatusBar";
+import { TitleBar } from "./shell/TitleBar";
 import { StoryBibleView } from "./storybible/StoryBibleView";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded } from "./yjs/serialize";
@@ -127,66 +128,48 @@ interface AppContentProps {
   onCreateProject: () => void;
   dragCallbacks: DragCallbacks;
   view: AppView;
-  onToggleView: () => void;
+  onViewChange: (view: AppView) => void;
   linksVersion: number;
   onEntitiesChanged: () => void;
 }
 
-const viewToggleStyle: React.CSSProperties = {
-  position: "absolute", bottom: 12, left: 8, right: 8, fontSize: 12,
-  border: "1px solid #ddd", borderRadius: 4, padding: "5px 8px",
-  cursor: "pointer", background: "#f0f0f0", textAlign: "left", zIndex: 1,
-};
-
-/** Phase 1 temporary titlebar — replace with real TitleBar/AppShell in Phases 2/3. */
-function TempTitlebar() {
-  return (
-    <div
-      data-tauri-drag-region
-      style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", height: 32, flexShrink: 0, background: "#f5f5f5", borderBottom: "1px solid #e0e0e0" }}
-    >
-      <WindowControls />
-    </div>
-  );
-}
-
+// Phase 2: TitleBar + StatusBar replace TempTitlebar. Phase 3 (AppShell) restructures into slots.
 function AppContent({
   tree, selectedSceneId, doc, onSelectScene, callbacks,
   projects, activeProjectId, onSwitchProject, onCreateProject,
-  dragCallbacks, view, onToggleView, linksVersion, onEntitiesChanged,
+  dragCallbacks, view, onViewChange, linksVersion, onEntitiesChanged,
 }: AppContentProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <TempTitlebar />
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}><div style={{ position: "relative", flexShrink: 0 }}>
-        <Binder
-          tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
-          callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
-          onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-          dragCallbacks={dragCallbacks}
-        />
-        <button style={viewToggleStyle} onClick={onToggleView}>
-          {view === "editor" ? "Story Bible" : "Editor"}
-        </button>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <TitleBar view={view} onViewChange={onViewChange} />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <Binder
+            tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
+            callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
+            onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
+            dragCallbacks={dragCallbacks}
+          />
+        </div>
+        {view === "bible" && activeProjectId ? (
+          <StoryBibleView
+            store={storyBibleStore}
+            projectId={activeProjectId}
+            onEntitiesChanged={onEntitiesChanged}
+          />
+        ) : (
+          <EditorPane doc={doc} />
+        )}
+        {view === "editor" && activeProjectId && (
+          <SceneInspector
+            store={storyBibleStore}
+            projectId={activeProjectId}
+            sceneId={selectedSceneId}
+            refreshKey={linksVersion}
+          />
+        )}
       </div>
-      {view === "bible" && activeProjectId ? (
-        <StoryBibleView
-          store={storyBibleStore}
-          projectId={activeProjectId}
-          onEntitiesChanged={onEntitiesChanged}
-        />
-      ) : (
-        <EditorPane doc={doc} />
-      )}
-      {view === "editor" && activeProjectId && (
-        <SceneInspector
-          store={storyBibleStore}
-          projectId={activeProjectId}
-          sceneId={selectedSceneId}
-          refreshKey={linksVersion}
-        />
-      )}
-      </div>
+      <StatusBar sceneWordCount={null} />
     </div>
   );
 }
@@ -277,7 +260,7 @@ export default function App() {
       projects={projects} activeProjectId={activeProjectId}
       onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
       dragCallbacks={dragCallbacks} view={view}
-      onToggleView={() => setView((v) => (v === "editor" ? "bible" : "editor"))}
+      onViewChange={setView}
       linksVersion={linksVersion} onEntitiesChanged={onEntitiesChanged}
     />
   );

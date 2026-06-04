@@ -1,27 +1,123 @@
 import type { ReactElement } from "react";
 
 import type { AppView } from "../App.state";
+import { Icon } from "../components/Icon";
+import { WindowControls } from "./WindowControls";
 
-/**
- * Phase 2 stub — wave-5 (app shell + custom window frame).
- *
- * Real implementation ports design-reference/chrome.jsx: brand, segmented
- * Write/Story-Bible view switch, centered doc name, action icons, and the
- * window controls (folded in from Phase 1's WindowControls). See
- * roadmap/wave-5-app-shell-custom-window-frame.md, Phase 2.
- *
- * The view-switch is the one behavioral surface — it is gated by the
- * orchestrator-owned oracle src/test/titleBar.viewSwitch.contract.test.tsx.
- * `view` + `onViewChange` are the required contract; presentational props
- * (doc name, action handlers) are added as optional fields by the implementer.
- */
 export interface TitleBarProps {
   /** Current active view; drives which segment shows as active. */
   view: AppView;
   /** Called with the selected view when a segment is clicked. */
   onViewChange: (view: AppView) => void;
+  /** Centered document / manuscript name. Omit to hide. */
+  docName?: string;
+  /** Whether the Goals panel is open (tints the target icon). */
+  goalsOn?: boolean;
+  /** Whether the Quick Capture popover has pending items (shows dot badge). */
+  hasQuickItems?: boolean;
+  /** Handler for the Goals icon button. */
+  onToggleGoals?: () => void;
+  /** Handler for the Quick Capture icon button. */
+  onOpenQuick?: () => void;
+  /** Handler for the Focus Mode icon button. */
+  onEnterFocus?: () => void;
+  /** Handler for the Settings icon button. */
+  onOpenSettings?: () => void;
+  /** Handler for the Export button. */
+  onOpenExport?: () => void;
 }
 
-export function TitleBar(_props: TitleBarProps): ReactElement {
-  return <div data-testid="titlebar-stub" />;
+/** Segmented Write / Story Bible view switch (Corkboard deferred). */
+function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onViewChange">): ReactElement {
+  return (
+    <div className="segmented">
+      <button
+        className={view === "editor" ? "on" : ""}
+        aria-pressed={view === "editor"}
+        onClick={() => { onViewChange("editor"); }}
+      >
+        <Icon name="type" className="ic" />
+        {" Write"}
+      </button>
+      <button
+        className={view === "bible" ? "on" : ""}
+        aria-pressed={view === "bible"}
+        onClick={() => { onViewChange("bible"); }}
+      >
+        <Icon name="book" className="ic" />
+        {" Story Bible"}
+      </button>
+    </div>
+  );
+}
+
+/** Right-hand action icon buttons + Export pill. */
+function TitleBarActions({
+  goalsOn, hasQuickItems, onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport,
+}: Required<Pick<TitleBarProps, "goalsOn" | "hasQuickItems" | "onToggleGoals" | "onOpenQuick" | "onEnterFocus" | "onOpenSettings" | "onOpenExport">>): ReactElement {
+  return (
+    <div className="tb-actions">
+      <button className="iconbtn" title="Goals" aria-label="Goals" onClick={onToggleGoals}>
+        <Icon name="target" className="ic" style={goalsOn ? { color: "var(--accent)" } : undefined} />
+      </button>
+      <button
+        className={"iconbtn" + (hasQuickItems ? " has-dot" : "")}
+        title="Quick capture  ⌘K" aria-label="Quick capture" onClick={onOpenQuick}
+      >
+        <Icon name="zap" className="ic" />
+      </button>
+      <button className="iconbtn" title="Focus mode  ⌘." aria-label="Focus mode" onClick={onEnterFocus}>
+        <Icon name="focus" className="ic" />
+      </button>
+      <button className="iconbtn" title="Settings  ⌘," aria-label="Settings" onClick={onOpenSettings}>
+        <Icon name="cog" className="ic" />
+      </button>
+      <button className="btn btn-soft" style={{ marginLeft: 4 }} aria-label="Export" onClick={onOpenExport}>
+        <Icon name="download" className="ic" />{" Export"}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Full designed title bar: brand · divider · view-switch · doc-name · actions ·
+ * divider · window controls.
+ *
+ * The segmented view-switch satisfies src/test/titleBar.viewSwitch.contract.test.tsx:
+ * Write → onViewChange("editor"), Story Bible → onViewChange("bible"), aria-pressed tracks view.
+ * Corkboard is DEFERRED. Action icon handlers default to no-op stubs (TODO comments name waves).
+ */
+export function TitleBar({
+  view, onViewChange, docName,
+  goalsOn = false, hasQuickItems = false,
+  onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport,
+}: TitleBarProps): ReactElement {
+  return (
+    <div className="titlebar" data-tauri-drag-region>
+      <div className="brand">
+        <Icon name="feather" className="glyph" />
+        <span>Writers Nook</span>
+      </div>
+      <div className="tb-divider" />
+      <ViewSwitch view={view} onViewChange={onViewChange} />
+      {docName !== undefined && (
+        <div className="doc-name">
+          {docName}<span className="saved">· saved just now</span>
+        </div>
+      )}
+      <TitleBarActions
+        goalsOn={goalsOn}
+        hasQuickItems={hasQuickItems}
+        onToggleGoals={onToggleGoals ?? (() => {})} // TODO(wave-6): wire goals panel
+        onOpenQuick={onOpenQuick ?? (() => {})}     // TODO(wave-6): wire quick-capture popover
+        onEnterFocus={onEnterFocus ?? (() => {})}   // TODO(wave-7): wire focus mode
+        onOpenSettings={onOpenSettings ?? (() => {})} // TODO(wave-7): wire settings modal
+        onOpenExport={onOpenExport ?? (() => {})}   // TODO(wave-7): wire export dialog
+      />
+      <div className="tb-divider" />
+      <div className="wbtns">
+        <WindowControls />
+      </div>
+    </div>
+  );
 }

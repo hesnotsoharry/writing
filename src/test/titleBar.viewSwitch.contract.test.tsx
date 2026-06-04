@@ -2,12 +2,13 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AppView } from "../App.state";
 import { TitleBar } from "../shell/TitleBar";
 
 afterEach(cleanup);
 
 describe("TitleBar — view-switch contract", () => {
-  let onViewChange: ReturnType<typeof vi.fn>;
+  let onViewChange: ReturnType<typeof vi.fn<(view: AppView) => void>>;
 
   beforeEach(() => {
     onViewChange = vi.fn();
