@@ -1,0 +1,8 @@
+name = "writers-nook-marketing"
+pages_build_output_dir = "public"
+compatibility_date = "2026-06-04"
+
+# @supabase/supabase-js pulls in a few Node builtins on the Workers runtime;
+# nodejs_compat lets them resolve at the edge. Verify at first real deploy —
+# the Phase-1 smoke mocks supabase-js, so this isn't exercised until live.
+compatibility_flags = ["nodejs_compat"]

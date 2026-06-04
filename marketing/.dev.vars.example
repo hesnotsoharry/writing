@@ -1,0 +1,4 @@
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=replace-with-service-role-key
+SUPABASE_ANON_KEY=replace-with-anon-key
+LEMON_SQUEEZY_SIGNING_SECRET=replace-with-ls-webhook-secret

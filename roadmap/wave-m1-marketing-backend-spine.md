@@ -82,7 +82,14 @@ Before declaring a phase complete, restate the observation point from the Phases
 **Decision 2: Webhook idempotency = unique `order_id` upsert + a `webhook_events` ledger.**
 **Context:** Lemon Squeezy retries webhooks; a retry must not double-create a purchase (research §3). **Pick:** make `purchases.order_id` UNIQUE and `upsert` on it; additionally record each processed event in `webhook_events` for an explicit replay guard. **Rationale:** the unique-constraint upsert is the durable guarantee even under concurrent retries; the ledger gives observability and a fast pre-check. Standard idempotent-consumer pattern. **Enforcement:** acceptance criterion "duplicate payload → exactly one row" + the Phase 2 smoke test.
 
+**Decision 3: Marketing site is a self-contained Cloudflare Pages project under `marketing/`, decoupled from the Tauri app.** `durable: candidate`
+**Context:** the app and the marketing backend share one git repo; the Phase-1 implementer merged marketing deps into the app's root `package.json`, coupling the two and risking a merge conflict with the concurrent app agent on `master`. **Pick:** `marketing/` is its own Pages project root — own `package.json` (supabase-js/wrangler/vitest), static assets in `marketing/public/`, `functions/` + `supabase/` inside `marketing/`; the app's root `package.json` left untouched. **Rationale:** clean dependency isolation (app doesn't ship wrangler; Pages doesn't install the Tauri/React toolchain on every deploy) and zero `package.json` conflict with the parallel app branch. **User-locked by Cole, 2026-06-04.** **Consequences:** CF Pages dashboard root dir = `marketing`, build output dir = `public`; marketing carries its own gates (`tsc --noEmit` + `vitest`). **Enforcement:** `advisory-only` — structural separation via `marketing/package.json`; no hook.
+
 ## Status
+
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | Mocked smoke only — live `/api/health` round-trip NOT observable yet (no Supabase project provisioned). tsc 0 errors, vitest 2/2. Live observation deferred to provisioning. |
 
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
 
