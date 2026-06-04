@@ -17,7 +17,7 @@ function TitleBar({ view, setView, projectTitle, openQuick, openExport, enterFoc
         <button className={view === "cork" ? "on" : ""} onClick={() => setView("cork")}>
           <Icon name="grid" className="ic" /> Corkboard
         </button>
-        <button className={view === "bible" ? "on" : ""} onClick={() => setView("bible")}>
+        <button className={(view === "bible" || view === "entry") ? "on" : ""} onClick={() => setView("bible")}>
           <Icon name="book" className="ic" /> Story bible
         </button>
       </div>

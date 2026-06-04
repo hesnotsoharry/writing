@@ -61,7 +61,7 @@ function AppShell(p) {
     e.preventDefault(); e.stopPropagation();
     setMenu({ ...at(e), items: [
       { icon: "edit", label: "Edit name", onClick: () => setRenaming(entity.id) },
-      { icon: "fileText", label: "Open full entry", onClick: () => {} },
+      { icon: "fileText", label: "Open full entry", onClick: () => actions.openEntry(entity, kind) },
       { type: "sep" },
       { icon: "trash", label: "Delete " + kind.toLowerCase(), danger: true, onClick: () => actions.deleteEntity(kind, entity.id) },
     ] });
@@ -131,6 +131,22 @@ function AppShell(p) {
             {view === "write" && !scene && <div style={{ margin: "auto", color: "var(--ink-4)", fontFamily: "var(--font-prose)", fontStyle: "italic" }}>Select a scene to start writing.</div>}
             {view === "cork" && <Corkboard tree={tree} handlers={corkHandlers} renaming={renaming} />}
             {view === "bible" && <StoryBible chars={chars} locs={locs} handlers={bibleHandlers} renaming={renaming} />}
+            {view === "entry" && p.entry && (() => {
+              const ent = (p.entry.kind === "Character" ? chars : locs).find((x) => x.id === p.entry.id);
+              if (!ent) return null;
+              return <FullEntry entity={ent} kind={p.entry.kind} origin={p.entryOrigin} stackDepth={(p.entry && p.entryStack ? p.entryStack.length : 1)}
+                scenes={p.scenes} chars={chars} locs={locs}
+                edit={(p.entryEdits || {})[ent.id]} renaming={renaming} setRenaming={setRenaming}
+                onBack={actions.entryBack}
+                onExit={actions.exitEntry}
+                onOpenScene={(id) => { setActiveId(id); setView("write"); }}
+                onOpenEntity={(e2, k2) => actions.pushEntry(e2, k2)}
+                onAddRelated={(fromId, people) => actions.addRelatedEntity(fromId, people)}
+                onPatch={actions.patchEntry}
+                onRename={actions.renameEntity}
+                onDelete={(k2, id) => { actions.deleteEntity(k2, id); actions.exitEntry(); }}
+                onToast={(label) => setToast({ label })} />;
+            })()}
           </div>
           {view === "write" && flip && (
             <div className={"page-turn-layer " + flip.dir} key={flip.key}
@@ -149,7 +165,10 @@ function AppShell(p) {
 
         {!focus && view === "write" && scene && (
           <Inspector scene={p.scenes[activeId] || scene} allChars={chars} allLocs={locs}
-            goalsOn={goalsOn} sessionWords={sessionWords} sessionTarget={sessionTarget} />
+            goalsOn={goalsOn} sessionWords={sessionWords} sessionTarget={sessionTarget}
+            onOpenEntity={(entity, kind) => actions.openEntry(entity, kind)}
+            onLinkScene={(kind, entity) => actions.linkSceneEntity(kind, entity)}
+            onAddEntity={(kind) => actions.addSceneEntity(kind)} />
         )}
       </div>
 

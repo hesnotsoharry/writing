@@ -1,0 +1,242 @@
+/* ============================================================================
+   Full Entry — Story Bible entity detail screen.
+   New components, consumes tokens.css + app.css. Prefix: .fe-  (shared),
+   .feA- (document), .feB- (split), .feC- (profile).
+   ========================================================================== */
+
+/* ---- Screen shell (sits in .center, like Corkboard / StoryBible) --------- */
+.fe-screen { flex: 1; min-height: 0; overflow-y: auto; background: var(--parchment-deep); }
+.fe-screen::-webkit-scrollbar { width: 11px; }
+.fe-screen::-webkit-scrollbar-thumb { background: var(--parchment-edge); border-radius: 9px; border: 3px solid var(--parchment-deep); }
+
+/* Static variant for design-canvas artboards: grow to content, don't scroll. */
+.fe-static { flex: none; min-height: 0; overflow: visible; }
+.fe-static .fe-topbar { position: static; }
+
+/* The entry rail reuses .insp-group but must not inherit the write-view's
+   entrance animation (which can stall mid-frame on first paint). Keep it crisp. */
+.fe-screen .insp-group { animation: none !important; opacity: 1 !important; }
+
+/* ---- Contextual top bar (back · breadcrumb · actions) -------------------- */
+.fe-topbar {
+  position: sticky; top: 0; z-index: 6;
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: 9px var(--s-4); background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.fe-back {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  font-size: var(--text-sm); font-weight: var(--w-medium); color: var(--ink-2);
+  padding: 6px 11px 6px 8px; border-radius: var(--r-md);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.fe-back:hover { background: var(--parchment-deep); color: var(--ink); }
+.fe-back .ic { width: 16px; height: 16px; }
+.fe-crumb { display: flex; align-items: center; gap: 7px; font-size: var(--text-xs); color: var(--ink-3); white-space: nowrap; }
+.fe-crumb-root { color: var(--ink-3); font-size: var(--text-xs); padding: 2px 5px; border-radius: var(--r-xs);
+  transition: background var(--dur-fast), color var(--dur-fast); }
+.fe-crumb-root:hover { color: var(--ink); background: var(--parchment-deep); }
+.fe-crumb .sep { color: var(--ink-4); }
+.fe-crumb .here { color: var(--ink); font-weight: var(--w-medium); }
+.fe-tb-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; flex: none; }
+
+/* ---- Hero (avatar/portrait + name + role + meta line) -------------------- */
+.fe-hero { display: flex; gap: var(--s-5); align-items: flex-start; }
+.fe-av-lg {
+  width: 72px; height: 72px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-prose); font-size: 30px; font-weight: var(--w-bold);
+}
+.fe-av-lg.character { background: var(--character-tint); color: var(--character); }
+.fe-av-lg.location  { background: var(--location-tint);  color: var(--location); border-radius: var(--r-lg); }
+.fe-portrait {
+  width: 76px; height: 76px; flex: none; border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); overflow: hidden;
+}
+.fe-portrait.round { border-radius: 50%; }
+.fe-hero-body { min-width: 0; flex: 1; padding-top: 2px; }
+
+/* avatar column: monogram/portrait + collapsed "add portrait" affordance */
+.fe-avatar-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
+.fe-portrait-add {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: var(--w-semi); letter-spacing: 0.02em;
+  color: var(--ink-4); padding: 2px 7px; border-radius: var(--r-pill);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.fe-portrait-add:hover { background: var(--accent-wash); color: var(--accent-deep); }
+.fe-portrait-add .ic { width: 11px; height: 11px; }
+.fe-name {
+  font-family: var(--font-prose); font-size: var(--text-3xl); font-weight: var(--w-semi);
+  color: var(--ink); margin: 0; line-height: 1.12; letter-spacing: -0.01em;
+}
+.fe-eyebrow {
+  font-size: var(--text-2xs); font-weight: var(--w-bold); letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--accent-deep); margin-bottom: 7px;
+}
+.fe-eyebrow.location { color: var(--location); }
+.fe-metaline {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 10px;
+  font-size: var(--text-xs); color: var(--ink-3);
+}
+.fe-metaline .ic { width: 13px; height: 13px; color: var(--ink-4); vertical-align: -2px; }
+.fe-metaline .mdot { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-4); }
+
+/* ---- Section + prose blocks ---------------------------------------------- */
+.fe-sec { margin-top: var(--s-6); }
+.fe-sec-label {
+  display: flex; align-items: center; gap: 7px; margin-bottom: var(--s-2);
+  font-size: var(--text-2xs); font-weight: var(--w-bold); letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.fe-sec-label .ic { width: 13px; height: 13px; }
+.fe-prose {
+  font-family: var(--font-prose); font-size: var(--text-md); line-height: 1.62; color: var(--ink-2);
+}
+/* inline-editable affordance: invisible until hover/focus */
+.fe-editable {
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  padding: 5px 8px; margin: -5px -8px;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+  cursor: text;
+}
+.fe-editable:hover { background: var(--paper); border-color: var(--line); }
+.fe-editable:focus-within, .fe-editable.editing {
+  background: var(--paper); border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash); outline: none;
+}
+.fe-placeholder { color: var(--ink-4); font-style: italic; }
+
+/* inline-edit inputs (live app) */
+.fe-edit-input, .fe-edit-area {
+  font: inherit; width: 100%; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--accent); border-radius: var(--r-sm);
+  box-shadow: 0 0 0 3px var(--accent-wash); outline: none;
+  padding: 5px 8px; margin: -5px -8px; box-sizing: border-box;
+}
+.fe-edit-area {
+  font-family: var(--font-prose); font-size: var(--text-md); line-height: 1.62;
+  resize: none; overflow: hidden; display: block;
+}
+.fe-fact-v .fe-edit-input, .fe-fact .fe-edit-input { font-size: var(--text-sm); font-weight: var(--w-medium); }
+
+/* ---- Facts grid (short fields) ------------------------------------------- */
+.fe-facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
+}
+.fe-fact { background: var(--paper); padding: 10px 13px; min-width: 0; }
+.fe-fact-l { font-size: var(--text-2xs); font-weight: var(--w-bold); letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--ink-3); }
+.fe-fact-v { font-size: var(--text-sm); font-weight: var(--w-medium); color: var(--ink); margin-top: 3px;
+  overflow-wrap: anywhere; }
+
+/* ---- Appears-in scene list ----------------------------------------------- */
+.fe-list { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md); padding: 4px; }
+.fe-scene { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r-sm);
+  cursor: pointer; transition: background var(--dur-fast); }
+.fe-scene:hover { background: var(--parchment-deep); }
+.fe-scene .sdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.fe-scene .stitle { font-size: var(--text-sm); font-weight: var(--w-medium); color: var(--ink); flex: none;
+  max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fe-scene .sch { font-size: var(--text-2xs); color: var(--ink-3); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.fe-scene .sw { margin-left: auto; font-size: var(--text-2xs); color: var(--ink-4);
+  font-variant-numeric: tabular-nums; flex: none; }
+.fe-scene .schev { color: var(--ink-4); flex: none; opacity: 0; transition: opacity var(--dur-fast); }
+.fe-scene:hover .schev { opacity: 1; }
+
+/* ---- Relationships ------------------------------------------------------- */
+.fe-rel-relation { font-size: var(--text-2xs); color: var(--ink-3); }
+.fe-person { position: relative; }
+.fe-unlink { margin-left: auto; flex: none; width: 24px; height: 24px; border-radius: var(--r-xs);
+  display: grid; place-items: center; color: var(--ink-4); opacity: 0;
+  transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast); }
+.entity-card:hover .fe-unlink { opacity: 1; }
+.fe-unlink:hover { background: rgba(168, 68, 47, 0.12); color: var(--danger); }
+
+/* ---- Add-field / add-link affordance ------------------------------------- */
+.fe-add {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 7px;
+  font-size: var(--text-xs); font-weight: var(--w-medium); color: var(--ink-3);
+  padding: 6px 9px; border-radius: var(--r-sm);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.fe-add:hover { background: var(--accent-wash); color: var(--accent-deep); }
+.fe-add .ic { width: 13px; height: 13px; }
+
+/* ---- Relationship link picker (popover in the rail) ---------------------- */
+.fe-picker {
+  margin-top: 8px; background: var(--paper);
+  border: 1px solid var(--parchment-edge); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md); padding: 6px;
+  animation: cm-in 110ms var(--ease-out);
+}
+.fe-picker-search {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 5px;
+  padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  font-size: var(--text-xs); color: var(--ink-4);
+}
+.fe-picker-search .ic { width: 13px; height: 13px; color: var(--ink-3); }
+.fe-picker-input { flex: 1; min-width: 0; border: none; background: transparent; outline: none;
+  font: inherit; font-size: var(--text-xs); color: var(--ink); }
+.fe-picker-input::placeholder { color: var(--ink-4); }
+.fe-pick {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  padding: 6px 8px; border-radius: var(--r-sm); transition: background var(--dur-fast);
+}
+.fe-pick:hover { background: var(--parchment-deep); }
+.fe-pick .avatar { width: 26px; height: 26px; font-size: var(--text-xs); }
+.fe-pick .nm { flex: 1; min-width: 0; font-size: var(--text-sm); font-weight: var(--w-medium); color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fe-pick .plus { color: var(--ink-3); flex: none; }
+.fe-pick:hover .plus { color: var(--accent-deep); }
+
+/* ==========================================================================
+   Direction A — Literary document (single-column takeover)
+   ========================================================================== */
+.feA-doc { max-width: 624px; margin: 0 auto; padding: 44px 32px 72px; }
+.feA-doc .fe-hero { padding-bottom: var(--s-5); margin-bottom: var(--s-3);
+  border-bottom: 1px solid var(--line); }
+.feA-doc .fe-facts { margin-top: var(--s-4); }
+.feA-doc .fe-sec { margin-top: var(--s-8); }
+.feA-rels { display: grid; gap: 4px; margin-top: var(--s-1); }
+
+/* ==========================================================================
+   Direction B — Split: prose document (left) + metadata rail (right)
+   ========================================================================== */
+.feB { display: flex; min-height: 100%; }
+.feB-center { flex: 1; min-width: 0; background: var(--paper); }
+.feB-doc { max-width: 568px; margin: 0 auto; padding: 40px 28px 72px; }
+.feB-doc .fe-hero { margin-bottom: var(--s-6); }
+.feB-doc .fe-sec { margin-top: var(--s-6); }
+.feB-side {
+  width: 308px; flex: none; background: var(--parchment);
+  border-left: 1px solid var(--line); padding: var(--s-5) var(--s-4) var(--s-8);
+}
+.feB-side .insp-group { margin-bottom: var(--s-6); }
+
+/* ==========================================================================
+   Direction C — Structured profile / record
+   ========================================================================== */
+.feC-wrap { max-width: 812px; margin: 0 auto; padding: 32px; }
+.feC-hero {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card); padding: 24px 26px; display: flex; gap: var(--s-5);
+  align-items: flex-start;
+}
+.feC-stats { display: flex; gap: 26px; margin-top: 16px; }
+.feC-stat .n { font-family: var(--font-prose); font-size: var(--text-xl); font-weight: var(--w-bold);
+  color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.feC-stat .l { font-size: var(--text-2xs); font-weight: var(--w-semi); letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ink-3); margin-top: 5px; }
+.feC-stat .n.small { font-size: var(--text-md); }
+.feC-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; align-items: start; }
+.feC-card {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 15px 18px 17px;
+}
+.feC-card.span2 { grid-column: 1 / -1; }
+.feC-card .fe-sec-label { margin-bottom: var(--s-2); }
+.feC-card .fe-prose { font-size: var(--text-sm); line-height: 1.6; }

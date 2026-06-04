@@ -158,6 +158,42 @@ const FRAG_TREE = {
 
 const TREES = { "p-salt": TREE, "p-frag": FRAG_TREE };
 
+// Rich per-entity detail for the full-entry screen. Additive + sparse: only
+// the showcased entities are authored; everything else falls back to its
+// `notes` + computed scene appearances + empty (promptable) fields.
+const ENTITY_DETAILS = {
+  "c-1": {
+    portrait: "portrait-maren.png",
+    facts: { Age: "34", Occupation: "Cartographer", Status: "Living", "First appears": "I · 1" },
+    sections: {
+      appearance: "Lean and weather-set, with the squint of someone who reads landscapes for a living. Keeps her hair cropped short so the wind can't argue with it. Wears Edda's oilskin coat though it hangs wrong on her — the one inheritance she has let herself keep.",
+      goals: "On paper: settle the estate, keep the light the three weeks the law requires, and leave before the spring tide. Underneath, unspoken: to prove she never needed the island — or the woman who raised her on it.",
+      backstory: "Orphaned at six and raised on Thornwick by her grandmother. Left at eighteen for a mainland map-maker's certificate and did not come back — not for holidays, not for the funeral she missed by three weeks. Maps let her hold a place at arm's length: all coastline, no weather.",
+      voice: "Clipped. Understates everything that matters and over-explains everything that doesn't. Answers a hard question with a question of her own. Says “fine” the way other people say “leave me alone.”",
+    },
+    people: [
+      { id: "c-2", relation: "Grandmother · deceased" },
+      { id: "c-3", relation: "Wary ally" },
+      { id: "c-4", relation: "Unlikely confidante" },
+    ],
+  },
+  "l-2": {
+    facts: { Region: "Thornwick, north point", Type: "Working light", Established: "1871", "First appears": "I · 2" },
+    sections: {
+      significance: "The reason anyone still lives on Thornwick, and the reason Maren came back. Almost every turn of the book is either decided here or discovered here.",
+      atmosphere: "Cold stone that never quite warms through. Paraffin, brass polish, sea-damp. After dark the lamp throws the same slow revolving shadow it has thrown for a hundred and fifty years.",
+      description: "Edda's, and now Maren's. Keeper's rooms below — a bed, a stove, a desk with the logbook always open. The lamp above still turns by clockwork if you wind it. A locked cabinet that no key in the house will open.",
+      history: "Lit in 1871 after the Maundy wreck took forty souls on the north reef. Kept by a Vale, or a Vale's hire, ever since. The light has failed exactly twice — once in the war, and once on the night Edda died.",
+    },
+    people: [
+      { id: "c-1", relation: "Keeper" },
+      { id: "c-2", relation: "Former keeper · deceased" },
+      { id: "c-3", relation: "Frequent visitor" },
+    ],
+  },
+};
+
 Object.assign(window, {
   SCENE_PROSE, PROJECTS, TREE, FRAG_TREE, TREES, CHARACTERS, LOCATIONS, QUICK_NOTES, STATUS_META, STATUS_ORDER,
+  ENTITY_DETAILS,
 });

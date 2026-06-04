@@ -64,6 +64,9 @@ function App() {
   const [toast, setToast] = React.useState(null);
   const [renaming, setRenaming] = React.useState(null);
   const [archived, setArchived] = React.useState([]);
+  const [entryStack, setEntryStack] = React.useState([]);   // [{ id, kind }] — full-entry nav stack
+  const [entryOrigin, setEntryOrigin] = React.useState("bible"); // "bible" | "write" — where the journey began
+  const [entryEdits, setEntryEdits] = React.useState({});   // per-entity field overrides
 
   const tree = trees[activeProject];
   const scenes = flattenScenes(tree);
@@ -176,23 +179,83 @@ function App() {
   }
 
   // ---- entities
-  const renameEntity = (kind, id, name) => { (kind === "Character" ? setChars : setLocs)(arr => arr.map(e => e.id === id ? { ...e, name } : e)); setRenaming(null); };
-  const deleteEntity = (kind, id) => { (kind === "Character" ? setChars : setLocs)(arr => arr.filter(e => e.id !== id)); setToast({ label: "Entity removed" }); };
-  function addEntity(kind) {
+  function createEntity(kind) {
     const id = "e-" + Date.now();
     const base = { id, name: kind === "Character" ? "New character" : "New location", initial: "•", scenes: 0, notes: "" };
-    if (kind === "Character") setChars(a => [...a, { ...base, role: "Character", color: "character" }]);
-    else setLocs(a => [...a, { ...base, color: "location" }]);
-    setView("bible"); setRenaming(id);
+    const ent = kind === "Character" ? { ...base, role: "", color: "character" } : { ...base, color: "location" };
+    (kind === "Character" ? setChars : setLocs)(a => [...a, ent]);
+    return ent;
+  }
+  // Rename the entity AND every scene link that referenced it by name (links are
+  // name-based in this prototype), and refresh the monogram initial.
+  const renameEntity = (kind, id, name) => {
+    const list = kind === "Character" ? chars : locs;
+    const cur = list.find(e => e.id === id);
+    const oldName = cur ? cur.name : null;
+    const initial = (name.trim()[0] || (cur && cur.initial) || "•").toUpperCase();
+    (kind === "Character" ? setChars : setLocs)(arr => arr.map(e => e.id === id ? { ...e, name, initial } : e));
+    if (oldName && oldName !== name) {
+      const field = kind === "Character" ? "characters" : "locations";
+      const fix = s => ({ ...s, [field]: (s[field] || []).map(n => n === oldName ? name : n) });
+      setTrees(prev => {
+        const out = {};
+        for (const pid in prev) out[pid] = { ...prev[pid], chapters: prev[pid].chapters.map(c => ({ ...c, scenes: c.scenes.map(fix) })), shortPieces: prev[pid].shortPieces.map(fix) };
+        return out;
+      });
+    }
+    setRenaming(null);
+  };
+  const deleteEntity = (kind, id) => { (kind === "Character" ? setChars : setLocs)(arr => arr.filter(e => e.id !== id)); setToast({ label: "Entity removed" }); };
+  function addEntity(kind) { const ent = createEntity(kind); setView("bible"); setRenaming(ent.id); }
+
+  // ---- full entry
+  function openEntry(entity, kind) {           // fresh journey from a top-level view
+    setEntryOrigin(view === "write" ? "write" : "bible");
+    setEntryStack([{ id: entity.id, kind }]);
+    setView("entry");
+  }
+  function pushEntry(entity, kind) { setEntryStack(prev => [...prev, { id: entity.id, kind }]); } // drill deeper
+  function entryBack() {
+    if (entryStack.length > 1) setEntryStack(prev => prev.slice(0, -1));
+    else setView(entryOrigin);
+  }
+  function exitEntry() { setView(entryOrigin); setEntryStack([]); }
+  function linkSceneEntity(kind, entity) {     // link an existing entity to the open scene
+    const field = kind === "Character" ? "characters" : "locations";
+    setTree(tr => mapScene(tr, activeId, s => ({ ...s, [field]: (s[field] || []).includes(entity.name) ? s[field] : [...(s[field] || []), entity.name] })));
+  }
+  function addSceneEntity(kind) {              // create a NEW entity, link to scene, open its full entry
+    const ent = createEntity(kind);
+    const field = kind === "Character" ? "characters" : "locations";
+    setTree(tr => mapScene(tr, activeId, s => ({ ...s, [field]: [...(s[field] || []), ent.name] })));
+    setEntryOrigin("write"); setEntryStack([{ id: ent.id, kind }]); setView("entry"); setRenaming(ent.id);
+  }
+  function addRelatedEntity(fromId, currentPeople) { // create a NEW character, link to current entry, drill in
+    const ent = createEntity("Character");
+    patchEntry(fromId, { people: [...currentPeople, { id: ent.id, relation: "" }] });
+    setEntryStack(prev => [...prev, { id: ent.id, kind: "Character" }]); setRenaming(ent.id);
+  }
+  function patchEntry(id, patch) {
+    setEntryEdits(prev => {
+      const cur = prev[id] || {};
+      const next = { ...cur };
+      if (patch.facts) next.facts = { ...(cur.facts || {}), ...patch.facts };
+      if (patch.sections) next.sections = { ...(cur.sections || {}), ...patch.sections };
+      if (patch.people) next.people = patch.people;
+      return { ...prev, [id]: next };
+    });
   }
 
   // ---- render
+  const entry = entryStack[entryStack.length - 1] || null;
   return <AppShell {...{
     t, setTweak, view, setView, tree, scenes, scene, activeId, setActiveId, focus, setFocus,
     overlay, setOverlay, goalsOn, setGoalsOn, quickNotes, chars, locs, menu, setMenu, toast, setToast,
     renaming, setRenaming, archived, projMeta, accentHex, sessionWords, sessionTarget,
+    entry, entryOrigin, entryEdits,
     actions: { rename, setStatus, deleteScene, archiveScene, deleteChap, archiveChap, dupScene, addSceneTo,
       addChap, restoreItem, purgeItem, saveNote, editNote, deleteNote, promoteNote, renameEntity, deleteEntity, addEntity,
+      openEntry, pushEntry, entryBack, exitEntry, patchEntry, linkSceneEntity, addSceneEntity, addRelatedEntity,
       switchProject: id => { setActiveProject(id); const ft = flattenScenes(trees[id]); const f = trees[id].chapters[0]?.scenes[0] || trees[id].shortPieces[0]; setActiveId(f ? f.id : null); setView("write"); },
       newProject: () => setToast({ label: "New manuscript — wired in the real app" }) },
   }} />;
