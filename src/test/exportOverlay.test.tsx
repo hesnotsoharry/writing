@@ -304,8 +304,10 @@ describe("ExportOverlay — onSave omitted uses blobDownloadSave fallback", () =
 
     await waitFor(() => expect(blobDownloadSave).toHaveBeenCalledOnce());
 
-    const [filename, , mime] = (blobDownloadSave as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown, string];
+    const [filename, data, mime] = (blobDownloadSave as ReturnType<typeof vi.fn>).mock.calls[0] as [string, unknown, string];
     expect(filename).toBe("Scene One.md");
+    expect(typeof data).toBe("string");
+    expect((data as string).startsWith("# ")).toBe(true);
     expect(mime).toBe("text/markdown");
     expect(onClose).toHaveBeenCalledOnce();
   });

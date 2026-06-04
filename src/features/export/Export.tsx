@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { BinderTree } from "../../binder/buildTree";
 import type { SceneDocStore } from "../../db/sceneDocStore";
@@ -44,15 +44,17 @@ interface ExecExportOpts {
   format: ExportFormat;
   scope: ExportScope;
   targetId: string;
+  projectId: string;
   tree: BinderTree;
   store: SceneDocStore;
   save: SaveCallback;
 }
 
-async function execExport({ format, scope, targetId, tree, store, save }: ExecExportOpts): Promise<void> {
+async function execExport({ format, scope, targetId, projectId, tree, store, save }: ExecExportOpts): Promise<void> {
   const { blocks, suggestedTitle } = await collectBlocks(scope, targetId, tree, store);
-  const { data, mime, ext } = await formatFor(format, blocks, suggestedTitle);
-  await save(`${suggestedTitle}.${ext}`, data, mime);
+  const title = suggestedTitle || projectId;
+  const { data, mime, ext } = await formatFor(format, blocks, title);
+  await save(`${title}.${ext}`, data, mime);
 }
 
 // ---------------------------------------------------------------------------
@@ -150,21 +152,27 @@ export function Export({ onClose }: { onClose: () => void }): ReactElement {
 // ExportOverlay (public export)
 // ---------------------------------------------------------------------------
 
-export function ExportOverlay({ scope, targetId, sceneDocStore, tree, onClose, onSave }: ExportOverlayProps): ReactElement {
+export function ExportOverlay({ projectId, scope, targetId, sceneDocStore, tree, onClose, onSave }: ExportOverlayProps): ReactElement {
   const [format, setFormat] = useState<ExportFormat>("markdown");
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const busyRef = useRef(false);
 
   function handleExport(): void {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setErrorMsg(null);
-    execExport({ format, scope, targetId, tree, store: sceneDocStore, save: onSave ?? blobDownloadSave })
+    execExport({ format, scope, targetId, projectId, tree, store: sceneDocStore, save: onSave ?? blobDownloadSave })
       .then(() => { onClose(); })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         setErrorMsg(`Export failed: ${msg}`);
       })
-      .finally(() => { setBusy(false); });
+      .finally(() => {
+        busyRef.current = false;
+        setBusy(false);
+      });
   }
 
   return (

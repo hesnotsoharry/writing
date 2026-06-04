@@ -25,9 +25,8 @@ export function toMarkdown(blocks: string[], title: string): string {
  * Convert an array of plain-text blocks to a .docx Uint8Array.
  * Title is rendered as a Heading1; each block becomes one or more Paragraphs
  * (newlines inside a block split into separate Paragraphs to preserve scene
- * breaks). Uses Packer.toBuffer — works in both Node (Vitest) and browser
- * (Vite polyfills Buffer via rollup). Returns a plain Uint8Array copy so the
- * type is uniform regardless of whether Buffer is available.
+ * breaks). Uses Packer.toBlob — works in both browser and Node ≥18 (global
+ * Blob with .arrayBuffer()), avoiding any dependency on a Buffer polyfill.
  */
 export async function toDocx(
   blocks: string[],
@@ -48,10 +47,8 @@ export async function toDocx(
     sections: [{ children: [headingParagraph, ...bodyParagraphs] }],
   });
 
-  // Packer.toBuffer works in Node and in browser (Vite polyfills Buffer).
-  // We copy into a plain Uint8Array so callers always see the base type.
-  const buf = await Packer.toBuffer(doc);
-  return new Uint8Array(buf);
+  const blob = await Packer.toBlob(doc);
+  return new Uint8Array(await blob.arrayBuffer());
 }
 
 // ---------------------------------------------------------------------------
