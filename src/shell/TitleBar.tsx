@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 
 import type { AppView } from "../App.state";
+import darkLogo from "../assets/darklogo.png";
+import lightLogo from "../assets/lightlogo.png";
 import { Icon } from "../components/Icon";
 import { WindowControls } from "./WindowControls";
 
@@ -125,6 +127,10 @@ export function TitleBar({
         onOpenSettings={onOpenSettings ?? (() => {})}
         onOpenExport={onOpenExport ?? (() => {})}
       />
+      <span className="tb-logo">
+        <img className="logo-dark"  src={darkLogo}  alt="" />
+        <img className="logo-light" src={lightLogo} alt="" />
+      </span>
       <div className="tb-divider" />
       <div className="wbtns">
         <WindowControls />

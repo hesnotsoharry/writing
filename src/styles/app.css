@@ -72,6 +72,18 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .wbtn:hover { background: var(--parchment-deep); color: var(--ink); }
 .wbtn.close:hover { background: #d6573e; color: #fff; }
 
+/* tb-logo: theme-aware logo at the far right of the title bar.
+ * Mapping: LIGHT theme (no data-theme) → darklogo.png (dark mark on light bg).
+ *          DARK theme ([data-theme="dark"]) → lightlogo.png (light mark on dark bg).
+ * To flip: swap the display:block / display:none assignments below. */
+.tb-logo { display: flex; align-items: center; margin-left: var(--s-2); flex: none; }
+.tb-logo img { height: 20px; width: auto; object-fit: contain; display: none; }
+/* light theme: show the dark-coloured logo */
+.tb-logo .logo-dark  { display: block; }
+/* dark theme: swap to the light-coloured logo */
+[data-theme="dark"] .tb-logo .logo-dark  { display: none; }
+[data-theme="dark"] .tb-logo .logo-light { display: block; }
+
 /* ---- Top bar ------------------------------------------------------------- */
 .topbar {
   height: var(--topbar-h); flex: none;
@@ -149,6 +161,13 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .panel-binder, .panel-inspector { transition: width var(--dur-slow) var(--ease), opacity var(--dur) ease; }
 .collapsed-left { width: 0 !important; opacity: 0; overflow: hidden; border: none; }
 .collapsed-right { width: 0 !important; opacity: 0; overflow: hidden; border: none; }
+
+/* focus mode: collapse both side panels so .center reclaims full width */
+[data-focus] .panel-binder,
+[data-focus] .panel-inspector {
+  width: 0; opacity: 0; overflow: hidden; pointer-events: none;
+  padding: 0; border: none;
+}
 
 /* ---- Binder -------------------------------------------------------------- */
 .project-switch {
