@@ -12,7 +12,7 @@ import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
 import type { SqliteBinderStore } from "./db/sqliteBinderStore";
 
-export type AppView = "editor" | "bible";
+export type AppView = "editor" | "bible" | "cork";
 
 export async function loadProject(
   binderStore: SqliteBinderStore,
@@ -65,6 +65,29 @@ export function useProjectActions({
   };
 }
 
+function useModalFlags() {
+  const [showQuickCapture, setShowQuickCapture] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [showGoals, setShowGoals] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [goalsOn, setGoalsOn] = useState(false);
+  const [hasQuickItems, setHasQuickItems] = useState(false);
+  return {
+    showQuickCapture, setShowQuickCapture,
+    showInbox, setShowInbox,
+    showArchive, setShowArchive,
+    showGoals, setShowGoals,
+    showExport, setShowExport,
+    showSettings, setShowSettings,
+    focusMode, setFocusMode,
+    goalsOn, setGoalsOn,
+    hasQuickItems, setHasQuickItems,
+  };
+}
+
 export function useAppState() {
   const [tree, setTree] = useState<BinderTree | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
@@ -74,6 +97,7 @@ export function useAppState() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [view, setView] = useState<AppView>("editor");
   const [linksVersion, setLinksVersion] = useState(0);
+  const modalFlags = useModalFlags();
   const activeProjectIdRef = useRef<string | null>(null);
   const loadProjectTokenRef = useRef(0);
 
@@ -87,6 +111,7 @@ export function useAppState() {
     doc, setDoc, loading, setLoading,
     projects, setProjects, activeProjectId,
     view, setView, linksVersion, setLinksVersion,
+    ...modalFlags,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
   };
 }
