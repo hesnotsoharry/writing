@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { runMigrations } from "../db/migrations";
+import { MIGRATIONS, runMigrations } from "../db/migrations";
 import { makeSqlJsDb, type SqlJsTestDb } from "./support/sqljsDb";
 
 /**
@@ -17,7 +17,7 @@ import { makeSqlJsDb, type SqlJsTestDb } from "./support/sqljsDb";
  *   - PRAGMA user_version equals 4
  */
 
-const LATEST = 4; // Oracle establishes this as the expected latest version after migration 4 is implemented
+const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version; // Highest registered migration; tracks new migrations (was hardcoded 4, now derived — see wave 12)
 
 afterEach(() => {
   vi.restoreAllMocks();

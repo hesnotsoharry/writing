@@ -1,5 +1,5 @@
 import { computeReorder } from "../binder/computeReorder";
-import type { BinderStore, Folder, Project, Scene } from "./binderStore";
+import type { BinderStore, Folder, Project, Scene, SceneStatus } from "./binderStore";
 import { getDb } from "./schema";
 
 /**
@@ -74,7 +74,7 @@ export class SqliteBinderStore implements BinderStore {
     const count = rows[0]?.cnt ?? 0;
     const sort_order = (count + 1) * 1000;
     await db.execute(
-      "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count) VALUES ($1, $2, $3, $4, NULL, $5, 0)",
+      "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status) VALUES ($1, $2, $3, $4, NULL, $5, 0, 'blank')",
       [id, args.projectId, args.folderId, args.title, sort_order]
     );
     return id;
@@ -89,7 +89,7 @@ export class SqliteBinderStore implements BinderStore {
       [projectId]
     );
     const scenes = await db.select<Scene[]>(
-      "SELECT id, project_id, folder_id, title, synopsis, sort_order, word_count FROM scenes WHERE project_id = $1 ORDER BY sort_order ASC",
+      "SELECT id, project_id, folder_id, title, synopsis, sort_order, word_count, status FROM scenes WHERE project_id = $1 ORDER BY sort_order ASC",
       [projectId]
     );
     return { folders, scenes };
@@ -118,6 +118,14 @@ export class SqliteBinderStore implements BinderStore {
     const db = await getDb();
     await db.execute("UPDATE scenes SET title=$1 WHERE id=$2", [
       title,
+      sceneId,
+    ]);
+  }
+
+  async setSceneStatus(sceneId: string, status: SceneStatus): Promise<void> {
+    const db = await getDb();
+    await db.execute("UPDATE scenes SET status=$1 WHERE id=$2", [
+      status,
       sceneId,
     ]);
   }

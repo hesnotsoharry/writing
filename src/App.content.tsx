@@ -110,7 +110,7 @@ export function AppContent({
         sceneId={selectedSceneId} scene={activeScene}
         refreshKey={linksVersion} liveWordCount={liveWordCount} />
     : null;
-  const viewStageContent = buildViewStage(view, doc, activeProjectId, { storyBibleStore, onEntitiesChanged });
+  const viewStageContent = buildViewStage(view, doc, activeProjectId, { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange });
 
   return (
     <>
@@ -134,12 +134,20 @@ export function AppContent({
 // View-stage builder (pure — no hooks)
 // ---------------------------------------------------------------------------
 
-interface ViewStageCtx { storyBibleStore: SqliteStoryBibleStore; onEntitiesChanged: () => void; }
+interface ViewStageCtx {
+  storyBibleStore: SqliteStoryBibleStore;
+  onEntitiesChanged: () => void;
+  tree: BinderTree;
+  onSelectScene: (sceneId: string) => void;
+  onViewChange: (view: AppView) => void;
+}
 
 function buildViewStage(
   view: AppView, doc: Y.Doc | null, activeProjectId: string | null, ctx: ViewStageCtx,
 ) {
-  if (view === "cork") return <Corkboard />;
+  if (view === "cork") {
+    return <Corkboard tree={ctx.tree} onSelectScene={ctx.onSelectScene} onViewChange={ctx.onViewChange} />;
+  }
   if (view === "bible" && activeProjectId) {
     return <StoryBibleView store={ctx.storyBibleStore} projectId={activeProjectId}
       onEntitiesChanged={ctx.onEntitiesChanged} />;

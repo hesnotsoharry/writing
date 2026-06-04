@@ -24,6 +24,7 @@ function scene(
     synopsis: null,
     sort_order,
     word_count: 0,
+    status: "blank",
   };
 }
 
