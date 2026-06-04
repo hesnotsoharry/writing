@@ -174,7 +174,7 @@ acceptance criteria require the adapter + real-engine tests to exist).
 |---|---|---|---|---|
 | 1 — framework + sql.js harness | ✓ | ✓ | 6e009c6 | Internal — gates green (vitest 122/122, tsc, eslint); adversarial review FLAG→addressed |
 | 2 — fold plaintext_projection (migration 2) | ✓ | ✓ | cb685ad | Internal — gates green (vitest 13/13, tsc, eslint); adversarial review FLAG→addressed |
-| 3 — scene_links UNIQUE rebuild (migration 3) | — | — | — | Pending (boundary phase, panel review; live-launch observation) |
+| 3 — scene_links UNIQUE rebuild (migration 3) | ✓ | ✓ | b4247d0 | Code-verified (vitest 130/130 incl. real-engine dedupe/UNIQUE/crash-recovery, tsc, eslint); panel review 2 FLAG/1 PASS/0 BLOCK → flags addressed. ⚠ LIVE-LAUNCH observation (app vs existing dev DB; Story Bible links persist) NOT yet run — pending Cole |
 
 ## Follow-up candidates
 
