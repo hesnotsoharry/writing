@@ -60,7 +60,7 @@ After this wave the editor surface (`src/editor/*`) matches the canon prototype 
 
 ### Files the next agent should read first
 
-1. `roadmap/wave-19-DRAFT-research.md` — current TipTap v3 `BubbleMenu` API + the integration-surface contract (names exact); the phase briefs are grounded in it.
+1. `roadmap/wave-19-editor-canon-research.md` — current TipTap v3 `BubbleMenu` API + the integration-surface contract (names exact); the phase briefs are grounded in it.
 2. `roadmap/canon-polish-coordination.md` § GLOBAL RULES + "Lane 19 — Editor" — the scope + the CONSUME-ONLY / FROZEN boundaries.
 3. `design-reference/canvas.jsx` (header + `FormatBubble` shape) and `design-reference/shell.jsx:83-148` (page-flip mechanics — `prevSceneRef`, `flipNum` key guard, direction, 1250ms cleanup, `LeafPage`).
 4. `src/editor/Editor.tsx` — the surface being extended (currently `{doc}`-only).
@@ -94,7 +94,35 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit | Observation hit |
 |---|---|---|---|---|
+| Foundation prop-pass | ✓ | ✓ | b5614af | Pending Cole (frozen-file delta; tsc-verified) |
+| 1 — page-flip walking skeleton | ✓ | ✓ | 51235af | Pending Cole — leaf turns on scene change (visual; can't smoke) |
+| 2 — outgoing-scene leaf content | ✓ | ✓ | 414f863 | Pending Cole — leaf shows scene being left (visual) |
+| 3 — editor header/byline | ✓ | ✓ | 6fd692c | Pending Cole — header above prose, live word + link counts (visual) |
+| 4 — formatting bubble menu | ✓ | ✓ | 91b7b8d | Pending Cole — bubble on text selection (BubbleMenu needs a live selection) |
+| 5 — spell/grammar de-conflict + default-on | ✓ | ✓ | 2d335ff | Pending Cole — single red underline, grammar suggestions on right-click (tests cover logic) |
 
 ## Follow-up candidates
 
+(none — flags addressed inline or surfaced to the lead in the handoff; see Result.)
+
 ## Result
+
+**Shipped on lane branch `wave-19-editor-canon` (NOT merged — lead merges):** editor header/byline, selection
+formatting bubble (TipTap v3 `@tiptap/react/menus`), page-flip animation (walking-skeleton → direction →
+outgoing-scene leaf), spell/grammar de-conflict + grammar default-on. Plus one authorized minimal additive
+prop-pass through the frozen `EditorPane` (b5614af, isolated).
+
+**Gates:** full `tsc` clean · full `eslint src/` clean · full suite **432/432** (57 files; +60 wave-19 tests).
+**Reviewer:** per-phase `sonnet-adversarial-reviewer` (attack-diff, single tier) on all 5 phases — every FLAG
+adjudicated and addressed-or-justified (no open BLOCKs).
+
+**Commits:** 2fef194 (plan) · b5614af (foundation) · 51235af · 414f863 · 6fd692c · 91b7b8d · 2d335ff.
+
+**Cannot self-verify (no Tauri runtime / no UI smoke) — needs Cole's eyes post-merge:** page-flip animation
+(timing, direction, leaf overlay geometry incl. when scrolled), the leaf showing OUTGOING (not incoming) prose,
+header render, the bubble appearing on selection + caret/placement, and single-red-underline + grammar
+suggestions via the real harper IPC. Full list in the handoff.
+
+**Flag for the lead (cross-lane):** Phase 5 set the `ProofreadExtension` grammar-default to ON. Lane 21
+(settings) owns the grammar toggle UI — confirm its read of `SETTINGS_KEYS.grammar` also defaults ON so the
+toggle's displayed state matches the running behavior (else the toggle reads OFF while grammar runs).
