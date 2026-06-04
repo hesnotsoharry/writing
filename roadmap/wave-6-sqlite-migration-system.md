@@ -183,3 +183,16 @@ acceptance criteria require the adapter + real-engine tests to exist).
 ## Result
 
 <!-- Filled at ship by wrap team. -->
+
+### Mechanical review (joint wrap, run from the wave-5 session)
+
+**Inputs:** Plan `roadmap/wave-6-sqlite-migration-system.md` · Diff `37a9d6b..dac71ed` · Graph healthy · merged to master at `2569146`.
+
+## Mechanical review: FLAG — Check 5: acceptance test not in a pre-impl commit (non-fatal, mitigated)
+
+- Check 1+3 (forward-trace / dead exports): PASS — `runMigrations` called by `getDb()` (schema.ts:54, the real-DB entry point); `MIGRATIONS`/`assertSafeVersion` production-consumed inside `runMigrations` (migrations.ts:239/242); schema.ts refactor removed NO exports (`getDb`/`ensureColumn`/`DbHandle` all intact, no dangling importers).
+- Check 2 (plan universals): PASS — idempotent steps (IF [NOT] EXISTS / INSERT OR IGNORE guards), ordered `MIGRATIONS` array, version-bump-after-success, convergence + idempotency both covered by the acceptance test.
+- **Check 5 (boundary acceptance test): FLAG (non-fatal).** `src/test/runMigrations.acceptance.test.ts` exists and asserts the right consumer-perspective contract (fresh + pre-seeded-old DB both converge to LATEST; idempotent re-run = 0 execute calls; `assertSafeVersion` guards). BUT its first commit `6e009c6` is the SAME commit as the Phase-1 implementation — the orchestrator-owned-before-dispatch ordering cannot be proven from git. **Adjudication:** non-blocking — the contract assertions are consumer-perspective (not impl mirror) and Phase 3 had an independent 3-seat panel, so the mental-model-divergence risk is mitigated. Resolution: DB session confirms the test was authored before dispatch, OR accept as a commit-hygiene note (future migration waves: land the acceptance test in its own pre-impl commit). Run evidence: combined suite 144/144 (incl. this test), run from the wave-5 session 2026-06-03.
+- **Checks N/A: 4 + 6** — no electron-store config schema removal (SQLite app); no `stryker.config`.
+
+**⚠ Still ungated at runtime (the real ship gate):** live-launch migration smoke on Cole's actual on-disk `writing.db` (proven only against in-memory sql.js so far). Back up the DB first.
