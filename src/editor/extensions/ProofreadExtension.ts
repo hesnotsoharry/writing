@@ -115,6 +115,22 @@ export function grammarProblemsToCheckResults(
 }
 
 /**
+ * Spelling wins (Decision 3): drop any grammar/style CheckResult whose [from,to)
+ * range overlaps ANY spelling CheckResult range. Half-open intervals: [a,b) and
+ * [c,d) overlap iff a < d && c < b (so adjacency — grammar.from === spell.to — is
+ * NOT an overlap and is kept).
+ */
+export function dropOverlappingGrammar(
+  spell: CheckResult[],
+  grammar: CheckResult[],
+): CheckResult[] {
+  if (spell.length === 0) return grammar;
+  return grammar.filter((g) =>
+    !spell.some((s) => g.from < s.to && s.from < g.to),
+  );
+}
+
+/**
  * Calls the grammar IPC and maps results. Returns [] on any IPC failure so
  * spelling is never disrupted (Decision G — graceful degradation).
  * Exported for unit testing (vi.mock("../lib/ipc")).
@@ -174,7 +190,7 @@ async function runChecks(
 ): Promise<void> {
   // Decision D: fresh-read-per-tick — no closure caching.
   const spellEnabled = readBoolSetting(SETTINGS_KEYS.spellCheck, true);
-  const grammarEnabled = readBoolSetting(SETTINGS_KEYS.grammar, false);
+  const grammarEnabled = readBoolSetting(SETTINGS_KEYS.grammar, true);
   const styleHintsEnabled = readBoolSetting(SETTINGS_KEYS.styleHints, false);
 
   if (!spellEnabled && !grammarEnabled) {
@@ -200,7 +216,8 @@ async function runChecks(
     if (!isCurrentSeq()) return; // doc may have changed during the IPC round-trip
   }
 
-  view.dispatch(view.state.tr.setMeta(proofreadKey, [...spellResults, ...grammarResults]));
+  const filteredGrammar = dropOverlappingGrammar(spellResults, grammarResults);
+  view.dispatch(view.state.tr.setMeta(proofreadKey, [...spellResults, ...filteredGrammar]));
 }
 
 // ---------------------------------------------------------------------------
