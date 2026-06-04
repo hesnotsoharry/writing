@@ -153,8 +153,9 @@ function useAppContentSlots(props: AppContentProps) {
         sceneId={selectedSceneId} scene={activeScene}
         refreshKey={linksVersion} liveWordCount={liveWordCount} />
     : null;
+  const { reloadTree } = props;
   const viewStageContent = buildViewStage(view, doc, activeProjectId,
-    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId, linksVersion });
+    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
     binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId };
@@ -196,13 +197,23 @@ interface ViewStageCtx {
   onViewChange: (view: AppView) => void;
   selectedSceneId: string | null;
   linksVersion: number;
+  reloadTree: () => void;
+  dragCallbacks: DragCallbacks;
 }
 
 function buildViewStage(
   view: AppView, doc: Y.Doc | null, activeProjectId: string | null, ctx: ViewStageCtx,
 ) {
   if (view === "cork") {
-    return <Corkboard tree={ctx.tree} onSelectScene={ctx.onSelectScene} onViewChange={ctx.onViewChange} />;
+    return (
+      <Corkboard
+        tree={ctx.tree}
+        onSelectScene={ctx.onSelectScene}
+        onViewChange={ctx.onViewChange}
+        reloadTree={ctx.reloadTree}
+        dragCallbacks={ctx.dragCallbacks}
+      />
+    );
   }
   if (view === "bible" && activeProjectId) {
     return <StoryBibleView store={ctx.storyBibleStore} projectId={activeProjectId}

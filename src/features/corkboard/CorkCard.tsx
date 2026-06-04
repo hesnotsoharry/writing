@@ -1,3 +1,5 @@
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef, useState } from "react";
 
 import type { AppView } from "../../App.state";
@@ -29,12 +31,14 @@ const defaultStoryBibleStore = new SqliteStoryBibleStore();
 
 export type SetStatus = (sceneId: string, status: SceneStatus) => void | Promise<void>;
 
-export function useCorkStatus(setSceneStatus: SetStatus) {
+export function useCorkStatus(setSceneStatus: SetStatus, onAfterWrite?: () => void) {
   const [overrides, setOverrides] = useState<Record<string, SceneStatus>>({});
   const statusOf = (scene: Scene): SceneStatus => overrides[scene.id] ?? scene.status;
   const cycleStatus = (scene: Scene): void => {
     const next = nextStatus(statusOf(scene));
-    void Promise.resolve(setSceneStatus(scene.id, next)).catch((err: unknown) =>
+    void Promise.resolve(setSceneStatus(scene.id, next)).then(() => {
+      onAfterWrite?.();
+    }).catch((err: unknown) =>
       console.error("[corkboard] setSceneStatus failed", err));
     setOverrides((prev) => ({ ...prev, [scene.id]: next }));
   };
@@ -42,6 +46,25 @@ export function useCorkStatus(setSceneStatus: SetStatus) {
     setOverrides((prev) => ({ ...prev, [sceneId]: status }));
   };
   return { overrides, statusOf, cycleStatus, setOverride };
+}
+
+// ---------------------------------------------------------------------------
+// useSortableCard — @dnd-kit sortable binding for a corkboard card.
+// Uses a 5px pointer sensor (set on the DndContext level); this hook just
+// wires the transform/ref so the card lifts and slides on drag.
+// ---------------------------------------------------------------------------
+
+export function useSortableCard(id: string) {
+  const { attributes, isDragging, listeners, setNodeRef, transform, transition } =
+    useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    cursor: "grab",
+    touchAction: "none",
+  };
+  return { ref: setNodeRef, style, attributes, listeners };
 }
 
 // ---------------------------------------------------------------------------
@@ -228,17 +251,24 @@ export interface CorkCardProps {
   onReload: () => void;
   renaming: boolean;
   onRenameEnd: () => void;
+  /** When true the card participates in @dnd-kit sortable drag-reorder. */
+  sortable?: boolean;
 }
 
-export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renaming, onRenameEnd }: CorkCardProps) {
+export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renaming, onRenameEnd, sortable = false }: CorkCardProps) {
   const meta = STATUS_META[effectiveStatus];
   const wordLabel = scene.word_count ? scene.word_count.toLocaleString() + "w" : "—";
   const delay = Math.min(index, 9) * 45;
   const cycleClick = (e: React.MouseEvent) => { e.stopPropagation(); onCycleStatus(); };
+  const dnd = useSortableCard(scene.id);
+  const baseStyle: React.CSSProperties = { animationDelay: `${delay}ms` };
+  const style = sortable ? { ...baseStyle, ...dnd.style } : baseStyle;
+  const dragProps = sortable ? { ref: dnd.ref, ...dnd.attributes, ...dnd.listeners } : {};
   return (
     <div
       className="card"
-      style={{ animationDelay: `${delay}ms` }}
+      style={style}
+      {...dragProps}
       onClick={() => { onSelectScene(scene.id); onViewChange("editor"); }}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, scene); }}
     >
@@ -271,9 +301,10 @@ export interface ChapterGroupProps {
   onReload: () => void;
   renamingSceneId: string | null;
   onRenameEnd: () => void;
+  sortable?: boolean;
 }
 
-export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd }: ChapterGroupProps) {
+export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false }: ChapterGroupProps) {
   const { folder, scenes } = chapter;
   return (
     <div className="cork-chgroup">
@@ -294,6 +325,7 @@ export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, 
                 onReload={onReload}
                 renaming={renamingSceneId === s.id}
                 onRenameEnd={onRenameEnd}
+                sortable={sortable}
               />
             ))}
       </div>
@@ -315,9 +347,10 @@ export interface ShortPiecesGroupProps {
   onReload: () => void;
   renamingSceneId: string | null;
   onRenameEnd: () => void;
+  sortable?: boolean;
 }
 
-export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd }: ShortPiecesGroupProps) {
+export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false }: ShortPiecesGroupProps) {
   return (
     <div className="cork-chgroup">
       <div className="cork-chtitle">{`Short pieces · ${scenes.length}`}</div>
@@ -335,6 +368,7 @@ export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange
             onReload={onReload}
             renaming={renamingSceneId === s.id}
             onRenameEnd={onRenameEnd}
+            sortable={sortable}
           />
         ))}
       </div>
