@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { BinderTree } from "../binder/buildTree";
@@ -125,5 +125,56 @@ describe("Corkboard — render contract (Wave 12 Phase 2)", () => {
     // Type-level guard: STATUS_META must cover the closed three-state union.
     const all: SceneStatus[] = ["blank", "draft", "done"];
     expect(all).toHaveLength(3);
+  });
+});
+
+describe("Corkboard — status cycle (Wave 12 Phase 3)", () => {
+  function renderWithStatus(onStatus: (id: string, s: SceneStatus) => void) {
+    const opened: string[] = [];
+    render(
+      <Corkboard
+        tree={TREE}
+        onSelectScene={(id) => opened.push(id)}
+        onViewChange={noopView}
+        setSceneStatus={onStatus}
+      />
+    );
+    return { opened };
+  }
+
+  it("blank → draft on dot click: persists, does NOT open the scene, updates the label", () => {
+    const calls: [string, SceneStatus][] = [];
+    const { opened } = renderWithStatus((id, s) => calls.push([id, s]));
+
+    const card = screen.getByText("The Letter").closest(".card") as HTMLElement; // s2, blank
+    fireEvent.click(card.querySelector(".dot") as Element);
+
+    expect(calls).toEqual([["s2", "draft"]]); // persisted with the next status
+    expect(opened).toEqual([]); // stopPropagation — card did not open
+    expect(within(card).getByText("Drafting")).toBeTruthy(); // optimistic label update
+  });
+
+  it("draft → done on dot click: optimistic indicator becomes the check + 'Done'", () => {
+    const calls: [string, SceneStatus][] = [];
+    renderWithStatus((id, s) => calls.push([id, s]));
+
+    const card = screen.getByText("Opening").closest(".card") as HTMLElement; // s1, draft
+    fireEvent.click(card.querySelector(".dot") as Element);
+
+    expect(calls).toEqual([["s1", "done"]]);
+    expect(within(card).getByText("Done")).toBeTruthy();
+    expect(card.querySelector(".scene-check")).toBeTruthy(); // dot → check after reaching done
+  });
+
+  it("done → blank wraps the cycle when the check is clicked", () => {
+    const calls: [string, SceneStatus][] = [];
+    const { opened } = renderWithStatus((id, s) => calls.push([id, s]));
+
+    const card = screen.getByText("Stray Idea").closest(".card") as HTMLElement; // sp1, done
+    fireEvent.click(card.querySelector(".scene-check") as Element);
+
+    expect(calls).toEqual([["sp1", "blank"]]); // wraps back to blank
+    expect(opened).toEqual([]);
+    expect(within(card).getByText("To write")).toBeTruthy();
   });
 });
