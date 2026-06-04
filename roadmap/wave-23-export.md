@@ -120,12 +120,20 @@ export interface ExportOverlayProps {
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 — collect + markdown + save fallback | ✓ | ✓ | 413656a | Internal — no surface (pure modules) |
+| 2 — docx + pdf formatters | ✓ | ✓ | a725b17 | Internal — no surface (pure modules) |
+| 3 — ExportOverlay UI + save wiring | ✓ | ✓ | 970833c | DEFERRED to Cole — headless lane, no Tauri runtime to render the sheet |
+| Review fixes (wave-end attack-diff FLAGs) | ✓ | ✓ | 0b2ced8 | n/a |
+
+Gates (worktree): lint clean · `tsc --noEmit` clean · full suite **531/531** (export suite 41/41).
+Wave-end `sonnet-adversarial-reviewer` (attack-diff): **FLAG** (no BLOCK) → 4 flags fixed, 1 (legacy `Export` stub) justified as lane hygiene.
 
 ## Follow-up candidates
 
-<!-- DEFAULT: empty. Stage only Tier-3 triple-gate items with a present-harm pointer. -->
+(none — lane clean)
 
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+Export feature shipped under `src/features/export/` as a self-contained module + prop seam; the lead wires it into `App.*` and supplies the portable `onSave` on integration. Markdown / docx / PDF export of scene prose (scene / chapter / manuscript scope) via the existing Yjs plain-text path. All format/collect logic is pure + node-testable (no Tauri runtime). Decisions A/B/C locked + adversarially reviewed. See the handoff for the lead's integration checklist (src-tauri plugins + `onSave`).
