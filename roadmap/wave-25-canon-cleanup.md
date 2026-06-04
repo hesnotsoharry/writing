@@ -152,14 +152,13 @@ menu item whose handler is a deferred no-op (or "coming soon" toast) until Lane 
 Consequences: clean menu now; one integration commit on master when Lane 24 lands swaps the no-op for `openEntry`.
 Enforcement: advisory-only (Lane 24 integration step in `batch-2-coordination.md`).
 
-**Decision 4 — Backup status label: make it honest. `REQUIRES USER LOCK:`**
+**Decision 4 — Backup status label: make it honest now (LOCKED, Cole 2026-06-04).**
 Context: the StatusBar "Backed up" label is cosmetic — no real off-machine backup exists yet (the clock is real).
-Pick (recommended): show an honest state (e.g. "Local only" / no backup badge) rather than implying off-machine
-safety the app does not provide. Industry standard: never display a false data-safety state to users.
-Alternatives — Emerging: a real "last saved locally HH:MM" (truthful, no backup claim). Cutting-edge: defer
-the whole label until real backup ships. Recommendation: the honest minimal label now.
-Consequences: P6 edits the StatusBar label; trivial revert if Cole prefers to keep it optimistic until backup ships.
-Enforcement: none (convention) — pending Cole's lock; if Cole says "keep optimistic," P6 drops this item.
+Real backup is being set up by Cole in parallel (separate from this wave) + wired in a future wave.
+Pick: P6 shows an honest local-only state (no "Backed up" claim) rather than implying off-machine safety the
+app does not yet provide; once real backup ships, the label reflects true backup status.
+Consequences: P6 edits the StatusBar label to a truthful state; the future backup wave swaps in real status.
+Enforcement: none (convention) — product decision, Cole 2026-06-04.
 
 ## Status
 
