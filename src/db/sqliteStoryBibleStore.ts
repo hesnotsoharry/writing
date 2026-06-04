@@ -140,6 +140,12 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     }));
   }
 
+  async loadSceneEntities(
+    _sceneId: string
+  ): Promise<{ characters: Entity[]; locations: Entity[] }> {
+    throw new Error("not implemented");
+  }
+
   async findScenesForEntity(entityId: string): Promise<string[]> {
     const db = await getDb();
     // No entity_type discriminator needed: entity ids are UUIDs (crypto.randomUUID),

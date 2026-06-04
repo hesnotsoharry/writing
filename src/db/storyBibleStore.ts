@@ -61,6 +61,14 @@ export interface StoryBibleStore {
    */
   replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void>;
   loadSceneLinks(sceneId: string): Promise<SceneLink[]>;
+  /**
+   * Return the full Entity objects linked to a scene, grouped by type.
+   * Additive read-query (wave 9) — the inspector's entity cards consume this
+   * (avatar initial from name, role subtitle from notes).
+   */
+  loadSceneEntities(
+    sceneId: string
+  ): Promise<{ characters: Entity[]; locations: Entity[] }>;
   /** Return scene_ids that reference the given entity (for usage counts). */
   findScenesForEntity(entityId: string): Promise<string[]>;
 }
@@ -168,6 +176,12 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     return this.sceneLinks
       .filter((sl) => sl.sceneId === sceneId)
       .map(({ entityType, entityId }) => ({ entityType, entityId }));
+  }
+
+  async loadSceneEntities(
+    _sceneId: string
+  ): Promise<{ characters: Entity[]; locations: Entity[] }> {
+    throw new Error("not implemented");
   }
 
   async findScenesForEntity(entityId: string): Promise<string[]> {
