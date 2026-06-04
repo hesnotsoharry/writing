@@ -1,131 +1,253 @@
 import { useEffect, useState } from "react";
 
-import type { Entity, SceneLink, StoryBibleStore } from "../db/storyBibleStore";
+import { Icon } from "../components/Icon";
+import type { Scene } from "../db/binderStore";
+import type { Entity, StoryBibleStore } from "../db/storyBibleStore";
 
 // ---------------------------------------------------------------------------
-// Styles
+// GoalRing — SVG ring showing session-progress percentage
 // ---------------------------------------------------------------------------
 
-const panelStyle: React.CSSProperties = {
-  width: 200,
-  flexShrink: 0,
-  borderLeft: "1px solid #e0e0e0",
-  overflowY: "auto",
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  background: "#fafafa",
-};
-
-const headingStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: "#777",
-  margin: "12px 14px 4px",
-};
-
-const nameStyle: React.CSSProperties = { fontSize: 13, color: "#333", padding: "3px 14px" };
-
-const emptyStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#aaa",
-  padding: "16px 14px",
-  lineHeight: 1.5,
-};
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-interface EntityGroupProps {
-  heading: string;
-  names: string[];
-}
-
-function EntityGroup({ heading, names }: EntityGroupProps) {
+function GoalRing({ pct }: { pct: number }) {
+  const r = 27;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - pct / 100);
   return (
-    <>
-      <div style={headingStyle}>{heading}</div>
-      {names.map((n) => <div key={n} style={nameStyle}>{n}</div>)}
-    </>
+    <div className="goal-ring">
+      <svg width="64" height="64" viewBox="0 0 64 64">
+        <circle
+          cx="32" cy="32" r={r}
+          fill="none" stroke="var(--parchment-deep)" strokeWidth="6"
+        />
+        <circle
+          cx="32" cy="32" r={r}
+          fill="none" stroke="var(--accent)" strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={off}
+          transform="rotate(-90 32 32)"
+        />
+      </svg>
+      <span className="pct">{pct + "%"}</span>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// SceneInspector
+// EntityCard — single character or location row
+// ---------------------------------------------------------------------------
+
+function EntityCard({ entity }: { entity: Entity }) {
+  const firstSentence = entity.notes ? entity.notes.split(".")[0].trim() : "";
+  const role =
+    firstSentence.length > 60 ? firstSentence.slice(0, 60).trimEnd() + "…" : firstSentence;
+  return (
+    <div className="entity-card">
+      <div className={"avatar " + entity.type}>{(entity.name.charAt(0).toUpperCase() || "?")}</div>
+      <div className="entity-meta">
+        <div className="entity-name">{entity.name}</div>
+        <div className="entity-role">{role}</div>
+      </div>
+      <Icon name="chevRight" className="chev" style={{ width: 15, height: 15 }} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// useSceneEntities — load character/location entities for a scene
+// ---------------------------------------------------------------------------
+
+interface EntityGroups {
+  characters: Entity[];
+  locations: Entity[];
+  ready: boolean;
+}
+
+function useSceneEntities(
+  store: StoryBibleStore,
+  sceneId: string | null,
+  refreshKey: number | undefined,
+): EntityGroups {
+  const [groups, setGroups] = useState<EntityGroups>({
+    characters: [],
+    locations: [],
+    ready: false,
+  });
+
+  useEffect(() => {
+    let alive = true;
+    const load = sceneId
+      ? store.loadSceneEntities(sceneId)
+      : Promise.resolve({ characters: [] as Entity[], locations: [] as Entity[] });
+
+    load
+      .then(({ characters, locations }) => {
+        if (alive) setGroups({ characters, locations, ready: true });
+      })
+      .catch((e: unknown) => {
+        console.error("[SceneInspector] loadSceneEntities failed", e);
+        if (alive) setGroups({ characters: [], locations: [], ready: true });
+      });
+
+    return () => { alive = false; };
+  }, [store, sceneId, refreshKey]);
+
+  return groups;
+}
+
+// ---------------------------------------------------------------------------
+// readGoalTarget — parse the user's goal from localStorage
+// ---------------------------------------------------------------------------
+
+function readGoalTarget(): number {
+  const raw = parseInt(localStorage.getItem("writing.goalTarget") ?? "", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 1000;
+}
+
+// ---------------------------------------------------------------------------
+// useSessionGoal — session-progress percentage (0% on scene open, rises as words written)
+// ---------------------------------------------------------------------------
+
+interface GoalState {
+  pct: number;
+  sessionWords: number;
+  target: number;
+}
+
+function useSessionGoal(sceneId: string | null, scene: Scene | null): GoalState {
+  // React-recommended pattern for synchronous derived-state reset:
+  // store "prev sceneId + baseline" in state; when the sceneId prop changes,
+  // call setBaseline during the current render — React processes this as a
+  // bail-out re-render before painting, giving the semantics of "reset on prop change".
+  const [baseline, setBaseline] = useState<{
+    sceneId: string | null;
+    words: number;
+  }>({ sceneId, words: scene?.word_count ?? 0 });
+
+  if (baseline.sceneId !== sceneId) {
+    setBaseline({ sceneId, words: scene?.word_count ?? 0 });
+  }
+
+  const target = readGoalTarget();
+  const currentWords = scene?.word_count ?? 0;
+  const baselineWords =
+    baseline.sceneId === sceneId ? baseline.words : currentWords;
+  const sessionWords = Math.max(0, currentWords - baselineWords);
+  const pct = Math.min(100, Math.round((sessionWords / target) * 100));
+
+  return { pct, sessionWords, target };
+}
+
+// ---------------------------------------------------------------------------
+// SynopsisGroup / GoalGroup — extracted to keep SceneInspector under 40 lines
+// ---------------------------------------------------------------------------
+
+function SynopsisGroup({ scene }: { scene: Scene | null }) {
+  return (
+    <div className="insp-group">
+      <div className="insp-label">
+        <Icon name="fileText" className="ic" /> Synopsis
+        <button className="add">
+          <Icon name="edit" style={{ width: 13, height: 13 }} />
+        </button>
+      </div>
+      <div className="synopsis">{scene?.synopsis}</div>
+    </div>
+  );
+}
+
+interface GoalGroupProps {
+  pct: number;
+  sessionWords: number;
+  target: number;
+}
+
+function GoalGroup({ pct, sessionWords, target }: GoalGroupProps) {
+  const toGo = Math.max(0, target - sessionWords);
+  return (
+    <div className="insp-group">
+      <div className="insp-label">
+        <Icon name="target" className="ic" /> Today&#39;s goal
+      </div>
+      <div className="goal-card">
+        <GoalRing pct={pct} />
+        <div className="goal-info">
+          <div className="goal-num">
+            {sessionWords}<span> / {target} words</span>
+          </div>
+          <div className="goal-desc">{toGo} to go</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EntityGroup — one labelled group of entity cards
+// ---------------------------------------------------------------------------
+
+interface EntityGroupProps {
+  iconName: "users" | "mapPin";
+  label: string;
+  entities: Entity[];
+  ready: boolean;
+  emptyHint: string;
+  linkLabel: string;
+}
+
+function EntityGroup({
+  iconName, label, entities, ready, emptyHint, linkLabel,
+}: EntityGroupProps) {
+  return (
+    <div className="insp-group">
+      <div className="insp-label">
+        <Icon name={iconName} className="ic" /> {label}
+        <button className="add">
+          <Icon name="plus" style={{ width: 14, height: 14 }} />
+        </button>
+      </div>
+      {ready && entities.length > 0
+        ? entities.map((e) => <EntityCard key={e.id} entity={e} />)
+        : ready && <div className="empty-hint">{emptyHint}</div>}
+      <button className="add-entity">
+        <Icon name="plus" style={{ width: 13, height: 13 }} /> {linkLabel}
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SceneInspector — public export
 // ---------------------------------------------------------------------------
 
 export interface SceneInspectorProps {
   store: StoryBibleStore;
   projectId: string;
   sceneId: string | null;
+  scene: Scene | null;
   refreshKey?: number;
 }
 
-interface ResolvedLinks {
-  characters: string[];
-  locations: string[];
-  ready: boolean;
-}
-
-function resolveLinks(links: SceneLink[], entities: Entity[]): { characters: string[]; locations: string[] } {
-  const entityMap = new Map<string, Entity>(entities.map((e) => [e.id, e]));
-  const characters: string[] = [];
-  const locations: string[] = [];
-  for (const link of links) {
-    const entity = entityMap.get(link.entityId);
-    if (!entity) continue; // deleted entity — skip
-    if (entity.type === "character") characters.push(entity.name);
-    else locations.push(entity.name);
-  }
-  return { characters, locations };
-}
-
-function useResolvedLinks(
-  store: StoryBibleStore,
-  projectId: string,
-  sceneId: string | null,
-  refreshKey: number | undefined
-): ResolvedLinks {
-  const [state, setState] = useState<ResolvedLinks>({ characters: [], locations: [], ready: false });
-
-  useEffect(() => {
-    let alive = true;
-    const load = sceneId
-      ? Promise.all([store.loadSceneLinks(sceneId), store.listEntities(projectId)])
-      : Promise.resolve([[], []] as [SceneLink[], Entity[]]);
-
-    load
-      .then(([links, entities]) => {
-        if (!alive) return;
-        const resolved = resolveLinks(links, entities);
-        setState({ ...resolved, ready: true });
-      })
-      .catch((e: unknown) => {
-        console.error("[SceneInspector] load failed", e);
-        setState({ characters: [], locations: [], ready: true });
-      });
-    return () => { alive = false; };
-  }, [store, projectId, sceneId, refreshKey]);
-
-  return state;
-}
-
-export function SceneInspector({ store, projectId, sceneId, refreshKey }: SceneInspectorProps) {
-  const { characters, locations, ready } = useResolvedLinks(store, projectId, sceneId, refreshKey);
-  const hasLinks = characters.length > 0 || locations.length > 0;
+export function SceneInspector({ store, sceneId, scene, refreshKey }: SceneInspectorProps) {
+  const { characters, locations, ready } = useSceneEntities(store, sceneId, refreshKey);
+  const { pct, sessionWords, target } = useSessionGoal(sceneId, scene);
 
   return (
-    <aside style={panelStyle}>
-      {ready && !hasLinks && (
-        <div style={emptyStyle}>No characters or locations detected.</div>
-      )}
-      {ready && hasLinks && (
-        <>
-          <EntityGroup heading="Characters" names={characters} />
-          <EntityGroup heading="Locations" names={locations} />
-        </>
-      )}
-    </aside>
+    <div className="panel-inspector">
+      <div className="insp-scroll">
+        <SynopsisGroup scene={scene} />
+        <GoalGroup pct={pct} sessionWords={sessionWords} target={target} />
+        <EntityGroup
+          iconName="users" label="Characters in scene"
+          entities={characters} ready={ready}
+          emptyHint="No characters linked yet." linkLabel="Link a character"
+        />
+        <EntityGroup
+          iconName="mapPin" label="Locations in scene"
+          entities={locations} ready={ready}
+          emptyHint="No locations linked yet." linkLabel="Link a location"
+        />
+      </div>
+    </div>
   );
 }

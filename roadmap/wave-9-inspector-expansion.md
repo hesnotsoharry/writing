@@ -108,11 +108,16 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 — loadSceneEntities read-query | yes | yes | 4f4f5fa (test+stub) · cf37261 (impl) | Internal — acceptance 4/4 (incl. ordering); FLAGs (ORDER BY, non-atomic-read comment) fixed inline |
+| 2 — inspector component + App threading | yes | yes | 1c2ce57 (test) · this commit (impl) | Pending wave-end live smoke (`npm run tauri dev`): inspector renders synopsis + cards + goal ring. Component+store verified 8/8; panel 3×FLAG→fixed inline, 0 BLOCK |
+| 3 — EditorPane inline-style cleanup | pending | — | — | — |
 
 ## Follow-up candidates
 
 - Persistent writing-streak in the goal ring: requires a new `writing_sessions` (day-keyed) table = schema migration, forbidden in this screen-port lane and naturally owned by the future Goals feature wave. | present-harm: K2 — the Inspector goal section renders without the design-reference's "N-day streak 🔥" line (see `design-reference/inspector.jsx` line 55 vs the shipped `src/inspector/SceneInspector.tsx` goal-card); a named, designed UI element is absent until the Goals wave adds the schema.
+- Wire the inspector's interactive affordances (edit-synopsis button, per-group "+" add buttons, "Link a character"/"Link a location" buttons): they render per the design-reference but carry no `onClick` this wave — they front the entity-link picker + synopsis-edit features, which are unbuilt (new UI primitives, multi-wave). | present-harm: K2 — named interactive `<button>`s in the shipped `src/inspector/SceneInspector.tsx` (EntityCard/EntityGroup/SynopsisGroup) do nothing on click; the user can press them with no effect until the link-picker and synopsis-edit features ship.
 
 ## Result
 
