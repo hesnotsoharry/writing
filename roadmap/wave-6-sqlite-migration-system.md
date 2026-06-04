@@ -170,7 +170,11 @@ acceptance criteria require the adapter + real-engine tests to exist).
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit SHA | Observation point hit |
+|---|---|---|---|---|
+| 1 — framework + sql.js harness | ✓ | ✓ | 6e009c6 | Internal — gates green (vitest 122/122, tsc, eslint); adversarial review FLAG→addressed |
+| 2 — fold plaintext_projection (migration 2) | ✓ | ✓ | cb685ad | Internal — gates green (vitest 13/13, tsc, eslint); adversarial review FLAG→addressed |
+| 3 — scene_links UNIQUE rebuild (migration 3) | — | — | — | Pending (boundary phase, panel review; live-launch observation) |
 
 ## Follow-up candidates
 
