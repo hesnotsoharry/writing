@@ -10,6 +10,11 @@ import type { ReactElement, ReactNode } from "react";
  * regions. App() owns all view→screen routing. This keeps the shell stable:
  * future screen-port waves change what App() passes, never this component.
  *
+ * Panel wrapper elision: when `binder` or `inspector` is null the corresponding
+ * .panel-binder / .panel-inspector wrapper div is NOT rendered at all, so the
+ * .center column is truly full-bleed. Passing null is the correct signal for
+ * full-bleed views (cork / bible / entry / focus mode).
+ *
  * Extension point — Corkboard: when App() gains a `view === "cork"` branch,
  * the Corkboard element is passed as `viewStage`. This component is not changed.
  * See roadmap/wave-5-app-shell-custom-window-frame.md, Phase 3.
@@ -54,11 +59,11 @@ export function AppShell({
     <div className={winClass} data-focus={focusMode || undefined}>
       {titleBar}
       <div className="body">
-        <div className="panel-binder">{binder}</div>
+        {binder != null && <div className="panel-binder">{binder}</div>}
         <div className="center">
           <div className="view-stage" key={viewKey}>{viewStage}</div>
         </div>
-        <div className="panel-inspector">{inspector}</div>
+        {inspector != null && <div className="panel-inspector">{inspector}</div>}
       </div>
       {statusBar}
     </div>

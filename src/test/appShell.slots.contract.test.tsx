@@ -101,6 +101,48 @@ describe("AppShell — slot→region layout contract", () => {
     expect(container.querySelector(".win")).not.toBeNull();
   });
 
+  it("omits the .panel-binder wrapper element when binder is null", () => {
+    const { container } = render(
+      <AppShell
+        titleBar={<div />}
+        binder={null}
+        viewStage={<div data-testid="stage" />}
+        inspector={<div data-testid="insp" />}
+        statusBar={<div />}
+      />
+    );
+    expect(container.querySelector(".panel-binder")).toBeNull();
+  });
+
+  it("omits the .panel-inspector wrapper element when inspector is null", () => {
+    const { container } = render(
+      <AppShell
+        titleBar={<div />}
+        binder={<div data-testid="binder" />}
+        viewStage={<div data-testid="stage" />}
+        inspector={null}
+        statusBar={<div />}
+      />
+    );
+    expect(container.querySelector(".panel-inspector")).toBeNull();
+  });
+
+  it("omits both panel wrapper elements when both binder and inspector are null (full-bleed layout)", () => {
+    const { container } = render(
+      <AppShell
+        titleBar={<div />}
+        binder={null}
+        viewStage={<div data-testid="stage" />}
+        inspector={null}
+        statusBar={<div />}
+      />
+    );
+    expect(container.querySelector(".panel-binder")).toBeNull();
+    expect(container.querySelector(".panel-inspector")).toBeNull();
+    // .center still fills the body
+    expect(container.querySelector(".center")).not.toBeNull();
+  });
+
   it("adds .anim to .win when anim prop is true", () => {
     const { container } = render(
       <AppShell

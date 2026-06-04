@@ -130,7 +130,9 @@ Enforcement: advisory-only (Phase 7/8 reviewer checks no migration was added).
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit SHA | Observation point |
+|---|---|---|---|---|
+| 1 | 2026-06-04 | 2026-06-04 | pending | Cannot observe directly (no Tauri runtime in this context). Root cause confirmed from code: AppShell.tsx rendered `.panel-binder` and `.panel-inspector` wrapper divs unconditionally regardless of slot content. Fix: wrappers now elided when slot is null. Render-level tests added to appShell.slots.contract.test.tsx asserting the DOM element is absent. Cole re-smokes to confirm full-bleed at runtime. |
 
 ## Follow-up candidates
 
