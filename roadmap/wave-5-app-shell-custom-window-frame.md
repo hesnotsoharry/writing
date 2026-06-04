@@ -32,7 +32,7 @@ functional shell spine that later screen-port and feature waves fill in.
 - Reparent the four existing screens — `src/binder/Binder.tsx`, `src/editor/Editor.tsx` (via EditorPane), `src/inspector/SceneInspector.tsx`, `src/storybible/StoryBibleView.tsx` — into named shell slots; remove `AppContent`'s inline styles + placeholder view-toggle button.
 - A named, empty `CorkboardSlot` placeholder in the view-stage (reserves the slot; renders nothing yet).
 - Two-segment view switch (Write / Story Bible) wired to existing `AppView` (`"editor" | "bible"`).
-- Wire `useTheme()` at the `App()` root so `data-theme` + accent CSS vars are live; thread `setTheme`/`setAccent` down to a stubbed Settings consumer.
+- Wire `useTheme()` at the `App()` root so `data-theme` + accent CSS vars are live. (Phase-4 scope refinement: the original "thread `setTheme`/`setAccent` to a stubbed Settings consumer" was **deliberately deferred** — a stub consumer with no real consumer is premature abstraction; the Settings wave establishes the threading with its real consumer. Phase 4 ships the root side-effect wiring only.)
 - `data-tauri-drag-region` on the title bar root; window controls call `getCurrentWindow()` per ADR 0002.
 
 **Out of scope:**
@@ -59,9 +59,9 @@ functional shell spine that later screen-port and feature waves fill in.
 - [ ] `src-tauri/capabilities/default.json` `permissions[]` includes all four: `core:window:allow-minimize`, `core:window:allow-toggle-maximize`, `core:window:allow-close`, `core:window:allow-start-dragging`.
 - [ ] `src/shell/TitleBar.tsx`, `src/shell/StatusBar.tsx`, `src/shell/AppShell.tsx` exist and export their components via ES `export` (no `window.X =` assignment).
 - [ ] The title bar root element carries `data-tauri-drag-region`; window-control buttons call `getCurrentWindow().minimize() / .toggleMaximize() / .close()`.
-- [ ] `AppShell` renders `.win > .titlebar + .body + .statusbar`; `.body` contains `.panel-binder`, `.center > .view-stage`, `.panel-inspector`; a named CorkboardSlot placeholder exists in the view-stage.
+- [ ] `AppShell` renders `.win > .titlebar + .body + .statusbar`; `.body` contains `.panel-binder`, `.center > .view-stage`, `.panel-inspector`; a documented CorkboardSlot extension point (a comment marking where App()'s future `view === "cork"` branch lands — **not** a rendered empty component) is present at the view-stage routing.
 - [ ] Binder, Editor (via EditorPane), SceneInspector, StoryBibleView each render inside their named slot; the old inline-styled `AppContent` flex div and its placeholder view-toggle button are removed.
-- [ ] `App()` calls `useTheme()`; on app start `getComputedStyle(document.documentElement).getPropertyValue('--paper')` returns a non-empty color value.
+- [ ] `App()` calls `useTheme()`; on app start `document.documentElement` carries the `--accent-*` CSS vars written by the hook (and a `data-theme` attribute once a non-default theme is set). (Note: `--paper` is a wave-4 `tokens.css` `:root` token, already non-empty pre-wave — it is NOT written by `useTheme`; the prior AC wording conflated the two.)
 - [ ] No file under `src/db/` is modified by this wave (`git diff --name-only` shows zero `src/db/` paths).
 - [ ] `npm run lint`, `tsc` (typecheck), and `npm run test` (touched tests) all exit 0.
 
@@ -105,9 +105,21 @@ The core window-frame decision is already locked upstream — see roadmap/decisi
 
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
 
+| Phase | Dispatched | Gates | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 — walking skeleton | ✓ (run-phase `wf_187db51c-873`) | green (lint/tsc/oracle 4/4) · review PASS single-tier | `a3e9491` | wiring contract ✓ (oracle) · **frameless/drag/OS smoke PENDING live run** |
+| 2 — TitleBar + StatusBar | ✓ (run-phase `wf_454c0aa3-c49`) | green post-remediation (lint/tsc/116 tests · oracle 8/8) · review **FLAG** → adjudicated | `bed69d6` | view-switch contract ✓ (oracle) · **visual fidelity (brand/tokens/fonts/icons) PENDING manual smoke** |
+
+| 3 — AppShell + reparent | ✓ (run-phase `wf_d48dd10a-2c7`) | green (lint/tsc/122 tests · slot oracle 6/6) · review FLAG_UNCERTAIN → doc-only, resolved | `2c2e55c` | slot→region contract ✓ (oracle) · **three-pane visual fidelity PENDING manual smoke** |
+
+**Phase 3 adjudication notes:** review FLAG_UNCERTAIN was a doc-vs-doc nit — the plan's AC said CorkboardSlot "placeholder" while the brief (correctly) said comment-only. Code follows the brief (no dead markup). Resolved by correcting the AC wording above. No code change needed; clean otherwise (blast radius 0, only `Cargo.toml` EOL noise in scope signals).
+
+**Phase 2 adjudication notes:** review FLAGged `sceneWordCount={null}` — **justified-deferred** (a correct live count needs a Yjs doc observer = feature-tier, not the cheap memo the brief assumed; a freeze-on-load count would mislead; honest `—` shipped → wave-6). Scope expansions reviewed: jest-dom dep + `WindowControls` getCurrentWindow-into-handlers = necessary/accepted; **`tsconfig.json` test-exclude (gate-weakening) = REJECTED and remediated** (typing fixed at source, test files kept in tsc scope). `Cargo.toml` signal = pre-existing EOL noise, untouched. `behavioralCoverageGap` (StatusBar presentational) = advisory, no test filed.
+
 ## Follow-up candidates
 
 - Transparent / floating rounded-shadow window aesthetic: deferred from wave-5 to avoid the Windows WebView2 transparency render risk; requires `transparent:true` + shadow handling + Windows verification, separate from the functional shell. | present-harm: K3 — design-reference `.win { inset:18px; border-radius:var(--r-lg); box-shadow:var(--shadow-lg) }` (the "Quiet Study" floating look) will not render with square-frameless shipped in wave-5; visual gap observable at ≥1180px viewport once the shell lands.
+- StatusBar live-data wiring (wave-6 feature slice): live SCENE word count (needs a Yjs doc observer that recomputes on edit, not a freeze-on-load memo), manuscript-wide word-count aggregate (`SUM` over `plaintext_projection`), goals mini-bar (`goalsOn`/session/target from a goals store), and backup timestamp — all currently render honest `—`. Naturally groups with the goals/word-count feature work. | present-harm: K3 — `src/shell/StatusBar.tsx` shows `—` for scene/manuscript counts; `src/App.tsx` passes `sceneWordCount={null}`; user sees no live word count in the status bar once the shell lands.
 
 ## Result
 

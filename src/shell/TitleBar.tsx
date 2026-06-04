@@ -102,7 +102,9 @@ export function TitleBar({
       <ViewSwitch view={view} onViewChange={onViewChange} />
       {docName !== undefined && (
         <div className="doc-name">
-          {docName}<span className="saved">· saved just now</span>
+          {docName}
+          {/* TODO(wave-N): live save-state indicator — wire to the Yjs
+              bind-persistence onSaved signal. No fabricated "saved" text. */}
         </div>
       )}
       <TitleBarActions
