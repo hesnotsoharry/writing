@@ -109,12 +109,49 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Completed | Commit SHA | Observation point hit |
+|---|---|---|---|
+| 1 — store contract + InMemory + contract tests | yes | d51fa0a | Internal (9 contract tests green) |
+| 2 — SqliteBinderStore + SqlJs round-trip | yes | 7953f99 | Internal (6 SqlJs tests green) |
+| 3 — Archive overlay + component tests | yes | d6dd663 | Deferred to Cole post-merge (lane cannot Tauri-smoke); 7 component tests green |
 
 ## Follow-up candidates
 
-<!-- DEFAULT: empty. -->
+(none)
 
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+### Wave 22 Archive — handoff for merge
+
+- **Branch:** `wave-22-archive` · **Plan:** `roadmap/wave-22-archive-store-overlay.md`
+- **Gates:** lint **PASS** · tsc **PASS** · full suite **512/512 PASS** (22 new archive tests: 9 InMemory contract + 6 SqlJs round-trip + 7 overlay component).
+- **Reviewer verdict:** **PASS** — each phase ran an attack-diff (single-tier) `sonnet-adversarial-reviewer`; every FLAG adjudicated and addressed (status-normalization into the manifest, cross-project + edge-case tests, onChanged-after-reload ordering, `type="button"`, projectId guard). No open flags.
+- **What shipped:**
+  1. Six additive `BinderStore` methods + `ArchivedItem`/`ArchiveKind`/`ARCHIVE_KIND` types, implemented in BOTH `InMemoryBinderStore` and `SqliteBinderStore`.
+  2. Full-fidelity archive: archiving a scene/chapter snapshots a JSON manifest (meta + Yjs doc) into `archive.state_base64`; restore reproduces status/synopsis/word_count/sort_order + byte-identical docs, reusing original ids. Chapter archive is atomic (one bin row, restores folder + all scenes).
+  3. Real `Archive` browsing overlay (canon `scrim`/`sheet` chrome, mirrors `design-reference/dialogs.jsx`): lists items, **Restore** → `restoreArchived`, **Delete forever** → `purgeArchived`, "Nothing archived." empty state.
+  4. No migration added; no `App.*`/`shell` touched; stayed within the existing migration-4 `archive` table.
+- **Files touched:** `src/db/binderStore.ts` (additive) · `src/db/sqliteBinderStore.ts` (6 stubs→impl) · **NEW** `src/db/sqliteArchiveHelpers.ts` (manifest build/restore helpers, extracted for the 40-line lint rule) · `src/features/archive/Archive.tsx` · **NEW tests** `src/test/archiveStore.contract.test.ts`, `src/test/sqliteArchiveStore.test.ts`, `src/test/archive.test.tsx`.
+- **NEW store methods (additive — on `BinderStore` + both impls):**
+  - `archiveScene(sceneId: string, projectId: string): Promise<void>`
+  - `archiveChapter(folderId: string, projectId: string): Promise<void>`
+  - `listArchived(projectId: string): Promise<ArchivedItem[]>` (archivedAt DESC)
+  - `restoreArchived(archiveId: string): Promise<void>`
+  - `purgeArchived(archiveId: string): Promise<void>`
+  - `archivedCount(projectId: string): Promise<number>`
+  - `ArchivedItem = { id, kind, originalId: string|null, title, sub: string|null, archivedAt: number }`
+  - Contract tests: `archiveStore.contract.test.ts` (9) + `sqliteArchiveStore.test.ts` (6).
+- **COMPONENT PROP CONTRACT (lead supplies on integration):**
+  ```ts
+  Archive({ projectId?: string, store?: BinderStore, onClose: () => void, onChanged?: () => void })
+  ```
+  - `projectId` is **required in practice** — typed optional ONLY so the lead's existing `<Archive onClose=.../>` call site compiles unchanged. When absent, the overlay renders the empty state and runs no query. **Lead MUST pass `projectId={activeProjectId}`** for real behavior.
+  - `store` defaults to a module-level `new SqliteBinderStore()`; tests inject a fake.
+  - `onChanged` fires AFTER a restore/purge fully settles (mutation + list reload) — wire it to recompute the footer `archivedCount`.
+- **⚠ Needs Cole's eyes post-merge (lane could not Tauri-smoke):**
+  - The overlay rendering live (rows, Restore, Delete-forever, empty state, scrim click-to-close) — verified only by component tests + design-reference line-up.
+  - End-to-end archive→restore against the real `writing.db` (back up the DB first).
+- **Flags / deviations:**
+  - **⚠ DEVIATION (Decision 1):** `archive.state_base64` holds a **JSON manifest** (NOT a bare Yjs base64 string) for BOTH kinds — chosen for full-fidelity restore + cross-impl consistency, since the table lacks status/synopsis/folder columns and we can't add a migration (Lane 24 owns migrations). The coordination doc's literal "snapshot scene_docs.state_base64 into archive.state_base64" is satisfied in spirit (the doc is embedded in the manifest). Lead/integrators must not assume the column is raw base64.
+  - Added one new file `src/db/sqliteArchiveHelpers.ts` (additive, no conflict) beyond the literal "binderStore.ts + sqliteBinderStore.ts" — needed to keep methods under the 40-line lint cap.
+  - `purgeArchived` (design's "remove for good") was added beyond the 5 methods the brief listed — the design-reference Archive has a remove-forever action, so it's wired.
