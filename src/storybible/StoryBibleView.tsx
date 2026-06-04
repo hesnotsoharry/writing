@@ -1,27 +1,68 @@
 import { useEffect, useState } from "react";
 
+import { Icon } from "../components/Icon";
 import type { Character, Location, StoryBibleStore } from "../db/storyBibleStore";
 
 // ---------------------------------------------------------------------------
-// EntityRow
+// useSceneCount — per-entity scene count from findScenesForEntity
 // ---------------------------------------------------------------------------
 
-interface EntityRowProps {
-  id: string;
-  name: string;
-  notes: string | null;
-  type: "character" | "location";
-  roleLabel: string;
-  store: StoryBibleStore;
-  onMutated: () => void;
+function useSceneCount(store: StoryBibleStore, id: string, refreshVersion: number): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    store.findScenesForEntity(id).then((ids) => {
+      if (active) setCount(ids.length);
+    }).catch((e: unknown) => console.error("[StoryBibleView] findScenesForEntity failed", e));
+    return () => { active = false; };
+  }, [store, id, refreshVersion]);
+
+  return count;
 }
 
-function EntityRowName({ id, name, type, store, onMutated }: Omit<EntityRowProps, "notes" | "roleLabel">) {
-  const [editing, setEditing] = useState(false);
+// ---------------------------------------------------------------------------
+// EntityFoot
+// ---------------------------------------------------------------------------
+
+interface EntityFootProps {
+  store: StoryBibleStore;
+  id: string;
+  refreshVersion: number;
+}
+
+function EntityFoot({ store, id, refreshVersion }: EntityFootProps) {
+  const count = useSceneCount(store, id, refreshVersion);
+  return (
+    <div className="be-foot">
+      <Icon name="fileText" style={{ width: 11, height: 11 }} />
+      {" "}{count} scenes
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EntityRowName
+// ---------------------------------------------------------------------------
+
+interface EntityRowNameProps {
+  id: string;
+  name: string;
+  type: "character" | "location";
+  store: StoryBibleStore;
+  onMutated: () => void;
+  autoEdit?: boolean;
+  onEditDone?: () => void;
+}
+
+function EntityRowName({ id, name, type, store, onMutated, autoEdit, onEditDone }: EntityRowNameProps) {
+  const [editing, setEditing] = useState(autoEdit ?? false);
+  // key={id} on the parent remounts this component when id changes, so name is always fresh.
   const [draft, setDraft] = useState(name);
 
   async function commit() {
     setEditing(false);
+    onEditDone?.();
     const trimmed = draft.trim();
     if (trimmed && trimmed !== name) {
       await store.renameEntity(type, id, trimmed);
@@ -51,7 +92,19 @@ function EntityRowName({ id, name, type, store, onMutated }: Omit<EntityRowProps
   );
 }
 
-function EntityRowNotes({ id, notes, type, store, onMutated }: Omit<EntityRowProps, "name" | "roleLabel">) {
+// ---------------------------------------------------------------------------
+// EntityRowNotes
+// ---------------------------------------------------------------------------
+
+interface EntityRowNotesProps {
+  id: string;
+  notes: string | null;
+  type: "character" | "location";
+  store: StoryBibleStore;
+  onMutated: () => void;
+}
+
+function EntityRowNotes({ id, notes, type, store, onMutated }: EntityRowNotesProps) {
   const [draft, setDraft] = useState(notes ?? "");
 
   async function handleBlur() {
@@ -68,12 +121,15 @@ function EntityRowNotes({ id, notes, type, store, onMutated }: Omit<EntityRowPro
       style={{
         background: "transparent",
         border: "1px solid transparent",
-        resize: "vertical",
+        resize: "none",
         width: "100%",
         font: "inherit",
         minHeight: 36,
         boxSizing: "border-box",
         padding: "2px 4px",
+        overflowX: "hidden",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
       }}
       value={draft}
       placeholder="Notes…"
@@ -83,7 +139,24 @@ function EntityRowNotes({ id, notes, type, store, onMutated }: Omit<EntityRowPro
   );
 }
 
-function EntityRow({ id, name, notes, type, roleLabel, store, onMutated, refreshVersion }: EntityRowProps & { refreshVersion: number }) {
+// ---------------------------------------------------------------------------
+// EntityRow
+// ---------------------------------------------------------------------------
+
+interface EntityRowProps {
+  id: string;
+  name: string;
+  notes: string | null;
+  type: "character" | "location";
+  roleLabel: string;
+  store: StoryBibleStore;
+  onMutated: () => void;
+  refreshVersion: number;
+  justCreated?: boolean;
+  onEditDone?: () => void;
+}
+
+function EntityRow({ id, name, notes, type, roleLabel, store, onMutated, refreshVersion, justCreated, onEditDone }: EntityRowProps) {
   const initial = name.trim()[0]?.toUpperCase() ?? "";
 
   async function handleDelete() {
@@ -95,9 +168,19 @@ function EntityRow({ id, name, notes, type, roleLabel, store, onMutated, refresh
     <div className="bible-entry">
       <div className={"avatar " + type}>{initial}</div>
       <div className="be-body">
-        <EntityRowName key={id} id={id} name={name} type={type} store={store} onMutated={onMutated} />
+        <EntityRowName
+          key={id}
+          id={id}
+          name={name}
+          type={type}
+          store={store}
+          onMutated={onMutated}
+          autoEdit={justCreated}
+          onEditDone={onEditDone}
+        />
         <div className="be-role">{roleLabel}</div>
         <EntityRowNotes key={`${id}-${refreshVersion}`} id={id} notes={notes} type={type} store={store} onMutated={onMutated} />
+        <EntityFoot store={store} id={id} refreshVersion={refreshVersion} />
         <button
           style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 13, color: "#aaa", padding: "0 4px" }}
           aria-label={`Delete ${name}`}
@@ -114,12 +197,30 @@ function EntityRow({ id, name, notes, type, roleLabel, store, onMutated, refresh
 // EntitySection
 // ---------------------------------------------------------------------------
 
+interface AddEntityButtonProps {
+  addLabel: string;
+  onAdd: () => void;
+}
+
+function AddEntityButton({ addLabel, onAdd }: AddEntityButtonProps) {
+  return (
+    <button
+      className="add-entity"
+      style={{ justifyContent: "center", border: "1px dashed var(--parchment-edge)", padding: 9 }}
+      onClick={onAdd}
+    >
+      <Icon name="plus" style={{ width: 13, height: 13 }} /> {addLabel}
+    </button>
+  );
+}
+
 interface EntitySectionProps {
   colTitle: string;
   entities: (Character | Location)[];
   type: "character" | "location";
   roleLabel: string;
-  addPlaceholder: string;
+  iconName: "users" | "mapPin";
+  iconColor: string;
   addLabel: string;
   store: StoryBibleStore;
   projectId: string;
@@ -127,27 +228,25 @@ interface EntitySectionProps {
   refreshVersion: number;
 }
 
-function useAddEntity(type: "character" | "location", store: StoryBibleStore, projectId: string, onMutated: () => void) {
-  const [newName, setNewName] = useState("");
+function EntitySection({ colTitle, entities, type, roleLabel, iconName, iconColor, addLabel, store, projectId, onMutated, refreshVersion }: EntitySectionProps) {
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
-  async function handleAdd() {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    if (type === "character") await store.createCharacter(projectId, trimmed, null);
-    else await store.createLocation(projectId, trimmed, null);
-    setNewName("");
-    onMutated();
+  function handleAdd() {
+    const create = type === "character"
+      ? store.createCharacter(projectId, addLabel, null)
+      : store.createLocation(projectId, addLabel, null);
+    create.then((created) => {
+      setJustCreatedId(created.id);
+      onMutated();
+    }).catch((e: unknown) => console.error("[StoryBibleView] create failed", e));
   }
-
-  return { newName, setNewName, handleAdd };
-}
-
-function EntitySection({ colTitle, entities, type, roleLabel, addPlaceholder, addLabel, store, projectId, onMutated, refreshVersion }: EntitySectionProps) {
-  const { newName, setNewName, handleAdd } = useAddEntity(type, store, projectId, onMutated);
 
   return (
     <div>
-      <div className="bible-col-title">{colTitle}</div>
+      <div className="bible-col-title">
+        <Icon name={iconName} style={{ width: 14, height: 14, color: iconColor }} />
+        {" "}{colTitle}
+      </div>
       {entities.map((e) => (
         <EntityRow
           key={e.id}
@@ -159,23 +258,11 @@ function EntitySection({ colTitle, entities, type, roleLabel, addPlaceholder, ad
           store={store}
           onMutated={onMutated}
           refreshVersion={refreshVersion}
+          justCreated={justCreatedId === e.id}
+          onEditDone={() => setJustCreatedId(null)}
         />
       ))}
-      <div
-        className="add-entity"
-        style={{ justifyContent: "center", border: "1px dashed var(--parchment-edge)", padding: 9 }}
-      >
-        <input
-          style={{ flex: 1, fontSize: 13, border: "1px solid #ddd", borderRadius: 4, padding: "4px 8px" }}
-          placeholder={addPlaceholder}
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") void handleAdd(); }}
-        />
-        <button onClick={() => { void handleAdd(); }}>
-          {addLabel}
-        </button>
-      </div>
+      <AddEntityButton addLabel={addLabel} onAdd={handleAdd} />
     </div>
   );
 }
@@ -234,8 +321,9 @@ export function StoryBibleView({ store, projectId, onEntitiesChanged }: StoryBib
             entities={characters}
             type="character"
             roleLabel="Character"
-            addPlaceholder="New character name"
-            addLabel="Add character"
+            iconName="users"
+            iconColor="var(--character)"
+            addLabel="New character"
             store={store}
             projectId={projectId}
             onMutated={refresh}
@@ -246,8 +334,9 @@ export function StoryBibleView({ store, projectId, onEntitiesChanged }: StoryBib
             entities={locations}
             type="location"
             roleLabel="Location"
-            addPlaceholder="New location name"
-            addLabel="Add location"
+            iconName="mapPin"
+            iconColor="var(--location)"
+            addLabel="New location"
             store={store}
             projectId={projectId}
             onMutated={refresh}
