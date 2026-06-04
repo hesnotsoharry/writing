@@ -41,13 +41,16 @@ export function OverlayStack({
   showExport, setShowExport,
   showSettings, setShowSettings,
   setTheme, setAccent,
-}: OverlayStackProps): ReactElement {
+  setGoalsOn,
+  goalsOn,
+  activeProjectId,
+}: OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null }): ReactElement {
   return (
     <>
       {showQuickCapture && <QuickCapture onClose={() => setShowQuickCapture(false)} />}
       {showInbox && <Inbox onClose={() => setShowInbox(false)} />}
       {showArchive && <Archive onClose={() => setShowArchive(false)} />}
-      {showGoals && <Goals onClose={() => setShowGoals(false)} />}
+      {showGoals && <Goals onClose={() => setShowGoals(false)} goalsOn={goalsOn} setGoalsOn={setGoalsOn} activeProjectId={activeProjectId} />}
       {showExport && <Export onClose={() => setShowExport(false)} />}
       {showSettings && (
         <Settings

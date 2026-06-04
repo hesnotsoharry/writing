@@ -1,3 +1,5 @@
+import type { IconName } from "../../components/Icon";
+
 /** Unique identifier for each goal type. */
 export type GoalTypeId =
   | "daily"
@@ -11,7 +13,7 @@ export type GoalTypeId =
 export interface GoalTypeEntry {
   id: GoalTypeId;
   /** Icon name (maps to <Icon name={ic} /> in the UI). */
-  ic: string;
+  ic: IconName;
   name: string;
   desc: string;
 }

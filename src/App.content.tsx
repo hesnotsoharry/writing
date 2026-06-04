@@ -125,7 +125,7 @@ export function AppContent({
         inspector={inspectorSlot}
         statusBar={<StatusBar sceneWordCount={liveWordCount} />}
       />
-      <OverlayStack {...overlays} />
+      <OverlayStack {...overlays} activeProjectId={activeProjectId} />
     </>
   );
 }
