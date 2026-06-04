@@ -32,6 +32,7 @@ import { StatusBar } from "./shell/StatusBar";
 import { TitleBar } from "./shell/TitleBar";
 import { StoryBibleView } from "./storybible/StoryBibleView";
 import { useEditorStyle } from "./theme/useEditorStyle";
+import { useMotion } from "./theme/useMotion";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -177,6 +178,7 @@ function useAppContentSlots(props: AppContentProps) {
   useGlobalKeybindings(overlays);
   useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle();
+  const motionOn = useMotion();
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
   const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", scope: "manuscript", targetId: null, currentScopeTotal: manuscriptTotal });
@@ -200,17 +202,17 @@ function useAppContentSlots(props: AppContentProps) {
     { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
-    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId };
+    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn };
 }
 
 export function AppContent(props: AppContentProps) {
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
-    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId } = useAppContentSlots(props);
+    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn } = useAppContentSlots(props);
   const { view, onViewChange } = props;
   return (
     <>
-      <AppShell focusMode={focusMode}
+      <AppShell focusMode={focusMode} anim={motionOn} viewKey={view}
         titleBar={<TitleBar view={view} onViewChange={onViewChange} docName={docName}
           goalsOn={goalsOn} hasQuickItems={hasQuickItems}
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}

@@ -65,7 +65,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   display: grid; place-items: center; color: var(--ink-3);
 }
 .wbtn:hover { background: var(--parchment-deep); color: var(--ink); }
-.wbtn.close:hover { background: #d6573e; color: #fff; }
+/* Canon clay hover — accent token (terracotta, themeable) replaces the
+ * former hardcoded #d6573e. Light + dark both use --accent since the accent
+ * palette is already theme-aware (see design-reference/app.jsx accent vars). */
+.wbtn.close:hover { background: var(--accent); color: #fff; }
 
 /* brand logo: theme-aware logo at the far LEFT of the title bar (replaces the
  * former feather + "Writers Nook" wordmark).

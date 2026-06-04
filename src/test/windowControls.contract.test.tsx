@@ -66,4 +66,20 @@ describe("WindowControls", () => {
     expect(mockWindowAPI.minimize).not.toHaveBeenCalled();
     expect(mockWindowAPI.toggleMaximize).not.toHaveBeenCalled();
   });
+
+  it("close button carries .wbtn.close CSS classes so canvas hover styles apply", () => {
+    const { container } = render(<WindowControls />);
+    // The close button must have both .wbtn and .close so that the CSS rule
+    // `.wbtn.close:hover { background: var(--accent); }` targets it.
+    const closeBtn = container.querySelector("button.wbtn.close");
+    expect(closeBtn).not.toBeNull();
+    expect(closeBtn?.getAttribute("aria-label")).toBe("Close");
+  });
+
+  it("minimize and maximize buttons carry .wbtn CSS class for consistent hover treatment", () => {
+    const { container } = render(<WindowControls />);
+    const wbtns = container.querySelectorAll("button.wbtn");
+    // Exactly 3 control buttons, all with .wbtn
+    expect(wbtns).toHaveLength(3);
+  });
 });

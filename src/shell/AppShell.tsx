@@ -30,18 +30,33 @@ export interface AppShellProps {
   statusBar: ReactNode;
   /** When true, stamps data-focus on the root .win div (CSS extension point). */
   focusMode?: boolean;
+  /**
+   * When true, adds the `.anim` class to the root `.win` element, enabling the
+   * canon motion animations (view-in fade-up, bar-in selected indicator, etc.).
+   * Gated on the motion tweak; `.anim`-gated CSS rules also require
+   * `@media (prefers-reduced-motion: no-preference)` so reduced-motion is
+   * always honoured even when this is true.
+   */
+  anim?: boolean;
+  /**
+   * React key for the `.view-stage` wrapper. When this changes React remounts
+   * the wrapper, restarting the `.anim .view-stage` CSS entrance animation.
+   * Pass the current view string (e.g. "editor" | "cork" | "bible").
+   */
+  viewKey?: string;
 }
 
 export function AppShell({
-  titleBar, binder, viewStage, inspector, statusBar, focusMode,
+  titleBar, binder, viewStage, inspector, statusBar, focusMode, anim, viewKey,
 }: AppShellProps): ReactElement {
+  const winClass = ["win", anim ? "anim" : ""].filter(Boolean).join(" ");
   return (
-    <div className="win" data-focus={focusMode || undefined}>
+    <div className={winClass} data-focus={focusMode || undefined}>
       {titleBar}
       <div className="body">
         <div className="panel-binder">{binder}</div>
         <div className="center">
-          <div className="view-stage">{viewStage}</div>
+          <div className="view-stage" key={viewKey}>{viewStage}</div>
         </div>
         <div className="panel-inspector">{inspector}</div>
       </div>

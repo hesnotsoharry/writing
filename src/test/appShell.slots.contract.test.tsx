@@ -100,4 +100,42 @@ describe("AppShell — slot→region layout contract", () => {
 
     expect(container.querySelector(".win")).not.toBeNull();
   });
+
+  it("adds .anim to .win when anim prop is true", () => {
+    const { container } = render(
+      <AppShell
+        titleBar={<div />} binder={<div />} viewStage={<div />}
+        inspector={<div />} statusBar={<div />}
+        anim={true}
+      />
+    );
+    const win = container.querySelector(".win");
+    expect(win).not.toBeNull();
+    expect(win?.classList.contains("anim")).toBe(true);
+  });
+
+  it("does NOT add .anim to .win when anim prop is false", () => {
+    const { container } = render(
+      <AppShell
+        titleBar={<div />} binder={<div />} viewStage={<div />}
+        inspector={<div />} statusBar={<div />}
+        anim={false}
+      />
+    );
+    const win = container.querySelector(".win");
+    expect(win).not.toBeNull();
+    expect(win?.classList.contains("anim")).toBe(false);
+  });
+
+  it("does NOT add .anim to .win when anim prop is omitted", () => {
+    const { container } = render(
+      <AppShell
+        titleBar={<div />} binder={<div />} viewStage={<div />}
+        inspector={<div />} statusBar={<div />}
+      />
+    );
+    const win = container.querySelector(".win");
+    expect(win).not.toBeNull();
+    expect(win?.classList.contains("anim")).toBe(false);
+  });
 });

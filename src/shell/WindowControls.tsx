@@ -18,27 +18,20 @@ export function WindowControls(): ReactElement {
   // render time — avoids a crash when `window.__TAURI_INTERNALS__` is absent
   // (jsdom test environment, hot-reload before Tauri context is ready).
   return (
-    <div style={{ display: "flex", gap: 4 }}>
-      <button
-        aria-label="Minimize"
-        onClick={() => { void getCurrentWindow().minimize(); }}
-        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", lineHeight: 0 }}
-      >
+    <div style={{ display: "flex", gap: 2 }}>
+      {/* Using canon .wbtn CSS class so hover states (including .wbtn.close:hover
+          clay treatment) are driven by app.css rather than inline styles. */}
+      <button className="wbtn" aria-label="Minimize"
+        onClick={() => { void getCurrentWindow().minimize(); }}>
         <Icon name="minus" style={{ width: 14, height: 14 }} />
       </button>
-      <button
-        aria-label="Maximize"
-        onClick={() => { void getCurrentWindow().toggleMaximize(); }}
-        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", lineHeight: 0 }}
-      >
-        <Icon name="square" style={{ width: 14, height: 14 }} />
+      <button className="wbtn" aria-label="Maximize"
+        onClick={() => { void getCurrentWindow().toggleMaximize(); }}>
+        <Icon name="square" style={{ width: 12, height: 12 }} />
       </button>
-      <button
-        aria-label="Close"
-        onClick={() => { void getCurrentWindow().close(); }}
-        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", lineHeight: 0 }}
-      >
-        <Icon name="x" style={{ width: 14, height: 14 }} />
+      <button className="wbtn close" aria-label="Close"
+        onClick={() => { void getCurrentWindow().close(); }}>
+        <Icon name="x" style={{ width: 13, height: 13 }} />
       </button>
     </div>
   );
