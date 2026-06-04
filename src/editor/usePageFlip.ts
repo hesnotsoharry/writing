@@ -47,8 +47,29 @@ export function computeFlip(args: {
 }
 
 // ---------------------------------------------------------------------------
-// Pure helper — exported for unit tests
+// Pure helpers — exported for Editor.tsx + unit tests
 // ---------------------------------------------------------------------------
+
+/**
+ * findSceneWithChapter — locate a scene by id and derive its chapter title.
+ * Returns null when sceneId is null or the scene is not in the tree.
+ */
+export function findSceneWithChapter(
+  tree: BinderTree,
+  sceneId: string | null,
+): { scene: import("../db/binderStore").Scene; chapterTitle: string } | null {
+  if (sceneId === null) return null;
+  const allScenes = [
+    ...tree.chapters.flatMap((ch) => ch.scenes),
+    ...tree.shortPieces,
+  ];
+  const scene = allScenes.find((s) => s.id === sceneId);
+  if (!scene) return null;
+  const chapter = tree.chapters.find((ch) =>
+    ch.scenes.some((s) => s.id === sceneId),
+  );
+  return { scene, chapterTitle: chapter?.folder.title ?? "" };
+}
 
 /**
  * buildLeafContent — derive the outgoing leaf metadata from the tree.
@@ -59,19 +80,11 @@ export function buildLeafContent(
   sceneId: string,
   proseHTML: string,
 ): LeafContent | null {
-  const allScenes = [
-    ...tree.chapters.flatMap((ch) => ch.scenes),
-    ...tree.shortPieces,
-  ];
-  const scene = allScenes.find((s) => s.id === sceneId);
-  if (!scene) return null;
-
-  const chapter = tree.chapters.find((ch) =>
-    ch.scenes.some((s) => s.id === sceneId),
-  );
-
+  const found = findSceneWithChapter(tree, sceneId);
+  if (!found) return null;
+  const { scene, chapterTitle } = found;
   return {
-    chapterTitle: chapter?.folder.title ?? "",
+    chapterTitle,
     title: scene.title,
     status: normalizeStatus(scene.status),
     words: scene.word_count,

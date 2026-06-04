@@ -1,7 +1,7 @@
 import "./proofread.css";
 
 import Collaboration from "@tiptap/extension-collaboration";
-import { EditorContent,useEditor } from "@tiptap/react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback } from "react";
 import * as Y from "yjs";
@@ -9,11 +9,14 @@ import * as Y from "yjs";
 import type { AppView } from "../App.state";
 import type { BinderTree } from "../binder/buildTree";
 import type { SqliteStoryBibleStore } from "../db/sqliteStoryBibleStore";
-import { STATUS_META } from "../lib/status";
+import { normalizeStatus, STATUS_META } from "../lib/status";
+import { EditorHeader } from "./EditorHeader";
 import ProofreadExtension from "./extensions/ProofreadExtension";
 import { SpellCheckPopover, useSpellCheckPopover } from "./SpellCheckPopover";
+import { useLiveWordCount } from "./useLiveWordCount";
 import type { LeafContent } from "./usePageFlip";
-import { usePageFlip } from "./usePageFlip";
+import { findSceneWithChapter, usePageFlip } from "./usePageFlip";
+import { useSceneLinkCounts } from "./useSceneLinkCounts";
 
 /**
  * LeafPage — renders the outgoing scene metadata on the turning leaf's front face.
@@ -68,13 +71,52 @@ function PageFlipLeaf({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Hook — bundles TipTap + spell-popover + page-flip setup
+// ---------------------------------------------------------------------------
+
+interface EditorCoreState {
+  editor: ReturnType<typeof useEditor>;
+  visible: boolean;
+  popoverProps: ReturnType<typeof useSpellCheckPopover>["popoverProps"];
+  flip: ReturnType<typeof usePageFlip>["flip"];
+  onAnimationEnd: ReturnType<typeof usePageFlip>["onAnimationEnd"];
+}
+
+function useEditorCore(
+  doc: Y.Doc,
+  selectedSceneId: string | null,
+  tree: BinderTree,
+  view: AppView,
+): EditorCoreState {
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ undoRedo: false }),
+      Collaboration.configure({ document: doc, field: "content" }),
+      ProofreadExtension,
+    ],
+    editorProps: { attributes: { class: "prose" } },
+  });
+  const { visible, popoverProps } = useSpellCheckPopover(editor);
+  const captureProse = useCallback(
+    () => editor?.view?.dom?.innerHTML ?? "",
+    [editor],
+  );
+  const { flip, onAnimationEnd } = usePageFlip({ selectedSceneId, tree, view, captureProse });
+  return { editor, visible, popoverProps, flip, onAnimationEnd };
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function Editor({
   doc,
   view,
   tree,
   selectedSceneId,
-  // storyBibleStore and linksVersion consumed in Phase 3 (header/byline).
-  // Kept in the type signature now so the prop-pass compiles end-to-end.
+  storyBibleStore,
+  linksVersion,
 }: {
   doc: Y.Doc;
   view: AppView;
@@ -83,31 +125,24 @@ export function Editor({
   storyBibleStore: SqliteStoryBibleStore;
   linksVersion: number;
 }) {
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ undoRedo: false }),
-      Collaboration.configure({ document: doc, field: "content" }),
-      ProofreadExtension,
-    ],
-    editorProps: {
-      attributes: { class: "prose" },
-    },
-  });
-
-  const { visible, popoverProps } = useSpellCheckPopover(editor);
-
-  // Snapshot the outgoing scene's rendered HTML just before the swap.
-  // Reads the editor's live DOM at effect-run time — see timing caveat in usePageFlip.ts.
-  const captureProse = useCallback(
-    () => editor?.view?.dom?.innerHTML ?? "",
-    [editor],
-  );
-
-  const { flip, onAnimationEnd } = usePageFlip({ selectedSceneId, tree, view, captureProse });
-
+  const { editor, visible, popoverProps, flip, onAnimationEnd } =
+    useEditorCore(doc, selectedSceneId, tree, view);
+  const liveWords = useLiveWordCount(doc);
+  const { characters, locations } = useSceneLinkCounts(storyBibleStore, selectedSceneId, linksVersion);
+  const activeScene = findSceneWithChapter(tree, selectedSceneId);
   return (
     <div className="canvas-scroll">
       <div className="canvas-wrap">
+        {activeScene && (
+          <EditorHeader
+            chapterTitle={activeScene.chapterTitle}
+            title={activeScene.scene.title}
+            status={normalizeStatus(activeScene.scene.status)}
+            words={liveWords}
+            characters={characters}
+            locations={locations}
+          />
+        )}
         <EditorContent editor={editor} />
         {visible && <SpellCheckPopover {...popoverProps} />}
       </div>
