@@ -2,10 +2,17 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { useTheme } from "../theme/useTheme";
+import {
+  ACCENT_KEY,
+  type AccentPalette,
+  DEFAULT_ACCENT,
+  THEME_KEY,
+  useTheme,
+} from "../theme/useTheme";
 
 afterEach(() => {
   // Clean up any mutations to document.documentElement so tests don't leak.
+  localStorage.clear();
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.style.removeProperty("--accent");
   document.documentElement.style.removeProperty("--accent-deep");
@@ -85,5 +92,44 @@ describe("useTheme", () => {
     expect(
       document.documentElement.style.getPropertyValue("--accent-wash"),
     ).toBe("rgba(170,187,204,0.10)");
+  });
+});
+
+// Acceptance oracle for Phase 2 (cross-boundary: persistent storage).
+// Authored by the orchestrator before implementation. Proves theme + accent
+// survive a hook remount via the writing.* localStorage keys.
+describe("persistence seam (wave-15)", () => {
+  it("restores a persisted theme from localStorage on mount", () => {
+    localStorage.setItem(THEME_KEY, JSON.stringify("dark"));
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.theme).toBe("dark");
+  });
+
+  it("persists setTheme across hook instances (survives remount)", () => {
+    const { result, unmount } = renderHook(() => useTheme());
+    act(() => {
+      result.current.setTheme("dark");
+    });
+    unmount();
+    const { result: remounted } = renderHook(() => useTheme());
+    expect(remounted.current.theme).toBe("dark");
+  });
+
+  it("restores a persisted accent and persists setAccent across instances", () => {
+    const palette: AccentPalette = ["#3f6f9e", "#315e89", "#dde7f1"];
+    const { result } = renderHook(() => useTheme());
+    act(() => {
+      result.current.setAccent(palette);
+    });
+    const { result: remounted } = renderHook(() => useTheme());
+    expect(remounted.current.accent).toEqual(palette);
+  });
+
+  it("falls back to defaults when persisted values are corrupt", () => {
+    localStorage.setItem(THEME_KEY, "not json{");
+    localStorage.setItem(ACCENT_KEY, "not json{");
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.theme).toBe("light");
+    expect(result.current.accent).toEqual(DEFAULT_ACCENT);
   });
 });

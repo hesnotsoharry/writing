@@ -19,6 +19,21 @@ export interface ThemeState {
 // Default accent: clay / terracotta — matches the design's TWEAK_DEFAULTS.
 export const DEFAULT_ACCENT: AccentPalette = ["#b25a38", "#99492b", "#f1e2d8"];
 
+export const THEME_KEY = "writing.theme";
+export const ACCENT_KEY = "writing.accent";
+
+function readPersisted<T>(key: string, fallback: T): T {
+  const raw = localStorage.getItem(key);
+  if (raw === null) return fallback;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || parsed === undefined) return fallback;
+    return parsed as T;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Parse a hex colour (#rgb or #rrggbb) to "r,g,b" for rgba() expressions. */
 function rgbOf(hex: string): string {
   let h = hex.replace("#", "");
@@ -47,8 +62,8 @@ function rgbOf(hex: string): string {
  * initial useState call, and write on every setTheme / setAccent call.
  */
 export function useTheme(): ThemeState {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [accent, setAccent] = useState<AccentPalette>(DEFAULT_ACCENT);
+  const [theme, setTheme] = useState<Theme>(() => readPersisted(THEME_KEY, "light"));
+  const [accent, setAccent] = useState<AccentPalette>(() => readPersisted(ACCENT_KEY, DEFAULT_ACCENT));
 
   useEffect(() => {
     const root = document.documentElement;
@@ -57,6 +72,7 @@ export function useTheme(): ThemeState {
     } else {
       root.removeAttribute("data-theme");
     }
+    localStorage.setItem(THEME_KEY, JSON.stringify(theme));
   }, [theme]);
 
   useEffect(() => {
@@ -71,6 +87,7 @@ export function useTheme(): ThemeState {
     root.style.setProperty("--selection", `rgba(${rgb},0.16)`);
     root.style.setProperty("--character", hero);
     root.style.setProperty("--character-tint", tint);
+    localStorage.setItem(ACCENT_KEY, JSON.stringify(accent));
   }, [accent]);
 
   return { theme, setTheme, accent, setAccent };
