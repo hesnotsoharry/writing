@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import {
   type AccentPalette,
   DEFAULT_ACCENT,
@@ -86,6 +87,7 @@ export function setStoredTweak<K extends keyof Tweaks>(
   value: Tweaks[K],
 ): void {
   localStorage.setItem(SETTINGS_NS + key, JSON.stringify(value));
+  window.dispatchEvent(new CustomEvent(SETTINGS_CHANGED_EVENT));
 }
 
 // ── useSettings hook ──────────────────────────────────────────────────────────

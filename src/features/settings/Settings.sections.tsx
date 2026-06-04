@@ -2,7 +2,7 @@ import { Icon } from "../../components/Icon";
 import type { AccentPalette, Theme } from "../../theme/useTheme";
 import { Seg, SetRow, SetSelect, SetToggle } from "./Settings.primitives";
 import type { Tweaks } from "./settings.store";
-import { SPELLCHECK_KEY } from "./settings.store";
+import { GRAMMAR_KEY, SPELLCHECK_KEY, STYLEHINTS_KEY } from "./settings.store";
 
 // ── Shared section prop shape ─────────────────────────────────────────────────
 
@@ -110,6 +110,12 @@ function EditorBottomRows({ tweaks, setTweak }: SectionProps) {
     <>
       <SetRow label="Check spelling" desc="Underline likely misspellings as you write.">
         <SetToggle value={tweaks.spellCheck} onChange={v => setTweak(SPELLCHECK_KEY, v)} />
+      </SetRow>
+      <SetRow label="Grammar check" desc="Offline, experimental.">
+        <SetToggle value={tweaks.grammar} onChange={v => setTweak(GRAMMAR_KEY, v)} />
+      </SetRow>
+      <SetRow label="Style hints" desc="Passive voice, weasel words.">
+        <SetToggle value={tweaks.styleHints} onChange={v => setTweak(STYLEHINTS_KEY, v)} />
       </SetRow>
       <SetRow label="Smart quotes & dashes" desc="Turn straight quotes curly, -- into em dashes.">
         <SetToggle value={tweaks.smartQuotes} onChange={v => setTweak("smartQuotes", v)} />
