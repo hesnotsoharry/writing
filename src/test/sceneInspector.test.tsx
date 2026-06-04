@@ -7,23 +7,21 @@ import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
 import { SceneInspector } from "../inspector/SceneInspector";
 
 /**
- * Wave 9 acceptance test (orchestrator-authored — full inspector display contract).
+ * SceneInspector display contract (orchestrator-authored; updated Wave 20 to canon).
  *
- * Contract: <SceneInspector store projectId sceneId scene refreshKey /> renders the
- * full design-reference inspector for the open scene:
- *   - a synopsis block showing `scene.synopsis`,
- *   - a "Today's goal" ring whose percentage is SESSION progress — words written
- *     since the scene was opened (baseline captured on open), NOT total word_count /
- *     target. A freshly-opened scene therefore reads 0% no matter how many words it
- *     already has; writing more (word_count rising on rerender of the same scene)
- *     raises the percentage live,
- *   - "Characters in scene" / "Locations in scene" groups rendering an entity card per
- *     linked entity (name + a role subtitle = first sentence of the entity's notes),
- *     resolved via store.loadSceneEntities,
- *   - per-group empty hints when nothing is linked.
+ * Contract: <SceneInspector store projectId sceneId scene refreshKey liveWordCount /> renders the
+ * design-reference inspector for the open scene:
+ *   - a synopsis block showing `scene.synopsis` (now editable via a pencil — display text unchanged),
+ *   - "Characters in scene" / "Locations in scene" groups rendering an entity card per linked entity
+ *     (name + a role subtitle = first sentence of the entity's notes), resolved via store.loadSceneEntities,
+ *   - per-group empty hints when nothing is linked,
+ *   - a "Today's goal" ring driven by useDailyGoalProgress, rendered ONLY when goals are enabled
+ *     (writing.goalsOn === "true"). The ring's exact percentage (daily, whole-manuscript) is the
+ *     concern of useDailyGoalProgress's own unit tests — this contract asserts gating + presence only.
  *
- * The streak line is intentionally absent this wave (deferred to the Goals wave). The
- * live SQLite path + visual styling are confirmed by manual smoke at wave end.
+ * Note: the goal ring self-sources the manuscript total via a SqliteBinderStore singleton; in jsdom
+ * (no Tauri runtime) that load rejects and is caught (total falls back to the live count), so the
+ * component renders without crashing.
  */
 
 afterEach(() => {
@@ -65,7 +63,9 @@ function makeScene(over: Partial<Scene> = {}): Scene {
 }
 
 describe("SceneInspector", () => {
-  it("renders synopsis, entity cards with role subtitles, and the goal section", async () => {
+  it("renders synopsis, entity cards with role subtitles, and the goal section when goals are on", async () => {
+    localStorage.setItem("writing.goalsOn", "true");
+    localStorage.setItem("writing.goalTarget", "1000");
     const store = await seed();
     render(
       <SceneInspector
@@ -87,10 +87,29 @@ describe("SceneInspector", () => {
     // Synopsis block.
     expect(screen.getByText("A tense confrontation.")).toBeTruthy();
 
-    // Group labels + goal section present.
+    // Group labels + goal section present (goals are on).
     expect(screen.getByText(/characters in scene/i)).toBeTruthy();
     expect(screen.getByText(/locations in scene/i)).toBeTruthy();
     expect(screen.getByText(/today's goal/i)).toBeTruthy();
+  });
+
+  it("hides the goal section when goals are off, but still renders synopsis + entities", async () => {
+    // No writing.goalsOn seeded → defaults off.
+    const store = await seed();
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s1"
+        scene={makeScene()}
+        refreshKey={0}
+        liveWordCount={500}
+      />
+    );
+
+    await screen.findByText("Sarah");
+    expect(screen.getByText("A tense confrontation.")).toBeTruthy();
+    expect(screen.queryByText(/today's goal/i)).toBeNull();
   });
 
   it("shows per-group empty hints for a scene with no linked entities", async () => {
@@ -109,39 +128,6 @@ describe("SceneInspector", () => {
     await screen.findByText(/no characters linked yet/i);
     expect(screen.getByText(/no locations linked yet/i)).toBeTruthy();
     expect(screen.queryByText("Sarah")).toBeNull();
-  });
-
-  it("reads the goal ring as session progress: 0% on open, rising as words are written", async () => {
-    localStorage.setItem("writing.goalTarget", "1000");
-    const store = await seed();
-
-    // Freshly opened: liveWordCount=500 is captured as baseline → 0% session progress.
-    const { rerender } = render(
-      <SceneInspector
-        store={store}
-        projectId="p1"
-        sceneId="s1"
-        scene={makeScene({ word_count: 500 })}
-        refreshKey={0}
-        liveWordCount={500}
-      />
-    );
-
-    // Freshly opened: 500 total words but 0 written THIS session → 0%.
-    await screen.findByText("0%");
-
-    // Same scene, 100 more words typed live → liveWordCount rises to 600 → 100/1000 = 10%.
-    rerender(
-      <SceneInspector
-        store={store}
-        projectId="p1"
-        sceneId="s1"
-        scene={makeScene({ word_count: 500 })}
-        refreshKey={0}
-        liveWordCount={600}
-      />
-    );
-    await screen.findByText("10%");
   });
 
   it("re-reads when the open scene changes", async () => {

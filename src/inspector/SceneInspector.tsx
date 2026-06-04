@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "../components/Icon";
+import type { MenuDescriptor } from "../components/menu/ContextMenu";
+import { ContextMenu } from "../components/menu/ContextMenu";
 import type { Scene } from "../db/binderStore";
-import type { Entity, StoryBibleStore } from "../db/storyBibleStore";
+import { SqliteBinderStore } from "../db/sqliteBinderStore";
+import type { Entity, EntityType, SceneLink, StoryBibleStore } from "../db/storyBibleStore";
+import { useDailyGoalProgress } from "../features/goals/useDailyGoalProgress";
 
-// ---------------------------------------------------------------------------
-// GoalRing — SVG ring showing session-progress percentage
-// ---------------------------------------------------------------------------
+// Module-level singleton — constructor is side-effect-free (getDb is lazy).
+const binderStore = new SqliteBinderStore();
 
+// -- GoalRing — SVG ring showing daily-progress percentage ------------------
 function GoalRing({ pct }: { pct: number }) {
   const r = 27;
   const c = 2 * Math.PI * r;
@@ -15,16 +19,11 @@ function GoalRing({ pct }: { pct: number }) {
   return (
     <div className="goal-ring">
       <svg width="64" height="64" viewBox="0 0 64 64">
-        <circle
-          cx="32" cy="32" r={r}
-          fill="none" stroke="var(--parchment-deep)" strokeWidth="6"
-        />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--parchment-deep)" strokeWidth="6" />
         <circle
           cx="32" cy="32" r={r}
           fill="none" stroke="var(--accent)" strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={off}
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
           transform="rotate(-90 32 32)"
         />
       </svg>
@@ -33,53 +32,39 @@ function GoalRing({ pct }: { pct: number }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// EntityCard — single character or location row
-// ---------------------------------------------------------------------------
-
+// -- EntityCard — single character or location row --------------------------
 function EntityCard({ entity }: { entity: Entity }) {
   const firstSentence = entity.notes ? entity.notes.split(".")[0].trim() : "";
   const role =
     firstSentence.length > 60 ? firstSentence.slice(0, 60).trimEnd() + "…" : firstSentence;
   return (
     <div className="entity-card">
-      <div className={"avatar " + entity.type}>{(entity.name.charAt(0).toUpperCase() || "?")}</div>
+      <div className={"avatar " + entity.type}>{entity.name.charAt(0).toUpperCase() || "?"}</div>
       <div className="entity-meta">
         <div className="entity-name">{entity.name}</div>
-        <div className="entity-role">{role}</div>
+        <div className="entity-role" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+          {role}
+        </div>
       </div>
       <Icon name="chevRight" className="chev" style={{ width: 15, height: 15 }} />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// useSceneEntities — load character/location entities for a scene
-// ---------------------------------------------------------------------------
-
-interface EntityGroups {
-  characters: Entity[];
-  locations: Entity[];
-  ready: boolean;
-}
-
+// -- useSceneEntities — load character/location entities for a scene --------
+interface EntityGroups { characters: Entity[]; locations: Entity[]; ready: boolean; }
 function useSceneEntities(
   store: StoryBibleStore,
   sceneId: string | null,
-  refreshKey: number | undefined,
+  effectiveDep: number,
 ): EntityGroups {
-  const [groups, setGroups] = useState<EntityGroups>({
-    characters: [],
-    locations: [],
-    ready: false,
-  });
+  const [groups, setGroups] = useState<EntityGroups>({ characters: [], locations: [], ready: false });
 
   useEffect(() => {
     let alive = true;
     const load = sceneId
       ? store.loadSceneEntities(sceneId)
       : Promise.resolve({ characters: [] as Entity[], locations: [] as Entity[] });
-
     load
       .then(({ characters, locations }) => {
         if (alive) setGroups({ characters, locations, ready: true });
@@ -88,107 +73,97 @@ function useSceneEntities(
         console.error("[SceneInspector] loadSceneEntities failed", e);
         if (alive) setGroups({ characters: [], locations: [], ready: true });
       });
-
     return () => { alive = false; };
-  }, [store, sceneId, refreshKey]);
+  }, [store, sceneId, effectiveDep]);
 
   return groups;
 }
 
-// ---------------------------------------------------------------------------
-// readGoalTarget — parse the user's goal from localStorage
-// ---------------------------------------------------------------------------
+// -- SynopsisEditField — controlled textarea for inline synopsis editing ----
+interface SynopsisEditFieldProps {
+  sceneId: string | null; localSynopsis: string;
+  onCommit: (next: string | null) => void; onCancel: () => void;
+}
+function SynopsisEditField({ sceneId, localSynopsis, onCommit, onCancel }: SynopsisEditFieldProps) {
+  const [draft, setDraft] = useState(localSynopsis);
+  const committedRef = useRef(false);
 
-function readGoalTarget(): number {
-  const raw = parseInt(localStorage.getItem("writing.goalTarget") ?? "", 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : 1000;
+  const commit = () => {
+    if (!sceneId || committedRef.current) return;
+    committedRef.current = true;
+    const trimmed = draft.trim();
+    onCommit(trimmed.length > 0 ? trimmed : null);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); }
+    if (e.key === "Escape") { onCancel(); }
+  };
+
+  return (
+    <textarea
+      autoFocus
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={onKeyDown}
+      style={{ width: "100%", resize: "vertical", overflowWrap: "anywhere",
+               wordBreak: "break-word", boxSizing: "border-box" }}
+    />
+  );
 }
 
-// ---------------------------------------------------------------------------
-// useSessionGoal — session-progress percentage (0% on scene open, rises as words written)
-// ---------------------------------------------------------------------------
+// -- SynopsisGroup — editable synopsis block --------------------------------
+interface SynopsisGroupProps { scene: Scene | null; sceneId: string | null; }
+function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
+  const [localSynopsis, setLocalSynopsis] = useState<string>(scene?.synopsis ?? "");
+  const [prevSceneId, setPrevSceneId] = useState<string | null>(sceneId);
+  const [editing, setEditing] = useState(false);
 
-interface GoalState {
-  pct: number;
-  sessionWords: number;
-  target: number;
-}
-
-/**
- * `liveWordCount` is the authoritative word count from `useLiveWordCount` —
- * it updates on every Yjs transaction (keystroke). The baseline is captured
- * once when the scene opens (sceneId change) using the same live count at
- * that moment, so sessionWords = liveWordCount - baseline climbs as you type.
- *
- * Wave-9 model preserved exactly: target from localStorage (default 1000),
- * streak deferred, SVG arc math unchanged.
- */
-function useSessionGoal(
-  sceneId: string | null,
-  _scene: Scene | null,
-  liveWordCount: number,
-): GoalState {
-  // React-recommended pattern for synchronous derived-state reset:
-  // store "prev sceneId + baseline" in state; when the sceneId prop changes,
-  // call setBaseline during the current render — React processes this as a
-  // bail-out re-render before painting, giving the semantics of "reset on prop change".
-  const [baseline, setBaseline] = useState<{
-    sceneId: string | null;
-    words: number;
-  }>({ sceneId, words: liveWordCount });
-
-  if (baseline.sceneId !== sceneId) {
-    // Scene changed — capture the current live count as the new baseline.
-    setBaseline({ sceneId, words: liveWordCount });
+  // Synchronous derived-state reset on scene change (React recommended pattern).
+  if (prevSceneId !== sceneId) {
+    setPrevSceneId(sceneId);
+    setLocalSynopsis(scene?.synopsis ?? "");
+    setEditing(false);
   }
 
-  const target = readGoalTarget();
-  const currentWords = liveWordCount;
-  const baselineWords =
-    baseline.sceneId === sceneId ? baseline.words : currentWords;
-  const sessionWords = Math.max(0, currentWords - baselineWords);
-  const pct = Math.min(100, Math.round((sessionWords / target) * 100));
+  const handleCommit = (next: string | null) => {
+    setLocalSynopsis(next ?? "");
+    setEditing(false);
+    binderStore.setSceneSynopsis(sceneId!, next).catch((e: unknown) => {
+      console.error("[SceneInspector] setSceneSynopsis failed", e);
+    });
+  };
 
-  return { pct, sessionWords, target };
-}
-
-// ---------------------------------------------------------------------------
-// SynopsisGroup / GoalGroup — extracted to keep SceneInspector under 40 lines
-// ---------------------------------------------------------------------------
-
-function SynopsisGroup({ scene }: { scene: Scene | null }) {
   return (
     <div className="insp-group">
       <div className="insp-label">
         <Icon name="fileText" className="ic" /> Synopsis
-        <button className="add">
+        <button className="add" onClick={() => { if (sceneId) setEditing(true); }}>
           <Icon name="edit" style={{ width: 13, height: 13 }} />
         </button>
       </div>
-      <div className="synopsis">{scene?.synopsis}</div>
+      {editing
+        ? <SynopsisEditField sceneId={sceneId} localSynopsis={localSynopsis}
+            onCommit={handleCommit} onCancel={() => setEditing(false)} />
+        : <div className="synopsis" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+            {localSynopsis}
+          </div>}
     </div>
   );
 }
 
-interface GoalGroupProps {
-  pct: number;
-  sessionWords: number;
-  target: number;
-}
-
-function GoalGroup({ pct, sessionWords, target }: GoalGroupProps) {
-  const toGo = Math.max(0, target - sessionWords);
+// -- GoalGroup — daily goal ring (rendered only when goals are on) ----------
+interface GoalGroupProps { pct: number; words: number; target: number; }
+function GoalGroup({ pct, words, target }: GoalGroupProps) {
+  const toGo = Math.max(0, target - words);
   return (
     <div className="insp-group">
-      <div className="insp-label">
-        <Icon name="target" className="ic" /> Today&#39;s goal
-      </div>
+      <div className="insp-label"><Icon name="target" className="ic" /> Today&#39;s goal</div>
       <div className="goal-card">
         <GoalRing pct={pct} />
         <div className="goal-info">
-          <div className="goal-num">
-            {sessionWords}<span> / {target} words</span>
-          </div>
+          <div className="goal-num">{words}<span> / {target} words</span></div>
           <div className="goal-desc">{toGo} to go</div>
         </div>
       </div>
@@ -196,73 +171,129 @@ function GoalGroup({ pct, sessionWords, target }: GoalGroupProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// EntityGroup — one labelled group of entity cards
-// ---------------------------------------------------------------------------
+// -- useEntityPicker — async picker logic for EntityGroup ------------------
+interface PickerState { menu: MenuDescriptor | null; openPicker: (e: React.MouseEvent<HTMLButtonElement>) => void; closeMenu: () => void; }
 
+interface PickerArgs {
+  entityType: EntityType; projectId: string;
+  sceneId: string | null; store: StoryBibleStore; onLinked: () => void;
+}
+
+function useEntityPicker(args: PickerArgs): PickerState {
+  const { entityType, projectId, sceneId, store, onLinked } = args;
+  const [menu, setMenu] = useState<MenuDescriptor | null>(null);
+  const openPicker = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!sceneId) return;
+    try {
+      const listFn = entityType === "character"
+        ? () => store.listCharacters(projectId)
+        : () => store.listLocations(projectId);
+      const [allEntities, currentLinks] = await Promise.all([listFn(), store.loadSceneLinks(sceneId)]);
+      const linkedIds = new Set(
+        currentLinks.filter((l: SceneLink) => l.entityType === entityType).map((l: SceneLink) => l.entityId),
+      );
+      const unlinked = allEntities.filter((en) => !linkedIds.has(en.id));
+      if (unlinked.length === 0) return;
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const items = unlinked.map((en) => ({
+        label: en.name,
+        onClick: async () => {
+          try {
+            const links = await store.loadSceneLinks(sceneId!);
+            await store.replaceSceneLinks(sceneId!, [...links, { entityType, entityId: en.id }]);
+            onLinked();
+          } catch (err: unknown) {
+            console.error("[SceneInspector] link entity failed", err);
+          }
+        },
+      }));
+      setMenu({ x: rect.left, y: rect.bottom + 4, items });
+    } catch (err: unknown) {
+      console.error("[SceneInspector] openPicker failed", err);
+    }
+  };
+  return { menu, openPicker, closeMenu: () => setMenu(null) };
+}
+
+// -- EntityGroup — one labelled group of entity cards with add picker -------
 interface EntityGroupProps {
-  iconName: "users" | "mapPin";
-  label: string;
-  entities: Entity[];
-  ready: boolean;
-  emptyHint: string;
-  linkLabel: string;
+  iconName: "users" | "mapPin"; label: string; entities: Entity[];
+  ready: boolean; emptyHint: string; linkLabel: string;
+  entityType: EntityType; projectId: string; sceneId: string | null;
+  store: StoryBibleStore; onLinked: () => void;
 }
 
 function EntityGroup({
   iconName, label, entities, ready, emptyHint, linkLabel,
+  entityType, projectId, sceneId, store, onLinked,
 }: EntityGroupProps) {
+  const { menu, openPicker, closeMenu } = useEntityPicker({ entityType, projectId, sceneId, store, onLinked });
   return (
     <div className="insp-group">
       <div className="insp-label">
         <Icon name={iconName} className="ic" /> {label}
-        <button className="add">
+        <button className="add" onClick={openPicker}>
           <Icon name="plus" style={{ width: 14, height: 14 }} />
         </button>
       </div>
       {ready && entities.length > 0
         ? entities.map((e) => <EntityCard key={e.id} entity={e} />)
         : ready && <div className="empty-hint">{emptyHint}</div>}
-      <button className="add-entity">
+      <button className="add-entity" onClick={openPicker}>
         <Icon name="plus" style={{ width: 13, height: 13 }} /> {linkLabel}
       </button>
+      <ContextMenu menu={menu} onClose={closeMenu} />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// SceneInspector — public export
-// ---------------------------------------------------------------------------
+// -- useManuscriptTotal — manuscript word total (DB others + live current) --
+function useManuscriptTotal(projectId: string, sceneId: string | null, liveWordCount: number): number {
+  const [othersSum, setOthersSum] = useState(0);
 
+  useEffect(() => {
+    let alive = true;
+    binderStore.loadProject(projectId)
+      .then(({ scenes }) => {
+        if (!alive) return;
+        setOthersSum(scenes.reduce((acc, s) => acc + (s.id !== sceneId ? s.word_count : 0), 0));
+      })
+      .catch((e: unknown) => {
+        console.error("[SceneInspector] loadProject failed", e);
+        // othersSum stays 0 — renders correctly without a Tauri runtime (jsdom tests).
+      });
+    return () => { alive = false; };
+  }, [projectId, sceneId]);
+
+  return othersSum + liveWordCount;
+}
+
+// -- SceneInspector — public export -----------------------------------------
 export interface SceneInspectorProps {
-  store: StoryBibleStore;
-  projectId: string;
-  sceneId: string | null;
-  scene: Scene | null;
-  refreshKey?: number;
+  store: StoryBibleStore; projectId: string; sceneId: string | null;
+  scene: Scene | null; refreshKey?: number;
   /** Live prose word count from useLiveWordCount — updates on every keystroke. */
   liveWordCount: number;
 }
 
-export function SceneInspector({ store, sceneId, scene, refreshKey, liveWordCount }: SceneInspectorProps) {
-  const { characters, locations, ready } = useSceneEntities(store, sceneId, refreshKey);
-  const { pct, sessionWords, target } = useSessionGoal(sceneId, scene, liveWordCount);
-
+export function SceneInspector({ store, projectId, sceneId, scene, refreshKey, liveWordCount }: SceneInspectorProps) {
+  const [localRev, setLocalRev] = useState(0);
+  const effectiveDep = (refreshKey ?? 0) + localRev;
+  const { characters, locations, ready } = useSceneEntities(store, sceneId, effectiveDep);
+  const currentTotal = useManuscriptTotal(projectId, sceneId, liveWordCount);
+  const { words, target, pct, on } = useDailyGoalProgress({ projectId, currentTotal });
+  const bump = () => setLocalRev((r) => r + 1);
   return (
     <div className="panel-inspector">
       <div className="insp-scroll">
-        <SynopsisGroup scene={scene} />
-        <GoalGroup pct={pct} sessionWords={sessionWords} target={target} />
-        <EntityGroup
-          iconName="users" label="Characters in scene"
-          entities={characters} ready={ready}
+        <SynopsisGroup scene={scene} sceneId={sceneId} />
+        {on && <GoalGroup pct={pct * 100} words={words} target={target} />}
+        <EntityGroup iconName="users" label="Characters in scene" entities={characters} ready={ready}
           emptyHint="No characters linked yet." linkLabel="Link a character"
-        />
-        <EntityGroup
-          iconName="mapPin" label="Locations in scene"
-          entities={locations} ready={ready}
+          entityType="character" projectId={projectId} sceneId={sceneId} store={store} onLinked={bump} />
+        <EntityGroup iconName="mapPin" label="Locations in scene" entities={locations} ready={ready}
           emptyHint="No locations linked yet." linkLabel="Link a location"
-        />
+          entityType="location" projectId={projectId} sceneId={sceneId} store={store} onLinked={bump} />
       </div>
     </div>
   );
