@@ -308,6 +308,27 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .prose .entity:hover { background: var(--accent-wash); }
 .prose .entity.loc { border-bottom-color: var(--location); }
 
+/* ---- TipTap editor-content-mount wrapper + ProseMirror reset ------------- */
+/* EditorContent renders an outer wrapper div (no class), then TipTap mounts  */
+/* the ProseMirror .tiptap element inside it. Both get browser focus rings by  */
+/* default — suppress them. The placeholder fires on the empty tiptap div      */
+/* before the user has typed anything (TipTap adds .is-editor-empty).          */
+.editor-content-mount { outline: none; border: none; }
+.editor-content-mount .tiptap { outline: none; border: none; }
+.editor-content-mount .tiptap.ProseMirror { outline: none; border: none; position: relative; }
+.editor-content-mount .tiptap.ProseMirror:focus { outline: none; }
+
+/* "Start writing…" placeholder — visible whenever the scene is empty, focused  */
+/* or not. Disappears as soon as the user types (TipTap removes .is-editor-empty). */
+.editor-content-mount .tiptap.ProseMirror.is-editor-empty::before {
+  content: "Start writing\2026"; /* … */
+  position: absolute;
+  color: var(--ink-4);
+  font-family: var(--font-prose);
+  font-style: italic;
+  pointer-events: none;
+}
+
 .caret {
   display: inline-block; width: 2px; height: 1.1em; background: var(--accent);
   vertical-align: -0.18em; margin-left: 1px; animation: blink 1.1s steps(1) infinite;

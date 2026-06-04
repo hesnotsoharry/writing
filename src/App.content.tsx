@@ -4,6 +4,7 @@
  * owns the rendered shell composition (slots, focus mode, overlay stack).
  */
 import type { Dispatch, SetStateAction } from "react";
+import { useRef } from "react";
 import type * as Y from "yjs";
 
 import { useGlobalKeybindings } from "./App.keybindings";
@@ -19,6 +20,7 @@ import type { Project, Scene } from "./db/binderStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
+import { usePageFlip } from "./editor/usePageFlip";
 import { Corkboard } from "./features/corkboard/Corkboard";
 import { useDailyGoalProgress } from "./features/goals/useDailyGoalProgress";
 import { useQuickCount } from "./features/quickcapture/useQuickCount";
@@ -67,6 +69,12 @@ export interface AppContentProps {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+/**
+ * EditorPane — owns the page-flip lifecycle so the flip state survives
+ * the doc=null→doc=newDoc transition that unmounts/remounts Editor.
+ * prevSceneRef lives here (above the unmount boundary) and correctly
+ * tracks the outgoing scene even while the Editor is unmounted.
+ */
 function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion }: {
   doc: Y.Doc | null;
   view: AppView;
@@ -75,11 +83,17 @@ function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVe
   storyBibleStore: SqliteStoryBibleStore;
   linksVersion: number;
 }) {
+  // captureProseRef: Editor writes its captureProse fn here; usePageFlip reads it.
+  const captureProseRef = useRef<() => string>(() => "");
+  const { flip, onAnimationEnd } = usePageFlip({
+    selectedSceneId, tree, view, captureProse: () => captureProseRef.current(),
+  });
   return (
     <main className="canvas-pane">
       {doc
-        ? <Editor doc={doc} view={view} tree={tree} selectedSceneId={selectedSceneId}
-            storyBibleStore={storyBibleStore} linksVersion={linksVersion} />
+        ? <Editor doc={doc} tree={tree} selectedSceneId={selectedSceneId}
+            storyBibleStore={storyBibleStore} linksVersion={linksVersion}
+            flip={flip} onAnimationEnd={onAnimationEnd} captureProseRef={captureProseRef} />
         : <div className="canvas-empty">Select a scene to start writing.</div>}
     </main>
   );

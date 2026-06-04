@@ -3,10 +3,9 @@ import "./proofread.css";
 import Collaboration from "@tiptap/extension-collaboration";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback } from "react";
+import { type MutableRefObject,useCallback, useEffect } from "react";
 import * as Y from "yjs";
 
-import type { AppView } from "../App.state";
 import type { BinderTree } from "../binder/buildTree";
 import type { SqliteStoryBibleStore } from "../db/sqliteStoryBibleStore";
 import { normalizeStatus, STATUS_META } from "../lib/status";
@@ -15,8 +14,8 @@ import ProofreadExtension from "./extensions/ProofreadExtension";
 import { FormatBubble } from "./FormatBubble";
 import { SpellCheckPopover, useSpellCheckPopover } from "./SpellCheckPopover";
 import { useLiveWordCount } from "./useLiveWordCount";
-import type { LeafContent } from "./usePageFlip";
-import { findSceneWithChapter, usePageFlip } from "./usePageFlip";
+import type { FlipState, LeafContent } from "./usePageFlip";
+import { findSceneWithChapter } from "./usePageFlip";
 import { useSceneLinkCounts } from "./useSceneLinkCounts";
 
 /**
@@ -51,7 +50,7 @@ function PageFlipLeaf({
   flip,
   onAnimationEnd,
 }: {
-  flip: ReturnType<typeof usePageFlip>["flip"];
+  flip: FlipState | null;
   onAnimationEnd: (key: number) => void;
 }) {
   if (!flip) return null;
@@ -73,22 +72,24 @@ function PageFlipLeaf({
 }
 
 // ---------------------------------------------------------------------------
-// Hook — bundles TipTap + spell-popover + page-flip setup
+// Hook — bundles TipTap + spell-popover setup. Page-flip lives in EditorPane
+// (App.content.tsx) so it survives the doc=null unmount/remount on scene switch.
 // ---------------------------------------------------------------------------
 
 interface EditorCoreState {
   editor: ReturnType<typeof useEditor>;
   visible: boolean;
   popoverProps: ReturnType<typeof useSpellCheckPopover>["popoverProps"];
-  flip: ReturnType<typeof usePageFlip>["flip"];
-  onAnimationEnd: ReturnType<typeof usePageFlip>["onAnimationEnd"];
 }
 
+/**
+ * useEditorCore — sets up TipTap, spell-check popover, and registers
+ * `captureProse` into the ref provided by the parent (EditorPane) so the
+ * page-flip can snapshot the outgoing prose even after a re-render cycle.
+ */
 function useEditorCore(
   doc: Y.Doc,
-  selectedSceneId: string | null,
-  tree: BinderTree,
-  view: AppView,
+  captureProseRef: MutableRefObject<() => string>,
 ): EditorCoreState {
   const editor = useEditor({
     extensions: [
@@ -103,8 +104,13 @@ function useEditorCore(
     () => editor?.view?.dom?.innerHTML ?? "",
     [editor],
   );
-  const { flip, onAnimationEnd } = usePageFlip({ selectedSceneId, tree, view, captureProse });
-  return { editor, visible, popoverProps, flip, onAnimationEnd };
+  // Keep the shared ref in sync with the latest captureProse callback so
+  // EditorPane's usePageFlip always snapshots the current editor DOM.
+  // useEffect (not inline) to avoid writing to a ref during render.
+  useEffect(() => {
+    captureProseRef.current = captureProse;
+  }, [captureProse, captureProseRef]);
+  return { editor, visible, popoverProps };
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +146,7 @@ function CanvasWrap({
           locations={locations}
         />
       )}
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} className="editor-content-mount" />
       {editor && <FormatBubble editor={editor} />}
       {visible && <SpellCheckPopover {...popoverProps} />}
     </div>
@@ -153,21 +159,25 @@ function CanvasWrap({
 
 export function Editor({
   doc,
-  view,
   tree,
   selectedSceneId,
   storyBibleStore,
   linksVersion,
+  flip,
+  onAnimationEnd,
+  captureProseRef,
 }: {
   doc: Y.Doc;
-  view: AppView;
   tree: BinderTree;
   selectedSceneId: string | null;
   storyBibleStore: SqliteStoryBibleStore;
   linksVersion: number;
+  flip: FlipState | null;
+  onAnimationEnd: (key: number) => void;
+  captureProseRef: MutableRefObject<() => string>;
 }) {
-  const { editor, visible, popoverProps, flip, onAnimationEnd } =
-    useEditorCore(doc, selectedSceneId, tree, view);
+  const { editor, visible, popoverProps } =
+    useEditorCore(doc, captureProseRef);
   const liveWords = useLiveWordCount(doc);
   const { characters, locations } = useSceneLinkCounts(storyBibleStore, selectedSceneId, linksVersion);
   const activeScene = findSceneWithChapter(tree, selectedSceneId);
