@@ -488,9 +488,11 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-md);
   box-shadow: var(--shadow-card); padding: var(--s-4);
   min-height: 158px; display: flex; flex-direction: column;
-  cursor: grab; transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
   position: relative;
 }
+/* grab cursor only inside the cork-grid so it cannot bleed into other views */
+.cork-grid .card { cursor: grab; }
 .card:hover { transform: translateY(-3px) rotate(-0.4deg); box-shadow: var(--shadow-md); }
 .card .pin { position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
   width: 12px; height: 12px; border-radius: 50%;
@@ -520,15 +522,29 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .bible-entry {
   display: flex; gap: 12px; padding: var(--s-3); border-radius: var(--r-md);
   border: 1px solid var(--line); background: var(--paper); margin-bottom: var(--s-3);
+  box-shadow: var(--shadow-card);
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+  cursor: default;
 }
-.bible-entry:hover { border-color: var(--parchment-edge); box-shadow: var(--shadow-xs); }
+.bible-entry:hover { border-color: var(--parchment-edge); box-shadow: var(--shadow-md); }
 .bible-entry .avatar { width: 38px; height: 38px; font-size: var(--text-md); }
 .bible-entry .be-body { min-width: 0; flex: 1; }
 .bible-entry .be-name { font-size: var(--text-md); font-weight: var(--w-bold); color: var(--ink); }
 .bible-entry .be-role { font-size: var(--text-2xs); color: var(--accent-deep); font-weight: var(--w-semi);
   text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
 .bible-entry .be-notes { font-size: var(--text-xs); line-height: 1.5; color: var(--ink-2); }
+/* notes textarea — clay well that reads correctly in both light and dark */
+.bible-entry .be-notes-input {
+  width: 100%; min-height: 36px; padding: 4px 6px; border-radius: var(--r-xs);
+  border: 1px solid transparent; resize: none; box-sizing: border-box;
+  font: inherit; font-size: var(--text-xs); line-height: 1.5;
+  background: var(--parchment-deep); color: var(--ink-2);
+  overflow-x: hidden; overflow-wrap: anywhere; word-break: break-word;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.bible-entry .be-notes-input:hover { border-color: var(--parchment-edge); }
+.bible-entry .be-notes-input:focus { outline: none; background: var(--paper); border-color: var(--accent); }
+.bible-entry .be-notes-input::placeholder { color: var(--ink-4); }
 .bible-entry .be-foot { margin-top: 7px; font-size: 10px; color: var(--ink-4);
   display: flex; align-items: center; gap: 5px; }
 

@@ -1,5 +1,5 @@
 /**
- * Canon context-menu builders for scene rows and chapter headers.
+ * Canon context-menu builders for scene rows, chapter headers, and story-bible entity cards.
  *
  * Consumers pass callbacks; this module produces `MenuItem[]` arrays that
  * can be handed directly to `<ContextMenu menu={{ x, y, items }} />`.
@@ -7,6 +7,7 @@
  * Export shape (coordination doc § "WAVE 17 — Foundation"):
  *   buildSceneMenu(cb)   — Rename / Set status… / Duplicate / Export / {sep} / Archive / Delete(danger)
  *   buildChapterMenu(cb) — Rename / New scene / {sep} / Export / Archive / {sep} / Delete(danger)
+ *   buildEntityMenu(cb)  — Edit name / Open full entry (deferred no-op, Decision 3) / {sep} / Delete(danger)
  */
 
 import type { SceneStatus } from "../../lib/status";
@@ -51,8 +52,6 @@ export function buildSceneMenu(cb: SceneMenuCallbacks): MenuItem[] {
   return items;
 }
 
-// ── Chapter menu ──────────────────────────────────────────────────────────────
-
 export interface ChapterMenuCallbacks {
   onRename: () => void;
   onNewScene: () => void;
@@ -63,6 +62,27 @@ export interface ChapterMenuCallbacks {
   /** Opens the Goals modal pre-scoped to this chapter. Optional — existing callers omit it. */
   onAddGoal?: () => void;
 }
+
+// ── Entity menu (story bible) ──────────────────────────────────────────────
+
+export interface EntityMenuCallbacks {
+  kind: "Character" | "Location";
+  onEditName: () => void;
+  /** "Open full entry" — deferred no-op per Decision 3; Lane 24 wires the real handler. */
+  onOpenFullEntry: () => void;
+  onDelete: () => void;
+}
+
+export function buildEntityMenu(cb: EntityMenuCallbacks): MenuItem[] {
+  return [
+    { label: "Edit name",         onClick: cb.onEditName       },
+    { label: "Open full entry",   onClick: cb.onOpenFullEntry  },
+    { type: "sep"                                               },
+    { label: `Delete ${cb.kind}`, danger: true, onClick: cb.onDelete },
+  ];
+}
+
+// ── Chapter menu ──────────────────────────────────────────────────────────────
 
 export function buildChapterMenu(cb: ChapterMenuCallbacks): MenuItem[] {
   const items: MenuItem[] = [

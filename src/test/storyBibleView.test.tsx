@@ -6,20 +6,17 @@ import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
 import { StoryBibleView } from "../storybible/StoryBibleView";
 
 /**
- * StoryBibleView acceptance test (orchestrator-authored; updated Wave 20 to canon).
+ * StoryBibleView acceptance test (updated Wave 25 Phase 7 — right-click menu).
  *
  * Contract: <StoryBibleView store={StoryBibleStore} projectId={string} /> lets the writer
- * add and delete characters/locations, persisting to the injected store. The canon add UX
- * (design-reference/views.jsx) is a SINGLE "New character"/"New location" button that creates
- * a blank entity and immediately opens it in inline rename — NOT a persistent input row.
- * Required labels (locked — the implementer MUST match):
- *   - add buttons: accessible name "New character" / "New location"
- *   - the freshly-created entity opens an autofocused rename input whose initial value is
- *     exactly "New character" / "New location" (the placeholder name)
- *   - delete: button with accessible name `Delete ${entity.name}`
- *   - each entity row shows a `.be-foot` "N scenes" footer (count from findScenesForEntity)
+ * add, rename, and delete characters/locations via a right-click context menu on each card.
+ * The canon add UX is a SINGLE "New character"/"New location" button that creates a blank
+ * entity and immediately opens it in inline rename.
  *
- * Notes-editing (auto-sized, no drag-resize) is verified by manual smoke, not here.
+ * Right-click menu shape (FULL-ENTRY-SPEC §1 + Decision 3):
+ *   Edit name / Open full entry (deferred no-op) / [sep] / Delete Character|Location (danger)
+ *
+ * Notes-editing (auto-sized) is verified by manual smoke, not here.
  */
 
 afterEach(cleanup);
@@ -58,16 +55,65 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     expect(locations[0].name).toBe("Thornfield");
   });
 
-  it("deletes a character from the list and the store", async () => {
+  it("right-clicking a card shows Edit name / Open full entry / Delete menu items", async () => {
     const store = new InMemoryStoryBibleStore();
     await store.createCharacter("p1", "Sarah", null);
     render(<StoryBibleView store={store} projectId="p1" />);
 
-    await screen.findByText("Sarah");
-    fireEvent.click(screen.getByRole("button", { name: "Delete Sarah" }));
+    const entry = await screen.findByText("Sarah");
+    const card = entry.closest(".bible-entry")!;
+    fireEvent.contextMenu(card);
+
+    await screen.findByText("Edit name");
+    expect(screen.getByText("Open full entry")).toBeTruthy();
+    expect(screen.getByText("Delete Character")).toBeTruthy();
+  });
+
+  it("right-click Delete Character removes the entity from the list and the store", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const entry = await screen.findByText("Sarah");
+    const card = entry.closest(".bible-entry")!;
+    fireEvent.contextMenu(card);
+
+    const deleteBtn = await screen.findByText("Delete Character");
+    fireEvent.click(deleteBtn);
 
     await waitFor(() => expect(screen.queryByText("Sarah")).toBeNull());
     expect(await store.listCharacters("p1")).toHaveLength(0);
+  });
+
+  it("right-click Edit name opens inline rename for that entity", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const entry = await screen.findByText("Sarah");
+    const card = entry.closest(".bible-entry")!;
+    fireEvent.contextMenu(card);
+
+    fireEvent.click(await screen.findByText("Edit name"));
+
+    // Inline rename input opens with the current name as initial value.
+    const input = await screen.findByDisplayValue("Sarah");
+    expect(input.tagName).toBe("INPUT");
+  });
+
+  it("Open full entry is a deferred no-op (menu item present, no crash)", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const entry = await screen.findByText("Sarah");
+    fireEvent.contextMenu(entry.closest(".bible-entry")!);
+
+    const openBtn = await screen.findByText("Open full entry");
+    // Clicking does not throw or navigate — it's a no-op (Decision 3).
+    expect(() => fireEvent.click(openBtn)).not.toThrow();
+    // Sarah is still visible (no crash or navigation occurred).
+    expect(screen.queryByText("Sarah")).toBeTruthy();
   });
 
   it("shows a per-entity scene-count footer", async () => {

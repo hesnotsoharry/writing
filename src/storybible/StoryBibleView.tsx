@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { Icon } from "../components/Icon";
+import type { MenuDescriptor } from "../components/menu/ContextMenu";
+import { ContextMenu } from "../components/menu/ContextMenu";
+import { buildEntityMenu } from "../components/menu/sceneMenu";
 import type { Character, Location, StoryBibleStore } from "../db/storyBibleStore";
 
 // ---------------------------------------------------------------------------
@@ -117,20 +120,7 @@ function EntityRowNotes({ id, notes, type, store, onMutated }: EntityRowNotesPro
 
   return (
     <textarea
-      className="be-notes"
-      style={{
-        background: "transparent",
-        border: "1px solid transparent",
-        resize: "none",
-        width: "100%",
-        font: "inherit",
-        minHeight: 36,
-        boxSizing: "border-box",
-        padding: "2px 4px",
-        overflowX: "hidden",
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
-      }}
+      className="be-notes-input"
       value={draft}
       placeholder="Notes…"
       onChange={(e) => setDraft(e.target.value)}
@@ -153,41 +143,38 @@ interface EntityRowProps {
   onMutated: () => void;
   refreshVersion: number;
   justCreated?: boolean;
+  /** Bumped when the context-menu "Edit name" fires; causes EntityRowName to remount in edit mode. */
+  renameVersion?: number;
   onEditDone?: () => void;
+  onContextMenu: (e: React.MouseEvent, id: string) => void;
 }
 
-function EntityRow({ id, name, notes, type, roleLabel, store, onMutated, refreshVersion, justCreated, onEditDone }: EntityRowProps) {
+function EntityRow({ id, name, notes, type, roleLabel, store, onMutated, refreshVersion, justCreated, renameVersion, onEditDone, onContextMenu }: EntityRowProps) {
   const initial = name.trim()[0]?.toUpperCase() ?? "";
-
-  async function handleDelete() {
-    await store.deleteEntity(type, id);
-    onMutated();
-  }
+  // Remounting EntityRowName (via key change) is the cleanest way to open the rename input
+  // from an external trigger (context-menu "Edit name") without violating the no-setState-in-effect rule.
+  const nameKey = renameVersion ? `${id}-r${renameVersion}` : id;
 
   return (
-    <div className="bible-entry">
+    <div
+      className="bible-entry"
+      onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, id); }}
+    >
       <div className={"avatar " + type}>{initial}</div>
       <div className="be-body">
         <EntityRowName
-          key={id}
+          key={nameKey}
           id={id}
           name={name}
           type={type}
           store={store}
           onMutated={onMutated}
-          autoEdit={justCreated}
+          autoEdit={justCreated || (renameVersion !== undefined && renameVersion > 0)}
           onEditDone={onEditDone}
         />
         <div className="be-role">{roleLabel}</div>
         <EntityRowNotes key={`${id}-${refreshVersion}`} id={id} notes={notes} type={type} store={store} onMutated={onMutated} />
         <EntityFoot store={store} id={id} refreshVersion={refreshVersion} />
-        <button
-          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 13, color: "#aaa", padding: "0 4px" }}
-          aria-label={`Delete ${name}`}
-          onClick={() => { void handleDelete(); }}
-        >
-          ×
-        </button>
       </div>
     </div>
   );
@@ -228,41 +215,65 @@ interface EntitySectionProps {
   refreshVersion: number;
 }
 
-function EntitySection({ colTitle, entities, type, roleLabel, iconName, iconColor, addLabel, store, projectId, onMutated, refreshVersion }: EntitySectionProps) {
+type RenameRequest = { id: string; version: number } | null;
+
+interface EntitySectionState {
+  justCreatedId: string | null;
+  setJustCreatedId: (id: string | null) => void;
+  menu: MenuDescriptor | null;
+  renameRequest: RenameRequest;
+  setRenameRequest: (r: RenameRequest) => void;
+  handleContextMenu: (e: React.MouseEvent, id: string) => void;
+  closeMenu: () => void;
+}
+
+function useEntitySectionState(type: "character" | "location", store: StoryBibleStore, onMutated: () => void): EntitySectionState {
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuDescriptor | null>(null);
+  const [renameRequest, setRenameRequest] = useState<RenameRequest>(null);
+  const kind = type === "character" ? "Character" : "Location";
+
+  function handleContextMenu(e: React.MouseEvent, id: string) {
+    setMenu({ x: e.clientX, y: e.clientY, items: buildEntityMenu({
+      kind: kind as "Character" | "Location",
+      onEditName: () => setRenameRequest((prev) => ({ id, version: (prev?.version ?? 0) + 1 })),
+      onOpenFullEntry: () => console.warn("[StoryBibleView] Open full entry — deferred (Lane 24)"),
+      onDelete: () => {
+        store.deleteEntity(type, id).then(onMutated)
+          .catch((err: unknown) => console.error("[StoryBibleView] delete failed", err));
+      },
+    }) });
+  }
+
+  return { justCreatedId, setJustCreatedId, menu, renameRequest, setRenameRequest, handleContextMenu, closeMenu: () => setMenu(null) };
+}
+
+function EntitySection({ colTitle, entities, type, roleLabel, iconName, iconColor, addLabel, store, projectId, onMutated, refreshVersion }: EntitySectionProps) {
+  const { justCreatedId, setJustCreatedId, menu, renameRequest, setRenameRequest, handleContextMenu, closeMenu } = useEntitySectionState(type, store, onMutated);
 
   function handleAdd() {
     const create = type === "character"
       ? store.createCharacter(projectId, addLabel, null)
       : store.createLocation(projectId, addLabel, null);
-    create.then((created) => {
-      setJustCreatedId(created.id);
-      onMutated();
-    }).catch((e: unknown) => console.error("[StoryBibleView] create failed", e));
+    create.then((created) => { setJustCreatedId(created.id); onMutated(); })
+      .catch((e: unknown) => console.error("[StoryBibleView] create failed", e));
   }
 
+  const onEditDone = () => { setJustCreatedId(null); setRenameRequest(null); };
   return (
     <div>
       <div className="bible-col-title">
-        <Icon name={iconName} style={{ width: 14, height: 14, color: iconColor }} />
-        {" "}{colTitle}
+        <Icon name={iconName} style={{ width: 14, height: 14, color: iconColor }} /> {colTitle}
       </div>
       {entities.map((e) => (
-        <EntityRow
-          key={e.id}
-          id={e.id}
-          name={e.name}
-          notes={e.notes}
-          type={type}
-          roleLabel={roleLabel}
-          store={store}
-          onMutated={onMutated}
-          refreshVersion={refreshVersion}
-          justCreated={justCreatedId === e.id}
-          onEditDone={() => setJustCreatedId(null)}
-        />
+        <EntityRow key={e.id} id={e.id} name={e.name} notes={e.notes} type={type}
+          roleLabel={roleLabel} store={store} onMutated={onMutated}
+          refreshVersion={refreshVersion} justCreated={justCreatedId === e.id}
+          renameVersion={renameRequest?.id === e.id ? renameRequest.version : 0}
+          onEditDone={onEditDone} onContextMenu={handleContextMenu} />
       ))}
       <AddEntityButton addLabel={addLabel} onAdd={handleAdd} />
+      <ContextMenu menu={menu} onClose={closeMenu} />
     </div>
   );
 }
@@ -309,39 +320,28 @@ function useStoryBibleLists(store: StoryBibleStore, projectId: string, onEntitie
   return { characters, locations, refreshVersion, refresh };
 }
 
+/** Resets any cursor style stuck on <html> by @dnd-kit (corkboard/binder drag). */
+function useCursorReset() {
+  useEffect(() => {
+    document.documentElement.style.cursor = "";
+    document.body.classList.remove("binder-dragging");
+  }, []);
+}
+
 export function StoryBibleView({ store, projectId, onEntitiesChanged }: StoryBibleViewProps) {
   const { characters, locations, refreshVersion, refresh } = useStoryBibleLists(store, projectId, onEntitiesChanged);
-
+  useCursorReset();
+  const shared = { store, projectId, onMutated: refresh, refreshVersion };
   return (
     <main className="corkboard">
       <div className="corkboard-inner" style={{ maxWidth: 960 }}>
         <div className="bible-grid">
-          <EntitySection
-            colTitle={`Characters · ${characters.length}`}
-            entities={characters}
-            type="character"
-            roleLabel="Character"
-            iconName="users"
-            iconColor="var(--character)"
-            addLabel="New character"
-            store={store}
-            projectId={projectId}
-            onMutated={refresh}
-            refreshVersion={refreshVersion}
-          />
-          <EntitySection
-            colTitle={`Locations · ${locations.length}`}
-            entities={locations}
-            type="location"
-            roleLabel="Location"
-            iconName="mapPin"
-            iconColor="var(--location)"
-            addLabel="New location"
-            store={store}
-            projectId={projectId}
-            onMutated={refresh}
-            refreshVersion={refreshVersion}
-          />
+          <EntitySection {...shared} colTitle={`Characters · ${characters.length}`}
+            entities={characters} type="character" roleLabel="Character"
+            iconName="users" iconColor="var(--character)" addLabel="New character" />
+          <EntitySection {...shared} colTitle={`Locations · ${locations.length}`}
+            entities={locations} type="location" roleLabel="Location"
+            iconName="mapPin" iconColor="var(--location)" addLabel="New location" />
         </div>
       </div>
     </main>
