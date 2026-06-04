@@ -1,5 +1,5 @@
 ---
-status: PLANNED
+status: COMPLETE (branch-ready, unmerged)
 created: 2026-06-03
 ---
 
@@ -113,10 +113,37 @@ scroll container during parallel dev is expected and resolves at merge.
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
+| 1 | 2026-06-03 | 2026-06-03 | 1344992 | Partial — wave-8-only state confirmed via gates + static class-tree read; runtime Tauri-desktop visual NOT observed (no live MSVC desktop session in this env). Scroll-chrome state deferred to wave-9 merge by design. |
 
 ## Follow-up candidates
 
 - Scene header chrome (`.scene-eyebrow` / `.scene-h1` / `.scene-byline`) for the editor canvas: cannot be done in-wave because it requires threading scene metadata (chapter title, scene title, status, word/char/location counts) from App state into `Editor` via the `<Editor doc={doc}/>` call site in `App.tsx`, which is wave-9's exclusive lane (only lane permitted to edit `App.tsx`). | present-harm: K2 — the ported editor pane is visually incomplete vs `design-reference/canvas.jsx` (no chapter eyebrow, scene title, or word-count byline above the prose); verifiable at `design-reference/canvas.jsx:58-79` (the `Canvas` header block) vs the wave-8 `Editor.tsx` output which renders prose only. Recommend folding into wave-9 (owns App.tsx + EditorPane cleanup) or a post-merge App.tsx coordination pass.
 
 ## Result
+
+**Status: COMPLETE on branch `wave-8-editor-port` — ready to merge (first in the Editor→StoryBible→Binder→Inspector order). Not yet merged; lead session coordinates the merge.**
+
+**Delivered (commit `1344992`):** `src/editor/Editor.tsx` ported from a single inline-styled wrapper
+(`maxWidth/margin/padding`) to the design-system canvas DOM — `div.canvas-scroll > div.canvas-wrap > EditorContent`,
+with `.prose` applied to the TipTap content via `editorProps.attributes.class` (v3 idiom, ctx7-verified).
+Zero inline styles remain. `useEditor` config, the `{ doc }: { doc: Y.Doc }` signature, and the
+Yjs/Collaboration wiring are byte-for-byte preserved. Net diff: +5/-2 lines in one file.
+
+**Gates:** `npm run lint` clean · `tsc --noEmit` exit 0 · `npm run test` 144/144 pass (worktree, after `npm install`).
+
+**Review:** `sonnet-adversarial-reviewer` (attack-diff, single tier) → **FLAG** (not BLOCK). Correctness,
+scope-compliance, and hidden-gaps angles all PASS; the lone FLAG was the wave-file observation point
+overstating verifiable-now visual state. Addressed: observation column now separates wave-8-only state
+from wave-9-merge-deferred state.
+
+**Coordination contract honored:** only `src/editor/**` + `roadmap/` touched. `App.tsx`, `app.css`,
+`tokens.css`, `src/db/` untouched (confirmed by `git status`).
+
+**Open follow-up candidate (for lead's wrap-auditor):** scene header chrome
+(`.scene-eyebrow`/`.scene-h1`/`.scene-byline`) needs scene metadata threaded through `App.tsx` — wave-9's
+lane. See `## Follow-up candidates` above. Recommend folding into wave-9 or a post-merge App.tsx pass.
+
+**Merge-time note for the lead:** wave-9 should remove the now-redundant `<main style={{flex:1,overflow:"auto"}}>`
+wrapper in `EditorPane` (App.tsx ~109) so `.canvas-scroll`'s own scroll + custom scrollbar activate; until
+then a nested-scroll container is expected. Recommend a visual confirm of the editor pane on a live
+`npm run tauri dev` at/after merge (not runnable headless in the port session).
