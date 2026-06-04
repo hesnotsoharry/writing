@@ -74,7 +74,7 @@ export class SqliteBinderStore implements BinderStore {
     const count = rows[0]?.cnt ?? 0;
     const sort_order = (count + 1) * 1000;
     await db.execute(
-      "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count) VALUES ($1, $2, $3, $4, NULL, $5, 0)",
+      "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status) VALUES ($1, $2, $3, $4, NULL, $5, 0, 'blank')",
       [id, args.projectId, args.folderId, args.title, sort_order]
     );
     return id;
