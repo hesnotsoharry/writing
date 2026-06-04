@@ -1,12 +1,27 @@
 import { getDb } from "./schema";
+import {
+  sqliteAddEntityField,
+  sqliteAddLink,
+  sqliteClearPortrait,
+  sqliteDeleteEntityField,
+  sqliteGetEntity,
+  sqliteGetEntityFields,
+  sqliteListLinksFor,
+  sqlitePurgeEntityDetail,
+  sqliteRemoveLink,
+  sqliteReorderEntityFields,
+  sqliteSetEntityField,
+  sqliteSetPortrait,
+  sqliteUpdateLinkRelation,
+} from "./sqliteEntityDetail";
 import type {
   Character,
   Entity,
   EntityField,
   EntityLink,
   EntityType,
-  FieldKind,
   EntityWithPortrait,
+  FieldKind,
   Location,
   SceneLink,
   StoryBibleStore,
@@ -113,6 +128,7 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
       "DELETE FROM scene_links WHERE entity_id = $1 AND entity_type = $2",
       [id, type]
     );
+    await sqlitePurgeEntityDetail(db, id);
   }
 
   async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {
@@ -218,63 +234,52 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     ];
   }
 
-  // ── Wave 24 Full Entry additive surface — STUBS (orchestrator-declared; Phase 1 fills). ──
-  async getEntity(
-    _type: EntityType,
-    _id: string
-  ): Promise<EntityWithPortrait | null> {
-    throw new Error("not implemented");
+  // ── Wave 24 Full Entry additive surface ──────────────────────────────────
+  async getEntity(type: EntityType, id: string): Promise<EntityWithPortrait | null> {
+    return sqliteGetEntity(await getDb(), type, id);
   }
-  async getEntityFields(_entityId: string): Promise<EntityField[]> {
-    throw new Error("not implemented");
+
+  async getEntityFields(entityId: string): Promise<EntityField[]> {
+    return sqliteGetEntityFields(await getDb(), entityId);
   }
-  async setEntityField(
-    _entityId: string,
-    _kind: FieldKind,
-    _key: string,
-    _value: string
-  ): Promise<void> {
-    throw new Error("not implemented");
+
+  async setEntityField(entityId: string, kind: FieldKind, key: string, value: string): Promise<void> {
+    return sqliteSetEntityField(await getDb(), { entityId, kind, key }, value);
   }
-  async addEntityField(
-    _entityId: string,
-    _kind: FieldKind,
-    _key: string
-  ): Promise<EntityField> {
-    throw new Error("not implemented");
+
+  async addEntityField(entityId: string, kind: FieldKind, key: string): Promise<EntityField> {
+    return sqliteAddEntityField(await getDb(), entityId, kind, key);
   }
-  async deleteEntityField(_fieldId: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async deleteEntityField(fieldId: string): Promise<void> {
+    return sqliteDeleteEntityField(await getDb(), fieldId);
   }
-  async reorderEntityFields(
-    _updates: { id: string; sort: number }[]
-  ): Promise<void> {
-    throw new Error("not implemented");
+
+  async reorderEntityFields(updates: { id: string; sort: number }[]): Promise<void> {
+    return sqliteReorderEntityFields(await getDb(), updates);
   }
-  async listLinksFor(_entityId: string): Promise<EntityLink[]> {
-    throw new Error("not implemented");
+
+  async listLinksFor(entityId: string): Promise<EntityLink[]> {
+    return sqliteListLinksFor(await getDb(), entityId);
   }
-  async addLink(
-    _fromId: string,
-    _toId: string,
-    _relation: string
-  ): Promise<EntityLink> {
-    throw new Error("not implemented");
+
+  async addLink(fromId: string, toId: string, relation: string): Promise<EntityLink> {
+    return sqliteAddLink(await getDb(), fromId, toId, relation);
   }
-  async removeLink(_linkId: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async removeLink(linkId: string): Promise<void> {
+    return sqliteRemoveLink(await getDb(), linkId);
   }
-  async updateLinkRelation(_linkId: string, _relation: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async updateLinkRelation(linkId: string, relation: string): Promise<void> {
+    return sqliteUpdateLinkRelation(await getDb(), linkId, relation);
   }
-  async setPortrait(
-    _type: EntityType,
-    _id: string,
-    _path: string
-  ): Promise<void> {
-    throw new Error("not implemented");
+
+  async setPortrait(type: EntityType, id: string, path: string): Promise<void> {
+    return sqliteSetPortrait(await getDb(), type, id, path);
   }
-  async clearPortrait(_type: EntityType, _id: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async clearPortrait(type: EntityType, id: string): Promise<void> {
+    return sqliteClearPortrait(await getDb(), type, id);
   }
 }

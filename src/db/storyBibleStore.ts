@@ -1,5 +1,28 @@
 /** Domain types for the Story Bible data model. */
 
+import {
+  imAddEntityField,
+  imAddLink,
+  imClearPortrait,
+  imCreateCharacter,
+  imCreateLocation,
+  imDeleteEntityField,
+  type ImEntityCtx,
+  imGetEntity,
+  imGetEntityFields,
+  imListEntities,
+  imListLinksFor,
+  imLoadSceneEntities,
+  imPurgeEntityDetail,
+  imRemoveLink,
+  imRenameEntity,
+  imReorderEntityFields,
+  imSetEntityField,
+  imSetPortrait,
+  imUpdateEntityNotes,
+  imUpdateLinkRelation,
+} from "./inMemoryEntityDetail";
+
 export interface Character {
   id: string;
   projectId: string;
@@ -33,6 +56,13 @@ export interface Entity {
 }
 
 export type FieldKind = "fact" | "section";
+
+/** Logical key identifying a field row — used to keep setEntityField under 4 params. */
+export interface FieldKey {
+  entityId: string;
+  kind: FieldKind;
+  key: string;
+}
 
 /** A generic entity_fields row — short facts and long prose sections share this shape. */
 export interface EntityField {
@@ -143,6 +173,9 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   private characters: Character[] = [];
   private locations: Location[] = [];
   private sceneLinks: (SceneLink & { sceneId: string })[] = [];
+  private entityFields: EntityField[] = [];
+  private entityLinks: EntityLink[] = [];
+  private portraits = new Map<string, string>();
 
   async listCharacters(projectId: string): Promise<Character[]> {
     return this.characters.filter((c) => c.projectId === projectId);
@@ -152,68 +185,22 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     return this.locations.filter((l) => l.projectId === projectId);
   }
 
-  async createCharacter(
-    projectId: string,
-    name: string,
-    notes: string | null
-  ): Promise<Character> {
-    const character: Character = {
-      id: crypto.randomUUID(),
-      projectId,
-      name,
-      notes,
-      aliases: null,
-    };
-    this.characters.push(character);
-    return character;
+  async createCharacter(projectId: string, name: string, notes: string | null): Promise<Character> {
+    return imCreateCharacter(projectId, name, notes, this.characters);
   }
 
-  async createLocation(
-    projectId: string,
-    name: string,
-    notes: string | null
-  ): Promise<Location> {
-    const location: Location = {
-      id: crypto.randomUUID(),
-      projectId,
-      name,
-      notes,
-      aliases: null,
-    };
-    this.locations.push(location);
-    return location;
+  async createLocation(projectId: string, name: string, notes: string | null): Promise<Location> {
+    return imCreateLocation(projectId, name, notes, this.locations);
   }
 
-  async renameEntity(
-    type: EntityType,
-    id: string,
-    name: string
-  ): Promise<void> {
-    if (type === "character") {
-      this.characters = this.characters.map((c) =>
-        c.id === id ? { ...c, name } : c
-      );
-    } else {
-      this.locations = this.locations.map((l) =>
-        l.id === id ? { ...l, name } : l
-      );
-    }
+  async renameEntity(type: EntityType, id: string, name: string): Promise<void> {
+    const r = imRenameEntity(type, id, name, { characters: this.characters, locations: this.locations });
+    this.characters = r.characters; this.locations = r.locations;
   }
 
-  async updateEntityNotes(
-    type: EntityType,
-    id: string,
-    notes: string | null
-  ): Promise<void> {
-    if (type === "character") {
-      this.characters = this.characters.map((c) =>
-        c.id === id ? { ...c, notes } : c
-      );
-    } else {
-      this.locations = this.locations.map((l) =>
-        l.id === id ? { ...l, notes } : l
-      );
-    }
+  async updateEntityNotes(type: EntityType, id: string, notes: string | null): Promise<void> {
+    const r = imUpdateEntityNotes(type, id, notes, { characters: this.characters, locations: this.locations });
+    this.characters = r.characters; this.locations = r.locations;
   }
 
   async deleteEntity(type: EntityType, id: string): Promise<void> {
@@ -225,6 +212,9 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     this.sceneLinks = this.sceneLinks.filter(
       (sl) => !(sl.entityType === type && sl.entityId === id)
     );
+    const purged = imPurgeEntityDetail(id, this.entityFields, this.entityLinks, this.portraits);
+    this.entityFields = purged.entityFields;
+    this.entityLinks = purged.entityLinks;
   }
 
   async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {
@@ -240,46 +230,8 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
       .map(({ entityType, entityId }) => ({ entityType, entityId }));
   }
 
-  async loadSceneEntities(
-    sceneId: string
-  ): Promise<{ characters: Entity[]; locations: Entity[] }> {
-    const links = this.sceneLinks.filter((sl) => sl.sceneId === sceneId);
-    const characters: Entity[] = [];
-    const locations: Entity[] = [];
-    for (const link of links) {
-      if (link.entityType === "character") {
-        const c = this.characters.find((ch) => ch.id === link.entityId);
-        if (c) {
-          characters.push({
-            id: c.id,
-            projectId: c.projectId,
-            type: "character" as const,
-            name: c.name,
-            notes: c.notes,
-            aliases: c.aliases,
-          });
-        }
-      } else {
-        const l = this.locations.find((lo) => lo.id === link.entityId);
-        if (l) {
-          locations.push({
-            id: l.id,
-            projectId: l.projectId,
-            type: "location" as const,
-            name: l.name,
-            notes: l.notes,
-            aliases: l.aliases,
-          });
-        }
-      }
-    }
-    // Sort by name for a deterministic, stable card order in the inspector —
-    // mirrors the `ORDER BY name` the SQLite impl applies (the consumer renders
-    // these as an ordered list; link-insertion order is not meaningful to it).
-    const byName = (a: Entity, b: Entity) => a.name.localeCompare(b.name);
-    characters.sort(byName);
-    locations.sort(byName);
-    return { characters, locations };
+  async loadSceneEntities(sceneId: string): Promise<{ characters: Entity[]; locations: Entity[] }> {
+    return imLoadSceneEntities(sceneId, this.sceneLinks, this.characters, this.locations);
   }
 
   async findScenesForEntity(entityId: string): Promise<string[]> {
@@ -291,83 +243,56 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   async listEntities(projectId: string): Promise<Entity[]> {
     const chars = await this.listCharacters(projectId);
     const locs = await this.listLocations(projectId);
-    return [
-      ...chars.map((c) => ({
-        id: c.id,
-        projectId: c.projectId,
-        type: "character" as const,
-        name: c.name,
-        notes: c.notes,
-        aliases: c.aliases,
-      })),
-      ...locs.map((l) => ({
-        id: l.id,
-        projectId: l.projectId,
-        type: "location" as const,
-        name: l.name,
-        notes: l.notes,
-        aliases: l.aliases,
-      })),
-    ];
+    return imListEntities(chars, locs);
   }
 
-  // ── Wave 24 Full Entry additive surface — STUBS (orchestrator-declared; Phase 1 fills). ──
-  async getEntity(
-    _type: EntityType,
-    _id: string
-  ): Promise<EntityWithPortrait | null> {
-    throw new Error("not implemented");
+  // ── Wave 24 Full Entry additive surface ──────────────────────────────────
+  async getEntity(type: EntityType, id: string): Promise<EntityWithPortrait | null> {
+    const ctx: ImEntityCtx = { characters: this.characters, locations: this.locations, portraits: this.portraits };
+    return imGetEntity(type, id, ctx);
   }
-  async getEntityFields(_entityId: string): Promise<EntityField[]> {
-    throw new Error("not implemented");
+
+  async getEntityFields(entityId: string): Promise<EntityField[]> {
+    return imGetEntityFields(entityId, this.entityFields);
   }
-  async setEntityField(
-    _entityId: string,
-    _kind: FieldKind,
-    _key: string,
-    _value: string
-  ): Promise<void> {
-    throw new Error("not implemented");
+
+  async setEntityField(entityId: string, kind: FieldKind, key: string, value: string): Promise<void> {
+    imSetEntityField({ entityId, kind, key }, value, this.entityFields);
   }
-  async addEntityField(
-    _entityId: string,
-    _kind: FieldKind,
-    _key: string
-  ): Promise<EntityField> {
-    throw new Error("not implemented");
+
+  async addEntityField(entityId: string, kind: FieldKind, key: string): Promise<EntityField> {
+    return imAddEntityField(entityId, kind, key, this.entityFields);
   }
-  async deleteEntityField(_fieldId: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async deleteEntityField(fieldId: string): Promise<void> {
+    this.entityFields = imDeleteEntityField(fieldId, this.entityFields);
   }
-  async reorderEntityFields(
-    _updates: { id: string; sort: number }[]
-  ): Promise<void> {
-    throw new Error("not implemented");
+
+  async reorderEntityFields(updates: { id: string; sort: number }[]): Promise<void> {
+    imReorderEntityFields(updates, this.entityFields);
   }
-  async listLinksFor(_entityId: string): Promise<EntityLink[]> {
-    throw new Error("not implemented");
+
+  async listLinksFor(entityId: string): Promise<EntityLink[]> {
+    return imListLinksFor(entityId, this.entityLinks);
   }
-  async addLink(
-    _fromId: string,
-    _toId: string,
-    _relation: string
-  ): Promise<EntityLink> {
-    throw new Error("not implemented");
+
+  async addLink(fromId: string, toId: string, relation: string): Promise<EntityLink> {
+    return imAddLink(fromId, toId, relation, this.entityLinks);
   }
-  async removeLink(_linkId: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async removeLink(linkId: string): Promise<void> {
+    this.entityLinks = imRemoveLink(linkId, this.entityLinks);
   }
-  async updateLinkRelation(_linkId: string, _relation: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async updateLinkRelation(linkId: string, relation: string): Promise<void> {
+    imUpdateLinkRelation(linkId, relation, this.entityLinks);
   }
-  async setPortrait(
-    _type: EntityType,
-    _id: string,
-    _path: string
-  ): Promise<void> {
-    throw new Error("not implemented");
+
+  async setPortrait(_type: EntityType, id: string, path: string): Promise<void> {
+    imSetPortrait(id, path, this.portraits);
   }
-  async clearPortrait(_type: EntityType, _id: string): Promise<void> {
-    throw new Error("not implemented");
+
+  async clearPortrait(_type: EntityType, id: string): Promise<void> {
+    imClearPortrait(id, this.portraits);
   }
 }

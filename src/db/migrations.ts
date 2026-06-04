@@ -274,6 +274,72 @@ async function migration_005_scene_status(db: DbHandle): Promise<void> {
   }
 }
 
+/**
+ * Create entity_fields table for generic fact/section rows on characters and locations.
+ *
+ * UNIQUE(entity_id, kind, field_key) is load-bearing: the OR-IGNORE-then-UPDATE upsert
+ * in setEntityField relies on this constraint to deduplicate on the logical key. A UUID
+ * primary key alone would not deduplicate (OR IGNORE on a UUID PK is inert).
+ *
+ * field_key / field_value column names are used (not key / value) to avoid any
+ * reserved-word ambiguity; the store layer maps them to the domain key/value names.
+ */
+async function migration_006_entity_fields(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS entity_fields (id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, kind TEXT NOT NULL, field_key TEXT NOT NULL, field_value TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 0, UNIQUE(entity_id, kind, field_key))`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_entity_fields_entity_id ON entity_fields (entity_id)`
+  );
+}
+
+/**
+ * Create entity_links table for directional entity→entity relationships.
+ *
+ * UNIQUE(from_id, to_id) is load-bearing: the INSERT OR IGNORE in addLink relies on
+ * this constraint to deduplicate on the logical pair. Without it, OR IGNORE on the UUID
+ * primary key would never suppress a duplicate (every UUID is fresh).
+ */
+async function migration_007_entity_links(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS entity_links (id TEXT PRIMARY KEY, from_id TEXT NOT NULL, to_id TEXT NOT NULL, relation TEXT NOT NULL DEFAULT '', UNIQUE(from_id, to_id))`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_entity_links_from_id ON entity_links (from_id)`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_entity_links_to_id ON entity_links (to_id)`
+  );
+}
+
+/**
+ * Add portrait_path TEXT column to characters and locations via ensureColumn.
+ *
+ * ensureColumn is idempotent (checks PRAGMA table_info before issuing ALTER TABLE),
+ * which is required here — a crash after the first ensureColumn but before the second
+ * would re-enter this function with portrait_path already present on characters.
+ *
+ * Table-existence guards: migration003 test fixtures seed a partial DB (user_version=2,
+ * only scene_links + scenes) before running forward migrations. ALTER TABLE on a
+ * non-existent table throws, so we skip ensureColumn when the table is absent.
+ * On real production DBs, migration 1's baseline always creates both tables before
+ * this migration runs, so the guard is a no-op in the field.
+ */
+async function migration_008_entity_portrait(db: DbHandle): Promise<void> {
+  const charExists = await db.select<{ name: string }[]>(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='characters'"
+  );
+  if (charExists.length > 0) {
+    await ensureColumn(db, "characters", "portrait_path", "TEXT");
+  }
+  const locExists = await db.select<{ name: string }[]>(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='locations'"
+  );
+  if (locExists.length > 0) {
+    await ensureColumn(db, "locations", "portrait_path", "TEXT");
+  }
+}
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 /**
@@ -288,6 +354,9 @@ export const MIGRATIONS: Migration[] = [
   { version: 3, name: "scene-links-unique", up: migration_003_scene_links_unique },
   { version: 4, name: "feature-tables", up: migration_004_feature_tables },
   { version: 5, name: "scene-status", up: migration_005_scene_status },
+  { version: 6, name: "entity-fields", up: migration_006_entity_fields },
+  { version: 7, name: "entity-links", up: migration_007_entity_links },
+  { version: 8, name: "entity-portrait", up: migration_008_entity_portrait },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

@@ -160,4 +160,37 @@ describe("Full Entry store contract (Wave 24)", () => {
     // The link that pointed AT doomed (from `other`) must also be gone.
     expect(await store.listLinksFor(other.id)).toHaveLength(0);
   });
+
+  // ── addEntityField idempotency + reorder (panel-flag coverage, Wave 24 Phase 1) ──
+  it("addEntityField is idempotent on a duplicate (entity,kind,key) — returns the existing row, never clobbers its value or creates a second row", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const c = await store.createCharacter("proj-1", "Maren", null);
+
+    const first = await store.addEntityField(c.id, "fact", "Age");
+    await store.setEntityField(c.id, "fact", "Age", "34");
+    const second = await store.addEntityField(c.id, "fact", "Age");
+
+    expect(second.id).toBe(first.id);
+    const ageRows = (await store.getEntityFields(c.id)).filter(
+      (f) => f.kind === "fact" && f.key === "Age"
+    );
+    expect(ageRows).toHaveLength(1);
+    expect(ageRows[0].value).toBe("34"); // must NOT be reset to ""
+  });
+
+  it("reorderEntityFields updates the sort value for each given id", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const c = await store.createCharacter("proj-1", "Maren", null);
+    const a = await store.addEntityField(c.id, "fact", "Age");
+    const b = await store.addEntityField(c.id, "fact", "Job");
+
+    await store.reorderEntityFields([
+      { id: a.id, sort: 5 },
+      { id: b.id, sort: 2 },
+    ]);
+
+    const fields = await store.getEntityFields(c.id);
+    expect(fields.find((f) => f.id === a.id)?.sort).toBe(5);
+    expect(fields.find((f) => f.id === b.id)?.sort).toBe(2);
+  });
 });
