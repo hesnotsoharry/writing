@@ -30,11 +30,12 @@ plus the window-control hover all fire.
 
 **In scope:**
 
-- **Phase 1 — Foundation (`App.content.tsx` / `App.state.ts` / `App.handlers.ts`):** thread the real
-  whole-manuscript word total (`useManuscriptWordCount`) to `StatusBar` + `ProjectSwitcher` subtitle;
-  thread `quickCount` + `archivedCount` to the binder footer; add a tree-reload callback consumed by
-  Corkboard + inspector (drops the local-tree shim / module-singleton reads); drive side-panel
-  visibility off `view` so Corkboard and Story Bible render full-screen.
+- **Phase 1 — Foundation (`App.content.tsx` / `App.tsx` / `App.handlers.ts`):** compute the real
+  whole-manuscript word total (`useManuscriptWordCount`) and thread it to `StatusBar` (the
+  `ProjectSwitcher` subtitle CONSUMES this total in P2 — binder owns that file); thread `quickCount` to
+  the binder footer (`archivedCount` deferred to Lane 22 — no archive store exists yet, so the Archived
+  button stays render-guarded); establish a tree-reload callback in App wiring for Corkboard + inspector
+  to consume in P4/P5; drive side-panel visibility off `view` so Corkboard and Story Bible render full-screen.
 - **Phase 2 — Binder (`src/binder/*`):** dark-mode selected-row clay fix; per-scene `.scene-words`
   counter; inline add-chapter at list bottom; "No scenes yet — add one" empty state (clay, clickable);
   ProjectSwitcher subtitle word count (consumes P1 total); quick-notes footer pinned bottom + the canon
@@ -162,7 +163,9 @@ Enforcement: none (convention) — product decision, Cole 2026-06-04.
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Notes |
+|---|---|---|---|---|
+| 1 Foundation | 2026-06-04 | 2026-06-04 | (this commit) | gates green; review single-tier FLAGs adjudicated (reloadTree forward-contract accepted; subtitle scope reworded to P2; bible+null-project fallthrough = pre-existing, noted). reloadTree established for P4/P5; archivedCount deferred to Lane 22. |
 
 ## Follow-up candidates
 

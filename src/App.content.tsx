@@ -21,6 +21,7 @@ import { Editor } from "./editor/Editor";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
 import { Corkboard } from "./features/corkboard/Corkboard";
 import { useDailyGoalProgress } from "./features/goals/useDailyGoalProgress";
+import { useQuickCount } from "./features/quickcapture/useQuickCount";
 import { useQuickItemsBadge } from "./features/quickcapture/useQuickItemsBadge";
 import { SceneInspector } from "./inspector/SceneInspector";
 import { useManuscriptWordCount } from "./lib/manuscriptWords";
@@ -58,6 +59,8 @@ export interface AppContentProps {
   onEntitiesChanged: () => void;
   overlays: OverlayFlags;
   storyBibleStore: SqliteStoryBibleStore;
+  /** Reload the binder tree from the store — exposed for downstream phases (Corkboard P5, Inspector P4). */
+  reloadTree: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,17 +117,23 @@ function useAppContentSlots(props: AppContentProps) {
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
   const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", currentTotal: manuscriptTotal });
+  const quickCount = useQuickCount(activeProjectId);
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);
-  const binderSlot = focusMode ? null : (
-    <Binder tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
-      callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
-      onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-      dragCallbacks={dragCallbacks}
-      onOpenQuickNotes={() => setShowQuickCapture(true)}
-      onOpenArchive={() => setShowArchive(true)} />
-  );
-  const inspectorSlot = (!focusMode && view === "editor" && activeProjectId)
+  // Binder and inspector are hidden in focus mode and also when the full-screen
+  // cork/bible views are active — those views own the entire center stage.
+  const showSidePanels = !focusMode && view !== "cork" && view !== "bible";
+  const binderSlot = showSidePanels
+    ? (
+      <Binder tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
+        callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
+        onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
+        dragCallbacks={dragCallbacks} quickCount={quickCount}
+        onOpenQuickNotes={() => setShowQuickCapture(true)}
+        onOpenArchive={() => setShowArchive(true)} />
+    )
+    : null;
+  const inspectorSlot = (showSidePanels && view === "editor" && activeProjectId)
     ? <SceneInspector store={storyBibleStore} projectId={activeProjectId}
         sceneId={selectedSceneId} scene={activeScene}
         refreshKey={linksVersion} liveWordCount={liveWordCount} />

@@ -4,7 +4,7 @@ import * as Y from "yjs";
 
 import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
-import { useCrudHandlers, useDragHandlers } from "./App.handlers";
+import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
 import { useAppState, useProjectActions } from "./App.state";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { BinderTree } from "./binder/buildTree";
@@ -140,6 +140,7 @@ interface AppWiring {
   onCreateProject: () => void;
   onEntitiesChanged: () => void;
   handleSelectScene: (sceneId: string) => void;
+  reloadTree: () => void;
 }
 
 function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
@@ -162,7 +163,15 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene,
   });
   const dragCallbacks = useDragHandlers({ binderStore, activeProjectIdRef, setTree });
-  return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged, handleSelectScene };
+  function doReloadTree() {
+    const id = activeProjectIdRef.current;
+    if (!id) return;
+    reloadTree(binderStore, id, setTree as (t: BinderTree) => void).catch(
+      (e) => console.error("[wiring] reloadTree failed", e)
+    );
+  }
+  return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
+    handleSelectScene, reloadTree: doReloadTree };
 }
 
 export default function App() {
@@ -186,7 +195,7 @@ export default function App() {
       onSwitchProject={wiring.onSwitchProject} onCreateProject={wiring.onCreateProject}
       dragCallbacks={wiring.dragCallbacks} view={view} onViewChange={setView}
       linksVersion={linksVersion} onEntitiesChanged={wiring.onEntitiesChanged}
-      storyBibleStore={storyBibleStore}
+      storyBibleStore={storyBibleStore} reloadTree={wiring.reloadTree}
       overlays={{ showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
         showArchive, setShowArchive, showGoals, setShowGoals, showExport, setShowExport,
         showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, setGoalsOn,
