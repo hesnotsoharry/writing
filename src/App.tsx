@@ -11,7 +11,7 @@ import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
 import { buildTree } from "./binder/buildTree";
-import type { Project } from "./db/binderStore";
+import type { Project, Scene } from "./db/binderStore";
 import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
 import { SqliteBinderStore } from "./db/sqliteBinderStore";
@@ -144,6 +144,17 @@ function AppContent({
 }: AppContentProps) {
   // Active project title for the centered doc-name in TitleBar (wave-6 will add live save-state).
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
+
+  // Derive the active Scene object from the already-loaded binder tree.
+  const allScenes: Scene[] = [
+    ...tree.chapters.flatMap((ch) => ch.scenes),
+    ...tree.shortPieces,
+  ];
+  const activeScene: Scene | null =
+    selectedSceneId != null
+      ? (allScenes.find((s) => s.id === selectedSceneId) ?? null)
+      : null;
+
   return (
     <AppShell
       titleBar={<TitleBar view={view} onViewChange={onViewChange} docName={docName} />}
@@ -164,7 +175,7 @@ function AppContent({
       inspector={
         // Inspector visibility: matches the existing condition exactly — editor view + active project.
         view === "editor" && activeProjectId
-          ? <SceneInspector store={storyBibleStore} projectId={activeProjectId} sceneId={selectedSceneId} refreshKey={linksVersion} />
+          ? <SceneInspector store={storyBibleStore} projectId={activeProjectId} sceneId={selectedSceneId} scene={activeScene} refreshKey={linksVersion} />
           : null
       }
       statusBar={<StatusBar sceneWordCount={null} />}

@@ -61,6 +61,14 @@ export interface StoryBibleStore {
    */
   replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void>;
   loadSceneLinks(sceneId: string): Promise<SceneLink[]>;
+  /**
+   * Return the full Entity objects linked to a scene, grouped by type.
+   * Additive read-query (wave 9) — the inspector's entity cards consume this
+   * (avatar initial from name, role subtitle from notes).
+   */
+  loadSceneEntities(
+    sceneId: string
+  ): Promise<{ characters: Entity[]; locations: Entity[] }>;
   /** Return scene_ids that reference the given entity (for usage counts). */
   findScenesForEntity(entityId: string): Promise<string[]>;
 }
@@ -168,6 +176,48 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     return this.sceneLinks
       .filter((sl) => sl.sceneId === sceneId)
       .map(({ entityType, entityId }) => ({ entityType, entityId }));
+  }
+
+  async loadSceneEntities(
+    sceneId: string
+  ): Promise<{ characters: Entity[]; locations: Entity[] }> {
+    const links = this.sceneLinks.filter((sl) => sl.sceneId === sceneId);
+    const characters: Entity[] = [];
+    const locations: Entity[] = [];
+    for (const link of links) {
+      if (link.entityType === "character") {
+        const c = this.characters.find((ch) => ch.id === link.entityId);
+        if (c) {
+          characters.push({
+            id: c.id,
+            projectId: c.projectId,
+            type: "character" as const,
+            name: c.name,
+            notes: c.notes,
+            aliases: c.aliases,
+          });
+        }
+      } else {
+        const l = this.locations.find((lo) => lo.id === link.entityId);
+        if (l) {
+          locations.push({
+            id: l.id,
+            projectId: l.projectId,
+            type: "location" as const,
+            name: l.name,
+            notes: l.notes,
+            aliases: l.aliases,
+          });
+        }
+      }
+    }
+    // Sort by name for a deterministic, stable card order in the inspector —
+    // mirrors the `ORDER BY name` the SQLite impl applies (the consumer renders
+    // these as an ordered list; link-insertion order is not meaningful to it).
+    const byName = (a: Entity, b: Entity) => a.name.localeCompare(b.name);
+    characters.sort(byName);
+    locations.sort(byName);
+    return { characters, locations };
   }
 
   async findScenesForEntity(entityId: string): Promise<string[]> {
