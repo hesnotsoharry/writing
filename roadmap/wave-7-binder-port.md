@@ -1,5 +1,5 @@
 ---
-status: PLANNED
+status: COMPLETE (pending merge to master via lead)
 created: 2026-06-03
 ---
 
@@ -89,16 +89,30 @@ Before declaring a phase complete, restate the Observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
-| 2 | — | — | — | — |
-| 3 | — | — | — | — |
-| 4 | — | — | — | — |
+| 1 | yes | yes | `8d77d4b` | Deferred to lead post-merge `tauri dev` smoke (browser boot blocked — Tauri `invoke` undefined). Static: `.panel-binder` supplies parchment bg + single `--line` border (reviewer PASS). |
+| 2 | yes | yes | `868a78a` | Deferred to lead post-merge smoke. Static: row-level `.scene-row.active` selection + `.rename-input` confirmed (reviewer PASS; FLAG 1a→Phase 3, 1b=design intent). |
+| 3 | yes | yes | `d2027ca` | Deferred to lead post-merge smoke. Static: tokenized drag lift + `.scene-list` 28px indent fix confirmed (reviewer PASS). |
+| 4 | yes | yes | `d35e24d` | Deferred to lead post-merge smoke. Static: `.project-switch` + tokenized `<select>` (reviewTier skip; gates green). |
 
 ## Follow-up candidates
 
 - Binder scene-row status dots (`STATUS_META` → `span.scene-dot`): cannot be done in-wave — requires a new `status` column on the `scenes` table (`ALTER TABLE` + migration), `Scene`-interface change, `loadProject` SELECT + `createScene` INSERT updates, and a `setStatus` callback threaded App→Binder→row. Multi-file (≥5) + schema/migration change, cannot be cleared by a single sonnet-implementer dispatch, and `src/db/` is frozen for this lane. | present-harm: K2 — binder scene rows lack the design's status-color affordance shown in `design-reference/binder.jsx:50` (`span.scene-dot` driven by `STATUS_META`, `design-reference/data.jsx:128–134`); the `.scene-dot` CSS class exists unused at `src/styles/app.css:228`.
 - ProjectSwitcher custom dropdown port (`div.proj-menu`/`.proj-item`/`.cm-backdrop` overlay): cannot be done in this style-only lane — the live component is a plain `<select>`; the reference is a custom click-outside dropdown, a behavioral rewrite (new state, keyboard handling, backdrop). | present-harm: K2 — the project switcher renders as a native `<select>` instead of the design's custom book-cover dropdown (`design-reference/binder.jsx` `ProjectSwitch`); the `.proj-menu`/`.proj-item`/`.proj-new` classes exist unused at `src/styles/app.css:612–634`.
+- Chapter collapse/expand affordance (twist chevron): cannot be done in this style-only lane — the live binder has NO collapse functionality at all (verified: no `open` state, no chevron, scene lists render unconditionally in `Binder.tsx` `DraggableChapterSection`). The design reference (`design-reference/binder.jsx:59–96`) has the full affordance (`useState` open + `span.twist` chevron + `.chapter-row.closed` + conditional scene render). Wiring it is NEW FEATURE work spanning `Binder.tsx` + `BinderCrud.tsx` (state + toggle handler + conditional render + chevron icon), not a single-dispatch style change. | present-harm: K2 — chapters always render fully expanded with no way to collapse; the `.chapter-row.closed .twist` rotation rule exists unused at `src/styles/app.css` and the design's twist chevron is absent from every chapter heading.
 
 ## Result
 
-<!-- filled at ship by wrap team -->
+**Delivered (4 phases, 4 commits on branch `wave-7-binder-port`):** `src/binder/**` fully shed of inline styles / JS style-constants in favor of the existing design-token CSS classes. Net **−127 lines** (style-constant deletion). **Zero hardcoded hex remains anywhere in `src/binder/`** (verified by grep). The wave-5 smoke defect is fixed at the source: `navStyle`'s `#fafafa` background + `border-right` are deleted; `.panel-binder` now supplies the parchment background + the single shared `--line` border (white-pane + doubled-border gone).
+
+- **Phase 1** `8d77d4b` — Binder.tsx: `<nav>`→`.panel-binder`, `.binder-scroll`, `.bsection-head`+`.add`, `.add-chapter`, `.empty-hint`.
+- **Phase 2** `868a78a` — BinderCrud.tsx: scene rows→`.scene-row`(+`.active` row-level selection, replacing button-bg), `.chapter-row`/`.ch-title`, `.rename-input`, `iconBtnStyle` retokenized.
+- **Phase 3** `d2027ca` — BinderDrag.tsx: `dropSlot`→tokens (`--paper`/`--line`/`--r-xs`/`--shadow-sm`), `.scene-list` on the sortable `<ul>` (restores 28px indent + connector line); dnd-kit `transform`/`transition` + empty `DragOverlay` preserved.
+- **Phase 4** `d35e24d` — ProjectSwitcher.tsx: `.project-switch` + tokenized `<select>` (plain `<select>` kept).
+
+**Gates (final, full):** `tsc` clean · `eslint src/` clean · **144/144 tests** green. **Scope guard:** `git diff --name-only fc180bf HEAD` touches only `src/binder/**` + this wave file — **no `App.tsx` / `app.css` / `tokens.css` / `src/db/` writes** (coordination contract honored). **No app.css additions** (consume-only respected).
+
+**Reviews:** Phases 1–3 ran `sonnet-adversarial-reviewer` (attack-diff, single). P1 FLAG (only flag = `dropSlot` hex → P3 scope). P2 FLAG (1a `.scene-list` → resolved in P3; 1b `.ch-title` non-uppercase = design intent, app.css verbatim from design-reference). P3 PASS. P4 reviewTier=skip (trivial retokenize). All flags adjudicated; none blocking.
+
+**Verification status:** Live UI smoke **deferred to the lead's post-merge `tauri dev` run**. The app cannot boot in a plain browser (Vite dev) — `initializeProjectTree` calls Tauri `invoke`, undefined outside the Tauri runtime, so the app hangs at "Loading…". This is a useful gotcha for the other screen-port lanes (browser-shortcut smoke won't work; must use `npm run tauri dev`). The white-pane fix is also most meaningfully verified on the fully-merged tree where all four panes are ported.
+
+**Merge:** Ready for the lead session to merge per the coordination order (Editor → Story Bible → **Binder** → Inspector). Branch `wave-7-binder-port`, base `fc180bf`, 5 commits (1 plan + 4 phases). `npm install` was run on the branch (clean, 0 vulnerabilities). Follow-up candidates (status dots, chapter collapse/expand, ProjectSwitcher custom dropdown) recorded above — recommend the lead's consolidated wrap files them.
