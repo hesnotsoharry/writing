@@ -2,6 +2,25 @@ import { computeReorder } from "../binder/computeReorder";
 
 /** Domain types for the binder data model. */
 
+// ---------------------------------------------------------------------------
+// Archive types
+// ---------------------------------------------------------------------------
+
+export const ARCHIVE_KIND = { scene: "scene", chapter: "chapter" } as const;
+export type ArchiveKind = (typeof ARCHIVE_KIND)[keyof typeof ARCHIVE_KIND];
+
+/** A row in the archive bin, as shown in the browsing overlay.
+ *  Does NOT carry the heavy state_base64 payload. */
+export interface ArchivedItem {
+  id: string;
+  kind: ArchiveKind;
+  originalId: string | null;
+  title: string;
+  /** scene: chapter title (or "Short pieces"); chapter: "N scenes" */
+  sub: string | null;
+  archivedAt: number;
+}
+
 /**
  * SceneStatus — 5-value canon set (wave 17).
  * The DB column is free-form TEXT; always read raw values through
@@ -91,6 +110,26 @@ export interface BinderStore {
    * Renormalizes sort_orders for all folders in the project.
    */
   moveFolder(folderId: string, toIndex: number): Promise<void>;
+
+  // -------------------------------------------------------------------------
+  // Archive methods (Wave 22 — additive)
+  // -------------------------------------------------------------------------
+
+  /** Snapshot a scene into the archive bin and remove it from the binder. */
+  archiveScene(sceneId: string, projectId: string): Promise<void>;
+  /** Snapshot a chapter folder and all its child scenes atomically; remove them from the binder. */
+  archiveChapter(folderId: string, projectId: string): Promise<void>;
+  /** List archived items for a project, ordered archivedAt DESC. */
+  listArchived(projectId: string): Promise<ArchivedItem[]>;
+  /**
+   * Restore an archived item: reinsert the scene or chapter+scenes using
+   * their original ids. Lone scenes land in Short pieces (folder_id = null).
+   */
+  restoreArchived(archiveId: string): Promise<void>;
+  /** Permanently remove an archived item — does NOT reinsert anything. */
+  purgeArchived(archiveId: string): Promise<void>;
+  /** Number of archive records for a project. */
+  archivedCount(projectId: string): Promise<number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,10 +137,36 @@ export interface BinderStore {
 // InMemorySceneDocStore.
 // ---------------------------------------------------------------------------
 
+/** Internal restore record — not exported. Payload is polymorphic by kind. */
+type ArchiveRecord =
+  | {
+      id: string;
+      projectId: string;
+      kind: "scene";
+      originalId: string;
+      title: string;
+      sub: string | null;
+      archivedAt: number;
+      payload: { scene: Scene };
+    }
+  | {
+      id: string;
+      projectId: string;
+      kind: "chapter";
+      originalId: string;
+      title: string;
+      sub: string | null;
+      archivedAt: number;
+      payload: { folder: Folder; scenes: Scene[] };
+    };
+
 export class InMemoryBinderStore implements BinderStore {
   private projects: Project[] = [];
   private folders: Folder[] = [];
   private scenes: Scene[] = [];
+  private archived: ArchiveRecord[] = [];
+  /** Monotonically-increasing clock for deterministic archivedAt values. */
+  private clock = 0;
 
   async listProjects(): Promise<Project[]> {
     return [...this.projects].sort((a, b) => a.sort_order - b.sort_order);
@@ -253,5 +318,102 @@ export class InMemoryBinderStore implements BinderStore {
       const newOrder = orderMap.get(f.id);
       return newOrder !== undefined ? { ...f, sort_order: newOrder } : f;
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Archive methods (Wave 22 — additive)
+  // -------------------------------------------------------------------------
+
+  async archiveScene(sceneId: string, projectId: string): Promise<void> {
+    const scene = this.scenes.find(
+      (s) => s.id === sceneId && s.project_id === projectId
+    );
+    if (!scene) return;
+
+    const folder = scene.folder_id
+      ? this.folders.find((f) => f.id === scene.folder_id)
+      : null;
+
+    this.archived.push({
+      id: crypto.randomUUID(),
+      projectId,
+      kind: "scene",
+      originalId: sceneId,
+      title: scene.title,
+      sub: folder ? folder.title : "Short pieces",
+      archivedAt: ++this.clock,
+      payload: { scene: { ...scene } },
+    });
+
+    this.scenes = this.scenes.filter((s) => s.id !== sceneId);
+  }
+
+  async archiveChapter(folderId: string, projectId: string): Promise<void> {
+    const folder = this.folders.find(
+      (f) => f.id === folderId && f.project_id === projectId
+    );
+    if (!folder) return;
+
+    const childScenes = this.scenes.filter(
+      (s) => s.folder_id === folderId && s.project_id === projectId
+    );
+    const sub = `${childScenes.length} scenes`;
+
+    this.archived.push({
+      id: crypto.randomUUID(),
+      projectId,
+      kind: "chapter",
+      originalId: folderId,
+      title: folder.title,
+      sub,
+      archivedAt: ++this.clock,
+      payload: { folder: { ...folder }, scenes: childScenes.map((s) => ({ ...s })) },
+    });
+
+    this.scenes = this.scenes.filter((s) => s.folder_id !== folderId);
+    this.folders = this.folders.filter((f) => f.id !== folderId);
+  }
+
+  async listArchived(projectId: string): Promise<ArchivedItem[]> {
+    return this.archived
+      .filter((r) => r.projectId === projectId)
+      .sort((a, b) => b.archivedAt - a.archivedAt)
+      .map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        originalId: r.originalId,
+        title: r.title,
+        sub: r.sub,
+        archivedAt: r.archivedAt,
+      }));
+  }
+
+  async restoreArchived(archiveId: string): Promise<void> {
+    const record = this.archived.find((r) => r.id === archiveId);
+    if (!record) return;
+
+    if (record.kind === "scene") {
+      // Restore to Short pieces (folder_id = null). Intentional cross-impl
+      // consistency: the SQLite archive table stores no folder_id for scenes
+      // (only original_id + sub=chapter-title), so SQLite cannot restore a
+      // scene to its original chapter. InMemory forces null here to match
+      // that behaviour — this is by design, not a bug.
+      this.scenes.push({ ...record.payload.scene, folder_id: null });
+    } else {
+      this.folders.push({ ...record.payload.folder });
+      for (const scene of record.payload.scenes) {
+        this.scenes.push({ ...scene });
+      }
+    }
+
+    this.archived = this.archived.filter((r) => r.id !== archiveId);
+  }
+
+  async purgeArchived(archiveId: string): Promise<void> {
+    this.archived = this.archived.filter((r) => r.id !== archiveId);
+  }
+
+  async archivedCount(projectId: string): Promise<number> {
+    return this.archived.filter((r) => r.projectId === projectId).length;
   }
 }
