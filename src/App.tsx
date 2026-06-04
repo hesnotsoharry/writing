@@ -23,6 +23,7 @@ import { AppShell } from "./shell/AppShell";
 import { StatusBar } from "./shell/StatusBar";
 import { TitleBar } from "./shell/TitleBar";
 import { StoryBibleView } from "./storybible/StoryBibleView";
+import { useTheme } from "./theme/useTheme";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded } from "./yjs/serialize";
 
@@ -247,6 +248,7 @@ export default function App() {
     binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene,
   });
   const dragCallbacks = useDragHandlers({ binderStore, activeProjectIdRef, setTree });
+  useTheme();
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
