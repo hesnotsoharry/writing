@@ -254,6 +254,26 @@ async function migration_004_feature_tables(db: DbHandle): Promise<void> {
   );
 }
 
+/**
+ * Add a `status` column to scenes (TEXT NOT NULL DEFAULT 'blank').
+ *
+ * Idempotent: checks PRAGMA table_info(scenes) first and only runs the ALTER
+ * if the column is absent. Required because `ALTER TABLE … ADD COLUMN` is not
+ * re-runnable (SQLite has no `ADD COLUMN IF NOT EXISTS`), and the runner has no
+ * try/catch — a crash after a partial run re-enters this function on next launch.
+ */
+async function migration_005_scene_status(db: DbHandle): Promise<void> {
+  const cols = await db.select<{ name: string }[]>(
+    "PRAGMA table_info(scenes)"
+  );
+  const alreadyExists = cols.some((c) => c.name === "status");
+  if (!alreadyExists) {
+    await db.execute(
+      "ALTER TABLE scenes ADD COLUMN status TEXT NOT NULL DEFAULT 'blank'"
+    );
+  }
+}
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 /**
@@ -267,6 +287,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 2, name: "plaintext-projection-formal", up: migration_002_plaintext_projection },
   { version: 3, name: "scene-links-unique", up: migration_003_scene_links_unique },
   { version: 4, name: "feature-tables", up: migration_004_feature_tables },
+  { version: 5, name: "scene-status", up: migration_005_scene_status },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

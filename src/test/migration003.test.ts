@@ -44,6 +44,11 @@ async function seedOldDb(db: SqlJsTestDb): Promise<void> {
   await db.execute(
     `CREATE TABLE scene_links (scene_id TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL)`
   );
+  // An old dev DB at user_version=2 already has the baseline scenes table (migration 1).
+  // Migration 5 ALTERs scenes, so the fixture must include it in its pre-status shape.
+  await db.execute(
+    `CREATE TABLE scenes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, folder_id TEXT, title TEXT NOT NULL, synopsis TEXT, sort_order INTEGER NOT NULL, word_count INTEGER NOT NULL DEFAULT 0)`
+  );
   await db.execute("PRAGMA user_version = 2");
 }
 

@@ -59,6 +59,7 @@ function makeScene(over: Partial<Scene> = {}): Scene {
     synopsis: "A tense confrontation.",
     sort_order: 0,
     word_count: 500,
+    status: "blank",
     ...over,
   };
 }

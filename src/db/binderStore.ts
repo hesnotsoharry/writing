@@ -2,6 +2,8 @@ import { computeReorder } from "../binder/computeReorder";
 
 /** Domain types for the binder data model. */
 
+export type SceneStatus = "blank" | "draft" | "done";
+
 export interface Project {
   id: string;
   title: string;
@@ -26,6 +28,7 @@ export interface Scene {
   synopsis: string | null;
   sort_order: number;
   word_count: number;
+  status: SceneStatus;
 }
 
 /** Abstraction over binder persistence (project/folder/scene structure). */
@@ -58,6 +61,8 @@ export interface BinderStore {
   renameFolder(folderId: string, title: string): Promise<void>;
   /** Rename a scene. */
   renameScene(sceneId: string, title: string): Promise<void>;
+  /** Update a scene's status. */
+  setSceneStatus(sceneId: string, status: SceneStatus): Promise<void>;
   /**
    * Delete a scene row only. Caller is responsible for also deleting the
    * corresponding scene_docs row (App orchestrates both stores).
@@ -149,6 +154,7 @@ export class InMemoryBinderStore implements BinderStore {
       synopsis: null,
       sort_order,
       word_count: 0,
+      status: "blank",
     });
     return id;
   }
@@ -183,6 +189,12 @@ export class InMemoryBinderStore implements BinderStore {
   async renameScene(sceneId: string, title: string): Promise<void> {
     this.scenes = this.scenes.map((s) =>
       s.id === sceneId ? { ...s, title } : s
+    );
+  }
+
+  async setSceneStatus(sceneId: string, status: SceneStatus): Promise<void> {
+    this.scenes = this.scenes.map((s) =>
+      s.id === sceneId ? { ...s, status } : s
     );
   }
 
