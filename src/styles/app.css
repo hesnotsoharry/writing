@@ -72,7 +72,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
  * Mapping: LIGHT theme (no data-theme) → lightlogo.png.
  *          DARK theme ([data-theme="dark"]) → darklogo.png.
  * To flip: swap the two display:block assignments below. */
-.titlebar .brand img { height: 30px; width: auto; object-fit: contain; display: none; }
+.titlebar .brand img { height: 37.5px; width: auto; object-fit: contain; display: none; }
 .titlebar .brand .logo-light { display: block; }
 [data-theme="dark"] .titlebar .brand .logo-light { display: none; }
 [data-theme="dark"] .titlebar .brand .logo-dark { display: block; }
