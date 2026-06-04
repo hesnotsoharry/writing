@@ -141,9 +141,43 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   }
 
   async loadSceneEntities(
-    _sceneId: string
+    sceneId: string
   ): Promise<{ characters: Entity[]; locations: Entity[] }> {
-    throw new Error("not implemented");
+    const db = await getDb();
+    // Two sequential reads (tauri-plugin-sql has no multi-statement execute and no
+    // read transactions). The pair is not atomic, but this is a single-user local app
+    // with no concurrent writer, so a mid-read link mutation is unreachable in practice.
+    // ORDER BY name gives the inspector a deterministic, stable card order.
+    const charRows = await db.select<
+      { id: string; project_id: string; name: string; notes: string | null; aliases: string | null }[]
+    >(
+      "SELECT c.id, c.project_id, c.name, c.notes, c.aliases FROM scene_links sl JOIN characters c ON c.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'character' ORDER BY c.name",
+      [sceneId]
+    );
+    const locRows = await db.select<
+      { id: string; project_id: string; name: string; notes: string | null; aliases: string | null }[]
+    >(
+      "SELECT l.id, l.project_id, l.name, l.notes, l.aliases FROM scene_links sl JOIN locations l ON l.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'location' ORDER BY l.name",
+      [sceneId]
+    );
+    return {
+      characters: charRows.map((r) => ({
+        id: r.id,
+        projectId: r.project_id,
+        type: "character" as const,
+        name: r.name,
+        notes: r.notes,
+        aliases: r.aliases,
+      })),
+      locations: locRows.map((r) => ({
+        id: r.id,
+        projectId: r.project_id,
+        type: "location" as const,
+        name: r.name,
+        notes: r.notes,
+        aliases: r.aliases,
+      })),
+    };
   }
 
   async findScenesForEntity(entityId: string): Promise<string[]> {

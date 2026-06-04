@@ -67,4 +67,18 @@ describe("StoryBibleStore.loadSceneEntities", () => {
     expect(result.characters).toEqual([]);
     expect(result.locations).toEqual([]);
   });
+
+  it("returns each group in a deterministic name-sorted order", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const zoe = await store.createCharacter("p1", "Zoe", null);
+    const anna = await store.createCharacter("p1", "Anna", null);
+    // Linked in non-alphabetical order — the result must still come back sorted.
+    await store.replaceSceneLinks("s1", [
+      { entityType: "character", entityId: zoe.id },
+      { entityType: "character", entityId: anna.id },
+    ]);
+
+    const { characters } = await store.loadSceneEntities("s1");
+    expect(characters.map((c) => c.name)).toEqual(["Anna", "Zoe"]);
+  });
 });
