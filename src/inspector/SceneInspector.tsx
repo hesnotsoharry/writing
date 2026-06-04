@@ -114,7 +114,20 @@ interface GoalState {
   target: number;
 }
 
-function useSessionGoal(sceneId: string | null, scene: Scene | null): GoalState {
+/**
+ * `liveWordCount` is the authoritative word count from `useLiveWordCount` —
+ * it updates on every Yjs transaction (keystroke). The baseline is captured
+ * once when the scene opens (sceneId change) using the same live count at
+ * that moment, so sessionWords = liveWordCount - baseline climbs as you type.
+ *
+ * Wave-9 model preserved exactly: target from localStorage (default 1000),
+ * streak deferred, SVG arc math unchanged.
+ */
+function useSessionGoal(
+  sceneId: string | null,
+  _scene: Scene | null,
+  liveWordCount: number,
+): GoalState {
   // React-recommended pattern for synchronous derived-state reset:
   // store "prev sceneId + baseline" in state; when the sceneId prop changes,
   // call setBaseline during the current render — React processes this as a
@@ -122,14 +135,15 @@ function useSessionGoal(sceneId: string | null, scene: Scene | null): GoalState 
   const [baseline, setBaseline] = useState<{
     sceneId: string | null;
     words: number;
-  }>({ sceneId, words: scene?.word_count ?? 0 });
+  }>({ sceneId, words: liveWordCount });
 
   if (baseline.sceneId !== sceneId) {
-    setBaseline({ sceneId, words: scene?.word_count ?? 0 });
+    // Scene changed — capture the current live count as the new baseline.
+    setBaseline({ sceneId, words: liveWordCount });
   }
 
   const target = readGoalTarget();
-  const currentWords = scene?.word_count ?? 0;
+  const currentWords = liveWordCount;
   const baselineWords =
     baseline.sceneId === sceneId ? baseline.words : currentWords;
   const sessionWords = Math.max(0, currentWords - baselineWords);
@@ -226,11 +240,13 @@ export interface SceneInspectorProps {
   sceneId: string | null;
   scene: Scene | null;
   refreshKey?: number;
+  /** Live prose word count from useLiveWordCount — updates on every keystroke. */
+  liveWordCount: number;
 }
 
-export function SceneInspector({ store, sceneId, scene, refreshKey }: SceneInspectorProps) {
+export function SceneInspector({ store, sceneId, scene, refreshKey, liveWordCount }: SceneInspectorProps) {
   const { characters, locations, ready } = useSceneEntities(store, sceneId, refreshKey);
-  const { pct, sessionWords, target } = useSessionGoal(sceneId, scene);
+  const { pct, sessionWords, target } = useSessionGoal(sceneId, scene, liveWordCount);
 
   return (
     <div className="panel-inspector">

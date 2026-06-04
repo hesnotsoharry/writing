@@ -18,6 +18,7 @@ import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
+import { useLiveWordCount } from "./editor/useLiveWordCount";
 import { SceneInspector } from "./inspector/SceneInspector";
 import { AppShell } from "./shell/AppShell";
 import { StatusBar } from "./shell/StatusBar";
@@ -140,6 +141,9 @@ function AppContent({
   projects, activeProjectId, onSwitchProject, onCreateProject,
   dragCallbacks, view, onViewChange, linksVersion, onEntitiesChanged,
 }: AppContentProps) {
+  // Live word count — recomputes on every Yjs update so StatusBar and GoalRing stay current.
+  const liveWordCount = useLiveWordCount(doc);
+
   // Active project title for the centered doc-name in TitleBar (wave-6 will add live save-state).
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
 
@@ -173,10 +177,10 @@ function AppContent({
       inspector={
         // Inspector visibility: matches the existing condition exactly — editor view + active project.
         view === "editor" && activeProjectId
-          ? <SceneInspector store={storyBibleStore} projectId={activeProjectId} sceneId={selectedSceneId} scene={activeScene} refreshKey={linksVersion} />
+          ? <SceneInspector store={storyBibleStore} projectId={activeProjectId} sceneId={selectedSceneId} scene={activeScene} refreshKey={linksVersion} liveWordCount={liveWordCount} />
           : null
       }
-      statusBar={<StatusBar sceneWordCount={null} />}
+      statusBar={<StatusBar sceneWordCount={liveWordCount} />}
     />
   );
 }

@@ -73,6 +73,7 @@ describe("SceneInspector", () => {
         sceneId="s1"
         scene={makeScene()}
         refreshKey={0}
+        liveWordCount={500}
       />
     );
 
@@ -100,6 +101,7 @@ describe("SceneInspector", () => {
         sceneId="s2"
         scene={makeScene({ id: "s2", synopsis: null })}
         refreshKey={0}
+        liveWordCount={0}
       />
     );
 
@@ -112,6 +114,7 @@ describe("SceneInspector", () => {
     localStorage.setItem("writing.goalTarget", "1000");
     const store = await seed();
 
+    // Freshly opened: liveWordCount=500 is captured as baseline → 0% session progress.
     const { rerender } = render(
       <SceneInspector
         store={store}
@@ -119,20 +122,22 @@ describe("SceneInspector", () => {
         sceneId="s1"
         scene={makeScene({ word_count: 500 })}
         refreshKey={0}
+        liveWordCount={500}
       />
     );
 
     // Freshly opened: 500 total words but 0 written THIS session → 0%.
     await screen.findByText("0%");
 
-    // Same scene, 100 more words written → 100 / 1000 target = 10%.
+    // Same scene, 100 more words typed live → liveWordCount rises to 600 → 100/1000 = 10%.
     rerender(
       <SceneInspector
         store={store}
         projectId="p1"
         sceneId="s1"
-        scene={makeScene({ word_count: 600 })}
+        scene={makeScene({ word_count: 500 })}
         refreshKey={0}
+        liveWordCount={600}
       />
     );
     await screen.findByText("10%");
@@ -147,6 +152,7 @@ describe("SceneInspector", () => {
         sceneId="s1"
         scene={makeScene()}
         refreshKey={0}
+        liveWordCount={500}
       />
     );
     await screen.findByText("Sarah");
@@ -158,6 +164,7 @@ describe("SceneInspector", () => {
         sceneId="s2"
         scene={makeScene({ id: "s2" })}
         refreshKey={0}
+        liveWordCount={0}
       />
     );
     await screen.findByText(/no characters linked yet/i);
