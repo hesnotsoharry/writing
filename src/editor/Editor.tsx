@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import * as Y from "yjs";
 
 import ProofreadExtension from "./extensions/ProofreadExtension";
+import { SpellCheckPopover, useSpellCheckPopover } from "./SpellCheckPopover";
 
 export function Editor({ doc }: { doc: Y.Doc }) {
   const editor = useEditor({
@@ -19,10 +20,13 @@ export function Editor({ doc }: { doc: Y.Doc }) {
     },
   });
 
+  const { visible, popoverProps } = useSpellCheckPopover(editor);
+
   return (
     <div className="canvas-scroll">
       <div className="canvas-wrap">
         <EditorContent editor={editor} />
+        {visible && <SpellCheckPopover {...popoverProps} />}
       </div>
     </div>
   );
