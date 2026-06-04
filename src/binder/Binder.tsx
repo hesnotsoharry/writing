@@ -153,12 +153,12 @@ function ShortPiecesSection({
     : scenes;
   return (
     <section>
-      <div style={sectionHeadingStyle}>
-        <span style={{ flex: 1 }}>Short pieces</span>
+      <div className="bsection-head">
+        <span>Short pieces</span>
         <button
           title="Add short piece"
           onClick={() => callbacks.onCreateScene(null)}
-          style={addBtnStyle}
+          className="add"
           aria-label="Add short piece"
         >
           +
@@ -201,7 +201,7 @@ function buildItemsMap(tree: BinderTree): ItemsMap {
 
 function EmptyBinderHint() {
   return (
-    <p style={{ padding: "16px", fontSize: 13, color: "#999", margin: 0 }}>
+    <p className="empty-hint">
       No scenes yet.
     </p>
   );
@@ -218,11 +218,9 @@ function BinderContent({ tree, selectedSceneId, onSelectScene, callbacks }: Bind
   const isEmpty = tree.chapters.length === 0 && tree.shortPieces.length === 0;
   return (
     <>
-      <div style={{ padding: "0 8px 8px" }}>
-        <button onClick={callbacks.onCreateChapter} style={addChapterBtnStyle} aria-label="Add chapter">
-          + Chapter
-        </button>
-      </div>
+      <button onClick={callbacks.onCreateChapter} className="add-chapter" aria-label="Add chapter">
+        + Chapter
+      </button>
       <SortableChapterList chapterIds={chapterIds}>
         {renderChapters.map((chapter) => (
           <DraggableChapterSection key={chapter.folder.id} chapter={chapter}
@@ -248,16 +246,6 @@ function BinderContent({ tree, selectedSceneId, onSelectScene, callbacks }: Bind
  * Wraps the entire tree in BinderDragProvider so useSortable hooks can access
  * the DndContext. Drag callbacks are threaded from App.
  */
-const navStyle: React.CSSProperties = {
-  width: 220,
-  minHeight: "100vh",
-  borderRight: "1px solid #e0e0e0",
-  padding: "0 0 16px",
-  boxSizing: "border-box",
-  backgroundColor: "#fafafa",
-  overflowY: "auto",
-  flexShrink: 0,
-};
 
 function buildSceneById(tree: BinderTree): SceneById {
   const map: SceneById = {};
@@ -285,7 +273,7 @@ export function Binder({
   const sceneById = buildSceneById(tree);
   const folderById = buildFolderById(tree);
   return (
-    <nav style={navStyle} aria-label="Binder">
+    <nav className="panel-binder" aria-label="Binder">
       <ProjectSwitcher
         projects={projects}
         activeProjectId={activeProjectId}
@@ -293,7 +281,7 @@ export function Binder({
         onCreateProject={onCreateProject}
       />
       <BinderDragProvider callbacks={dragCallbacks} items={items} sceneById={sceneById} folderById={folderById}>
-        <div style={{ paddingTop: 8 }}>
+        <div className="binder-scroll">
           <BinderContent
             tree={tree}
             selectedSceneId={selectedSceneId}
@@ -306,41 +294,3 @@ export function Binder({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const sectionHeadingStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: "4px 4px 4px 16px",
-  fontWeight: 600,
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: "#555",
-  userSelect: "none",
-};
-
-const addBtnStyle: React.CSSProperties = {
-  background: "transparent",
-  border: "none",
-  cursor: "pointer",
-  fontSize: 13,
-  color: "#888",
-  padding: "0 7px 0 3px",
-  lineHeight: 1,
-  flexShrink: 0,
-};
-
-const addChapterBtnStyle: React.CSSProperties = {
-  width: "100%",
-  background: "transparent",
-  border: "1px dashed #ccc",
-  borderRadius: 4,
-  cursor: "pointer",
-  fontSize: 12,
-  color: "#888",
-  padding: "4px 8px",
-  textAlign: "left",
-};
