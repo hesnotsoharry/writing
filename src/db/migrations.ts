@@ -206,6 +206,54 @@ async function migration_003_scene_links_unique(db: DbHandle): Promise<void> {
   );
 }
 
+/**
+ * Create three feature tables for quick notes, writing goals, and archived items.
+ *
+ * All three use CREATE TABLE IF NOT EXISTS so this function is idempotent —
+ * a crash after a partial run leaves user_version=3 and re-runs cleanly.
+ *
+ * project_id is TEXT NOT NULL — these tables are all project-scoped (quick notes
+ * land in the active project's inbox, goals count toward a project, archived items
+ * belong to a project), matching the NOT NULL project_id convention in migrations
+ * 1-3. No FOREIGN KEY constraint, also mirroring migrations 1-3.
+ *
+ * state_base64 on archive is TEXT, never BLOB — tauri-plugin-sql does not
+ * reliably round-trip binary columns (project gotcha).
+ */
+async function migration_004_feature_tables(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS quick_notes (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      filed INTEGER NOT NULL DEFAULT 0
+    )`
+  );
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS goals (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      goal_type TEXT NOT NULL,
+      target INTEGER NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    )`
+  );
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS archive (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      original_id TEXT,
+      title TEXT NOT NULL,
+      sub TEXT,
+      state_base64 TEXT,
+      archived_at INTEGER NOT NULL
+    )`
+  );
+}
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 /**
@@ -218,6 +266,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 1, name: "baseline-schema", up: migration_001_baseline },
   { version: 2, name: "plaintext-projection-formal", up: migration_002_plaintext_projection },
   { version: 3, name: "scene-links-unique", up: migration_003_scene_links_unique },
+  { version: 4, name: "feature-tables", up: migration_004_feature_tables },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
