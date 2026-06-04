@@ -124,31 +124,6 @@ function ExportSheet({ scope, format, onFormatChange, busy, errorMsg, onClose, o
 }
 
 // ---------------------------------------------------------------------------
-// Stub alias kept for App.overlays.tsx until the lead wires ExportOverlay
-// ---------------------------------------------------------------------------
-
-export function Export({ onClose }: { onClose: () => void }): ReactElement {
-  return (
-    <div className="scrim" onClick={onClose}>
-      <div className="sheet" style={{ width: 420 }} onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head">
-          <div className="sheet-title">Export</div>
-          <button className="iconbtn sheet-x" type="button" aria-label="Close" onClick={onClose}>✕</button>
-        </div>
-        <div className="sheet-body">
-          <span style={{ fontSize: 14, color: "var(--ink-2)" }}>Export is available via the scene and chapter menus.</span>
-        </div>
-        <div className="sheet-foot">
-          <div style={{ marginLeft: "auto" }}>
-            <button className="btn btn-ghost" type="button" onClick={onClose}>Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // ExportOverlay (public export)
 // ---------------------------------------------------------------------------
 

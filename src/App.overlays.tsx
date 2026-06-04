@@ -6,9 +6,12 @@
  */
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 
+import type { BinderTree } from "./binder/buildTree";
 import type { BinderStore } from "./db/binderStore";
+import type { SceneDocStore } from "./db/sceneDocStore";
 import { Archive } from "./features/archive/Archive";
-import { Export } from "./features/export/Export";
+import { ExportOverlay } from "./features/export/Export";
+import type { ExportScope } from "./features/export/types";
 import type { GoalsInitialScope } from "./features/goals/Goals";
 import { Goals } from "./features/goals/Goals";
 import { Inbox } from "./features/inbox/Inbox";
@@ -30,6 +33,15 @@ export interface OverlayStackProps {
   setGoalsInitialScope: (s: GoalsInitialScope | undefined) => void;
   showExport: boolean;
   setShowExport: (v: boolean) => void;
+  /** Scope and target for the ExportOverlay — set by each trigger before opening. */
+  exportScope: ExportScope;
+  exportTargetId: string;
+  /** Updates the export scope + target before setShowExport(true). */
+  setExportTarget: (scope: ExportScope, targetId: string) => void;
+  /** Scene-doc store forwarded to ExportOverlay (needed to read Yjs docs). */
+  exportSceneDocStore: SceneDocStore;
+  /** Binder tree forwarded to ExportOverlay (needed to resolve scope → scenes). */
+  exportTree: BinderTree;
   showSettings: boolean;
   setShowSettings: (v: boolean) => void;
   setTheme: (t: Theme) => void;
@@ -68,7 +80,11 @@ export function OverlayStack(p: OverlayStackAllProps): ReactElement {
         <Goals onClose={closeGoals} goalsOn={p.goalsOn} setGoalsOn={p.setGoalsOn}
           activeProjectId={p.activeProjectId} initialScope={p.goalsInitialScope} />
       )}
-      {p.showExport && <Export onClose={() => p.setShowExport(false)} />}
+      {p.showExport && p.activeProjectId && (
+        <ExportOverlay projectId={p.activeProjectId} scope={p.exportScope}
+          targetId={p.exportTargetId} sceneDocStore={p.exportSceneDocStore}
+          tree={p.exportTree} onClose={() => p.setShowExport(false)} />
+      )}
       {p.showSettings && (
         <Settings onClose={() => p.setShowSettings(false)} setTheme={p.setTheme} setAccent={p.setAccent}
           onOpenGoals={() => { p.setShowSettings(false); p.setShowGoals(true); }} />

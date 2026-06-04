@@ -58,6 +58,7 @@ interface SceneMenuArgs {
   onAfterDelete?: () => void;
   onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
   onArchiveScene?: (sceneId: string) => void;
+  onExport?: (scope: "scene", targetId: string) => void;
 }
 
 function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
@@ -80,7 +81,9 @@ function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
             .catch((err: unknown) => { console.error("[corkboard] setSceneStatus failed", err); });
         },
         onDuplicate: () => setToast({ label: "Duplicate — coming in a later wave" }),
-        onExport: () => setToast({ label: "Export — coming in a later wave" }),
+        onExport: a.onExport
+          ? () => { setMenu(null); a.onExport!("scene", scene.id); }
+          : () => setToast({ label: "Export — coming in a later wave" }),
         onArchive: a.onArchiveScene
           ? () => { setMenu(null); a.onArchiveScene!(scene.id); }
           : () => setToast({ label: "Archive — coming in a later wave" }),
@@ -248,6 +251,8 @@ interface CorkboardProps {
   onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
   /** Archives a scene via the real store; when absent falls back to the "coming later" toast. */
   onArchiveScene?: (sceneId: string) => void;
+  /** Opens the Export overlay pre-scoped to a scene. Optional — falls back to toast. */
+  onExport?: (scope: "scene", targetId: string) => void;
 }
 
 export function Corkboard({
@@ -259,11 +264,12 @@ export function Corkboard({
   dragCallbacks,
   onAddGoal,
   onArchiveScene,
+  onExport,
 }: CorkboardProps) {
   const { overrides, statusOf, cycleStatus, setOverride } = useCorkStatus(setSceneStatus, reloadTree);
   const { localTree, reload } = useLocalTree(tree);
   const { menu, toast, renamingSceneId, setMenu, setToast, setRenamingSceneId, handleContextMenu } =
-    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree, onAddGoal, onArchiveScene });
+    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree, onAddGoal, onArchiveScene, onExport });
   const shared: SharedGroupProps = {
     onSelectScene, onViewChange, onCycleStatus: cycleStatus, onContextMenu: handleContextMenu,
     onReload: reload, renamingSceneId, onRenameEnd: () => setRenamingSceneId(null),

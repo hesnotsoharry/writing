@@ -36,6 +36,11 @@ export interface BinderCallbacks {
    * Optional — omitting it disables the "Add goal…" item in context menus.
    */
   onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
+  /**
+   * Opens the Export overlay pre-scoped to a scene or chapter.
+   * Optional — omitting it falls back to the "coming in a later wave" toast.
+   */
+  onExport?: (scope: "scene" | "chapter", targetId: string) => void;
 }
 
 // ── InlineRename ──────────────────────────────────────────────────────────
@@ -136,7 +141,9 @@ function useSceneMenu(
         currentStatus: normalizeStatus(scene.status),
         onSetStatus: (s) => callbacks.onSetSceneStatus(scene.id, s),
         onDuplicate: () => showToast("Duplicate — coming in a later wave"),
-        onExport: () => showToast("Export — coming in a later wave"),
+        onExport: callbacks.onExport
+          ? () => callbacks.onExport!("scene", scene.id)
+          : () => showToast("Export — coming in a later wave"),
         onArchive: () => callbacks.onArchiveScene(scene.id),
         onDelete: () => confirmDeleteScene(scene, callbacks.onDeleteScene),
         onAddGoal: callbacks.onAddGoal
@@ -196,7 +203,9 @@ function useChapterMenu(
       items: buildChapterMenu({
         onRename,
         onNewScene: () => callbacks.onCreateScene(folder.id),
-        onExport: () => showToast("Export — coming in a later wave"),
+        onExport: callbacks.onExport
+          ? () => callbacks.onExport!("chapter", folder.id)
+          : () => showToast("Export — coming in a later wave"),
         onArchive: () => callbacks.onArchiveChapter(folder.id),
         onDelete: () => confirmDeleteChapter(folder, callbacks.onDeleteChapter),
         onAddGoal: callbacks.onAddGoal

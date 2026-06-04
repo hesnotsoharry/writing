@@ -184,15 +184,11 @@ export default function App() {
     view, setView, linksVersion, archivedVersion, bumpArchivedVersion,
     showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
     showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
-    showExport, setShowExport, showSettings, setShowSettings,
+    showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems } = state;
-
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
-  function onArchiveChanged() {
-    bumpArchivedVersion();
-    wiring.reloadTree();
-  }
+  const onArchiveChanged = () => { bumpArchivedVersion(); wiring.reloadTree(); };
   return (
     <AppContent
       tree={tree} selectedSceneId={selectedSceneId} doc={doc}
@@ -207,9 +203,11 @@ export default function App() {
         showArchive, setShowArchive, showGoals, setShowGoals,
         goalsInitialScope, setGoalsInitialScope,
         showExport, setShowExport,
+        exportScope: exportTarget.scope, exportTargetId: exportTarget.targetId,
+        setExportTarget: (scope, targetId) => setExportTarget({ scope, targetId }),
+        exportSceneDocStore: sceneDocStore, exportTree: tree,
         showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, setGoalsOn,
-        hasQuickItems, setHasQuickItems, setTheme, setAccent,
-        binderStore, onArchiveChanged }}
+        hasQuickItems, setHasQuickItems, setTheme, setAccent, binderStore, onArchiveChanged }}
     />
   );
 }

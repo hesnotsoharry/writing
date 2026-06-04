@@ -150,10 +150,11 @@ function buildSideSlots(p: {
   linksVersion: number; liveWordCount: number;
   chapterId: string | null; chapterTotal: number | null;
   onAddGoal: (s: "scene" | "chapter", id: string) => void;
+  onExport: (s: "scene" | "chapter", id: string) => void;
   showSidePanels: boolean; view: AppView;
 }) {
   const { setShowArchive } = p.overlays;
-  const callbacksWithGoal = { ...p.callbacks, onAddGoal: p.onAddGoal };
+  const callbacksWithGoal = { ...p.callbacks, onAddGoal: p.onAddGoal, onExport: p.onExport };
   const binderSlot = p.showSidePanels
     ? <Binder tree={p.tree} selectedSceneId={p.selectedSceneId} onSelectScene={p.onSelectScene}
         callbacks={callbacksWithGoal} projects={p.projects} activeProjectId={p.activeProjectId}
@@ -178,7 +179,7 @@ function useAppContentSlots(props: AppContentProps) {
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals,
-    setShowQuickCapture, setShowSettings, setShowExport } = overlays;
+    setShowQuickCapture, setShowSettings, setShowExport, setExportTarget } = overlays;
   useGlobalKeybindings(overlays);
   useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle();
@@ -191,30 +192,32 @@ function useAppContentSlots(props: AppContentProps) {
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);
   const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
-  const onAddGoal = (scope: "scene" | "chapter", targetId: string) => {
-    overlays.setGoalsInitialScope({ scope, targetId });
-    setShowGoals(true);
+  const onAddGoal = (scope: "scene" | "chapter", id: string) => {
+    overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true);
+  };
+  const onExport = (scope: "scene" | "chapter", id: string) => {
+    setExportTarget(scope, id); setShowExport(true);
   };
   const showSidePanels = !focusMode && view !== "cork" && view !== "bible";
   const { binderSlot, inspectorSlot } = buildSideSlots({
     tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
-    chapterId, chapterTotal, onAddGoal, showSidePanels, view,
+    chapterId, chapterTotal, onAddGoal, onExport, showSidePanels, view,
   });
   const { reloadTree } = props;
   const viewStageContent = buildViewStage(view, doc, activeProjectId,
     { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId,
-      linksVersion, reloadTree, dragCallbacks, onAddGoal, onArchiveScene: callbacks.onArchiveScene });
+      linksVersion, reloadTree, dragCallbacks, onAddGoal, onArchiveScene: callbacks.onArchiveScene, onExport });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
-    setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
-    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn };
+    setShowSettings, setShowExport, setExportTarget, onExport, liveWordCount, manuscriptTotal,
+    goalProgress, docName, binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn };
 }
 
 export function AppContent(props: AppContentProps) {
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
-    setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
-    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn } = useAppContentSlots(props);
+    setShowSettings, setShowExport, setExportTarget, liveWordCount, manuscriptTotal, goalProgress,
+    docName, binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn } = useAppContentSlots(props);
   const { view, onViewChange } = props;
   return (
     <>
@@ -223,7 +226,10 @@ export function AppContent(props: AppContentProps) {
           goalsOn={goalsOn} hasQuickItems={hasQuickItems}
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}
           onEnterFocus={() => setFocusMode(true)} onOpenSettings={() => setShowSettings(true)}
-          onOpenExport={() => setShowExport(true)} />}
+          onOpenExport={() => {
+            setExportTarget("manuscript", activeProjectId ?? "");
+            setShowExport(true);
+          }} />}
         binder={binderSlot}
         viewStage={<>{focusMode && <FocusExitButton onExit={() => setFocusMode(false)} />}{viewStageContent}</>}
         inspector={inspectorSlot}
@@ -253,6 +259,8 @@ interface ViewStageCtx {
   onAddGoal: (scope: "scene" | "chapter", targetId: string) => void;
   /** Archives a scene; passed to Corkboard so its context-menu archive is real, not a toast. */
   onArchiveScene: (sceneId: string) => void;
+  /** Opens Export overlay pre-scoped to a scene; passed to Corkboard. */
+  onExport: (scope: "scene", targetId: string) => void;
 }
 
 function buildViewStage(
@@ -268,6 +276,7 @@ function buildViewStage(
         dragCallbacks={ctx.dragCallbacks}
         onAddGoal={ctx.onAddGoal}
         onArchiveScene={ctx.onArchiveScene}
+        onExport={ctx.onExport}
       />
     );
   }
