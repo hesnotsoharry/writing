@@ -53,7 +53,7 @@ export function OverlayStack({ // wave-13: added activeProjectId param
           setHasQuickItems={setHasQuickItems}
         />
       )}
-      {showInbox && <Inbox onClose={() => setShowInbox(false)} />}
+      {showInbox && <Inbox onClose={() => setShowInbox(false)} activeProjectId={activeProjectId} setHasQuickItems={setHasQuickItems} />} {/* wave-13: */}
       {showArchive && <Archive onClose={() => setShowArchive(false)} />}
       {showGoals && <Goals onClose={() => setShowGoals(false)} />}
       {showExport && <Export onClose={() => setShowExport(false)} />}

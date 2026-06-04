@@ -138,10 +138,15 @@ hangs at "Loading…"), so if you only ran vitest, say so explicitly rather than
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
-| 2 | — | — | — | — |
-| 3 | — | — | — | — |
-| 4 | — | — | — | — |
+| 1 | ✓ | ✓ | 83aa3e0 | Internal — vitest oracle 12/12 (CRUD + encoder + promote) |
+| 2 | ✓ | ✓ | 51f40a3 | ⏳ live-pending — gates green (tsc/lint, 13 tests); ⌘K popover + badge need `npm run tauri dev` |
+| 3 | ✓ | ✓ | (this commit) | ⏳ live-pending — gates green (tsc/lint, 9 tests); inbox list/edit/delete/promote need `npm run tauri dev` |
+| 4 | — | folded into Phase 3 | — | Promote built with Phase 3 (helper from Phase 1); no separate commit |
+
+> **Live-observation note:** All automated gates are green (full suite 203/203, tsc + lint clean). The
+> runtime observation points for Phases 2–3 (popover renders, badge lights, inbox CRUD) were NOT
+> directly observed — this app requires the Tauri runtime (`npm run tauri dev`); a plain browser hangs
+> at "Loading…". Lead should fold this lane's surface into the batch's integrated live smoke.
 
 ## Follow-up candidates
 
