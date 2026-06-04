@@ -131,7 +131,22 @@ the unit boundary is necessary but not sufficient — every human-only behavior 
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
+| 1 | yes | yes | dea695a | Internal-verified (12 vitest cases: manuscript fmt, goal on/off, fill width, neg-pct clamp, clock cleanup). Rendered UI needs post-merge `npm run tauri dev` — agent cannot see the Tauri surface. |
+| 2 | yes | yes | 11e3083 | Internal-verified (Reveal acceptance oracle + full suite 394/394; T2/T3/T4 confirmed by review). Reveal opening Explorer + Goals/Configure flow need post-merge human eyes. |
 
 ## Follow-up candidates
 
 ## Result
+
+**Status: COMPLETE on branch `wave-21-settings-goals-status` (2 commits atop `e304e83`); awaiting lead merge.**
+
+Delivered:
+- **StatusBar** renders live data: manuscript total (left), goal section on the right when `goalsOn && goal` (target icon + `words / target today` + `.goal-fill` bar at `goal.pct%`, clamped 0–100), and a live local clock. Backup label is cosmetic (real off-machine backup is Phase 2) — no fabricated relative timestamp, per the file's data-honesty principle (Decision 2).
+- **Settings → Backup "Reveal"** resolves `appConfigDir()` (where `tauri-plugin-sql` v2 places `writing.db`, AppConfig base dir, ctx7-confirmed) and opens it via `openPath()`; the path display shows the resolved dir with a jsdom/non-Tauri fallback. Reveal reuses the mount-resolved dir (on-demand resolve only if not yet landed).
+- **Verified-as-is** (no code change): Configure… threads `onOpenGoals`; Goals modal matches canon (toggle/grid/target/Done, superset of the prototype); EditorSection writes the exact keys `useEditorStyle` reads — so font/size/spacing/width changes apply.
+
+Gates: tsc clean · lint clean · full suite **394/394**. Reviewer (attack-diff, single): Phase 1 PASS (one test-coverage FLAG addressed); Phase 2 PASS (three FLAGs — markup class, Reveal double-call, oracle robustness — all addressed).
+
+Scope held: edits confined to `src/shell/StatusBar.tsx`, `src/features/settings/*`, `src/test/*`. No `src/App.*`, `src/db/*`, or `src/styles/*` changes. No migrations.
+
+⚠ **Needs Cole's eyes post-merge** (no UI smoke was possible): status-bar goal rendering + live clock, Reveal actually opening Explorer at the right folder + the displayed path being correct, the Configure→Goals overlay flow, the Goals modal layout, and that a font/size/spacing/width change visibly applies. Also a product call: the cosmetic "Backed up" label (no real backup yet) — keep optimistic or make honest.
