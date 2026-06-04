@@ -201,6 +201,37 @@
 .entity-card:hover .fe-unlink { opacity: 1; }
 .fe-unlink:hover { background: rgba(168, 68, 47, 0.12); color: var(--danger); }
 
+/* ---- Relationship link picker (popover in the rail) ---------------------- */
+.fe-picker {
+  margin-top: 8px; background: var(--paper);
+  border: 1px solid var(--parchment-edge); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md); padding: 6px;
+  animation: cm-in 110ms var(--ease-out);
+}
+.fe-picker-search {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 5px;
+  padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  font-size: var(--text-xs); color: var(--ink-4);
+}
+.fe-picker-search .ic { width: 13px; height: 13px; color: var(--ink-3); }
+.fe-picker-input {
+  flex: 1; min-width: 0; border: none; background: transparent; outline: none;
+  font: inherit; font-size: var(--text-xs); color: var(--ink);
+}
+.fe-picker-input::placeholder { color: var(--ink-4); }
+.fe-pick {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  padding: 6px 8px; border-radius: var(--r-sm); transition: background var(--dur-fast);
+}
+.fe-pick:hover { background: var(--parchment-deep); }
+.fe-pick .avatar { width: 26px; height: 26px; font-size: var(--text-xs); }
+.fe-pick .nm {
+  flex: 1; min-width: 0; font-size: var(--text-sm); font-weight: var(--w-medium);
+  color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fe-pick .plus { color: var(--ink-3); flex: none; }
+.fe-pick:hover .plus { color: var(--accent-deep); }
+
 /* ---- Add-field affordance ------------------------------------------------ */
 .fe-add {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 7px;

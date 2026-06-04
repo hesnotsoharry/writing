@@ -27,6 +27,7 @@ import {
   FeHeroAvatar,
   FeProseSection,
 } from "./FeSubcomponents";
+import { PeopleGroup } from "./PeopleGroup";
 
 // ── Prop contract ─────────────────────────────────────────────────────────────
 
@@ -48,6 +49,8 @@ export interface FullEntryProps {
   onRename?: (kind: string, id: string, newName: string) => void;
   onDelete?: (kind: string, id: string) => void;
   onOpenScene?: (sceneId: string) => void;
+  /** Push another entity onto the nav stack (drill from a relationship card or add-new). Lead wires this to its pushEntry action; the Bible/Write "open fresh entry" path is lead-side. */
+  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
 }
 
 // ── useEntityDetail ───────────────────────────────────────────────────────────
@@ -182,9 +185,13 @@ interface FeRailProps {
   refresh: () => void;
   onCommitField: (kind: FieldKind, key: string, value: string) => void;
   onOpenScene?: (sceneId: string) => void;
+  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
 }
 
-function FeRail({ entity, entityType, store, folders, scenes, fields, sceneIds, refresh, onCommitField, onOpenScene }: FeRailProps) {
+function FeRail({
+  entity, entityType, store, folders, scenes, fields,
+  sceneIds, refresh, onCommitField, onOpenScene, onPushEntry,
+}: FeRailProps) {
   const mergedFacts = mergeFacts(entityType, fields);
   const appearsIn = buildAppearsIn(sceneIds, folders, scenes);
   return (
@@ -194,7 +201,14 @@ function FeRail({ entity, entityType, store, folders, scenes, fields, sceneIds, 
         onCommitFact={(label, v) => { void onCommitField("fact", label, v); }}
       />
       <FeAppearsIn rows={appearsIn} onOpen={onOpenScene} />
-      {/* Phase 4 TODO: PeopleGroup (Relationships / Characters here) mount point. */}
+      <PeopleGroup
+        key={entity.id}
+        entityId={entity.id}
+        projectId={entity.projectId}
+        entityType={entityType}
+        store={store}
+        onPushEntry={onPushEntry}
+      />
     </div>
   );
 }
@@ -236,7 +250,7 @@ function FeDoc({ entity, entityType, kind, renaming, setRenaming, fields, store,
 export function FullEntry({
   entity, kind, origin, store,
   folders = [], scenes = [],
-  onBack, onExit, onRename, onDelete, onOpenScene,
+  onBack, onExit, onRename, onDelete, onOpenScene, onPushEntry,
 }: FullEntryProps) {
   const [renaming, setRenaming] = useState(false);
   const { fields, sceneIds, refresh } = useEntityDetail(store, entity?.id);
@@ -261,7 +275,8 @@ export function FullEntry({
         <FeRail entity={entity} entityType={entityType} store={store}
           folders={folders} scenes={scenes} fields={fields}
           sceneIds={sceneIds} refresh={refresh}
-          onCommitField={onCommitField} onOpenScene={onOpenScene} />
+          onCommitField={onCommitField} onOpenScene={onOpenScene}
+          onPushEntry={onPushEntry} />
       </div>
     </div>
   );
