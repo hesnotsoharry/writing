@@ -130,7 +130,7 @@ function useAppContentSlots(props: AppContentProps) {
   useEditorStyle(); // wave-17: --font-prose/--prose-size/--prose-leading/--prose-measure
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
-  const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", currentTotal: manuscriptTotal });
+  const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", scope: "manuscript", targetId: null, currentScopeTotal: manuscriptTotal });
   const quickCount = useQuickCount(activeProjectId);
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);

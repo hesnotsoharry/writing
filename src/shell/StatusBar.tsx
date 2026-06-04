@@ -37,8 +37,9 @@ function clockNow(): string {
 
 /**
  * Bottom status bar. DATA HONESTY: only genuinely derivable values are shown.
- * The clock is a real local time. "Backed up" is cosmetic — real off-machine
- * backup is deferred to Phase 2. No fabricated relative timestamps.
+ * The clock is a real local time. The save state shows "Local only" — real
+ * off-machine backup is not yet implemented (Decision 4, Wave 25). No
+ * fabricated relative timestamps.
  */
 export function StatusBar(props: StatusBarProps): ReactElement {
   const { sceneWordCount, goalsOn = false, manuscriptTotal, goal } = props;
@@ -49,6 +50,11 @@ export function StatusBar(props: StatusBarProps): ReactElement {
     const id = setInterval(() => setClock(clockNow()), 30000);
     return () => clearInterval(id);
   }, []);
+
+  // Convert 0–1 fraction to a clean integer percentage string ("70%", not "69.999…%").
+  function formatPct(pct: number): string {
+    return Math.round(Math.min(1, Math.max(0, pct)) * 100) + "%";
+  }
 
   return (
     <div className="statusbar">
@@ -66,10 +72,10 @@ export function StatusBar(props: StatusBarProps): ReactElement {
             <Icon name="target" className="ic" style={{ width: 13, height: 13, color: "var(--accent)" }} />
             <span style={{ color: "var(--ink-2)", fontWeight: 600 }}>{goal.words.toLocaleString()}</span>
             <span style={{ color: "var(--ink-4)" }}>/ {goal.target.toLocaleString()} today</span>
-            <div className="goal-track"><div className="goal-fill" style={{ width: Math.min(100, Math.max(0, goal.pct)) + "%" }}></div></div>
+            <div className="goal-track"><div className="goal-fill" style={{ width: formatPct(goal.pct) }}></div></div>
           </div>
         )}
-        <div className="sb"><Icon name="cloud" className="ic" style={{ color: "var(--good)" }} /> Backed up · {clock}</div>
+        <div className="sb"><Icon name="fileText" className="ic" style={{ color: "var(--ink-4)" }} /> Local only · {clock}</div>
       </div>
     </div>
   );

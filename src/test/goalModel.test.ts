@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { dailyWords, goalStreak, recordGoalMet } from "../features/goals/goalModel";
+import {
+  dailyWords,
+  dailyWordsScoped,
+  goalStreak,
+  goalStreakScoped,
+  recordGoalMet,
+  recordGoalMetScoped,
+  type ScopedGoalKey,
+} from "../features/goals/goalModel";
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -13,12 +21,26 @@ function dateKey(daysAgo: number): string {
   return new Date(ms).toLocaleDateString("sv");
 }
 
+// Canonical scoped key for manuscript scope.
+function msKey(projectId: string): ScopedGoalKey {
+  return { projectId, scope: "manuscript", targetId: null };
+}
+
+// Canonical localStorage key format: writing.goal.baseline.<projectId>.<scope>.<targetId|_>.<date>
+function baselineStorageKey(key: ScopedGoalKey, date: string): string {
+  return `writing.goal.baseline.${key.projectId}.${key.scope}.${key.targetId ?? "_"}.${date}`;
+}
+
+function metStorageKey(key: ScopedGoalKey, date: string): string {
+  return `writing.goal.met.${key.projectId}.${key.scope}.${key.targetId ?? "_"}.${date}`;
+}
+
 afterEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
 });
 
-// ── dailyWords ────────────────────────────────────────────────────────────────
+// ── dailyWords (legacy shim — maps to manuscript scope) ───────────────────────
 
 describe("dailyWords", () => {
   it("returns 0 on the first call of the day (baseline set to current total)", () => {
@@ -26,10 +48,10 @@ describe("dailyWords", () => {
     expect(words).toBe(0);
   });
 
-  it("sets baseline in localStorage on first call", () => {
+  it("sets baseline in localStorage using scoped key on first call", () => {
     dailyWords(PROJECT, 1000);
     const today = dateKey(0);
-    const raw = localStorage.getItem(`writing.goal.baseline.${PROJECT}.${today}`);
+    const raw = localStorage.getItem(baselineStorageKey(msKey(PROJECT), today));
     expect(raw).toBe("1000");
   });
 
@@ -61,9 +83,9 @@ describe("dailyWords", () => {
   });
 
   it("a new day resets the baseline (different date key)", () => {
-    // Simulate yesterday's baseline
+    // Simulate yesterday's baseline under the new scoped key format.
     const yesterday = dateKey(1);
-    localStorage.setItem(`writing.goal.baseline.${PROJECT}.${yesterday}`, "900");
+    localStorage.setItem(baselineStorageKey(msKey(PROJECT), yesterday), "900");
 
     // Today: first call sets today's baseline at current total
     dailyWords(PROJECT, 1000); // sets today's baseline = 1000
@@ -73,15 +95,66 @@ describe("dailyWords", () => {
 
   it("baseline key uses local calendar date (not UTC) — format YYYY-MM-DD", () => {
     dailyWords(PROJECT, 500);
-    // The local date matches toLocaleDateString('sv') — must match the key written.
     const localDate = new Date().toLocaleDateString("sv");
     expect(localDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    const raw = localStorage.getItem(`writing.goal.baseline.${PROJECT}.${localDate}`);
+    const raw = localStorage.getItem(baselineStorageKey(msKey(PROJECT), localDate));
     expect(raw).toBe("500");
   });
 });
 
-// ── recordGoalMet + goalStreak ─────────────────────────────────────────────────
+// ── dailyWordsScoped — scope keying ──────────────────────────────────────────
+
+describe("dailyWordsScoped — scope dimension", () => {
+  it("manuscript scope and scene scope are keyed independently for the same project", () => {
+    const msGoalKey: ScopedGoalKey = { projectId: PROJECT, scope: "manuscript", targetId: null };
+    const sceneGoalKey: ScopedGoalKey = { projectId: PROJECT, scope: "scene", targetId: "scene-1" };
+
+    // Seed both with different baselines
+    dailyWordsScoped(msGoalKey, 1000); // ms baseline = 1000
+    dailyWordsScoped(sceneGoalKey, 200); // scene baseline = 200
+
+    const msWords = dailyWordsScoped(msGoalKey, 1100); // ms delta = 100
+    const sceneWords = dailyWordsScoped(sceneGoalKey, 250); // scene delta = 50
+
+    expect(msWords).toBe(100);
+    expect(sceneWords).toBe(50);
+  });
+
+  it("chapter scope with folderId is keyed independently from another chapter", () => {
+    const ch1: ScopedGoalKey = { projectId: PROJECT, scope: "chapter", targetId: "ch-1" };
+    const ch2: ScopedGoalKey = { projectId: PROJECT, scope: "chapter", targetId: "ch-2" };
+
+    dailyWordsScoped(ch1, 300);
+    dailyWordsScoped(ch2, 500);
+
+    expect(dailyWordsScoped(ch1, 350)).toBe(50);
+    expect(dailyWordsScoped(ch2, 600)).toBe(100);
+  });
+
+  it("baseline key for scene scope encodes targetId correctly", () => {
+    const key: ScopedGoalKey = { projectId: "p1", scope: "scene", targetId: "s-abc" };
+    dailyWordsScoped(key, 42);
+    const today = dateKey(0);
+    const raw = localStorage.getItem(baselineStorageKey(key, today));
+    expect(raw).toBe("42");
+  });
+
+  it("baseline key for manuscript scope encodes targetId as '_'", () => {
+    const key: ScopedGoalKey = { projectId: "p1", scope: "manuscript", targetId: null };
+    dailyWordsScoped(key, 99);
+    const today = dateKey(0);
+    const raw = localStorage.getItem(baselineStorageKey(key, today));
+    expect(raw).toBe("99");
+  });
+
+  it("returns 0 (clamped) when scope total drops below baseline", () => {
+    const key: ScopedGoalKey = { projectId: PROJECT, scope: "scene", targetId: "s-1" };
+    dailyWordsScoped(key, 500);
+    expect(dailyWordsScoped(key, 400)).toBe(0);
+  });
+});
+
+// ── recordGoalMet + goalStreak (legacy shim) ──────────────────────────────────
 
 describe("goalStreak", () => {
   it("returns 0 when no days are marked met", () => {
@@ -95,14 +168,14 @@ describe("goalStreak", () => {
 
   it("returns 2 when today and yesterday are marked met", () => {
     const yesterday = dateKey(1);
-    localStorage.setItem(`writing.goal.met.${PROJECT}.${yesterday}`, "1");
+    localStorage.setItem(metStorageKey(msKey(PROJECT), yesterday), "1");
     recordGoalMet(PROJECT);
     expect(goalStreak(PROJECT)).toBe(2);
   });
 
   it("breaks the streak on a gap day — today met, 2 days ago met, yesterday NOT", () => {
     const twoDaysAgo = dateKey(2);
-    localStorage.setItem(`writing.goal.met.${PROJECT}.${twoDaysAgo}`, "1");
+    localStorage.setItem(metStorageKey(msKey(PROJECT), twoDaysAgo), "1");
     recordGoalMet(PROJECT);
     // streak should be 1 (only today), because yesterday breaks the chain
     expect(goalStreak(PROJECT)).toBe(1);
@@ -112,5 +185,27 @@ describe("goalStreak", () => {
     recordGoalMet(PROJECT);
     recordGoalMet(PROJECT);
     expect(goalStreak(PROJECT)).toBe(1);
+  });
+});
+
+// ── goalStreakScoped — scope keying ───────────────────────────────────────────
+
+describe("goalStreakScoped — scope dimension", () => {
+  it("streak for scene scope is independent from manuscript scope", () => {
+    const msGoalKey: ScopedGoalKey = { projectId: PROJECT, scope: "manuscript", targetId: null };
+    const sceneGoalKey: ScopedGoalKey = { projectId: PROJECT, scope: "scene", targetId: "s-2" };
+
+    recordGoalMetScoped(msGoalKey);
+    // scene scope has NOT been marked met
+    expect(goalStreakScoped(msGoalKey)).toBe(1);
+    expect(goalStreakScoped(sceneGoalKey)).toBe(0);
+  });
+
+  it("returns 2 when two consecutive days met for a scene scope", () => {
+    const key: ScopedGoalKey = { projectId: PROJECT, scope: "scene", targetId: "s-3" };
+    const yesterday = dateKey(1);
+    localStorage.setItem(metStorageKey(key, yesterday), "1");
+    recordGoalMetScoped(key);
+    expect(goalStreakScoped(key)).toBe(2);
   });
 });

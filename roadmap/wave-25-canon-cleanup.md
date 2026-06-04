@@ -172,6 +172,8 @@ Enforcement: none (convention) — product decision, Cole 2026-06-04.
 
 | 5 Corkboard | 2026-06-04 | 2026-06-04 | (this commit) | gates green (523 tests). Status-sync fixed: dot-click + context-menu status writes now call reloadTree so the binder updates immediately. Full-screen confirmed from P1 (cork view hides both panels — no code change). DnD reorder added (CorkGroupDnd per group, @dnd-kit, persists via existing onMoveScene + post-write doReload). Panel review (auto-escalated, blastRadius 52) FLAGs fixed pre-commit: removed double-reload race (single post-write reload via App.handlers doReload), delete path now calls reloadTree (onAfterDelete), + DnD persistence test. Minor: onAfterDrop is now dead interface surface (left to avoid broader caller change). |
 
+| 6a Goals model + status-bar | 2026-06-04 | 2026-06-04 | (this commit) | gates green. Goal model + storage made scope-aware (manuscript/chapter/scene + targetId; daily semantics preserved; manuscript back-compat). useDailyGoalProgress new signature {projectId,scope,targetId,currentScopeTotal}; existing call sites updated to manuscript scope. StatusBar: fixed float-artifact pct (clean integer %) + latent 0-100-vs-0-1 bug (70% bar was rendering as 0.7%) + honest "Local only" backup label (Decision 4). Review FLAGs adjudicated: old daily-baseline key abandoned (self-heals at day boundary, single-user, no migration); encodeTargetId "_" collision theoretical (IDs never literal "_"). Placeholder TODO(wave-6) is a pre-existing forward-pointer — 6b removes it. |
+
 ## Follow-up candidates
 
 <!-- DEFAULT: empty. Tier-3 triple-gate only. -->

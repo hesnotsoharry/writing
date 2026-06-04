@@ -28,9 +28,10 @@ describe("StatusBar", () => {
   });
 
   it("renders goal-mini with word counts when goalsOn=true and goal is provided", () => {
-    const goal = { words: 320, target: 500, pct: 64, streak: 3 };
+    // pct is a 0–1 fraction as returned by useDailyGoalProgress
+    const goal = { words: 320, target: 500, pct: 0.64, streak: 3 };
     const { container } = render(
-      <StatusBar {...baseProps} goalsOn={true} goal={goal} />
+      <StatusBar {...baseProps} goalsOn={true} goal={goal} />,
     );
     // goal-mini div should exist
     const goalMini = container.querySelector(".goal-mini");
@@ -41,29 +42,50 @@ describe("StatusBar", () => {
     expect(container.textContent).toContain("today");
   });
 
-  it("renders goal-fill with width matching goal.pct when goalsOn=true", () => {
-    const goal = { words: 320, target: 500, pct: 64, streak: 3 };
+  it("renders goal-fill with clean integer width for a 0–1 pct fraction", () => {
+    // pct=0.64 → fill width should be '64%', not '0.64%'
+    const goal = { words: 320, target: 500, pct: 0.64, streak: 3 };
     const { container } = render(
-      <StatusBar {...baseProps} goalsOn={true} goal={goal} />
+      <StatusBar {...baseProps} goalsOn={true} goal={goal} />,
     );
     const fill = container.querySelector(".goal-fill") as HTMLElement | null;
     expect(fill).toBeTruthy();
     expect(fill?.style.width).toBe("64%");
   });
 
-  it("clamps goal-fill width to 100% when pct exceeds 100", () => {
-    const goal = { words: 600, target: 500, pct: 120, streak: 5 };
+  it("renders goal-fill as 90% for pct=0.9 — no float artifact", () => {
+    // Regression guard: 0.9 must render '90%', never '89.999%' or '90.0000001%'
+    const goal = { words: 900, target: 1000, pct: 0.9, streak: 1 };
     const { container } = render(
-      <StatusBar {...baseProps} goalsOn={true} goal={goal} />
+      <StatusBar {...baseProps} goalsOn={true} goal={goal} />,
+    );
+    const fill = container.querySelector(".goal-fill") as HTMLElement | null;
+    expect(fill?.style.width).toBe("90%");
+  });
+
+  it("renders goal-fill as 70% for pct=0.7 — no float artifact", () => {
+    // 0.7 in floating-point binary can be represented as 0.6999999999…
+    const goal = { words: 700, target: 1000, pct: 0.7, streak: 1 };
+    const { container } = render(
+      <StatusBar {...baseProps} goalsOn={true} goal={goal} />,
+    );
+    const fill = container.querySelector(".goal-fill") as HTMLElement | null;
+    expect(fill?.style.width).toBe("70%");
+  });
+
+  it("clamps goal-fill width to 100% when pct exceeds 1.0", () => {
+    const goal = { words: 600, target: 500, pct: 1.2, streak: 5 };
+    const { container } = render(
+      <StatusBar {...baseProps} goalsOn={true} goal={goal} />,
     );
     const fill = container.querySelector(".goal-fill") as HTMLElement | null;
     expect(fill?.style.width).toBe("100%");
   });
 
   it("renders no goal-mini when goalsOn=false even when goal is provided", () => {
-    const goal = { words: 320, target: 500, pct: 64, streak: 3 };
+    const goal = { words: 320, target: 500, pct: 0.64, streak: 3 };
     const { container } = render(
-      <StatusBar {...baseProps} goalsOn={false} goal={goal} />
+      <StatusBar {...baseProps} goalsOn={false} goal={goal} />,
     );
     expect(container.querySelector(".goal-mini")).toBeNull();
   });
@@ -73,10 +95,11 @@ describe("StatusBar", () => {
     expect(container.querySelector(".goal-mini")).toBeNull();
   });
 
-  it("renders the Backed up label in the backup/clock area", () => {
+  it("renders 'Local only' in the backup/clock area — no 'Backed up' claim (Decision 4)", () => {
     render(<StatusBar {...baseProps} />);
-    // "Backed up" is cosmetic but must be present; exact clock time is not asserted
-    expect(screen.getByText(/Backed up/)).toBeTruthy();
+    // Honest: no off-machine backup yet — label must say 'Local only', not 'Backed up'
+    expect(screen.getByText(/Local only/)).toBeTruthy();
+    expect(screen.queryByText(/Backed up/)).toBeNull();
   });
 
   it("renders scene word count when sceneWordCount is non-null", () => {
@@ -102,9 +125,9 @@ describe("StatusBar", () => {
   });
 
   it("clamps goal-fill width to 0% when pct is negative", () => {
-    const goal = { words: 10, target: 500, pct: -5, streak: 0 };
+    const goal = { words: 10, target: 500, pct: -0.05, streak: 0 };
     const { container } = render(
-      <StatusBar sceneWordCount={null} goalsOn={true} goal={goal} />
+      <StatusBar sceneWordCount={null} goalsOn={true} goal={goal} />,
     );
     const fill = container.querySelector(".goal-fill") as HTMLElement | null;
     expect(fill).toBeTruthy();

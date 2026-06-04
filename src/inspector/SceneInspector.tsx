@@ -317,7 +317,12 @@ export function SceneInspector({ store, projectId, sceneId, scene, refreshKey, l
   const effectiveDep = (refreshKey ?? 0) + localRev;
   const { characters, locations, ready } = useSceneEntities(store, sceneId, effectiveDep);
   const currentTotal = useManuscriptTotal(projectId, sceneId, liveWordCount);
-  const { words, target, pct, on } = useDailyGoalProgress({ projectId, currentTotal });
+  const { words, target, pct, on } = useDailyGoalProgress({
+    projectId,
+    scope: "manuscript",
+    targetId: null,
+    currentScopeTotal: currentTotal,
+  });
   const bump = () => setLocalRev((r) => r + 1);
   return (
     <div className="panel-inspector">
