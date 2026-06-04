@@ -89,7 +89,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | Mocked smoke only — live `/api/health` round-trip NOT observable yet (no Supabase project provisioned). tsc 0 errors, vitest 2/2. Live observation deferred to provisioning. |
+| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | c61972f | Mocked smoke only — live `/api/health` round-trip NOT observable yet (no Supabase project provisioned). tsc 0 errors, vitest 2/2. Live observation deferred to provisioning. |
+| 2 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | Mocked contract only — webhook acceptance test 4/4 (valid→200+upsert, invalid/missing sig→401+no write, idempotent upsert on order_id). Panel review substituted by orchestrator direct code inspection (subagent return channel broken this session); HMAC/constant-time/raw-body paths read line-by-line. Live LS→Supabase round-trip deferred to provisioning. |
 
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
 
