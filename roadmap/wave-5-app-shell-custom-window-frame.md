@@ -124,3 +124,17 @@ The core window-frame decision is already locked upstream — see roadmap/decisi
 ## Result
 
 <!-- Filled at ship by wrap team. Includes: what the wave delivered, links to promoted artifacts, mechanical-review verdict, telemetry summary. -->
+
+### Mechanical review
+
+**Inputs:** Plan `roadmap/wave-5-app-shell-custom-window-frame.md` · Diff `37a9d6b..9d63def` · Graph healthy.
+
+## Mechanical review: PASS
+
+- Check 1 (forward-trace): PASS — `WindowControls`←TitleBar, `TitleBar`/`StatusBar`/`AppShell`←App.tsx; all 4 new components reach a production consumer.
+- Check 2 (plan universals): PASS — all 4 screens (Binder/EditorPane/SceneInspector/StoryBibleView) reparented into AppShell slots; all 4 `core:window:*` capabilities present.
+- Check 3 (export audit): PASS — no dead exports (components + their `*Props` interfaces all consumed).
+- Check 5 (boundary acceptance test): PASS — Phase 1 (Tauri window API, cross-boundary) oracle `windowControls.contract.test.tsx` authored at `c17de7a` (before impl `a3e9491`), unmodified by impl, run evidence in Status (4/4).
+- **Checks N/A: 4 + 6** — no electron-store schema removal (Tauri app, no config schema); no `stryker.config` in project.
+
+Prior wave-end adversarial review (attack-diff, wave granularity) returned FLAG; all flags adjudicated (fabricated save-state text removed in `9d63def`; threading-deferral + AC wording reconciled). Runtime visual fidelity pending the consolidated manual smoke.
