@@ -12,6 +12,7 @@ import type { SqliteStoryBibleStore } from "../db/sqliteStoryBibleStore";
 import { normalizeStatus, STATUS_META } from "../lib/status";
 import { EditorHeader } from "./EditorHeader";
 import ProofreadExtension from "./extensions/ProofreadExtension";
+import { FormatBubble } from "./FormatBubble";
 import { SpellCheckPopover, useSpellCheckPopover } from "./SpellCheckPopover";
 import { useLiveWordCount } from "./useLiveWordCount";
 import type { LeafContent } from "./usePageFlip";
@@ -107,6 +108,46 @@ function useEditorCore(
 }
 
 // ---------------------------------------------------------------------------
+// CanvasWrap — inner .canvas-wrap content (extracted to keep Editor ≤40 lines)
+// ---------------------------------------------------------------------------
+
+function CanvasWrap({
+  editor,
+  activeScene,
+  liveWords,
+  characters,
+  locations,
+  visible,
+  popoverProps,
+}: {
+  editor: ReturnType<typeof useEditor>;
+  activeScene: ReturnType<typeof findSceneWithChapter>;
+  liveWords: number;
+  characters: number;
+  locations: number;
+  visible: boolean;
+  popoverProps: ReturnType<typeof useSpellCheckPopover>["popoverProps"];
+}) {
+  return (
+    <div className="canvas-wrap">
+      {activeScene && (
+        <EditorHeader
+          chapterTitle={activeScene.chapterTitle}
+          title={activeScene.scene.title}
+          status={normalizeStatus(activeScene.scene.status)}
+          words={liveWords}
+          characters={characters}
+          locations={locations}
+        />
+      )}
+      <EditorContent editor={editor} />
+      {editor && <FormatBubble editor={editor} />}
+      {visible && <SpellCheckPopover {...popoverProps} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -132,20 +173,15 @@ export function Editor({
   const activeScene = findSceneWithChapter(tree, selectedSceneId);
   return (
     <div className="canvas-scroll">
-      <div className="canvas-wrap">
-        {activeScene && (
-          <EditorHeader
-            chapterTitle={activeScene.chapterTitle}
-            title={activeScene.scene.title}
-            status={normalizeStatus(activeScene.scene.status)}
-            words={liveWords}
-            characters={characters}
-            locations={locations}
-          />
-        )}
-        <EditorContent editor={editor} />
-        {visible && <SpellCheckPopover {...popoverProps} />}
-      </div>
+      <CanvasWrap
+        editor={editor}
+        activeScene={activeScene}
+        liveWords={liveWords}
+        characters={characters}
+        locations={locations}
+        visible={visible}
+        popoverProps={popoverProps}
+      />
       {flip && <PageFlipLeaf key={flip.key} flip={flip} onAnimationEnd={onAnimationEnd} />}
     </div>
   );
