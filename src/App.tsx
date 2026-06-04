@@ -106,13 +106,11 @@ async function initializeProjectTree(opts: InitProjectTreeOpts): Promise<void> {
 
 function EditorPane({ doc }: { doc: Y.Doc | null }) {
   return (
-    <main style={{ flex: 1, overflow: "auto" }}>
+    <main className="canvas-pane">
       {doc ? (
         <Editor doc={doc} />
       ) : (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#aaa", fontSize: 14, fontFamily: "sans-serif" }}>
-          Select a scene to start writing.
-        </div>
+        <div className="canvas-empty">Select a scene to start writing.</div>
       )}
     </main>
   );
