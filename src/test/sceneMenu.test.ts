@@ -2,9 +2,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { MenuItem, MenuItemAction } from "../components/menu/ContextMenu";
-import type { ChapterMenuCallbacks, SceneMenuCallbacks } from "../components/menu/sceneMenu";
+import type { ChapterMenuCallbacks, EntityMenuCallbacks, SceneMenuCallbacks } from "../components/menu/sceneMenu";
 import {
   buildChapterMenu,
+  buildEntityMenu,
   buildSceneMenu,
 } from "../components/menu/sceneMenu";
 
@@ -231,5 +232,83 @@ describe("buildChapterMenu", () => {
     expect(goal).toBeDefined();
     goal?.onClick?.();
     expect(onAddGoal).toHaveBeenCalledOnce();
+  });
+});
+
+// ── buildEntityMenu ───────────────────────────────────────────────────────────
+
+function makeEntityCb(overrides?: Partial<EntityMenuCallbacks>): EntityMenuCallbacks {
+  return {
+    kind: "Character",
+    onEditName:     vi.fn(),
+    onOpenFullEntry: vi.fn(),
+    onDelete:       vi.fn(),
+    ...overrides,
+  };
+}
+
+describe("buildEntityMenu", () => {
+  it("returns exactly 4 items (Edit name, Open full entry, sep, Delete Character)", () => {
+    const items = buildEntityMenu(makeEntityCb());
+    expect(items).toHaveLength(4);
+  });
+
+  it("items are in order: Edit name / Open full entry / sep / Delete <kind>", () => {
+    const items = buildEntityMenu(makeEntityCb({ kind: "Character" }));
+    const first  = items[0] as MenuItemAction;
+    const second = items[1] as MenuItemAction;
+    const third  = items[2];
+    const fourth = items[3] as MenuItemAction;
+    expect(first.label).toBe("Edit name");
+    expect(second.label).toBe("Open full entry");
+    expect(third).toStrictEqual({ type: "sep" });
+    expect(fourth.label).toBe("Delete Character");
+  });
+
+  it("Delete label uses the supplied kind for Location", () => {
+    const items = buildEntityMenu(makeEntityCb({ kind: "Location" }));
+    const last = items[items.length - 1] as MenuItemAction;
+    expect(last.label).toBe("Delete Location");
+  });
+
+  it("Delete item has danger:true", () => {
+    const items = buildEntityMenu(makeEntityCb());
+    const last = items[items.length - 1] as MenuItemAction;
+    expect(last.danger).toBe(true);
+  });
+
+  it("Edit name and Open full entry do NOT have danger flag", () => {
+    const items = buildEntityMenu(makeEntityCb());
+    const first  = items[0] as MenuItemAction;
+    const second = items[1] as MenuItemAction;
+    expect(first.danger).toBeFalsy();
+    expect(second.danger).toBeFalsy();
+  });
+
+  it("separator is at index 2", () => {
+    const items = buildEntityMenu(makeEntityCb());
+    expect(items[2]).toStrictEqual({ type: "sep" });
+  });
+
+  it("onEditName fires when Edit name onClick is called", () => {
+    const cb = makeEntityCb();
+    const items = buildEntityMenu(cb);
+    (items[0] as MenuItemAction).onClick?.();
+    expect(cb.onEditName).toHaveBeenCalledOnce();
+  });
+
+  it("onOpenFullEntry fires when Open full entry onClick is called", () => {
+    const cb = makeEntityCb();
+    const items = buildEntityMenu(cb);
+    (items[1] as MenuItemAction).onClick?.();
+    expect(cb.onOpenFullEntry).toHaveBeenCalledOnce();
+  });
+
+  it("onDelete fires when Delete onClick is called", () => {
+    const cb = makeEntityCb();
+    const items = buildEntityMenu(cb);
+    const last = items[items.length - 1] as MenuItemAction;
+    last.onClick?.();
+    expect(cb.onDelete).toHaveBeenCalledOnce();
   });
 });

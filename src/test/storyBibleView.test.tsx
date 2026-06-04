@@ -125,4 +125,31 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     // No scene links yet → "0 scenes".
     await screen.findByText(/0 scenes/i);
   });
+
+  it("double-click on entity name opens inline rename input", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const nameSpan = await screen.findByText("Sarah");
+    fireEvent.doubleClick(nameSpan);
+
+    // Inline rename input opens with the current name pre-filled.
+    const input = await screen.findByDisplayValue("Sarah");
+    expect(input.tagName).toBe("INPUT");
+  });
+
+  it("single left-click on entity name does NOT open inline rename", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const nameSpan = await screen.findByText("Sarah");
+    fireEvent.click(nameSpan);
+
+    // No input should appear after a single click.
+    expect(screen.queryByDisplayValue("Sarah")).toBeNull();
+    // Name span is still visible (no mode change).
+    expect(screen.getByText("Sarah")).toBeTruthy();
+  });
 });

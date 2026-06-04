@@ -88,7 +88,7 @@ function EntityRowName({ id, name, type, store, onMutated, autoEdit, onEditDone 
   return (
     <span
       className="be-name"
-      onClick={() => { setDraft(name); setEditing(true); }}
+      onDoubleClick={() => { setDraft(name); setEditing(true); }}
     >
       {name}
     </span>
