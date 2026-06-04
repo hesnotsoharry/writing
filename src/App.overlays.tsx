@@ -29,6 +29,8 @@ export interface OverlayStackProps {
   setShowSettings: (v: boolean) => void;
   setTheme: (t: Theme) => void;
   setAccent: (a: AccentPalette) => void;
+  setGoalsOn: Dispatch<SetStateAction<boolean>>;
+  setHasQuickItems: Dispatch<SetStateAction<boolean>>;
 }
 
 export function OverlayStack({

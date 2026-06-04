@@ -174,7 +174,7 @@ export default function App() {
     showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
     showArchive, setShowArchive, showGoals, setShowGoals,
     showExport, setShowExport, showSettings, setShowSettings,
-    focusMode, setFocusMode, goalsOn, hasQuickItems } = state;
+    focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems } = state;
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
@@ -189,8 +189,8 @@ export default function App() {
       storyBibleStore={storyBibleStore}
       overlays={{ showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
         showArchive, setShowArchive, showGoals, setShowGoals, showExport, setShowExport,
-        showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, hasQuickItems,
-        setTheme, setAccent }}
+        showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, setGoalsOn,
+        hasQuickItems, setHasQuickItems, setTheme, setAccent }}
     />
   );
 }
