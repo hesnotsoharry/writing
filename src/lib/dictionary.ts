@@ -1,7 +1,8 @@
-import affUrl from "dictionary-en/index.aff?url";
-import dicUrl from "dictionary-en/index.dic?url";
 import type { NSpell } from "nspell";
 import nspell from "nspell";
+
+import affUrl from "../assets/en-US.aff?url";
+import dicUrl from "../assets/en-US.dic?url";
 
 // Re-export for callers that need the type.
 export type { NSpell };
