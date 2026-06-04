@@ -31,7 +31,7 @@ export function ProjectSwitcher({
   }
 
   return (
-    <div style={containerStyle}>
+    <div className="project-switch">
       <select
         value={activeProjectId ?? ""}
         onChange={handleChange}
@@ -53,21 +53,15 @@ export function ProjectSwitcher({
 // Styles
 // ---------------------------------------------------------------------------
 
-const containerStyle: React.CSSProperties = {
-  padding: "8px 8px 4px",
-  borderBottom: "1px solid #e0e0e0",
-  marginBottom: 8,
-};
-
 const selectStyle: React.CSSProperties = {
   width: "100%",
-  fontSize: 13,
-  fontWeight: 600,
-  color: "#333",
-  background: "#fff",
-  border: "1px solid #ddd",
-  borderRadius: 4,
-  padding: "4px 6px",
+  fontSize: "var(--text-sm)",
+  fontWeight: "var(--w-semi)",
+  color: "var(--ink)",
+  background: "var(--paper)",
+  border: "1px solid var(--line)",
+  borderRadius: "var(--r-xs)",
+  padding: "var(--s-1) var(--s-2)",
   cursor: "pointer",
   appearance: "auto",
 };

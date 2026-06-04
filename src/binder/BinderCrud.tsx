@@ -29,22 +29,10 @@ export const iconBtnStyle: React.CSSProperties = {
   border: "none",
   cursor: "pointer",
   fontSize: 13,
-  color: "#888",
+  color: "var(--ink-3)",
   padding: "0 3px",
   lineHeight: 1,
   flexShrink: 0,
-};
-
-export const sceneBtnBase: React.CSSProperties = {
-  flex: 1,
-  textAlign: "left",
-  padding: "5px 4px 5px 28px",
-  border: "none",
-  cursor: "pointer",
-  fontSize: 13,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
 };
 
 // ---------------------------------------------------------------------------
@@ -88,17 +76,7 @@ export function InlineRename({ current, onCommit, onCancel }: InlineRenameProps)
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={commit}
-      style={{
-        fontSize: 12,
-        fontWeight: 600,
-        width: "100%",
-        border: "1px solid #90caf9",
-        borderRadius: 3,
-        padding: "1px 4px",
-        outline: "none",
-        boxSizing: "border-box",
-        background: "#fff",
-      }}
+      className="rename-input"
     />
   );
 }
@@ -120,15 +98,9 @@ function confirmDeleteScene(scene: Scene, onDeleteScene: (id: string) => void) {
 }
 
 function SceneDisplay({ scene, isSelected, onSelect, onStartEdit, onDeleteScene }: SceneDisplayProps) {
-  const btnStyle: React.CSSProperties = {
-    ...sceneBtnBase,
-    background: isSelected ? "#e8eaf6" : "transparent",
-    color: isSelected ? "#1a237e" : "#333",
-    fontWeight: isSelected ? 600 : "normal",
-  };
   return (
-    <li style={{ display: "flex", alignItems: "center" }}>
-      <button onClick={onSelect} style={btnStyle}>{scene.title}</button>
+    <li className={"scene-row" + (isSelected ? " active" : "")}>
+      <button onClick={onSelect} className="scene-title">{scene.title}</button>
       <button title="Rename scene" onClick={onStartEdit} style={iconBtnStyle}>✎</button>
       <button
         title="Delete scene"
@@ -199,23 +171,8 @@ function confirmDeleteChapter(
 
 function ChapterDisplay({ folder, onStartEdit, onCreateScene, onDeleteChapter }: ChapterDisplayProps) {
   return (
-    <div style={{ display: "flex", alignItems: "center", padding: "4px 4px 4px 16px" }}>
-      <span
-        style={{
-          flex: 1,
-          fontWeight: 600,
-          fontSize: 12,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          color: "#555",
-          userSelect: "none",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {folder.title}
-      </span>
+    <div className="chapter-row">
+      <span className="ch-title">{folder.title}</span>
       <button title="Rename chapter" onClick={onStartEdit} style={iconBtnStyle}>✎</button>
       <button title="Add scene" onClick={() => onCreateScene(folder.id)} style={iconBtnStyle}>+</button>
       <button
