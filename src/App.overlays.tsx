@@ -4,7 +4,7 @@
  * Each overlay receives only the props its stub currently declares; the full
  * contracts are filled by future feature lanes (wave-12 through wave-18).
  */
-import type { ReactElement } from "react";
+import type { Dispatch, ReactElement, SetStateAction } from "react";
 
 import { Archive } from "./features/archive/Archive";
 import { Export } from "./features/export/Export";
@@ -16,7 +16,7 @@ import type { AccentPalette, Theme } from "./theme/useTheme";
 
 export interface OverlayStackProps {
   showQuickCapture: boolean;
-  setShowQuickCapture: (v: boolean) => void;
+  setShowQuickCapture: Dispatch<SetStateAction<boolean>>;
   showInbox: boolean;
   setShowInbox: (v: boolean) => void;
   showArchive: boolean;

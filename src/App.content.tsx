@@ -3,8 +3,10 @@
  * 300-line file limit. App.tsx owns bootstrapping + wiring; this file
  * owns the rendered shell composition (slots, focus mode, overlay stack).
  */
+import type { Dispatch, SetStateAction } from "react";
 import type * as Y from "yjs";
 
+import { useGlobalKeybindings } from "./App.keybindings";
 import type { OverlayStackProps } from "./App.overlays";
 import { OverlayStack } from "./App.overlays";
 import type { AppView } from "./App.state";
@@ -30,7 +32,7 @@ import { StoryBibleView } from "./storybible/StoryBibleView";
 
 export interface OverlayFlags extends OverlayStackProps {
   focusMode: boolean;
-  setFocusMode: (v: boolean) => void;
+  setFocusMode: Dispatch<SetStateAction<boolean>>;
   goalsOn: boolean;
   hasQuickItems: boolean;
 }
@@ -92,12 +94,11 @@ export function AppContent({
   dragCallbacks, view, onViewChange, linksVersion, onEntitiesChanged,
   overlays, storyBibleStore,
 }: AppContentProps) {
-  const { focusMode, setFocusMode, goalsOn, hasQuickItems,
-    setShowGoals, setShowQuickCapture, setShowSettings, setShowExport } = overlays;
+  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport } = overlays;
+  useGlobalKeybindings(overlays);
   const liveWordCount = useLiveWordCount(doc);
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);
-
   const binderSlot = focusMode ? null : (
     <Binder tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
       callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
