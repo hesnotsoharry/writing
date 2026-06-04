@@ -24,9 +24,12 @@ function readMotion(): boolean {
   const motionTweak = getTweak("motion", TWEAK_DEFAULTS.motion);
   if (!motionTweak) return false;
   // Also respect the OS reduced-motion preference at the JS level.
+  // Double optional-chain: if window.matchMedia is undefined (e.g. jsdom without
+  // a matchMedia stub), the call returns undefined and .matches would throw —
+  // chaining ?.matches makes it safely return undefined (falsy) instead.
   const preferReduced =
     typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
   return !preferReduced;
 }
 
