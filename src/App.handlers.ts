@@ -64,6 +64,9 @@ function buildCrudCallbacks(deps: CrudDeps): BinderCallbacks {
         .then(doReload)
         .catch(logCrudError("deleteScene"));
     },
+    // Archive stubs — real DB writes wired in wave-17.
+    onArchiveScene: () => {},
+    onArchiveChapter: () => {},
   };
 }
 

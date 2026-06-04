@@ -28,13 +28,15 @@ export interface AppShellProps {
   inspector: ReactNode;
   /** Status bar region (bottom of .win, sibling of .body — not inside it). */
   statusBar: ReactNode;
+  /** When true, stamps data-focus on the root .win div (CSS extension point). */
+  focusMode?: boolean;
 }
 
 export function AppShell({
-  titleBar, binder, viewStage, inspector, statusBar,
+  titleBar, binder, viewStage, inspector, statusBar, focusMode,
 }: AppShellProps): ReactElement {
   return (
-    <div className="win">
+    <div className="win" data-focus={focusMode || undefined}>
       {titleBar}
       <div className="body">
         <div className="panel-binder">{binder}</div>

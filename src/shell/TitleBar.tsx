@@ -27,7 +27,7 @@ export interface TitleBarProps {
   onOpenExport?: () => void;
 }
 
-/** Segmented Write / Story Bible view switch (Corkboard deferred). */
+/** Segmented Write / Corkboard / Story Bible view switch. */
 function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onViewChange">): ReactElement {
   return (
     <div className="segmented">
@@ -38,6 +38,14 @@ function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onView
       >
         <Icon name="type" className="ic" />
         {" Write"}
+      </button>
+      <button
+        className={view === "cork" ? "on" : ""}
+        aria-pressed={view === "cork"}
+        onClick={() => { onViewChange("cork"); }}
+      >
+        <Icon name="grid" className="ic" />
+        {" Corkboard"}
       </button>
       <button
         className={view === "bible" ? "on" : ""}
@@ -84,8 +92,9 @@ function TitleBarActions({
  * divider · window controls.
  *
  * The segmented view-switch satisfies src/test/titleBar.viewSwitch.contract.test.tsx:
- * Write → onViewChange("editor"), Story Bible → onViewChange("bible"), aria-pressed tracks view.
- * Corkboard is DEFERRED. Action icon handlers default to no-op stubs (TODO comments name waves).
+ * Write → onViewChange("editor"), Corkboard → onViewChange("cork"),
+ * Story Bible → onViewChange("bible"), aria-pressed tracks view.
+ * Action handlers are wired in App.tsx (wave-11).
  */
 export function TitleBar({
   view, onViewChange, docName,
@@ -110,11 +119,11 @@ export function TitleBar({
       <TitleBarActions
         goalsOn={goalsOn}
         hasQuickItems={hasQuickItems}
-        onToggleGoals={onToggleGoals ?? (() => {})} // TODO(wave-6): wire goals panel
-        onOpenQuick={onOpenQuick ?? (() => {})}     // TODO(wave-6): wire quick-capture popover
-        onEnterFocus={onEnterFocus ?? (() => {})}   // TODO(wave-7): wire focus mode
-        onOpenSettings={onOpenSettings ?? (() => {})} // TODO(wave-7): wire settings modal
-        onOpenExport={onOpenExport ?? (() => {})}   // TODO(wave-7): wire export dialog
+        onToggleGoals={onToggleGoals ?? (() => {})}
+        onOpenQuick={onOpenQuick ?? (() => {})}
+        onEnterFocus={onEnterFocus ?? (() => {})}
+        onOpenSettings={onOpenSettings ?? (() => {})}
+        onOpenExport={onOpenExport ?? (() => {})}
       />
       <div className="tb-divider" />
       <div className="wbtns">

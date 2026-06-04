@@ -53,4 +53,26 @@ describe("TitleBar — view-switch contract", () => {
     expect(onViewChange).toHaveBeenCalledOnce();
     expect(onViewChange).toHaveBeenCalledWith("editor");
   });
+
+  it('renders "Corkboard" button with aria-pressed=true when view="cork"', () => {
+    render(<TitleBar view="cork" onViewChange={onViewChange} />);
+
+    const corkBtn = screen.getByRole("button", { name: /corkboard/i });
+    const writeBtn = screen.getByRole("button", { name: /write/i });
+    const bibleBtn = screen.getByRole("button", { name: /story bible/i });
+
+    expect(corkBtn).toHaveAttribute("aria-pressed", "true");
+    expect(writeBtn).toHaveAttribute("aria-pressed", "false");
+    expect(bibleBtn).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it('calls onViewChange("cork") once when "Corkboard" button is clicked from view="editor"', () => {
+    render(<TitleBar view="editor" onViewChange={onViewChange} />);
+
+    const corkBtn = screen.getByRole("button", { name: /corkboard/i });
+    fireEvent.click(corkBtn);
+
+    expect(onViewChange).toHaveBeenCalledOnce();
+    expect(onViewChange).toHaveBeenCalledWith("cork");
+  });
 });

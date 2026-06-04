@@ -18,6 +18,9 @@ export interface BinderCallbacks {
   onRenameScene: (id: string, title: string) => void;
   onDeleteChapter: (id: string) => void;
   onDeleteScene: (id: string) => void;
+  /** Archive stubs — real DB writes wired in wave-17. */
+  onArchiveScene: (id: string) => void;
+  onArchiveChapter: (id: string) => void;
 }
 
 // ---------------------------------------------------------------------------

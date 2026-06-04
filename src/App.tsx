@@ -2,28 +2,19 @@ import type { MutableRefObject } from "react";
 import { useEffect, useRef } from "react";
 import * as Y from "yjs";
 
+import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
 import { useCrudHandlers, useDragHandlers } from "./App.handlers";
-import type { AppView } from "./App.state";
 import { useAppState, useProjectActions } from "./App.state";
-import { Binder } from "./binder/Binder";
 import type { BinderCallbacks } from "./binder/BinderCrud";
-import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
 import { buildTree } from "./binder/buildTree";
-import type { Project, Scene } from "./db/binderStore";
+import type { Project } from "./db/binderStore";
 import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
 import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
-import { Editor } from "./editor/Editor";
-import { useLiveWordCount } from "./editor/useLiveWordCount";
-import { SceneInspector } from "./inspector/SceneInspector";
-import { AppShell } from "./shell/AppShell";
-import { StatusBar } from "./shell/StatusBar";
-import { TitleBar } from "./shell/TitleBar";
-import { StoryBibleView } from "./storybible/StoryBibleView";
 import { useTheme } from "./theme/useTheme";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded } from "./yjs/serialize";
@@ -42,8 +33,7 @@ const binderStore = new SqliteBinderStore();
 const storyBibleStore = new SqliteStoryBibleStore();
 
 async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
-  const { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId } =
-    ctx;
+  const { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId } = ctx;
   const myToken = ++loadTokenRef.current;
   unbindRef.current?.();
   unbindRef.current = null;
@@ -59,10 +49,7 @@ async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
     onSaved: (id) => { ctx.onSavedRef.current?.(id); },
   });
 
-  if (myToken !== loadTokenRef.current || !mountedRef.current) {
-    unbind();
-    return;
-  }
+  if (myToken !== loadTokenRef.current || !mountedRef.current) { unbind(); return; }
   unbindRef.current = unbind;
   setSelectedSceneId(sceneId);
   setDoc(d);
@@ -78,10 +65,7 @@ interface InitProjectTreeOpts {
 }
 
 async function initializeProjectTree(opts: InitProjectTreeOpts): Promise<void> {
-  const {
-    cancelled, setTree, setLoading, loadSceneFn,
-    setProjects, setActiveProjectId,
-  } = opts;
+  const { cancelled, setTree, setLoading, loadSceneFn, setProjects, setActiveProjectId } = opts;
   await getDb();
   await seedIfEmpty(binderStore);
   if (cancelled.value) return;
@@ -100,89 +84,8 @@ async function initializeProjectTree(opts: InitProjectTreeOpts): Promise<void> {
   setTree(builtTree);
   setLoading(false);
 
-  const firstScene =
-    builtTree.chapters[0]?.scenes[0] ?? builtTree.shortPieces[0] ?? null;
+  const firstScene = builtTree.chapters[0]?.scenes[0] ?? builtTree.shortPieces[0] ?? null;
   if (firstScene && !cancelled.value) await loadSceneFn(firstScene.id);
-}
-
-function EditorPane({ doc }: { doc: Y.Doc | null }) {
-  return (
-    <main className="canvas-pane">
-      {doc ? (
-        <Editor doc={doc} />
-      ) : (
-        <div className="canvas-empty">Select a scene to start writing.</div>
-      )}
-    </main>
-  );
-}
-
-interface AppContentProps {
-  tree: BinderTree;
-  selectedSceneId: string | null;
-  doc: Y.Doc | null;
-  onSelectScene: (sceneId: string) => void;
-  callbacks: BinderCallbacks;
-  projects: Project[];
-  activeProjectId: string | null;
-  onSwitchProject: (projectId: string) => void;
-  onCreateProject: () => void;
-  dragCallbacks: DragCallbacks;
-  view: AppView;
-  onViewChange: (view: AppView) => void;
-  linksVersion: number;
-  onEntitiesChanged: () => void;
-}
-
-// Phase 3: AppContent replaced by AppShell slot composition. The .win/.body token
-// classes own layout — the old inline flex/height:100vh wrapper is removed.
-function AppContent({
-  tree, selectedSceneId, doc, onSelectScene, callbacks,
-  projects, activeProjectId, onSwitchProject, onCreateProject,
-  dragCallbacks, view, onViewChange, linksVersion, onEntitiesChanged,
-}: AppContentProps) {
-  // Live word count — recomputes on every Yjs update so StatusBar and GoalRing stay current.
-  const liveWordCount = useLiveWordCount(doc);
-
-  // Active project title for the centered doc-name in TitleBar (wave-6 will add live save-state).
-  const docName = projects.find((p) => p.id === activeProjectId)?.title;
-
-  // Derive the active Scene object from the already-loaded binder tree.
-  const allScenes: Scene[] = [
-    ...tree.chapters.flatMap((ch) => ch.scenes),
-    ...tree.shortPieces,
-  ];
-  const activeScene: Scene | null =
-    selectedSceneId != null
-      ? (allScenes.find((s) => s.id === selectedSceneId) ?? null)
-      : null;
-
-  return (
-    <AppShell
-      titleBar={<TitleBar view={view} onViewChange={onViewChange} docName={docName} />}
-      binder={
-        <Binder
-          tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
-          callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
-          onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-          dragCallbacks={dragCallbacks}
-        />
-      }
-      viewStage={
-        // CorkboardSlot reserved (wave-N): add view === "cork" ? <Corkboard/> branch here.
-        view === "bible" && activeProjectId
-          ? <StoryBibleView store={storyBibleStore} projectId={activeProjectId} onEntitiesChanged={onEntitiesChanged} />
-          : <EditorPane doc={doc} />
-      }
-      inspector={
-        // Inspector visibility: matches the existing condition exactly — editor view + active project.
-        view === "editor" && activeProjectId
-          ? <SceneInspector store={storyBibleStore} projectId={activeProjectId} sceneId={selectedSceneId} scene={activeScene} refreshKey={linksVersion} liveWordCount={liveWordCount} />
-          : null
-      }
-      statusBar={<StatusBar sceneWordCount={liveWordCount} />}
-    />
-  );
 }
 
 interface SceneLoaderOptions {
@@ -196,10 +99,8 @@ interface SceneLoaderOptions {
 }
 
 function useSceneLoader(opts: SceneLoaderOptions) {
-  const {
-    setDoc, setSelectedSceneId, setTree, setLoading,
-    setProjects, setActiveProjectId, onSavedRef,
-  } = opts;
+  const { setDoc, setSelectedSceneId, setTree, setLoading, setProjects,
+    setActiveProjectId, onSavedRef } = opts;
   const unbindRef = useRef<(() => void) | null>(null);
   const loadTokenRef = useRef(0);
   const mountedRef = useRef(true);
@@ -211,14 +112,12 @@ function useSceneLoader(opts: SceneLoaderOptions) {
     initializeProjectTree({
       cancelled, setTree, setLoading,
       loadSceneFn: (id) => loadScene(id, ctx),
-      setProjects,
-      setActiveProjectId,
+      setProjects, setActiveProjectId,
     }).catch((e) => console.error("[db] initializeProjectTree failed", e));
     return () => {
       cancelled.value = true;
       mountedRef.current = false;
-      const unbind = unbindRef.current;
-      unbind?.();
+      unbindRef.current?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -234,19 +133,22 @@ function useSceneLoader(opts: SceneLoaderOptions) {
   return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene };
 }
 
+interface AppWiring {
+  callbacks: BinderCallbacks;
+  dragCallbacks: ReturnType<typeof useDragHandlers>;
+  onSwitchProject: (id: string) => void;
+  onCreateProject: () => void;
+  onEntitiesChanged: () => void;
+  handleSelectScene: (sceneId: string) => void;
+}
 
-export default function App() {
-  const {
-    tree, setTree, selectedSceneId, setSelectedSceneId,
-    doc, setDoc, loading, setLoading, projects, setProjects,
-    activeProjectId, view, setView, linksVersion, setLinksVersion,
+function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
+  const { setTree, setSelectedSceneId, setDoc, setLoading, setProjects,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
-  } = useAppState();
-
+    setLinksVersion, selectedSceneId } = state;
   const { onSavedRef, onEntitiesChanged } = useDetectionWiring({
     activeProjectIdRef, setLinksVersion, sceneDocStore, storyBibleStore, binderStore,
   });
-
   const { handleSelectScene, clearScene } = useSceneLoader({
     setDoc, setSelectedSceneId, setTree, setLoading,
     setProjects, setActiveProjectId: setActiveProject, onSavedRef,
@@ -254,26 +156,41 @@ export default function App() {
   const { onSwitchProject, onCreateProject } = useProjectActions({
     binderStore, activeProjectIdRef, loadProjectTokenRef,
     setTree: setTree as (t: BinderTree) => void,
-    setProjects, setActiveProjectId: setActiveProject,
-    handleSelectScene, clearScene,
+    setProjects, setActiveProjectId: setActiveProject, handleSelectScene, clearScene,
   });
   const callbacks = useCrudHandlers({
     binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene,
   });
   const dragCallbacks = useDragHandlers({ binderStore, activeProjectIdRef, setTree });
-  useTheme();
+  return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged, handleSelectScene };
+}
+
+export default function App() {
+  const state = useAppState();
+  const { setTheme, setAccent } = useTheme();
+  const wiring = useAppWiring(state);
+  const { tree, loading, selectedSceneId, doc, projects, activeProjectId,
+    view, setView, linksVersion,
+    showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
+    showArchive, setShowArchive, showGoals, setShowGoals,
+    showExport, setShowExport, showSettings, setShowSettings,
+    focusMode, setFocusMode, goalsOn, hasQuickItems } = state;
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
   return (
     <AppContent
       tree={tree} selectedSceneId={selectedSceneId} doc={doc}
-      onSelectScene={handleSelectScene} callbacks={callbacks}
+      onSelectScene={wiring.handleSelectScene} callbacks={wiring.callbacks}
       projects={projects} activeProjectId={activeProjectId}
-      onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-      dragCallbacks={dragCallbacks} view={view}
-      onViewChange={setView}
-      linksVersion={linksVersion} onEntitiesChanged={onEntitiesChanged}
+      onSwitchProject={wiring.onSwitchProject} onCreateProject={wiring.onCreateProject}
+      dragCallbacks={wiring.dragCallbacks} view={view} onViewChange={setView}
+      linksVersion={linksVersion} onEntitiesChanged={wiring.onEntitiesChanged}
+      storyBibleStore={storyBibleStore}
+      overlays={{ showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
+        showArchive, setShowArchive, showGoals, setShowGoals, showExport, setShowExport,
+        showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, hasQuickItems,
+        setTheme, setAccent }}
     />
   );
 }
