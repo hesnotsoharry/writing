@@ -12,7 +12,7 @@ import { makeSqlJsDb } from "./support/sqljsDb";
  *    and is idempotent (the no-try/catch crash-recovery runner may re-run it);
  *  - the BinderStore round-trips scene status via `setSceneStatus`.
  *
- * The implementer makes this pass and MUST NOT modify this file.
+ * Updated Wave 17: SceneStatus widened to 5-value canon set; "done" → "final".
  */
 
 async function tableColumns(
@@ -82,10 +82,10 @@ describe("Wave 12 — scene status data layer (acceptance)", () => {
     expect(before.scenes[0].status).toBe("blank");
 
     // setSceneStatus persists the new value, observed via loadProject.
-    const next: SceneStatus = "done";
+    const next: SceneStatus = "final";
     await store.setSceneStatus(sceneId, next);
 
     const after = await store.loadProject(projectId);
-    expect(after.scenes[0].status).toBe("done");
+    expect(after.scenes[0].status).toBe("final");
   });
 });

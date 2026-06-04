@@ -5,23 +5,16 @@ import type { BinderTree, Chapter } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import type { Scene, SceneStatus } from "../../db/binderStore";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
+import { STATUS_META, STATUS_ORDER } from "../../lib/status";
 
 // ---------------------------------------------------------------------------
-// Status metadata — three-state model (blank / draft / done)
+// Status cycle — advances through STATUS_ORDER on each click.
 // ---------------------------------------------------------------------------
-
-const STATUS_META: Record<SceneStatus, { label: string; dot: string; done?: boolean }> = {
-  blank: { label: "To write", dot: "var(--ink-4)" },
-  draft: { label: "Drafting", dot: "var(--accent)" },
-  done: { label: "Done", dot: "var(--good)", done: true },
-};
-
-const STATUS_CYCLE: SceneStatus[] = ["blank", "draft", "done"];
 
 function nextStatus(s: SceneStatus): SceneStatus {
-  const idx = STATUS_CYCLE.indexOf(s);
-  if (idx === -1) { console.warn("[corkboard] unknown scene status, resetting to blank:", s); }
-  return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+  const idx = STATUS_ORDER.indexOf(s);
+  if (idx === -1) { console.warn("[corkboard] unknown scene status, resetting to blank:", s); return "blank"; }
+  return STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
 }
 
 // Module-level default store — constructor has no side effects (getDb is lazy).
@@ -54,7 +47,7 @@ function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, 
     >
       <div className="pin" />
       <div className="card-status">
-        {meta.done
+        {meta.isFinal
           ? <span className="scene-check" onClick={cycleClick}><Icon name="check" style={{ width: 12, height: 12 }} /></span>
           : <span className="dot" style={{ background: meta.dot }} onClick={cycleClick} />}
         <span className="lbl">{meta.label}</span>

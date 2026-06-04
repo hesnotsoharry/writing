@@ -20,12 +20,15 @@ import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
 import { Corkboard } from "./features/corkboard/Corkboard";
+import { useDailyGoalProgress } from "./features/goals/useDailyGoalProgress";
 import { useQuickItemsBadge } from "./features/quickcapture/useQuickItemsBadge";
 import { SceneInspector } from "./inspector/SceneInspector";
+import { useManuscriptWordCount } from "./lib/manuscriptWords";
 import { AppShell } from "./shell/AppShell";
 import { StatusBar } from "./shell/StatusBar";
 import { TitleBar } from "./shell/TitleBar";
 import { StoryBibleView } from "./storybible/StoryBibleView";
+import { useEditorStyle } from "./theme/useEditorStyle";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,30 +92,45 @@ function useActiveScene(tree: BinderTree, selectedSceneId: string | null): Scene
 // AppContent
 // ---------------------------------------------------------------------------
 
-export function AppContent({
-  tree, selectedSceneId, doc, onSelectScene, callbacks,
-  projects, activeProjectId, onSwitchProject, onCreateProject,
-  dragCallbacks, view, onViewChange, linksVersion, onEntitiesChanged,
-  overlays, storyBibleStore,
-}: AppContentProps) {
-  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport } = overlays;
+function useAppContentSlots(props: AppContentProps) {
+  const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
+    onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
+    onEntitiesChanged, overlays, storyBibleStore } = props;
+  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
+    setShowSettings, setShowExport, setShowArchive } = overlays;
   useGlobalKeybindings(overlays);
-  useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems); // wave-13:
-  const liveWordCount = useLiveWordCount(doc), docName = projects.find((p) => p.id === activeProjectId)?.title;
+  useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
+  useEditorStyle(); // wave-17: --font-prose/--prose-size/--prose-leading/--prose-measure
+  const liveWordCount = useLiveWordCount(doc);
+  const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
+  const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", currentTotal: manuscriptTotal });
+  const docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);
   const binderSlot = focusMode ? null : (
     <Binder tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
       callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
       onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-      dragCallbacks={dragCallbacks} />
+      dragCallbacks={dragCallbacks}
+      onOpenQuickNotes={() => setShowQuickCapture(true)}
+      onOpenArchive={() => setShowArchive(true)} />
   );
   const inspectorSlot = (!focusMode && view === "editor" && activeProjectId)
     ? <SceneInspector store={storyBibleStore} projectId={activeProjectId}
         sceneId={selectedSceneId} scene={activeScene}
         refreshKey={linksVersion} liveWordCount={liveWordCount} />
     : null;
-  const viewStageContent = buildViewStage(view, doc, activeProjectId, { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange });
+  const viewStageContent = buildViewStage(view, doc, activeProjectId,
+    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange });
+  return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
+    setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
+    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId };
+}
 
+export function AppContent(props: AppContentProps) {
+  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
+    setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
+    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId } = useAppContentSlots(props);
+  const { view, onViewChange } = props;
   return (
     <>
       <AppShell focusMode={focusMode}
@@ -124,7 +142,8 @@ export function AppContent({
         binder={binderSlot}
         viewStage={<>{focusMode && <FocusExitButton onExit={() => setFocusMode(false)} />}{viewStageContent}</>}
         inspector={inspectorSlot}
-        statusBar={<StatusBar sceneWordCount={liveWordCount} />}
+        statusBar={<StatusBar sceneWordCount={liveWordCount} goalsOn={goalsOn}
+          manuscriptTotal={manuscriptTotal} goal={goalProgress} />}
       />
       <OverlayStack {...overlays} activeProjectId={activeProjectId} />
     </>

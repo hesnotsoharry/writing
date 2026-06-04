@@ -64,6 +64,7 @@ export function OverlayStack({ // wave-13: added activeProjectId param
           onClose={() => setShowSettings(false)}
           setTheme={setTheme}
           setAccent={setAccent}
+          onOpenGoals={() => { setShowSettings(false); setShowGoals(true); }}
         />
       )}
     </>

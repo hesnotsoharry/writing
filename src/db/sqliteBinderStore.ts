@@ -1,4 +1,5 @@
 import { computeReorder } from "../binder/computeReorder";
+import { normalizeStatus } from "../lib/status";
 import type { BinderStore, Folder, Project, Scene, SceneStatus } from "./binderStore";
 import { getDb } from "./schema";
 
@@ -88,10 +89,15 @@ export class SqliteBinderStore implements BinderStore {
       "SELECT id, project_id, title, sort_order FROM folders WHERE project_id = $1 ORDER BY sort_order ASC",
       [projectId]
     );
-    const scenes = await db.select<Scene[]>(
+    const rawScenes = await db.select<(Omit<Scene, "status"> & { status: string })[]>(
       "SELECT id, project_id, folder_id, title, synopsis, sort_order, word_count, status FROM scenes WHERE project_id = $1 ORDER BY sort_order ASC",
       [projectId]
     );
+    // Normalize raw DB status strings (handles legacy "done" → "final").
+    const scenes: Scene[] = rawScenes.map((s) => ({
+      ...s,
+      status: normalizeStatus(s.status),
+    }));
     return { folders, scenes };
   }
 
