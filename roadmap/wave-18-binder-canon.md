@@ -150,7 +150,23 @@ unit boundary is necessary but not sufficient — name what still needs Cole's e
 
 | Phase | Dispatched | Completed | Commit | Observation hit |
 |---|---|---|---|---|
+| 1 ProjectSwitch | yes | yes | 2e329e8 | Internal — verified via 8 RTL tests + canon diff; UI needs Cole post-merge |
+| 2 Rows + status threading | yes | yes | ecbc2d6 | Internal — verified via 17 RTL tests + canon diff; UI needs Cole post-merge |
+| 3 Shell: collapse/footer/toast | yes | yes | 0f42b2d | Internal — verified via 8 RTL tests + canon diff; UI needs Cole post-merge |
 
 ## Follow-up candidates
 
+- Foundation: thread real numeric `quickCount`/`archivedCount` to `<Binder>` from App. | why not in-wave: App.content.tsx + a count source are frozen/absent this sweep (only a `hasQuickItems` boolean exists). | present-harm: K2 — `src/App.content.tsx:110-115` passes neither prop; the footer badge + Archived button are inert (render-guarded) until a foundation wave supplies counts.
+- Foundation: real Duplicate + Archive store methods (+ wire the no-op `onArchiveScene`/`onArchiveChapter`). | why not in-wave: `src/db/` is frozen (no migrations this sweep) and `BinderStore` has no duplicate/archive method. | present-harm: K2 — `src/App.handlers.ts:68-69` archive callbacks are empty `() => {}`; the right-click Duplicate/Archive items fire a toast / no-op until the store grows the methods.
+- Foundation: thread the LIVE manuscript word count (or per-project totals) to the ProjectSwitch subtitle. | why not in-wave: App is frozen; `<Binder>` receives only the active project's cached `tree`. | present-harm: K2 — `src/binder/Binder.tsx` computes the subtitle from cached `scene.word_count` (stale until reload) and shows the type label only for inactive projects (no per-project tree available).
+
 ## Result
+
+**Delivered (2026-06-04):** `src/binder/*` rebuilt to canon (`binder.jsx`/`menu.jsx`). ProjectSwitch
+cover-card dropdown; display-only status dots/check; hover/active word-counter; chapter scene-count +
+collapsibility; New-chapter relocated to bottom dashed button + section-head `+`; all mutations moved
+behind right-click context menus (Wave-17 `buildSceneMenu`/`buildChapterMenu`), inline ✎/× icons
+removed, double-click rename retained; quick-notes footer; `onSetSceneStatus` threaded end-to-end.
+3 commits (2e329e8 · ecbc2d6 · 0f42b2d). Gates: lint + tsc clean; full suite 416/416. Per-phase
+adversarial review (single tier) PASS-after-FLAGs (all flags adjudicated/closed). Local branch only
+(no git remote) — lead merges. See lane handoff for the post-merge human-smoke checklist.
