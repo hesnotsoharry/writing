@@ -1,26 +1,28 @@
 ---
 project: writing
-updated: 2026-06-03
+updated: 2026-06-04
 ---
 
 ## Current state
-- Branch: master · No git remote (local-only) · Tag: none
-- Screen-port batch SHIPPED — waves 7/8/9/10 merged to master. 4 parallel lanes: Binder, Editor/Canvas, Inspector (full expansion + live goal ring), Story Bible. All shed inline styles → design tokens. Live word count wired to StatusBar + goal ring.
-- Gates: 155/155 tests, tsc + lint clean. Integrated smoke (2026-06-03) PASS: parchment binder, themed editor w/ custom scrollbar, Story Bible cards, expanded Inspector. **App ~75–85% to design canon — styling DONE; remaining ~15–25% is FEATURE work (by design).**
-- Post-batch fixes merged: EditorPane scroll (`.canvas-scroll` custom scrollbar), live word count observer (`useLiveWordCount.ts`).
+- Branch: master · No git remote · Tag: none
+- Wave 11 (feature-shell-wiring) SHIPPED — 6 commits (a8fe7aa..d01bc4f) + plan 1be02b2. Serial fork-point for parallel lanes.
+- AppView cork-stub + 9 overlay/focus flags + 5 TitleBar triggers + 6 overlay stubs + global keybindings (⌘K/⌘./⌘E/⌘,, Esc) + focus mode (chrome recedes, data-focus on .win, exit affordance) + migration 4 (quick_notes/goals/archive, project_id NOT NULL) + BinderCallbacks archive stubs + Settings theme-setter + setGoalsOn/setHasQuickItems threaded to overlay props.
+- Gates: 169/169 tests (was 155; +14 this wave), tsc + lint clean. Wave-end adversarial review PASS (one FLAG fixed d01bc4f).
+- **⚠ Live integrated smoke pending** — app requires Tauri runtime (browser smoke hangs); all automated gates green; overlays/focus/cork/keybindings acceptance criterion needs `npm run tauri dev`.
+- **Grammar now IN-BATCH (2026-06-04 override):** wave 16 spelling+grammar lane via harper-core Rust IPC (harper.js renderer rejected). See ADR 0007.
 
 ## Next 3 steps
-1. **Feature-waves batch — START HERE. Turnkey runbook: [`parallel-feature-waves-coordination.md`](parallel-feature-waves-coordination.md).** Next session, one lead: (a) author+run the SERIAL **wiring wave (11)** on master via `/wave-plan-lite` — AppView+=`cork`, overlay state + TitleBar triggers, **migration 4** (quick_notes/archive/goals), per-feature stubs, focus mode; merge it. (b) Then fan out the PARALLEL lanes from post-wiring master (worktree cmds + kickoffs in the runbook): Corkboard (+migration 5 scene-status), QuickCapture+Inbox, Goals, Settings, **Spelling (nspell)** → then Archive → Export (last, lib-gated). Per-feature scope: `feature-waves-plan.md`.
-2. **Polish/feature follow-ups (7 filed 2026-06-03):** editor-scene-header-chrome, inspector-entity-interactions (add/link/synopsis buttons), binder-chapter-collapse, editor-empty-placeholder, binder-projectswitcher, binder-scene-status-dots, screen-ports-visual-polish.
-3. **Grammar (offline) — deferred:** Spelling (`nspell`) is **wave 16 inside the parallel batch above** (toggleable from Settings: `spellCheck` ON / `styleHints` OFF). Grammar (`Harper` Rust/WASM via a Tauri command, `grammar` toggle OFF) is wave S2 — DEFER until `harper.js` API stabilizes; reuses the spelling lane's decoration plugin. Both fully offline/no-AI. See feature-waves-plan.md § Spelling + Grammar.
+1. **Smoke wave 11 live** — run `npm run tauri dev`, click TitleBar overlays, toggle focus (⌘./button), switch Corkboard, test keybindings + Esc. Gate: one outstanding acceptance criterion, de-risks shared fork base before fan-out.
+2. **Fan out parallel lanes** per `roadmap/parallel-feature-waves-coordination.md` — worktrees for waves 12 Corkboard(+migration 5), 13 QuickCapture+Inbox, 14 Goals (wire `setGoalsOn`), 15 Settings, 16 Spelling+Grammar — in parallel; then 17 Archive, 18 Export (last, lib-gated).
+3. **Carry 10 open follow-ups** — none resolved by wave 11; all feature-polish, deferred by design.
 
 ## Active work
-- Open follow-ups: 9 · [inbox](follow-ups/) — top 7 above + `app-detection-wiring-coverage` (wave-3) + `statusbar-live-data-wiring` remainder (manuscript count + goals mini + backup time) + `transparent-window-aesthetic` (wave-5).
-- **Migration-safety habit:** Back up `writing.db` BEFORE any future migration wave's live smoke.
-- `src-tauri/Cargo.toml` shows EOL-only uncommitted diff (CRLF noise) — harmless, excluded from every commit.
+- Open follow-ups: 10 · [inbox](follow-ups/) — 7 polish from 2026-06-03 + app-detection-wiring + statusbar-live-data-wiring + transparent-window-aesthetic.
+- **Migration-safety habit:** Back up `writing.db` before any migration wave's live smoke (waves 12 onward + wave 11 live-smoke if run on real DB).
+- `src-tauri/Cargo.toml` CRLF noise (excluded every commit).
 
 ## Reference index
-- Project conventions: [CLAUDE.md](../CLAUDE.md) · Feature batch: [feature-waves-plan.md](feature-waves-plan.md)
-- Durable decisions: [decisions/](decisions/) — 0001–0006 (local-first, window, tokens, dnd-kit, CSS, SQLite-migration)
-- Vendor-gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/) — tiptap, fontsource, tauri (frameless), tauri-plugin-sql
+- Coordination: [parallel-feature-waves-coordination.md](parallel-feature-waves-coordination.md) · Scope: [feature-waves-plan.md](feature-waves-plan.md)
+- Decisions: [decisions/](decisions/) — 0001–0007 (0007: grammar-harper-core-ipc)
+- Wave 11 stub: [wave-11-feature-shell-wiring.md](wave-11-feature-shell-wiring.md)
 - Build: `npm run tauri dev` · Test: `npm run test` · Lint: `npm run lint:fix`
