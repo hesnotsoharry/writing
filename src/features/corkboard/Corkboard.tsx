@@ -1,121 +1,122 @@
 import { useState } from "react";
 
 import type { AppView } from "../../App.state";
-import type { BinderTree, Chapter } from "../../binder/buildTree";
-import { Icon } from "../../components/Icon";
+import type { BinderTree } from "../../binder/buildTree";
+import { buildTree } from "../../binder/buildTree";
+import { ContextMenu, type MenuDescriptor } from "../../components/menu/ContextMenu";
+import { buildSceneMenu } from "../../components/menu/sceneMenu";
+import { Toast, type ToastDescriptor } from "../../components/menu/Toast";
 import type { Scene, SceneStatus } from "../../db/binderStore";
-import { SqliteBinderStore } from "../../db/sqliteBinderStore";
-import { STATUS_META, STATUS_ORDER } from "../../lib/status";
+import type { SetStatus } from "./CorkCard";
+import { ChapterGroup, defaultBinderStore, ShortPiecesGroup, useCorkStatus } from "./CorkCard";
 
 // ---------------------------------------------------------------------------
-// Status cycle — advances through STATUS_ORDER on each click.
+// useLocalTree — local working copy + reload (render-phase sync, no effect)
 // ---------------------------------------------------------------------------
 
-function nextStatus(s: SceneStatus): SceneStatus {
-  const idx = STATUS_ORDER.indexOf(s);
-  if (idx === -1) { console.warn("[corkboard] unknown scene status, resetting to blank:", s); return "blank"; }
-  return STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
-}
+function useLocalTree(tree: BinderTree) {
+  const [prevTree, setPrevTree] = useState(tree);
+  const [localTree, setLocalTree] = useState<BinderTree>(tree);
 
-// Module-level default store — constructor has no side effects (getDb is lazy).
-const defaultBinderStore = new SqliteBinderStore();
+  if (prevTree !== tree) { setPrevTree(tree); setLocalTree(tree); }
 
-// ---------------------------------------------------------------------------
-// CorkCard
-// ---------------------------------------------------------------------------
+  const reload = () => {
+    const projectId =
+      tree.chapters[0]?.folder.project_id ??
+      tree.shortPieces[0]?.project_id;
+    if (!projectId) return;
+    defaultBinderStore.loadProject(projectId).then(({ folders, scenes }) => {
+      setLocalTree(buildTree(folders, scenes));
+    }).catch((err: unknown) => {
+      console.warn("[corkboard] reload failed, keeping current tree", err);
+    });
+  };
 
-interface CorkCardProps {
-  scene: Scene;
-  index: number;
-  effectiveStatus: SceneStatus;
-  onSelectScene: (id: string) => void;
-  onViewChange: (view: AppView) => void;
-  onCycleStatus: () => void;
-}
-
-function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, onCycleStatus }: CorkCardProps) {
-  const meta = STATUS_META[effectiveStatus];
-  const wordLabel = scene.word_count ? scene.word_count.toLocaleString() + "w" : "—";
-  const delay = Math.min(index, 9) * 45;
-  const cycleClick = (e: React.MouseEvent) => { e.stopPropagation(); onCycleStatus(); };
-
-  return (
-    <div
-      className="card"
-      style={{ animationDelay: `${delay}ms` }}
-      onClick={() => { onSelectScene(scene.id); onViewChange("editor"); }}
-    >
-      <div className="pin" />
-      <div className="card-status">
-        {meta.isFinal
-          ? <span className="scene-check" onClick={cycleClick}><Icon name="check" style={{ width: 12, height: 12 }} /></span>
-          : <span className="dot" style={{ background: meta.dot }} onClick={cycleClick} />}
-        <span className="lbl">{meta.label}</span>
-        <span className="w">{wordLabel}</span>
-      </div>
-      <div className="card-title">{scene.title}</div>
-      <div className="card-syn">{scene.synopsis ?? "No synopsis yet."}</div>
-      <div className="card-foot" />
-    </div>
-  );
+  return { localTree, reload };
 }
 
 // ---------------------------------------------------------------------------
-// ChapterGroup
+// useSceneMenu — context-menu + toast + rename-activation state
 // ---------------------------------------------------------------------------
 
-interface ChapterGroupProps {
-  chapter: Chapter;
+interface SceneMenuHook {
+  menu: MenuDescriptor | null;
+  toast: ToastDescriptor | null;
+  renamingSceneId: string | null;
+  setMenu: (m: MenuDescriptor | null) => void;
+  setToast: (t: ToastDescriptor | null) => void;
+  setRenamingSceneId: (id: string | null) => void;
+  handleContextMenu: (e: React.MouseEvent, scene: Scene) => void;
+}
+
+function useSceneMenu(overrides: Record<string, SceneStatus>, setSceneStatus: SetStatus, reload: () => void, setOverride: (id: string, s: SceneStatus) => void): SceneMenuHook {
+  const [menu, setMenu] = useState<MenuDescriptor | null>(null);
+  const [toast, setToast] = useState<ToastDescriptor | null>(null);
+  const [renamingSceneId, setRenamingSceneId] = useState<string | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, scene: Scene) => {
+    const effectiveStatus = overrides[scene.id] ?? scene.status;
+    setMenu({
+      x: e.clientX, y: e.clientY,
+      items: buildSceneMenu({
+        onRename: () => { setMenu(null); setRenamingSceneId(scene.id); },
+        currentStatus: effectiveStatus,
+        onSetStatus: (s) => {
+          setOverride(scene.id, s);
+          setMenu(null);
+          void Promise.resolve(setSceneStatus(scene.id, s)).catch((err: unknown) =>
+            console.error("[corkboard] setSceneStatus failed", err));
+        },
+        onDuplicate: () => setToast({ label: "Duplicate — coming in a later wave" }),
+        onExport: () => setToast({ label: "Export — coming in a later wave" }),
+        onArchive: () => setToast({ label: "Archive — coming in a later wave" }),
+        onDelete: () => {
+          setMenu(null);
+          defaultBinderStore.deleteScene(scene.id).then(reload).catch((err: unknown) =>
+            console.warn("[corkboard] deleteScene failed", err));
+        },
+      }),
+    });
+  };
+
+  return { menu, toast, renamingSceneId, setMenu, setToast, setRenamingSceneId, handleContextMenu };
+}
+
+// ---------------------------------------------------------------------------
+// CorkboardContent — tree layout with chapters and short pieces
+// ---------------------------------------------------------------------------
+
+interface CorkboardContentProps {
+  localTree: BinderTree;
   overrides: Record<string, SceneStatus>;
+  statusOf: (s: Scene) => SceneStatus;
   onSelectScene: (id: string) => void;
   onViewChange: (view: AppView) => void;
   onCycleStatus: (scene: Scene) => void;
+  onContextMenu: (e: React.MouseEvent, scene: Scene) => void;
+  onReload: () => void;
+  renamingSceneId: string | null;
+  onRenameEnd: () => void;
 }
 
-function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, onCycleStatus }: ChapterGroupProps) {
-  const { folder, scenes } = chapter;
+function CorkboardContent(p: CorkboardContentProps) {
+  const shared = {
+    onSelectScene: p.onSelectScene,
+    onViewChange: p.onViewChange,
+    onCycleStatus: p.onCycleStatus,
+    onContextMenu: p.onContextMenu,
+    onReload: p.onReload,
+    renamingSceneId: p.renamingSceneId,
+    onRenameEnd: p.onRenameEnd,
+  };
   return (
-    <div className="cork-chgroup">
-      <div className="cork-chtitle">{`${folder.title} · ${scenes.length} scenes`}</div>
-      <div className="cork-grid">
-        {scenes.length === 0
-          ? <div className="empty-hint">No scenes in this chapter.</div>
-          : scenes.map((s, i) => (
-              <CorkCard
-                key={s.id}
-                scene={s}
-                index={i}
-                effectiveStatus={overrides[s.id] ?? s.status}
-                onSelectScene={onSelectScene}
-                onViewChange={onViewChange}
-                onCycleStatus={() => onCycleStatus(s)}
-              />
-            ))}
-      </div>
+    <div className="corkboard-inner">
+      {p.localTree.chapters.map((ch) => (
+        <ChapterGroup key={ch.folder.id} chapter={ch} overrides={p.overrides} {...shared} />
+      ))}
+      <ShortPiecesGroup scenes={p.localTree.shortPieces} statusOf={p.statusOf} {...shared} />
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// useCorkStatus — optimistic override state + cycle logic
-// ---------------------------------------------------------------------------
-
-type SetStatus = (sceneId: string, status: SceneStatus) => void | Promise<void>;
-
-function useCorkStatus(setSceneStatus: SetStatus) {
-  const [overrides, setOverrides] = useState<Record<string, SceneStatus>>({});
-  const statusOf = (scene: Scene): SceneStatus => overrides[scene.id] ?? scene.status;
-  const cycleStatus = (scene: Scene): void => {
-    // Compute from the current (optimistic) status, persist, then merge the
-    // override. Each human click is a fresh render, so statusOf reflects the
-    // prior click. (Two clicks within one render frame advance a single step —
-    // harmless: no UI/DB divergence, and not reachable by a human on one dot.)
-    const next = nextStatus(statusOf(scene));
-    void Promise.resolve(setSceneStatus(scene.id, next)).catch((err: unknown) =>
-      console.error("[corkboard] setSceneStatus failed", err));
-    setOverrides((prev) => ({ ...prev, [scene.id]: next }));
-  };
-  return { overrides, statusOf, cycleStatus };
 }
 
 // ---------------------------------------------------------------------------
@@ -135,37 +136,28 @@ export function Corkboard({
   onViewChange,
   setSceneStatus = (id, status) => defaultBinderStore.setSceneStatus(id, status),
 }: CorkboardProps) {
-  const { overrides, statusOf, cycleStatus } = useCorkStatus(setSceneStatus);
+  const { overrides, statusOf, cycleStatus, setOverride } = useCorkStatus(setSceneStatus);
+  const { localTree, reload } = useLocalTree(tree);
+  const { menu, toast, renamingSceneId, setMenu, setToast, setRenamingSceneId, handleContextMenu } =
+    useSceneMenu(overrides, setSceneStatus, reload, setOverride);
+  const renameEnd = () => setRenamingSceneId(null);
+
   return (
     <div className="corkboard">
-      <div className="corkboard-inner">
-        {tree.chapters.map((ch) => (
-          <ChapterGroup
-            key={ch.folder.id}
-            chapter={ch}
-            overrides={overrides}
-            onSelectScene={onSelectScene}
-            onViewChange={onViewChange}
-            onCycleStatus={cycleStatus}
-          />
-        ))}
-        <div className="cork-chgroup">
-          <div className="cork-chtitle">{`Short pieces · ${tree.shortPieces.length}`}</div>
-          <div className="cork-grid">
-            {tree.shortPieces.map((s, i) => (
-              <CorkCard
-                key={s.id}
-                scene={s}
-                index={i}
-                effectiveStatus={statusOf(s)}
-                onSelectScene={onSelectScene}
-                onViewChange={onViewChange}
-                onCycleStatus={() => cycleStatus(s)}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
+      <CorkboardContent
+        localTree={localTree}
+        overrides={overrides}
+        statusOf={statusOf}
+        onSelectScene={onSelectScene}
+        onViewChange={onViewChange}
+        onCycleStatus={cycleStatus}
+        onContextMenu={handleContextMenu}
+        onReload={reload}
+        renamingSceneId={renamingSceneId}
+        onRenameEnd={renameEnd}
+      />
+      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      <Toast toast={toast} onUndo={() => setToast(null)} onClose={() => setToast(null)} />
     </div>
   );
 }
