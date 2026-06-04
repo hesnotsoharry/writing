@@ -155,7 +155,14 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Notes |
+|---|---|---|---|---|
+| Plan + ADRs | ✓ | ✓ | b4c36e6 | Validated (Sites 1/2/3); decisions via architect + attack-decision cell |
+| 1 — Store layer | ✓ | ✓ | 116b2ac (oracle), d2a773a (impl) | Panel review 3×FLAG→addressed, 0 BLOCK; gates green; suite 503/503 |
+| 2 — Tauri portrait plumbing | ✓ | ✓ | (this commit) | Single review BLOCK→fixed (fs caps: granular allow-mkdir/write-file/remove + fs:scope, ctx7-verified); cargo check 0, suite 516/516. ⚠ runtime: dialog copy-mode read-grant for picked file = post-merge smoke |
+| 3 — FullEntry view | — | — | — | |
+| 4 — Relationships + picker | — | — | — | |
+| 5 — Portrait UI | — | — | — | |
 
 ## Follow-up candidates
 
