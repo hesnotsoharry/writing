@@ -53,3 +53,33 @@ describe("BinderStore + buildTree contract", () => {
     expect(projects.map((p) => p.title)).toEqual(["Salt Road", "Collected Stories"]);
   });
 });
+
+// ORCHESTRATOR-OWNED ACCEPTANCE TEST (Wave 20, Phase 1) — do not modify during implementation.
+// Locks the new setSceneSynopsis setter contract (backs editable synopsis in the inspector + corkboard).
+describe("BinderStore.setSceneSynopsis contract", () => {
+  it("persists a scene's synopsis, readable via loadProject + buildTree", async () => {
+    const store = new InMemoryBinderStore();
+    const projectId = await store.createProject({ title: "Salt Road", type: "novel" });
+    const ch1 = await store.createFolder({ projectId, title: "Chapter 1" });
+    const sceneId = await store.createScene({ projectId, folderId: ch1, title: "Opening" });
+
+    await store.setSceneSynopsis(sceneId, "A traveller arrives at the salt flats.");
+
+    const { folders, scenes } = await store.loadProject(projectId);
+    const tree = buildTree(folders, scenes);
+    expect(tree.chapters[0].scenes[0].synopsis).toBe("A traveller arrives at the salt flats.");
+  });
+
+  it("clears a synopsis when set to null", async () => {
+    const store = new InMemoryBinderStore();
+    const projectId = await store.createProject({ title: "Salt Road", type: "novel" });
+    const sceneId = await store.createScene({ projectId, folderId: null, title: "Stray idea" });
+
+    await store.setSceneSynopsis(sceneId, "a temporary draft synopsis");
+    await store.setSceneSynopsis(sceneId, null);
+
+    const { folders, scenes } = await store.loadProject(projectId);
+    const tree = buildTree(folders, scenes);
+    expect(tree.shortPieces[0].synopsis).toBeNull();
+  });
+});

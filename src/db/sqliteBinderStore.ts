@@ -136,6 +136,14 @@ export class SqliteBinderStore implements BinderStore {
     ]);
   }
 
+  async setSceneSynopsis(sceneId: string, synopsis: string | null): Promise<void> {
+    const db = await getDb();
+    await db.execute("UPDATE scenes SET synopsis=$1 WHERE id=$2", [
+      synopsis,
+      sceneId,
+    ]);
+  }
+
   async deleteScene(sceneId: string): Promise<void> {
     const db = await getDb();
     await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
