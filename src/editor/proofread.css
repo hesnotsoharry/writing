@@ -1,0 +1,46 @@
+.spell-error {
+  text-decoration: underline wavy var(--spell-error-color, #e5484d);
+  text-decoration-skip-ink: none;
+}
+
+.grammar-error {
+  text-decoration: underline wavy var(--grammar-error-color, #3b82f6);
+  text-decoration-skip-ink: none;
+}
+
+/* ---- Spelling suggestion popover ---------------------------------------- */
+.spell-popover {
+  position: fixed;
+  z-index: 50;
+  min-width: 160px;
+  background: var(--paper);
+  border: 1px solid var(--parchment-edge);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  padding: var(--s-1) 0;
+}
+
+.spell-popover-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: var(--s-2) var(--s-4);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.spell-popover-item:hover:not(:disabled) {
+  background: var(--parchment-deep);
+  color: var(--ink);
+}
+
+.spell-popover-item:disabled {
+  color: var(--ink-4);
+  cursor: default;
+}
