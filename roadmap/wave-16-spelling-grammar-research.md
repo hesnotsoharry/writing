@@ -12,19 +12,23 @@ the implementer still applies judgment. Verify version-sensitive items against t
   add as **explicit** deps since we import from them directly.
 - Need to add: `nspell`, `dictionary-en` (both absent).
 
-## harper-core (Rust grammar engine) — PIN 2.3.1
-- Latest stable 2.3.1 (May 2026). Edition 2024. Breaking v2.0.0 was April 2026 → **version-pin; treat
-  bumps as explicit migrations** (ADR 0007 mandate). `concurrent` feature → Arc-based thread safety.
-- API (verified docs.rs): `Document::new_plain_english_curated(&str)` → doc;
-  `FstDictionary::curated()` (EXPENSIVE — build once); `LintGroup::new_curated(dict, Dialect::American)`;
-  `linter.lint(&doc) -> Vec<Lint>`.
+## harper-core (Rust grammar engine) — PIN =2.0.0
+- **CORRECTION (verified at impl, cargo green): 2.3.1 does NOT exist on crates.io — latest is 2.0.0.**
+  The initial research erred. Pin **`=2.0.0`** (exact, ADR 0007 mandate; treat bumps as migrations).
+  `concurrent` feature exists on 2.0.0 → Arc-based thread safety.
+- API (verified by compiling against 2.0.0): `Document::new_plain_english_curated(&str)` → doc;
+  `FstDictionary::curated()` returns **`Arc<Self>`** (EXPENSIVE — build once); `LintGroup::new_curated(Arc<impl Dictionary>, Dialect::American)`;
+  `LintGroup::lint(&doc)` requires `use harper_core::linting::Linter` in scope.
+- `LintKind` has **20 variants** (Agreement, Typo, Punctuation, Capitalization, …) — bucket them, do NOT
+  Debug-fallthrough. grammar.rs maps to "spelling"|"grammar"|"style" (Spelling/Typo→spelling; Style/
+  Readability/Redundancy/Repetition/WordChoice/Enhancement/Regionalism→style; rest→grammar).
 - **`LintGroup::lint` takes `&mut self`** ("self mutably for caching purposes" — docs.rs) → `Mutex`
   is the correct primitive; `RwLock` is ruled out.
 - `Lint`: `span: Span { start, end }` **char-indexed** (maps to ProseMirror char offsets), `message`,
   `lint_kind: LintKind` (Spelling/Grammar/Style…), `suggestions: Vec<Suggestion>`.
 - `Suggestion` enum: `ReplaceWith(Vec<char>)` | `InsertAfter(Vec<char>)` | `Remove`. **`InsertAfter` is
   NOT a span replacement** — must be modeled distinctly (see Decision F) or it deletes existing text.
-- Cargo line: `harper-core = { version = "2.3.1", features = ["concurrent"] }`.
+- Cargo line: `harper-core = { version = "=2.0.0", features = ["concurrent"] }`.
 - Tauri `setup` can't be async → lazy-init via `static LINTER: OnceLock<Mutex<LintGroup>>` (cost moves
   to first `lint_text`, off the main thread — invisible to app open).
 - Known false-flag gotchas (GitHub issues, Apr–May 2026): code-like/camelCase/URL/Swift syntax,

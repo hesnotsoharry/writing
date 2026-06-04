@@ -43,7 +43,7 @@ gracefully if the Rust side is unavailable.
 - `src-tauri/src/grammar.rs` — `lint_text` `#[tauri::command]`, `OnceLock<Mutex<LintGroup>>` lazy linter,
   `GrammarProblem` + typed `GrammarSuggestion` DTO, `lint_to_problem` mapper.
 - `src-tauri/src/lib.rs` — `mod grammar;` + `.manage(...)` + `generate_handler![greet, grammar::lint_text]`.
-- `src-tauri/Cargo.toml` — version-PINNED `harper-core = { version = "2.3.1", features = ["concurrent"] }`.
+- `src-tauri/Cargo.toml` — version-PINNED `harper-core = { version = "=2.0.0", features = ["concurrent"] }` (2.3.1 from initial research does NOT exist on crates.io; 2.0.0 is latest; exact `=` pin per ADR 0007).
 - `src/editor/Editor.tsx` — register `ProofreadExtension`.
 - `package.json` — add `nspell`, `dictionary-en`, explicit `@tiptap/pm`, `@tiptap/core`.
 - Integration tests for the Harper edge-case breaks (code-like false-flags, multi-line spans) + the
@@ -70,7 +70,7 @@ gracefully if the Rust side is unavailable.
 | 1 | Walking skeleton: spelling underlines end-to-end | sonnet-implementer | **Walking skeleton — thinnest end-to-end slice through the new decoration surface, with one automated smoke.** Trophy (UI + state). Internal-only (no IPC yet). Adds deps (nspell, dictionary-en, @tiptap/pm, @tiptap/core); `dictionary.ts` singleton; `buildTextIndex.ts` (char↔PM index — the Decision-B foundation, unit-tested T1 at 2+ paragraphs incl. a multi-byte char); `checkTypes.ts`; a minimal `ProofreadExtension` running nspell synchronously, debounced 400ms with the generation counter, painting `spell-error` decorations; register in `Editor.tsx`. No popover, no grammar yet. | In a live `tauri dev` editor, typing "teh quick brwon fox" shows red wavy underlines under "teh" and "brwon"; correcting them removes the underline. |
 | 2 | Settings reader + same-tab reactivity | sonnet-implementer | Trophy. Internal-boundary (localStorage + window event). `src/lib/settings.ts` (`SETTINGS_KEYS`, `SETTINGS_CHANGED_EVENT`, `readBoolSetting`); extension reads `writing.spellCheck` FRESH at the top of each check tick (default ON) and listens for `writing:settings-changed` to re-run/clear. No `storage`-event reliance. | In a live editor, running `localStorage.setItem('writing.spellCheck','false'); window.dispatchEvent(new CustomEvent('writing:settings-changed'))` in devtools makes the red underlines disappear; setting it back to `'true'` + dispatching repaints them. |
 | 3 | Spelling suggestion popover | sonnet-implementer | Trophy. Internal-only. `SpellCheckPopover.tsx`: right-click on a misspelled word → `nspell.suggest()` → list anchored at the word; clicking a suggestion dispatches a replace transaction. Index-keyed list. | In a live editor, right-clicking "brwon" opens a popover listing "brown" (and other suggestions); clicking "brown" replaces the word in the text and clears its underline. |
-| 4 | Grammar IPC seam (harper-core round-trip) | sonnet-implementer | **Cross-boundary (IPC + external SDK) — orchestrator authors a failing acceptance test before dispatch; reviewer tier = panel.** Honeycomb. `grammar.rs` (`lint_text`, `OnceLock<Mutex<LintGroup>>` lazy init, `GrammarProblem` + typed `GrammarSuggestion`, `lint_to_problem`); `Cargo.toml` PINNED harper-core 2.3.1 +concurrent; `lib.rs` mod+manage+handler; `src/lib/ipc.ts` typed `lintText()`. This is the IPC tracer slice — round-trip proven before wiring into decorations. | In a live `tauri dev` session, Cole runs `lintText('He go to the store.')` in the devtools console and sees a printed result that flags "go" and lists "goes"/"went" as suggestions — the grammar round-trip is visibly working before any decoration wiring. |
+| 4 | Grammar IPC seam (harper-core round-trip) | sonnet-implementer | **Cross-boundary (IPC + external SDK) — orchestrator authors a failing acceptance test before dispatch; reviewer tier = panel.** Honeycomb. `grammar.rs` (`lint_text`, `OnceLock<Mutex<LintGroup>>` lazy init, `GrammarProblem` + typed `GrammarSuggestion`, `lint_to_problem`); `Cargo.toml` PINNED harper-core =2.0.0 +concurrent; `lib.rs` mod+handler; `src/lib/ipc.ts` typed `lintText()`. This is the IPC tracer slice — round-trip proven before wiring into decorations. | In a live `tauri dev` session, Cole runs `lintText('He go to the store.')` in the devtools console and sees a printed result that flags "go" and lists "goes"/"went" as suggestions — the grammar round-trip is visibly working before any decoration wiring. |
 | 5 | Wire grammar into the shared plugin + popover | sonnet-implementer | **Cross-boundary (consumes the IPC contract); reviewer tier = panel.** Honeycomb. Add async `lintText()` into `runChecks` behind the generation guard + `try/catch` graceful degradation (IPC failure → empty grammar results, spelling unaffected); paint `grammar-error`; read `writing.grammar` (default OFF); popover applies the correct transaction per `GrammarSuggestion.kind`. Integration tests T2 (code-like false-flags), T3 (multi-line span), T5 (IPC-reject → spelling still paints), T6 (toggle clears grammar). | In a live editor with grammar enabled (`writing.grammar='true'`), typing "He go to the store." shows a grammar underline under "go"; right-clicking offers "goes"; with grammar disabled the grammar underlines disappear while spelling underlines remain. |
 
 ### Acceptance criteria
@@ -80,7 +80,7 @@ gracefully if the Rust side is unavailable.
       (T3); IPC-reject → spelling still paints (T5); grammar toggle clears grammar decorations (T6).
 - [ ] `npm run lint` and `tsc --noEmit` are clean (no `no-explicit-any`, ≤40-line functions, complexity ≤10).
 - [ ] `cargo build` (via `npm run tauri build` or `cargo check` in `src-tauri/`) compiles with
-      `harper-core = { version = "2.3.1", features = ["concurrent"] }` pinned in `src-tauri/Cargo.toml`.
+      `harper-core = { version = "=2.0.0", features = ["concurrent"] }` pinned in `src-tauri/Cargo.toml`.
 - [ ] `src/editor/extensions/ProofreadExtension.ts` exists and is registered in `src/editor/Editor.tsx`'s
       `useEditor` extensions array.
 - [ ] `grammar::lint_text` is registered in `src-tauri/src/lib.rs` `generate_handler!` and returns
@@ -220,11 +220,15 @@ The mobile (Phase 2) path inherits this Node-only constraint — flagged for the
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Review (tier → verdict) | Observation point |
+|---|---|---|---|---|---|
+| 1 — spelling walking skeleton | sonnet-implementer | ✅ | 606258d | single → FLAG (destroyed-view guard + tokenizer apostrophe; both fixed) | Unverified at runtime (no live tauri dev in worktree); tsc+lint+7 tests green; mapping proven by T1 + reviewer hand-trace |
+| 2 — settings reader + reactivity | sonnet-implementer | ✅ | 2ed812e | single → FLAG (redundant disabled-tick dispatch; fixed) | Unverified at runtime; tsc+lint+12 tests green; fresh-read + listener lifecycle verified by reviewer |
+| 3 — spelling suggestion popover | sonnet-implementer | ✅ | 92d5e1b | single → FLAG×3 (boundary find, async destroy guard, stale from/to close-on-update; all fixed) | Unverified at runtime (controller wiring not jsdom-testable); tsc+lint+presentational tests green; popover landed at src/editor/ not extensions/ (sensible — it's a React component) |
 
 ## Follow-up candidates
 
-<!-- DEFAULT: empty. Stage here ONLY if it clears the Tier-3 triple gate (VALUE present-harm + STRUCTURAL + CLEARABILITY). -->
+- Harden the grammar IPC against harper panics + executor starvation: wrap the lint call in `tauri::async_runtime::spawn_blocking` (offload CPU work off the async runtime) AND add `panic = "unwind"` to the `[profile]` + a `catch_unwind` wrapper so a harper panic on malformed input returns `Err` instead of aborting the whole app. | why not in-wave: changing the panic strategy is an app-wide build-profile decision (affects the entire `src-tauri` binary, not just the grammar seam) and harper-core 2.0.0's real-world panic rate on prose is unverified — warrants its own scoped evaluation; grammar is opt-in default-OFF so present exposure is bounded. | present-harm: K2 — a malformed input that triggers a harper span-offset assertion panic would abort the desktop app (no recovery); code path `src-tauri/src/grammar.rs` `lint_text` → `LintGroup::lint`; flagged by wave-16 Phase-4 panel seat-2 (security lens, 2026-06-04).
 
 ## Result
 
