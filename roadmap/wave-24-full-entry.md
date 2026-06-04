@@ -162,7 +162,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 2 — Tauri portrait plumbing | ✓ | ✓ | (this commit) | Single review BLOCK→fixed (fs caps: granular allow-mkdir/write-file/remove + fs:scope, ctx7-verified); cargo check 0, suite 516/516. ⚠ runtime: dialog copy-mode read-grant for picked file = post-merge smoke |
 | 3 — FullEntry view | ✓ | ✓ | (this commit) | Single review FLAG→adjudicated: arc omitted (no store field, justified); Editable stays key-remount (project lint forbids setState-in-effect); addEntityField-dup flag was stale (idempotent since P1). Gates green, suite 532/532 |
 | 4 — Relationships + picker | ✓ | ✓ | (this commit) | PeopleGroup (relationships/characters-here) + FePersonCard + LivePicker wired to entity_links; single review FLAG→fixed (onOpenEntity→onPushEntry per spec §8 stack semantics). Gates green, suite 540/540 |
-| 5 — Portrait UI | — | — | — | |
+| 5 — Portrait UI | ✓ | ✓ | (this commit) | Portrait hero wired (add/remove/onError→clear + delete-flow unlink) to portraitService + setPortrait/clearPortrait; kind→type mapped. Single review FLAG→fixed (delete unlinks LIVE path, not stale snapshot — prevents orphaned file on add-then-delete). Gates green, suite 540/540. ⚠ round-trip = post-merge smoke |
 
 ## Follow-up candidates
 

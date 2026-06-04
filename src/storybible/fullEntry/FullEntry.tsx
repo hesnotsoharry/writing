@@ -28,6 +28,8 @@ import {
   FeProseSection,
 } from "./FeSubcomponents";
 import { PeopleGroup } from "./PeopleGroup";
+import { usePortraitFlows, usePortraitState } from "./portraitHooks";
+import { deletePortraitFile, toDisplaySrc } from "./portraitService";
 
 // ── Prop contract ─────────────────────────────────────────────────────────────
 
@@ -141,15 +143,31 @@ interface FeHeroProps {
   renaming: boolean;
   setRenaming: (v: boolean) => void;
   kind: string;
+  /** asset:// URL for the current portrait, or null when no portrait is set. */
+  displaySrc?: string | null;
+  onPortraitAdd?: () => void;
+  onPortraitRemove?: () => void;
+  onPortraitError?: () => void;
   onRename?: (kind: string, id: string, newName: string) => void;
 }
 
-function FeHero({ entity, entityType, renaming, setRenaming, kind, onRename }: FeHeroProps) {
+function FeHero({
+  entity, entityType, renaming, setRenaming, kind,
+  displaySrc, onPortraitAdd, onPortraitRemove, onPortraitError,
+  onRename,
+}: FeHeroProps) {
   const isChar = entityType === "character";
   const initial = entity.name.trim()[0]?.toUpperCase() ?? "";
   return (
     <div className="fe-hero">
-      <FeHeroAvatar type={entityType} initial={initial} />
+      <FeHeroAvatar
+        type={entityType}
+        initial={initial}
+        displaySrc={displaySrc}
+        onAdd={onPortraitAdd}
+        onRemove={onPortraitRemove}
+        onPortraitError={onPortraitError}
+      />
       <div className="fe-hero-body">
         <div className={`fe-eyebrow${isChar ? "" : " location"}`}>
           {isChar ? "Character" : "Setting"}
@@ -224,17 +242,30 @@ interface FeDocProps {
   fields: EntityField[];
   store?: StoryBibleStore;
   refresh: () => void;
+  displaySrc?: string | null;
+  onPortraitAdd?: () => void;
+  onPortraitRemove?: () => void;
+  onPortraitError?: () => void;
   onRename?: (kind: string, id: string, newName: string) => void;
   onCommitField: (k: FieldKind, key: string, value: string) => void;
 }
 
-function FeDoc({ entity, entityType, kind, renaming, setRenaming, fields, store, refresh, onRename, onCommitField }: FeDocProps) {
+function FeDoc({
+  entity, entityType, kind, renaming, setRenaming, fields, store, refresh,
+  displaySrc, onPortraitAdd, onPortraitRemove, onPortraitError,
+  onRename, onCommitField,
+}: FeDocProps) {
   const mergedSections = mergeSections(entityType, fields, entity.notes);
   return (
     <div className="feB-center">
       <div className="feB-doc">
         <FeHero entity={entity} entityType={entityType} kind={kind}
-          renaming={renaming} setRenaming={setRenaming} onRename={onRename} />
+          renaming={renaming} setRenaming={setRenaming} onRename={onRename}
+          displaySrc={displaySrc}
+          onPortraitAdd={onPortraitAdd}
+          onPortraitRemove={onPortraitRemove}
+          onPortraitError={onPortraitError}
+        />
         {mergedSections.map((sec) => (
           <FeProseSection key={sec.key} section={sec}
             onCommit={(v) => { void onCommitField("section", sec.key, v); }} />
@@ -247,37 +278,59 @@ function FeDoc({ entity, entityType, kind, renaming, setRenaming, fields, store,
 
 // ── FullEntry ─────────────────────────────────────────────────────────────────
 
-export function FullEntry({
-  entity, kind, origin, store,
-  folders = [], scenes = [],
-  onBack, onExit, onRename, onDelete, onOpenScene, onPushEntry,
-}: FullEntryProps) {
-  const [renaming, setRenaming] = useState(false);
-  const { fields, sceneIds, refresh } = useEntityDetail(store, entity?.id);
-  const resolvedKind = kind ?? (entity?.type === "character" ? "Character" : "Location");
+/** Resolves display-only derivations so FullEntryInner stays pure. */
+function resolveEntryContext(entity: EntityWithPortrait, kind?: "Character" | "Location", origin?: string) {
+  const resolvedKind = kind ?? (entity.type === "character" ? "Character" : "Location");
   const rootLabel = origin === "write" ? "Write" : "Story Bible";
-  if (!entity) return <div className="fe-screen" />;
-  const entityId = entity.id;
+  const storeType = resolvedKind === "Character" ? "character" as const : "location" as const;
+  return { resolvedKind, rootLabel, storeType };
+}
+
+/** Inner component — entity is guaranteed non-null. */
+function FullEntryInner({ entity, kind, origin, store, folders = [], scenes = [],
+  onBack, onExit, onRename, onDelete, onOpenScene, onPushEntry }: FullEntryProps & { entity: EntityWithPortrait }) {
+  const [renaming, setRenaming] = useState(false);
+  const { fields, sceneIds, refresh } = useEntityDetail(store, entity.id);
+  const { resolvedKind, rootLabel, storeType } = resolveEntryContext(entity, kind, origin);
+  const { portraitPath, setPortraitPath } = usePortraitState(entity.portraitPath);
+  const { handlePortraitAdd, handlePortraitRemove, handlePortraitError } =
+    usePortraitFlows({ entity, storeType, store, portraitPath, setPortraitPath });
   const entityType = entity.type;
+
   async function onCommitField(fieldKind: FieldKind, key: string, value: string) {
-    await store?.setEntityField(entityId, fieldKind, key, value);
+    await store?.setEntityField(entity.id, fieldKind, key, value);
     refresh();
   }
+
+  async function handleDelete(deleteKind: string, deleteId: string) {
+    if (portraitPath) await deletePortraitFile(portraitPath);
+    onDelete?.(deleteKind, deleteId);
+  }
+
+  const displaySrc = toDisplaySrc(portraitPath);
   return (
     <div className="fe-screen">
       <FeTopbar entity={entity} entityType={entityType} kind={resolvedKind}
         rootLabel={rootLabel} setRenaming={setRenaming}
-        onBack={onBack} onExit={onExit} onDelete={onDelete} />
+        onBack={onBack} onExit={onExit} onDelete={handleDelete} />
       <div className="feB">
         <FeDoc entity={entity} entityType={entityType} kind={resolvedKind}
-          renaming={renaming} setRenaming={setRenaming} fields={fields}
-          store={store} refresh={refresh} onRename={onRename} onCommitField={onCommitField} />
+          renaming={renaming} setRenaming={setRenaming} fields={fields} store={store}
+          refresh={refresh} onRename={onRename} onCommitField={onCommitField}
+          displaySrc={displaySrc}
+          onPortraitAdd={() => { void handlePortraitAdd(); }}
+          onPortraitRemove={() => { void handlePortraitRemove(); }}
+          onPortraitError={() => { void handlePortraitError(); }} />
         <FeRail entity={entity} entityType={entityType} store={store}
-          folders={folders} scenes={scenes} fields={fields}
-          sceneIds={sceneIds} refresh={refresh}
-          onCommitField={onCommitField} onOpenScene={onOpenScene}
-          onPushEntry={onPushEntry} />
+          folders={folders} scenes={scenes} fields={fields} sceneIds={sceneIds}
+          refresh={refresh} onCommitField={onCommitField}
+          onOpenScene={onOpenScene} onPushEntry={onPushEntry} />
       </div>
     </div>
   );
+}
+
+export function FullEntry({ entity, ...rest }: FullEntryProps) {
+  if (!entity) return <div className="fe-screen" />;
+  return <FullEntryInner entity={entity} {...rest} />;
 }

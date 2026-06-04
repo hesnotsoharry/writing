@@ -18,15 +18,42 @@ import { Editable } from "./Editable";
 interface FeHeroAvatarProps {
   type: "character" | "location";
   initial: string;
+  /** asset:// URL for the portrait image, or null when no portrait is set. */
+  displaySrc?: string | null;
+  /** Called when the user clicks "Add portrait" or "Change portrait". */
+  onAdd?: () => void;
+  /** Called when the user clicks "Remove portrait". */
+  onRemove?: () => void;
+  /** Called when the <img> fires onError (stale file — clear without deleting). */
+  onPortraitError?: () => void;
 }
 
-export function FeHeroAvatar({ type, initial }: FeHeroAvatarProps) {
-  // Phase 5 wires portrait; render monogram only now.
+export function FeHeroAvatar({
+  type, initial, displaySrc, onAdd, onRemove, onPortraitError,
+}: FeHeroAvatarProps) {
+  if (displaySrc) {
+    // Portrait set — render image with change/remove affordance below it.
+    return (
+      <div className="fe-avatar-col">
+        <div className={`fe-portrait${type === "character" ? " round" : ""}`}>
+          <img
+            src={displaySrc}
+            alt="Portrait"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            onError={onPortraitError}
+          />
+        </div>
+        <button className="fe-portrait-add" onClick={onRemove}>
+          <Icon name="x" className="ic" /> Remove
+        </button>
+      </div>
+    );
+  }
+  // No portrait — render monogram + "Add portrait" button.
   return (
     <div className="fe-avatar-col">
       <div className={`fe-av-lg ${type}`}>{initial}</div>
-      {/* Phase 5 TODO: "Add portrait" → pickAndSavePortrait → setPortrait */}
-      <button className="fe-portrait-add" onClick={() => undefined}>
+      <button className="fe-portrait-add" onClick={onAdd}>
         <Icon name="plus" className="ic" /> Portrait
       </button>
     </div>
