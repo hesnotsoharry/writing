@@ -60,8 +60,7 @@ function DraggableScene({
         scene={scene}
         isSelected={scene.id === selectedSceneId}
         onSelect={() => onSelectScene(scene.id)}
-        onRenameScene={callbacks.onRenameScene}
-        onDeleteScene={callbacks.onDeleteScene}
+        callbacks={callbacks}
       />
     </div>
   );
