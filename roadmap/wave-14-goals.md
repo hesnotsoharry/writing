@@ -165,9 +165,9 @@ conflict the lead resolves at merge. goalsOn still does not auto-light at sessio
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
-| 2 | — | — | — | — |
-| 3 | — | — | — | — |
+| 1 | yes | yes | 287a285 | Internal — vitest: streak edge cases + store upsert (mock getDb) green (23 tests). |
+| 2 | yes | yes | 9512d96 | Goals sheet renders (6 types/toggle/target/streak); acceptance 5/5 (toggle→setGoalsOn, Done→writing.goalTarget + row upsert). Live TitleBar tint / ring = prop-boundary verified; visual obs pending lead's Tauri smoke. |
+| 3 | folded into P2 | yes | 9512d96 | Acceptance test (orchestrator-authored) landed with P2; production `vite build` clean. Live runtime obs NOT performed here (no Tauri runtime in this env) — deferred to lead's integrated smoke. |
 
 ## Follow-up candidates
 
@@ -183,4 +183,27 @@ conflict the lead resolves at merge. goalsOn still does not auto-light at sessio
 
 ## Result
 
-<filled at ship by wrap team>
+**Lane status: MERGE-READY** (drafted 2026-06-04 · branch `wave-14-goals` · 3 commits on top of master `4891b2a`).
+
+Delivered (all 5 scope items): the Goals overlay is a real feature — ported sheet (toggle, six-type
+grid, daily-word target input, streak line) consuming existing CSS only; goal config persists to the
+`goals` table via `SqliteGoalsStore` (SqliteBinderStore pattern, no new migration); the toggle drives
+`setGoalsOn` (forwarded through `App.overlays.tsx` + `activeProjectId` threaded at the
+`App.content.tsx` render site — no frozen-file edits) to light the TitleBar target tint; Save mirrors
+the target into `localStorage["writing.goalTarget"]` (the wave-9 ring's exact key) and persists the
+streak (`localStorage["writing.streak"]`) via a pure, unit-tested advance/reset helper.
+
+**Gates (from worktree):** tsc clean · lint clean · vitest 200/200 (was 169 at wave-11 → +31) · `vite build` clean.
+**Reviews:** Phase 1 attack-diff → FLAG (readStreak type-guard hardened + 3 tests added). Phase 2
+attack-diff → FLAG (handleDone always-close+log on upsert reject; `ic` typed `IconName`; target `min=0`
+clamp). The `goalsOn` boot-hydration FLAG was adjudicated as JUSTIFIED — the fix requires editing the
+frozen `App.state.ts`; it is filed as a follow-up candidate below.
+
+**For the lead / merge:** (1) `App.overlays.tsx` + `App.content.tsx` are touched by this lane (Goals
+path only); lane 13 touches the adjacent `setHasQuickItems`/QuickCapture/Inbox + the same
+`App.content.tsx` OverlayStack render — expect a trivial conflict to resolve at merge. (2) `package.json`
+adds `@testing-library/user-event` (devDep, needed by the acceptance test) — auto-merges. (3) Live
+visual smoke (TitleBar tint + ring) was NOT run here (no Tauri runtime) — fold into the batch's pending
+integrated smoke. (4) Two follow-up candidates below need promotion (both cross-lane / frozen-file).
+
+Mechanical-review verdict + telemetry: deferred to the lead's wave-end `/review` at integration.
