@@ -1,8 +1,27 @@
 import { getDb } from "./schema";
+import {
+  sqliteAddEntityField,
+  sqliteAddLink,
+  sqliteClearPortrait,
+  sqliteDeleteEntityField,
+  sqliteGetEntity,
+  sqliteGetEntityFields,
+  sqliteListLinksFor,
+  sqlitePurgeEntityDetail,
+  sqliteRemoveLink,
+  sqliteReorderEntityFields,
+  sqliteSetEntityField,
+  sqliteSetPortrait,
+  sqliteUpdateLinkRelation,
+} from "./sqliteEntityDetail";
 import type {
   Character,
   Entity,
+  EntityField,
+  EntityLink,
   EntityType,
+  EntityWithPortrait,
+  FieldKind,
   Location,
   SceneLink,
   StoryBibleStore,
@@ -109,6 +128,7 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
       "DELETE FROM scene_links WHERE entity_id = $1 AND entity_type = $2",
       [id, type]
     );
+    await sqlitePurgeEntityDetail(db, id);
   }
 
   async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {
@@ -212,5 +232,54 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
         aliases: l.aliases,
       })),
     ];
+  }
+
+  // ── Wave 24 Full Entry additive surface ──────────────────────────────────
+  async getEntity(type: EntityType, id: string): Promise<EntityWithPortrait | null> {
+    return sqliteGetEntity(await getDb(), type, id);
+  }
+
+  async getEntityFields(entityId: string): Promise<EntityField[]> {
+    return sqliteGetEntityFields(await getDb(), entityId);
+  }
+
+  async setEntityField(entityId: string, kind: FieldKind, key: string, value: string): Promise<void> {
+    return sqliteSetEntityField(await getDb(), { entityId, kind, key }, value);
+  }
+
+  async addEntityField(entityId: string, kind: FieldKind, key: string): Promise<EntityField> {
+    return sqliteAddEntityField(await getDb(), entityId, kind, key);
+  }
+
+  async deleteEntityField(fieldId: string): Promise<void> {
+    return sqliteDeleteEntityField(await getDb(), fieldId);
+  }
+
+  async reorderEntityFields(updates: { id: string; sort: number }[]): Promise<void> {
+    return sqliteReorderEntityFields(await getDb(), updates);
+  }
+
+  async listLinksFor(entityId: string): Promise<EntityLink[]> {
+    return sqliteListLinksFor(await getDb(), entityId);
+  }
+
+  async addLink(fromId: string, toId: string, relation: string): Promise<EntityLink> {
+    return sqliteAddLink(await getDb(), fromId, toId, relation);
+  }
+
+  async removeLink(linkId: string): Promise<void> {
+    return sqliteRemoveLink(await getDb(), linkId);
+  }
+
+  async updateLinkRelation(linkId: string, relation: string): Promise<void> {
+    return sqliteUpdateLinkRelation(await getDb(), linkId, relation);
+  }
+
+  async setPortrait(type: EntityType, id: string, path: string): Promise<void> {
+    return sqliteSetPortrait(await getDb(), type, id, path);
+  }
+
+  async clearPortrait(type: EntityType, id: string): Promise<void> {
+    return sqliteClearPortrait(await getDb(), type, id);
   }
 }
