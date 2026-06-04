@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "../components/Icon";
 
@@ -30,15 +31,25 @@ export interface StatusBarProps {
   goal?: GoalProgress;
 }
 
+function clockNow(): string {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 /**
  * Bottom status bar. DATA HONESTY: only genuinely derivable values are shown.
- * Manuscript total, backup status, and goals are deferred (wave-6/7).
+ * The clock is a real local time. "Backed up" is cosmetic — real off-machine
+ * backup is deferred to Phase 2. No fabricated relative timestamps.
  */
-// Wave-17 note: `manuscriptTotal` and `goal` are threaded through the prop
-// interface but not yet consumed — Lane 21 renders the actual markup.
 export function StatusBar(props: StatusBarProps): ReactElement {
-  const { sceneWordCount, goalsOn = false } = props;
+  const { sceneWordCount, goalsOn = false, manuscriptTotal, goal } = props;
   const sceneDisplay = sceneWordCount !== null ? sceneWordCount.toLocaleString() : "—";
+  const [clock, setClock] = useState(clockNow);
+
+  useEffect(() => {
+    const id = setInterval(() => setClock(clockNow()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="statusbar">
       <div className="sb">
@@ -46,17 +57,19 @@ export function StatusBar(props: StatusBarProps): ReactElement {
         {sceneDisplay} words in scene
       </div>
       <div className="sb" style={{ color: "var(--ink-4)" }}>·</div>
-      {/* TODO(wave-6): replace with real manuscript-wide word count aggregate */}
-      <div className="sb">{"— manuscript"}</div>
+      <div className="sb">
+        {manuscriptTotal !== undefined ? manuscriptTotal.toLocaleString() : "—"} manuscript
+      </div>
       <div className="sb-right">
-        {goalsOn && (
+        {goalsOn && goal && (
           <div className="goal-mini">
             <Icon name="target" className="ic" style={{ width: 13, height: 13, color: "var(--accent)" }} />
-            {/* TODO(wave-6): render real session/target from goals store */}
+            <span style={{ color: "var(--ink-2)", fontWeight: 600 }}>{goal.words.toLocaleString()}</span>
+            <span style={{ color: "var(--ink-4)" }}>/ {goal.target.toLocaleString()} today</span>
+            <div className="goal-track"><div className="goal-fill" style={{ width: Math.min(100, Math.max(0, goal.pct)) + "%" }}></div></div>
           </div>
         )}
-        {/* TODO(wave-7): replace with real backup timestamp */}
-        <div className="sb"><Icon name="cloud" className="ic" />{"—"}</div>
+        <div className="sb"><Icon name="cloud" className="ic" style={{ color: "var(--good)" }} /> Backed up · {clock}</div>
       </div>
     </div>
   );
