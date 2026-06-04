@@ -36,8 +36,8 @@ describe("TWEAK_DEFAULTS", () => {
     expect(TWEAK_DEFAULTS.spellCheck).toBe(true);
   });
 
-  it("grammar defaults to false", () => {
-    expect(TWEAK_DEFAULTS.grammar).toBe(false);
+  it("grammar defaults to true", () => {
+    expect(TWEAK_DEFAULTS.grammar).toBe(true);
   });
 
   it("styleHints defaults to false", () => {

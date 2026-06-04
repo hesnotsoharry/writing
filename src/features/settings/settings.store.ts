@@ -48,7 +48,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   spellCheck: true,
   smartQuotes: true,
   typewriter: false,
-  grammar: false,
+  grammar: true,
   styleHints: false,
   motion: true,
   defaultStatus: "blank",
