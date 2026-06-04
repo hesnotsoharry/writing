@@ -10,9 +10,9 @@ updated: 2026-06-03
 - Post-batch fixes merged: EditorPane scroll (`.canvas-scroll` custom scrollbar), live word count observer (`useLiveWordCount.ts`).
 
 ## Next 3 steps
-1. **Feature-waves batch** — plan locked at `feature-waves-plan.md`. Serial wiring wave (AppView += cork, overlay state + TitleBar wiring, migrations 4/5, feature stubs, focus mode) → PARALLEL feature waves (Corkboard, QuickCapture+Inbox, Goals, Settings, Archive, Export).
+1. **Feature-waves batch — START HERE. Turnkey runbook: [`parallel-feature-waves-coordination.md`](parallel-feature-waves-coordination.md).** Next session, one lead: (a) author+run the SERIAL **wiring wave (11)** on master via `/wave-plan-lite` — AppView+=`cork`, overlay state + TitleBar triggers, **migration 4** (quick_notes/archive/goals), per-feature stubs, focus mode; merge it. (b) Then fan out the PARALLEL lanes from post-wiring master (worktree cmds + kickoffs in the runbook): Corkboard (+migration 5 scene-status), QuickCapture+Inbox, Goals, Settings, **Spelling (nspell)** → then Archive → Export (last, lib-gated). Per-feature scope: `feature-waves-plan.md`.
 2. **Polish/feature follow-ups (7 filed 2026-06-03):** editor-scene-header-chrome, inspector-entity-interactions (add/link/synopsis buttons), binder-chapter-collapse, editor-empty-placeholder, binder-projectswitcher, binder-scene-status-dots, screen-ports-visual-polish.
-3. **Spell/Grammar (offline):** ship `nspell` spell-check first (TipTap decoration, MIT), then `Harper` grammar (Rust/WASM via Tauri command). Research locked in feature-waves-plan.md § 9. Two feature waves, 1–2 weeks.
+3. **Grammar (offline) — deferred:** Spelling (`nspell`) is **wave 16 inside the parallel batch above** (toggleable from Settings: `spellCheck` ON / `styleHints` OFF). Grammar (`Harper` Rust/WASM via a Tauri command, `grammar` toggle OFF) is wave S2 — DEFER until `harper.js` API stabilizes; reuses the spelling lane's decoration plugin. Both fully offline/no-AI. See feature-waves-plan.md § Spelling + Grammar.
 
 ## Active work
 - Open follow-ups: 9 · [inbox](follow-ups/) — top 7 above + `app-detection-wiring-coverage` (wave-3) + `statusbar-live-data-wiring` remainder (manuscript count + goals mini + backup time) + `transparent-window-aesthetic` (wave-5).
