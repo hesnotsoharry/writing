@@ -64,10 +64,20 @@ export interface AppContentProps {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function EditorPane({ doc }: { doc: Y.Doc | null }) {
+function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion }: {
+  doc: Y.Doc | null;
+  view: AppView;
+  tree: BinderTree;
+  selectedSceneId: string | null;
+  storyBibleStore: SqliteStoryBibleStore;
+  linksVersion: number;
+}) {
   return (
     <main className="canvas-pane">
-      {doc ? <Editor doc={doc} /> : <div className="canvas-empty">Select a scene to start writing.</div>}
+      {doc
+        ? <Editor doc={doc} view={view} tree={tree} selectedSceneId={selectedSceneId}
+            storyBibleStore={storyBibleStore} linksVersion={linksVersion} />
+        : <div className="canvas-empty">Select a scene to start writing.</div>}
     </main>
   );
 }
@@ -120,7 +130,7 @@ function useAppContentSlots(props: AppContentProps) {
         refreshKey={linksVersion} liveWordCount={liveWordCount} />
     : null;
   const viewStageContent = buildViewStage(view, doc, activeProjectId,
-    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange });
+    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId, linksVersion });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
     binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId };
@@ -160,6 +170,8 @@ interface ViewStageCtx {
   tree: BinderTree;
   onSelectScene: (sceneId: string) => void;
   onViewChange: (view: AppView) => void;
+  selectedSceneId: string | null;
+  linksVersion: number;
 }
 
 function buildViewStage(
@@ -172,5 +184,6 @@ function buildViewStage(
     return <StoryBibleView store={ctx.storyBibleStore} projectId={activeProjectId}
       onEntitiesChanged={ctx.onEntitiesChanged} />;
   }
-  return <EditorPane doc={doc} />;
+  return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
+    storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion} />;
 }
