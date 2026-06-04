@@ -1,0 +1,151 @@
+/* ============================================================================
+   writing — Design Tokens (canonical source of truth)
+   "Quiet Study" — a calm, literary, paper-warm writing workspace.
+   Light is canon; [data-theme="dark"] holds the secondary theme.
+   Accent is themeable via --accent-* (set on :root by the Tweaks layer).
+   ========================================================================== */
+
+:root {
+  /* ---- Type families ---------------------------------------------------- */
+  --font-prose: "Literata", Georgia, "Times New Roman", serif;      /* the canvas */
+  --font-ui: "Hanken Grotesk", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* ---- Type scale (UI is small + calm; prose is generous) --------------- */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --text-3xl: 34px;
+  --prose-size: 19px;          /* the writing canvas body */
+  --prose-leading: 1.75;
+  --prose-measure: 38rem;      /* comfortable line length */
+
+  /* ---- Weights ---------------------------------------------------------- */
+  --w-normal: 400;
+  --w-medium: 500;
+  --w-semi: 600;
+  --w-bold: 700;
+
+  /* ---- Warm neutral ramp (parchment → ink) ------------------------------ */
+  --paper: #fcfaf5;            /* the writing surface — brightest warm white */
+  --parchment: #f4eee2;        /* app chrome (binder / inspector) */
+  --parchment-deep: #ece4d4;   /* recessed wells, hover troughs */
+  --parchment-edge: #e3d9c6;   /* hairline borders on warm chrome */
+  --titlebar: #efe8da;
+
+  --ink: #2a251d;              /* primary text — warm near-black */
+  --ink-2: #5c5446;            /* secondary text */
+  --ink-3: #8a8071;            /* tertiary / metadata */
+  --ink-4: #b3a892;            /* faint / placeholder */
+  --line: #e6ddcd;             /* default hairline on paper */
+  --line-soft: #efe8db;
+
+  /* ---- Accent (clay / terracotta) — default; overridable by Tweaks ------ */
+  --accent: #b25a38;
+  --accent-deep: #99492b;
+  --accent-tint: #f1e2d8;      /* soft fill behind active rows */
+  --accent-wash: rgba(178, 90, 56, 0.10);
+  --accent-ring: rgba(178, 90, 56, 0.30);
+  --selection: rgba(178, 90, 56, 0.16);   /* text selection / editor highlight */
+
+  /* ---- Entity tag colors (story bible) ---------------------------------- */
+  --character: #b25a38;        /* characters — clay */
+  --character-tint: #f1e2d8;
+  --location: #4e7c6b;         /* locations — muted teal/forest */
+  --location-tint: #dfe9e3;
+  --note: #9a7b3f;             /* misc notes — muted ochre */
+  --note-tint: #efe6d2;
+
+  /* ---- Semantic ---------------------------------------------------------- */
+  --good: #4e7c6b;
+  --warn: #b07d2e;
+  --danger: #a8442f;
+
+  /* ---- Radii ------------------------------------------------------------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+
+  /* ---- Spacing (4px base) ------------------------------------------------ */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* ---- Shadows (soft, warm, low) ---------------------------------------- */
+  --shadow-xs: 0 1px 2px rgba(58, 46, 28, 0.06);
+  --shadow-sm: 0 1px 3px rgba(58, 46, 28, 0.08), 0 1px 2px rgba(58, 46, 28, 0.05);
+  --shadow-md: 0 4px 14px rgba(58, 46, 28, 0.10), 0 2px 5px rgba(58, 46, 28, 0.06);
+  --shadow-lg: 0 14px 40px rgba(42, 33, 18, 0.18), 0 4px 12px rgba(42, 33, 18, 0.08);
+  --shadow-card: 0 1px 2px rgba(58, 46, 28, 0.05), 0 6px 16px rgba(58, 46, 28, 0.07);
+
+  /* ---- Layout dims ------------------------------------------------------- */
+  --titlebar-h: 46px;
+  --topbar-h: 52px;
+  --binder-w: 256px;
+  --inspector-w: 296px;
+  --statusbar-h: 30px;
+
+  /* ---- Motion ------------------------------------------------------------ */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 360ms;
+}
+
+/* ---------------------------------------------------------------------------
+   DARK — "Quiet Study at night". Warm-dark, low contrast, easy on the eyes.
+   ------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  --paper: #20201c;
+  --parchment: #1b1b18;
+  --parchment-deep: #161613;
+  --parchment-edge: #34332d;
+  --titlebar: #181815;
+
+  --ink: #ece5d6;
+  --ink-2: #b3aa98;
+  --ink-3: #847b6a;
+  --ink-4: #5f594d;
+  --line: #322f29;
+  --line-soft: #2a2823;
+
+  --accent: #cf7853;
+  --accent-deep: #e08a64;
+  --accent-tint: #33271f;
+  --accent-wash: rgba(207, 120, 83, 0.14);
+  --accent-ring: rgba(207, 120, 83, 0.40);
+  --selection: rgba(207, 120, 83, 0.24);
+
+  --character: #cf7853;
+  --character-tint: #33271f;
+  --location: #6fa890;
+  --location-tint: #1f2a26;
+  --note: #c39b54;
+  --note-tint: #2c2619;
+
+  --good: #6fa890;
+  --warn: #c69a4a;
+  --danger: #d6745a;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4), 0 2px 5px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 16px rgba(0, 0, 0, 0.35);
+}
