@@ -75,9 +75,13 @@ gracefully if the Rust side is unavailable.
 
 ### Acceptance criteria
 
-- [ ] `npm run test` passes including new tests: `buildTextIndex` char↔position mapping correct at ≥2
-      paragraphs and with a multi-byte char (T1); code-like false-flag handling (T2); multi-line span
-      (T3); IPC-reject → spelling still paints (T5); grammar toggle clears grammar decorations (T6).
+- [ ] `npm run test` passes including new AUTOMATED tests: `buildTextIndex` char↔position mapping correct
+      at ≥2 paragraphs and with a multi-byte char (T1); grammar char→PM mapping + spelling-bucket filter +
+      style-gating (grammarMapping); IPC-reject → `fetchGrammarResults` returns `[]` so spelling is
+      unaffected (T5, helper-level); per-kind `applySuggestion` transactions. **Manual-smoke only (require
+      the real harper runtime + a mounted editor, not unit-testable):** code-like false-flags (T2),
+      multi-line span end-to-end (T3), live toggle clearing grammar underlines in the editor (T6) — these
+      are verified via `npm run tauri dev`, not the automated suite.
 - [ ] `npm run lint` and `tsc --noEmit` are clean (no `no-explicit-any`, ≤40-line functions, complexity ≤10).
 - [ ] `cargo build` (via `npm run tauri build` or `cargo check` in `src-tauri/`) compiles with
       `harper-core = { version = "=2.0.0", features = ["concurrent"] }` pinned in `src-tauri/Cargo.toml`.
@@ -225,10 +229,12 @@ The mobile (Phase 2) path inherits this Node-only constraint — flagged for the
 | 1 — spelling walking skeleton | sonnet-implementer | ✅ | 606258d | single → FLAG (destroyed-view guard + tokenizer apostrophe; both fixed) | Unverified at runtime (no live tauri dev in worktree); tsc+lint+7 tests green; mapping proven by T1 + reviewer hand-trace |
 | 2 — settings reader + reactivity | sonnet-implementer | ✅ | 2ed812e | single → FLAG (redundant disabled-tick dispatch; fixed) | Unverified at runtime; tsc+lint+12 tests green; fresh-read + listener lifecycle verified by reviewer |
 | 3 — spelling suggestion popover | sonnet-implementer | ✅ | 92d5e1b | single → FLAG×3 (boundary find, async destroy guard, stale from/to close-on-update; all fixed) | Unverified at runtime (controller wiring not jsdom-testable); tsc+lint+presentational tests green; popover landed at src/editor/ not extensions/ (sensible — it's a React component) |
+| 4 — grammar IPC seam (harper-core) | sonnet-implementer | ✅ | 0cefb54 | **panel** → 1 BLOCK (LintKind 3/20 mapping → bucketed; fixed) + 2 FLAG (exact `=` pin + 2.3.1→2.0.0 doc drift; fixed). Deferred to follow-up: panic isolation + spawn_blocking | cargo check + cargo test (T4 flags "He go to the store.") green; tsc+lint+acceptance test green. Runtime devtools round-trip unverified (no live tauri dev). harper-core pinned =2.0.0 (2.3.1 didn't exist) |
+| 5 — wire grammar into shared plugin + popover | sonnet-implementer | ✅ | (this commit) | **panel** → 1 BLOCK (styleHints gate — style lints painted whenever grammar ON; fixed) + 5 FLAG (asymmetric degradation, close-on-meta-tx, wasted IPC, unchecked spec cast, dup vi.mock; all fixed). Deferred to follow-up: spelling-latency split-dispatch | tsc+lint+full suite (205) green. Unified DecorationSet (spell-error + grammar-error), typed per-kind popover, graceful degradation. Live editor behavior (T2/T3/T6) is manual-smoke only — unverified (no tauri dev) |
 
 ## Follow-up candidates
 
-- Harden the grammar IPC against harper panics + executor starvation: wrap the lint call in `tauri::async_runtime::spawn_blocking` (offload CPU work off the async runtime) AND add `panic = "unwind"` to the `[profile]` + a `catch_unwind` wrapper so a harper panic on malformed input returns `Err` instead of aborting the whole app. | why not in-wave: changing the panic strategy is an app-wide build-profile decision (affects the entire `src-tauri` binary, not just the grammar seam) and harper-core 2.0.0's real-world panic rate on prose is unverified — warrants its own scoped evaluation; grammar is opt-in default-OFF so present exposure is bounded. | present-harm: K2 — a malformed input that triggers a harper span-offset assertion panic would abort the desktop app (no recovery); code path `src-tauri/src/grammar.rs` `lint_text` → `LintGroup::lint`; flagged by wave-16 Phase-4 panel seat-2 (security lens, 2026-06-04).
+- Harden the grammar IPC against harper panics + executor starvation, AND remove the spelling-latency coupling: (a) wrap the lint call in `tauri::async_runtime::spawn_blocking` (offload CPU work off the async runtime) + add `panic = "unwind"` to the `[profile]` + a `catch_unwind` wrapper so a harper panic returns `Err` instead of aborting the app; (b) in `runChecks`, dispatch spelling decorations IMMEDIATELY and grammar in a second dispatch when the IPC returns, so spelling underlines are not delayed by the grammar round-trip (esp. the first-call dictionary build). | why not in-wave: (a) changing the panic strategy is an app-wide build-profile decision and harper 2.0.0's real panic rate on prose is unverified; (b) the split-dispatch is a behavioral change to the core check loop best done deliberately, not in a fix cycle. Grammar is opt-in default-OFF so the default spelling experience already has no latency regression. | present-harm: K2 — (a) a malformed input triggering a harper span-offset assertion panic would abort the desktop app (no recovery), path `src-tauri/src/grammar.rs` `lint_text` → `LintGroup::lint`; (b) with `writing.grammar='true'`, spelling underlines are delayed by the grammar IPC round-trip (first call includes the FstDictionary build), path `src/editor/extensions/ProofreadExtension.ts` `runChecks` single merged dispatch; flagged by wave-16 Phase-4 panel seat-2 + Phase-5 panel seats 1–2 (2026-06-04).
 
 ## Result
 

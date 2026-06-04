@@ -10,6 +10,8 @@ import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import type { NSpell } from "nspell";
 
 import { getSpeller } from "../../lib/dictionary";
+import type { GrammarProblem } from "../../lib/ipc";
+import { lintText } from "../../lib/ipc";
 import {
   readBoolSetting,
   SETTINGS_CHANGED_EVENT,
@@ -26,12 +28,21 @@ import type { CheckResult } from "./checkTypes";
 export const proofreadKey = new PluginKey<DecorationSet>("proofread");
 
 // ---------------------------------------------------------------------------
+// Spec interface — stored on each Decoration so the popover can read it.
+// ---------------------------------------------------------------------------
+
+export interface ProofreadDecoSpec {
+  proofreadType: CheckResult["type"];
+  proofreadSuggestions: CheckResult["suggestions"];
+}
+
+// ---------------------------------------------------------------------------
 // Tokenizer — contraction/hyphen-aware word regex (Unicode letter runs).
 // ---------------------------------------------------------------------------
 
 // Includes ASCII apostrophe (U+0027) + typographic single quotes (U+2018/U+2019) + hyphen,
 // so straight-quote contractions ("don't") stay one token (StarterKit has no Typography extension).
-const WORD_REGEX = /[\p{L}]+(?:['‘’-][\p{L}]+)*/gu;
+const WORD_REGEX = /[\p{L}]+(?:['''-][\p{L}]+)*/gu;
 
 function tokenize(plain: string): RegExpMatchArray[] {
   const matches: RegExpMatchArray[] = [];
@@ -71,8 +82,90 @@ function spellCheckWords(
 }
 
 // ---------------------------------------------------------------------------
-// runChecks — async spell-check, dispatches meta transaction on completion.
+// Grammar helpers — exported for unit testing.
 // ---------------------------------------------------------------------------
+
+/**
+ * Maps a list of GrammarProblems (with plain-text char offsets) to CheckResults
+ * with ProseMirror positions. Problems whose kind is "spelling" are skipped
+ * because nspell already owns spelling — avoiding double-underlines.
+ * Problems whose kind is "style" are skipped unless styleHintsEnabled is true
+ * (writing.styleHints defaults OFF, no style engine this wave).
+ */
+export function grammarProblemsToCheckResults(
+  problems: GrammarProblem[],
+  segments: Segment[],
+  styleHintsEnabled: boolean,
+): CheckResult[] {
+  const results: CheckResult[] = [];
+  for (const problem of problems) {
+    // Decision G: nspell owns spelling — skip harper's spelling/typo bucket.
+    if (problem.kind === "spelling") continue;
+    // Skip style lints unless the user has enabled style hints.
+    if (problem.kind === "style" && !styleHintsEnabled) continue;
+    results.push({
+      from: charOffsetToPmPos(problem.start, segments),
+      to: charOffsetToPmPos(problem.end, segments),
+      type: problem.kind,
+      message: problem.message,
+      suggestions: problem.suggestions,
+    });
+  }
+  return results;
+}
+
+/**
+ * Calls the grammar IPC and maps results. Returns [] on any IPC failure so
+ * spelling is never disrupted (Decision G — graceful degradation).
+ * Exported for unit testing (vi.mock("../lib/ipc")).
+ */
+export async function fetchGrammarResults(
+  plain: string,
+  segments: Segment[],
+  styleHintsEnabled: boolean,
+): Promise<CheckResult[]> {
+  try {
+    const problems = await lintText(plain);
+    return grammarProblemsToCheckResults(problems, segments, styleHintsEnabled);
+  } catch (err) {
+    console.warn("[proofread] grammar check failed, degrading gracefully:", err);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// runChecks — unified spell+grammar, dispatches meta transaction on completion.
+// ---------------------------------------------------------------------------
+
+/** Clears all decorations, but only if some are live (avoids redundant dispatch). */
+function clearDecorations(view: EditorView): void {
+  const current = proofreadKey.getState(view.state);
+  if (current !== undefined && current !== DecorationSet.empty) {
+    view.dispatch(view.state.tr.setMeta(proofreadKey, []));
+  }
+}
+
+/**
+ * Loads the speller and runs the sync spell check.
+ * Returns null ONLY when the sequence is stale (caller aborts whole tick).
+ * Returns [] when the dictionary fails to load (caller continues to grammar — Fix 2).
+ */
+async function computeSpellResults(
+  spellerFactory: () => Promise<NSpell>,
+  plain: string,
+  segments: Segment[],
+  isCurrentSeq: () => boolean,
+): Promise<CheckResult[] | null> {
+  let speller: NSpell;
+  try {
+    speller = await spellerFactory();
+  } catch (err) {
+    console.warn("[proofread] dictionary unavailable, skipping check:", err);
+    return []; // load failure → empty spell results; grammar still runs (Fix 2)
+  }
+  if (!isCurrentSeq()) return null; // stale → abort entire tick
+  return spellCheckWords(plain, segments, speller);
+}
 
 async function runChecks(
   view: EditorView,
@@ -81,40 +174,52 @@ async function runChecks(
 ): Promise<void> {
   // Decision D: fresh-read-per-tick — no closure caching.
   const spellEnabled = readBoolSetting(SETTINGS_KEYS.spellCheck, true);
-  if (!spellEnabled) {
-    // Clear existing underlines so toggling off takes effect immediately — but only
-    // if there are any, to avoid a redundant transaction on every tick while disabled.
-    const current = proofreadKey.getState(view.state);
-    if (current !== undefined && current !== DecorationSet.empty) {
-      view.dispatch(view.state.tr.setMeta(proofreadKey, []));
-    }
+  const grammarEnabled = readBoolSetting(SETTINGS_KEYS.grammar, false);
+  const styleHintsEnabled = readBoolSetting(SETTINGS_KEYS.styleHints, false);
+
+  if (!spellEnabled && !grammarEnabled) {
+    clearDecorations(view);
     return;
   }
 
-  let speller: NSpell;
-  try {
-    speller = await spellerFactory();
-  } catch (err) {
-    console.warn("[proofread] dictionary unavailable, skipping check:", err);
-    return;
-  }
-  if (!isCurrentSeq()) return;
+  // Build the index ONCE — both checkers share the same plain string.
   const { plain, segments } = buildTextIndex(view.state.doc);
-  const results = spellCheckWords(plain, segments, speller);
-  if (!isCurrentSeq()) return;
-  view.dispatch(view.state.tr.setMeta(proofreadKey, results));
+
+  let spellResults: CheckResult[] = [];
+  if (spellEnabled) {
+    const r = await computeSpellResults(spellerFactory, plain, segments, isCurrentSeq);
+    if (r === null) return; // stale seq → abort
+    spellResults = r;
+    // Fix 2: r === [] when load failed; grammar still runs below.
+  }
+
+  let grammarResults: CheckResult[] = [];
+  if (grammarEnabled) {
+    if (!isCurrentSeq()) return; // Fix 4: stale after spell await — skip grammar IPC
+    grammarResults = await fetchGrammarResults(plain, segments, styleHintsEnabled);
+    if (!isCurrentSeq()) return; // doc may have changed during the IPC round-trip
+  }
+
+  view.dispatch(view.state.tr.setMeta(proofreadKey, [...spellResults, ...grammarResults]));
 }
 
 // ---------------------------------------------------------------------------
-// Decorations helper.
+// Decorations helper — carries spec so the popover can read type + suggestions.
 // ---------------------------------------------------------------------------
 
 function buildDecorations(doc: ProseMirrorNode, results: CheckResult[]): DecorationSet {
-  const decorations = results.map((r) =>
-    Decoration.inline(r.from, r.to, {
-      class: r.type === "spelling" ? "spell-error" : "grammar-error",
-    }),
-  );
+  const decorations = results.map((r) => {
+    const spec: ProofreadDecoSpec = {
+      proofreadType: r.type,
+      proofreadSuggestions: r.suggestions,
+    };
+    return Decoration.inline(
+      r.from,
+      r.to,
+      { class: r.type === "spelling" ? "spell-error" : "grammar-error" },
+      spec,
+    );
+  });
   return DecorationSet.create(doc, decorations);
 }
 

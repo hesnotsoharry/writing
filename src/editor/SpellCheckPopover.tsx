@@ -1,8 +1,11 @@
+import type { EditorView } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { getSpeller } from "../lib/dictionary";
+import type { GrammarSuggestion } from "../lib/ipc";
+import type { ProofreadDecoSpec } from "./extensions/ProofreadExtension";
 import { proofreadKey } from "./extensions/ProofreadExtension";
 
 // ---------------------------------------------------------------------------
@@ -12,8 +15,8 @@ import { proofreadKey } from "./extensions/ProofreadExtension";
 export interface SpellCheckPopoverProps {
   x: number;
   y: number;
-  suggestions: string[];
-  onSelect: (s: string) => void;
+  suggestions: GrammarSuggestion[];
+  onSelect: (s: GrammarSuggestion) => void;
   onClose: () => void;
 }
 
@@ -22,7 +25,7 @@ interface PopoverState {
   y: number;
   from: number;
   to: number;
-  suggestions: string[];
+  suggestions: GrammarSuggestion[];
 }
 
 // ---------------------------------------------------------------------------
@@ -53,7 +56,36 @@ function usePopoverDismiss(
 }
 
 /**
- * Renders a fixed-position list of spelling suggestions at (x, y).
+ * Closes the popover when the document changes — captured from/to go stale the
+ * moment the doc mutates. Guard on `docChanged` so the proofread plugin's own
+ * setMeta re-check transactions (no doc mutation) don't dismiss it each cycle (Fix 3).
+ */
+function useCloseOnDocChange(
+  editor: Editor | null,
+  setState: (s: PopoverState | null) => void,
+): void {
+  useEffect(() => {
+    if (!editor) return;
+    const handler = (arg: { transaction: { docChanged: boolean } }): void => {
+      if (arg.transaction.docChanged) setState(null);
+    };
+    editor.on("update", handler);
+    return () => {
+      editor.off("update", handler);
+    };
+  }, [editor, setState]);
+}
+
+/**
+ * Returns the display label for a GrammarSuggestion. "remove" shows "Delete";
+ * all other kinds show the suggestion text (Decision F).
+ */
+function suggestionLabel(s: GrammarSuggestion): string {
+  return s.kind === "remove" ? "Delete" : s.text;
+}
+
+/**
+ * Renders a fixed-position list of spell/grammar suggestions at (x, y).
  * Fully props-driven — no editor knowledge.
  */
 export function SpellCheckPopover({
@@ -88,7 +120,7 @@ export function SpellCheckPopover({
             aria-selected={false}
             onClick={() => onSelect(s)}
           >
-            {s}
+            {suggestionLabel(s)}
           </button>
         ))
       )}
@@ -97,23 +129,67 @@ export function SpellCheckPopover({
 }
 
 // ---------------------------------------------------------------------------
+// applySuggestion — exported for unit testing.
+// ---------------------------------------------------------------------------
+
+/**
+ * Applies a GrammarSuggestion to a ProseMirror transaction, dispatching the
+ * correct operation per kind (Decision F):
+ *   "replace"      → replaceWith(from, to, schema.text(s.text))
+ *   "remove"       → delete(from, to)
+ *   "insert_after" → insertText(s.text, to)
+ *
+ * The empty-text guard for "replace"/"insert_after" prevents schema.text("")
+ * from throwing (ProseMirror rejects empty text nodes). Tests pass a fake view
+ * cast to EditorView.
+ */
+export function applySuggestion(
+  view: EditorView,
+  from: number,
+  to: number,
+  s: GrammarSuggestion,
+): void {
+  const { tr, schema } = view.state;
+
+  if (s.kind === "replace") {
+    if (!s.text) return; // schema.text("") throws
+    view.dispatch(tr.replaceWith(from, to, schema.text(s.text)));
+  } else if (s.kind === "remove") {
+    view.dispatch(tr.delete(from, to));
+  } else if (s.kind === "insert_after") {
+    if (!s.text) return; // no-op for empty insert
+    view.dispatch(tr.insertText(s.text, to));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Controller hook helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Fetches spelling suggestions for a word, gracefully handling dictionary unavailability.
+ * Reads the decoration spec at the clicked position and resolves suggestions:
+ * - spelling decorations: compute live from nspell (keep async path).
+ * - grammar/style decorations: read directly from the spec (pre-computed by IPC).
  */
-async function fetchSuggestions(word: string): Promise<string[]> {
-  try {
-    const speller = await getSpeller();
-    return speller.suggest(word);
-  } catch {
-    return [];
+async function resolvePopoverSuggestions(
+  specType: ProofreadDecoSpec["proofreadType"],
+  specSuggestions: ProofreadDecoSpec["proofreadSuggestions"],
+  word: string,
+): Promise<GrammarSuggestion[]> {
+  if (specType === "spelling") {
+    try {
+      const speller = await getSpeller();
+      return speller.suggest(word).map((t) => ({ kind: "replace" as const, text: t }));
+    } catch {
+      return [];
+    }
   }
+  // grammar / style: suggestions already typed from IPC result.
+  return specSuggestions;
 }
 
 /**
- * Creates a contextmenu handler that opens the popover on misspelled words.
+ * Creates a contextmenu handler that opens the popover on proofread decorations.
  */
 function createContextMenuHandler(
   editor: Editor,
@@ -137,8 +213,17 @@ function createContextMenuHandler(
     e.preventDefault();
 
     const deco = decos[0];
+    const spec = deco.spec as ProofreadDecoSpec;
+    // Fix 5: guard against a decoration without a proofread spec (prevents
+    // undefined.length throw if a non-proofread decoration is clicked).
+    if (!spec || !spec.proofreadType) return;
     const word = view.state.doc.textBetween(deco.from, deco.to);
-    const suggestions = await fetchSuggestions(word);
+
+    const suggestions = await resolvePopoverSuggestions(
+      spec.proofreadType,
+      spec.proofreadSuggestions,
+      word,
+    );
     if (editor.isDestroyed) return; // editor torn down during the async fetch
 
     setState({
@@ -157,8 +242,8 @@ function createContextMenuHandler(
 
 /**
  * Attaches a contextmenu listener to the editor DOM. When the right-click
- * lands on a misspelled decoration, it prevents the native menu and opens
- * the SpellCheckPopover with suggestions from nspell.
+ * lands on a proofread decoration (spelling or grammar), prevents the native
+ * menu and opens the SpellCheckPopover with the appropriate suggestions.
  *
  * Returns spread-ready props for <SpellCheckPopover /> and a `visible` flag.
  */
@@ -180,22 +265,12 @@ export function useSpellCheckPopover(editor: Editor | null): {
     };
   }, [editor]);
 
-  // Captured from/to go stale the moment the doc changes — close the popover on
-  // any doc-mutating update so onSelect can never replace a shifted range.
-  useEffect(() => {
-    if (!editor) return;
-    const close = (): void => setState((s) => (s ? null : s));
-    editor.on("update", close);
-    return () => {
-      editor.off("update", close);
-    };
-  }, [editor]);
+  useCloseOnDocChange(editor, setState);
 
-  function onSelect(s: string): void {
-    if (!s || !state || !editor || editor.isDestroyed) return;
+  function onSelect(s: GrammarSuggestion): void {
+    if (!state || !editor || editor.isDestroyed) return;
     const { from, to } = state;
-    const { tr, schema } = editor.view.state;
-    editor.view.dispatch(tr.replaceWith(from, to, schema.text(s)));
+    applySuggestion(editor.view, from, to, s);
     setState(null);
   }
 
