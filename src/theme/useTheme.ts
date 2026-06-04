@@ -17,7 +17,7 @@ export interface ThemeState {
 }
 
 // Default accent: clay / terracotta — matches the design's TWEAK_DEFAULTS.
-const DEFAULT_ACCENT: AccentPalette = ["#b25a38", "#99492b", "#f1e2d8"];
+export const DEFAULT_ACCENT: AccentPalette = ["#b25a38", "#99492b", "#f1e2d8"];
 
 /** Parse a hex colour (#rgb or #rrggbb) to "r,g,b" for rgba() expressions. */
 function rgbOf(hex: string): string {
