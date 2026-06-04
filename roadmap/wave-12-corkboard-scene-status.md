@@ -97,7 +97,12 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Topic | Completed | Commit | Review (reviewTier) |
+|---|---|---|---|---|
+| 1 | Scene status data layer (migration 5 + setSceneStatus) | ✅ | 78506df | single — FLAG (LATEST regression) fixed |
+| 2 | Corkboard view + live mount (render + click-to-open) | ✅ | 1afae34 | single — FLAG (test precision) fixed |
+| 3 | Status cycle (dot click → blank/draft/done, persisted) | ✅ | 998fd6a | single — 2 FLAGs (rapid-click, observability) fixed |
+| wrap | createScene status explicit (wave-end review fix) | ✅ | b3ce875 | wave-end attack-diff FLAG fixed |
 
 ## Follow-up candidates
 
@@ -105,4 +110,32 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Result
 
-<!-- Filled at ship by wrap team. Includes: what the wave delivered, links to promoted artifacts, mechanical-review verdict, telemetry summary. -->
+**Delivered (branch `wave-12-corkboard`, commits 2f3b46b..b3ce875):** a working Corkboard view + scene status.
+- Migration 5 — idempotent `ALTER scenes ADD COLUMN status TEXT NOT NULL DEFAULT 'blank'` (PRAGMA table_info guard; append-only; crash-recovery-safe).
+- `SceneStatus = blank|draft|done` on `Scene`; `setSceneStatus` on `BinderStore` + both impls; `createScene` sets `'blank'` explicitly.
+- `Corkboard.tsx` — chapter-grouped index cards (title, synopsis fallback, status dot/check, word-count `—` fallback); click card → open scene; click dot → cycle status (optimistic + persisted). 3-state model per locked product decision (NOT the 5-state design mock).
+- `App.content.tsx` — lead-authorized: `ViewStageCtx` threads `tree`/`onSelectScene`/`onViewChange` to Corkboard. Frozen surfaces (App.tsx/App.state.ts/TitleBar/app.css/tokens.css) untouched.
+- Gates: full suite **182/182** (+13), tsc 0, lint 0.
+
+**Deferred:** entity chips (follow-up candidate above), synopsis/word-count write paths, drag-reorder, binder-sidebar status dots (binder renders no status today — no staleness defect).
+
+### Mechanical review
+
+**Inputs resolved:**
+- Plan: `roadmap/wave-12-corkboard-scene-status.md`
+- Diff range: `4891b2a..b3ce875`
+- Graph: fallback (codebase-graph not indexed for this worktree — Check 1/3 via grep + import-following)
+- Run: 2026-06-04
+
+- **Check 1 (forward-trace):** PASS — all new symbols (`SceneStatus`, `setSceneStatus`, `migration_005_scene_status`, `Scene.status`, `Corkboard`, `ViewStageCtx` fields) reach production consumers (fallback trace). 0 dead paths.
+- **Check 2 (plan universals):** PASS — "every scene gets status" (table-wide migration), "each card renders status" (CorkCard covers all chapters + short pieces). No narrowed universal.
+- **Check 3 (export audit):** PASS — net-new export `SceneStatus` consumed in `binderStore.ts`/`sqliteBinderStore.ts`/`Corkboard.tsx` (production); `Corkboard` consumed by `App.content.tsx`. 0 dead exports (fallback trace).
+- **Check 4 (schema-removal migration):** N/A — additive column add; no schema-property removals (and SQLite, not electron-store JSON-Schema).
+- **Check 5 (boundary acceptance tests):** PASS — Phase 1 (persistent storage) + Phase 2 (frozen-mount consume) carry orchestrator-authored acceptance tests (`sceneStatus.contract.test.ts`, `corkboard.test.tsx`), authored before dispatch, implementer-unmodified, run evidence 182/182. Pipeline commits test+impl together (orchestrator commits all), so the git first-commit heuristic is inapplicable; the substantive orchestrator-owned/implementer-unmodified constraint holds.
+- **Check 6 (mutation score):** skipped — no `stryker.config` / no `mutation:test` script.
+
+#### Verdict
+
+**PASS** — Checks 1/2/3/5 ran clean (graph-fallback for 1/3); Check 4 N/A; Check 6 skipped. Wave-end adversarial attack-diff returned one FLAG (createScene status default-reliance), fixed in b3ce875. Branch is mergeable.
+
+> Wave-wrap tail (HANDOFF rewrite, durable-decision promotion, stub-collapse, push) deferred to the LEAD's post-merge wrap — this is a parallel lane (12·13·14·15·16); global artifacts are coordinated after merge to avoid cross-lane collisions.
