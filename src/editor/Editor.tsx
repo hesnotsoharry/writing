@@ -9,11 +9,16 @@ export function Editor({ doc }: { doc: Y.Doc }) {
       StarterKit.configure({ undoRedo: false }),
       Collaboration.configure({ document: doc, field: "content" }),
     ],
+    editorProps: {
+      attributes: { class: "prose" },
+    },
   });
 
   return (
-    <div style={{ maxWidth: 720, margin: "48px auto", padding: "0 24px" }}>
-      <EditorContent editor={editor} />
+    <div className="canvas-scroll">
+      <div className="canvas-wrap">
+        <EditorContent editor={editor} />
+      </div>
     </div>
   );
 }
