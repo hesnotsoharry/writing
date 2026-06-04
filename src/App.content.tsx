@@ -129,7 +129,8 @@ function useAppContentSlots(props: AppContentProps) {
         callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
         onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
         dragCallbacks={dragCallbacks} quickCount={quickCount}
-        onOpenQuickNotes={() => setShowQuickCapture(true)}
+        manuscriptTotal={manuscriptTotal}
+        onOpenQuickNotes={() => overlays.setShowInbox(true)}
         onOpenArchive={() => setShowArchive(true)} />
     )
     : null;

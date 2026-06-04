@@ -37,15 +37,13 @@ function buildCrudCallbacks(deps: CrudDeps): BinderCallbacks {
   const { binderStore, sceneDocStore, getProjectId, doReload, selectedSceneId, clearScene } = deps;
   return {
     onCreateChapter: () => {
-      const title = window.prompt("Chapter title:", "New Chapter");
-      if (!title?.trim()) return;
-      binderStore.createFolder({ projectId: getProjectId(), title: title.trim() })
+      // Creates inline at list bottom (no prompt) — user double-clicks to rename.
+      binderStore.createFolder({ projectId: getProjectId(), title: "New Chapter" })
         .then(doReload).catch(logCrudError("createFolder"));
     },
     onCreateScene: (folderId) => {
-      const title = window.prompt("Scene title:", "New Scene");
-      if (!title?.trim()) return;
-      binderStore.createScene({ projectId: getProjectId(), folderId, title: title.trim() })
+      // Creates inline with a default title (no prompt) — user double-clicks to rename.
+      binderStore.createScene({ projectId: getProjectId(), folderId, title: "New Scene" })
         .then(doReload).catch(logCrudError("createScene"));
     },
     onRenameFolder: (id, title) => {

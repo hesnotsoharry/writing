@@ -98,9 +98,9 @@ describe("SceneRow — word count", () => {
     expect(words?.textContent).toBe("1,234");
   });
 
-  it("renders em-dash when word_count is 0", () => {
+  it("renders '0' (not em-dash) when word_count is 0 — new scene shows numeric zero", () => {
     const { container } = renderScene(makeScene({ word_count: 0 }), makeCallbacks());
-    expect(container.querySelector(".scene-words")?.textContent).toBe("—");
+    expect(container.querySelector(".scene-words")?.textContent).toBe("0");
   });
 });
 
@@ -179,6 +179,27 @@ describe("SceneRow — context menu", () => {
     fireEvent.click(toWriteBtn);
 
     expect(callbacks.onSetSceneStatus).toHaveBeenCalledWith("s1", "blank");
+  });
+});
+
+// ── Selected row carries .active class ───────────────────────────────────
+
+describe("SceneRow — selection state", () => {
+  it("carries the 'active' class on scene-row when isSelected is true", () => {
+    const { container } = render(
+      <BinderToastProvider>
+        <ul>
+          <SceneRow
+            scene={makeScene()}
+            isSelected={true}
+            onSelect={vi.fn()}
+            callbacks={makeCallbacks()}
+          />
+        </ul>
+      </BinderToastProvider>
+    );
+    const li = container.querySelector("li.scene-row");
+    expect(li?.classList.contains("active")).toBe(true);
   });
 });
 

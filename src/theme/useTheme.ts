@@ -81,14 +81,25 @@ export function useTheme(): ThemeState {
     const rgb = rgbOf(hero);
     root.style.setProperty("--accent", hero);
     root.style.setProperty("--accent-deep", deep);
-    root.style.setProperty("--accent-tint", tint);
-    root.style.setProperty("--accent-wash", `rgba(${rgb},0.10)`);
-    root.style.setProperty("--accent-ring", `rgba(${rgb},0.30)`);
-    root.style.setProperty("--selection", `rgba(${rgb},0.16)`);
     root.style.setProperty("--character", hero);
-    root.style.setProperty("--character-tint", tint);
+    if (theme === "dark") {
+      // In dark mode, let tokens.css [data-theme="dark"] define the tint/wash/ring/selection
+      // values — they need dark-context colours that cannot be derived from the light palette.
+      // Removing the inline style unblocks the CSS cascade so the dark-token values win.
+      root.style.removeProperty("--accent-tint");
+      root.style.removeProperty("--accent-wash");
+      root.style.removeProperty("--accent-ring");
+      root.style.removeProperty("--selection");
+      root.style.removeProperty("--character-tint");
+    } else {
+      root.style.setProperty("--accent-tint", tint);
+      root.style.setProperty("--accent-wash", `rgba(${rgb},0.10)`);
+      root.style.setProperty("--accent-ring", `rgba(${rgb},0.30)`);
+      root.style.setProperty("--selection", `rgba(${rgb},0.16)`);
+      root.style.setProperty("--character-tint", tint);
+    }
     localStorage.setItem(ACCENT_KEY, JSON.stringify(accent));
-  }, [accent]);
+  }, [accent, theme]);
 
   return { theme, setTheme, accent, setAccent };
 }

@@ -70,6 +70,7 @@ interface MakePropsOverrides {
   archivedCount?: number;
   onOpenQuickNotes?: () => void;
   onOpenArchive?: () => void;
+  manuscriptTotal?: number;
 }
 
 function makeProps(overrides: MakePropsOverrides = {}) {
@@ -80,6 +81,7 @@ function makeProps(overrides: MakePropsOverrides = {}) {
     archivedCount,
     onOpenQuickNotes = vi.fn(),
     onOpenArchive = vi.fn(),
+    manuscriptTotal,
   } = overrides;
   return {
     tree,
@@ -95,6 +97,7 @@ function makeProps(overrides: MakePropsOverrides = {}) {
     archivedCount,
     onOpenQuickNotes,
     onOpenArchive,
+    manuscriptTotal,
   };
 }
 
@@ -214,25 +217,87 @@ describe("Binder — new chapter", () => {
   });
 });
 
-// ── activeWords → ProjectSwitcher ─────────────────────────────────────────
+// ── Empty states ──────────────────────────────────────────────────────────
 
-describe("Binder — activeWords wired to ProjectSwitcher", () => {
-  it("sums chapters + shortPieces word counts and shows total in .proj-sub", () => {
-    const scene100 = makeScene({ id: "s1", word_count: 100 });
-    const scene200 = makeScene({ id: "s2", title: "Scene Two", word_count: 200 });
-    const shortPiece50 = makeScene({ id: "s3", folder_id: null, title: "A note", word_count: 50 });
+describe("Binder — chapter empty state", () => {
+  it("shows 'No scenes yet' hint when a chapter has zero scenes", () => {
     const tree: BinderTree = {
       chapters: [
         {
-          folder: { id: "f1", project_id: "p1", title: "Chapter One", sort_order: 0 },
-          scenes: [scene100, scene200],
+          folder: { id: "f1", project_id: "p1", title: "Empty Chapter", sort_order: 0 },
+          scenes: [],
         },
       ],
-      shortPieces: [shortPiece50],
+      shortPieces: [],
     };
-    const props = makeProps({ tree });
+    const { container } = render(<Binder {...makeProps({ tree })} />);
+    expect(container.textContent).toContain("No scenes yet");
+  });
+
+  it("clicking 'add one' in an empty chapter calls onCreateScene with the chapter id", () => {
+    const onCreateScene = vi.fn();
+    const tree: BinderTree = {
+      chapters: [
+        {
+          folder: { id: "f1", project_id: "p1", title: "Empty Chapter", sort_order: 0 },
+          scenes: [],
+        },
+      ],
+      shortPieces: [],
+    };
+    const { getAllByRole } = render(<Binder {...makeProps({ tree, callbacks: { onCreateScene } })} />);
+    // Two "add one" buttons may exist (chapter empty hint + short-pieces empty hint).
+    // The chapter's "add one" is the first in DOM order.
+    const [addOneBtn] = getAllByRole("button", { name: "add one" });
+    fireEvent.click(addOneBtn);
+    expect(onCreateScene).toHaveBeenCalledWith("f1");
+  });
+
+  it("does not show empty hint when a chapter has scenes", () => {
+    const props = makeProps(); // default tree has 1 scene in chapter
+    const { container } = render(<Binder {...props} />);
+    expect(container.textContent).not.toContain("No scenes yet");
+  });
+});
+
+describe("Binder — short pieces empty state", () => {
+  it("shows 'Nothing here yet' when shortPieces is empty", () => {
+    const tree = makeTree({ shortPieces: [] });
+    const { container } = render(<Binder {...makeProps({ tree })} />);
+    expect(container.textContent).toContain("Nothing here yet");
+  });
+
+  it("clicking 'add one' in empty short-pieces calls onCreateScene with null", () => {
+    const onCreateScene = vi.fn();
+    const tree = makeTree({ shortPieces: [] });
+    const { container } = render(<Binder {...makeProps({ tree, callbacks: { onCreateScene } })} />);
+    // Find the "add one" button inside the short-pieces empty hint (last .empty-hint button).
+    const emptyHints = Array.from(container.querySelectorAll("p.empty-hint"));
+    const spHint = emptyHints[emptyHints.length - 1] as HTMLElement;
+    const addOneBtn = spHint.querySelector("button") as HTMLButtonElement;
+    expect(addOneBtn).not.toBeNull();
+    fireEvent.click(addOneBtn);
+    expect(onCreateScene).toHaveBeenCalledWith(null);
+  });
+});
+
+// ── manuscriptTotal → ProjectSwitcher ────────────────────────────────────
+
+describe("Binder — manuscriptTotal wired to ProjectSwitcher subtitle", () => {
+  it("shows the manuscriptTotal prop (not tree word sum) in .proj-sub when provided", () => {
+    // manuscriptTotal comes from useManuscriptWordCount (Phase 1) which includes
+    // live editor counts — it may differ from the static tree word_count sum.
+    const props = makeProps({ manuscriptTotal: 41280 });
     const { container } = render(<Binder {...props} />);
     const sub = container.querySelector(".proj-sub");
-    expect(sub?.textContent).toBe("Novel · 350 words");
+    expect(sub?.textContent).toBe("Novel · 41,280 words");
+  });
+
+  it("omits the word count from the subtitle when manuscriptTotal is not provided", () => {
+    // No manuscriptTotal → subtitle shows only the type label (no stale number).
+    const props = makeProps();
+    const { container } = render(<Binder {...props} />);
+    const sub = container.querySelector(".proj-sub");
+    expect(sub?.textContent).toBe("Novel");
   });
 });

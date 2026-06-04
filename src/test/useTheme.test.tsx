@@ -93,6 +93,29 @@ describe("useTheme", () => {
       document.documentElement.style.getPropertyValue("--accent-wash"),
     ).toBe("rgba(170,187,204,0.10)");
   });
+
+  it("does NOT write --accent-tint as an inline style in dark mode (lets tokens.css dark value win)", () => {
+    // Root cause of the dark-mode selected-row bug: inline style overrides the
+    // [data-theme="dark"] CSS cascade. In dark mode the tint inline style must be absent.
+    const { result } = renderHook(() => useTheme());
+    act(() => {
+      result.current.setTheme("dark");
+    });
+    // The inline style for --accent-tint must be empty so the CSS cascade applies.
+    expect(
+      document.documentElement.style.getPropertyValue("--accent-tint"),
+    ).toBe("");
+  });
+
+  it("restores --accent-tint inline style when switching back to light mode", () => {
+    const { result } = renderHook(() => useTheme());
+    act(() => result.current.setTheme("dark"));
+    act(() => result.current.setTheme("light"));
+    // Light mode: the palette tint is written back as an inline style.
+    expect(
+      document.documentElement.style.getPropertyValue("--accent-tint"),
+    ).toBe(DEFAULT_ACCENT[2]);
+  });
 });
 
 // Acceptance oracle for Phase 2 (cross-boundary: persistent storage).

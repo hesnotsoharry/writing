@@ -146,7 +146,7 @@ export function SceneRow({ scene, isSelected, onSelect, callbacks }: SceneRowPro
   const [editing, setEditing] = useState(false);
   const { menu, setMenu, openMenu } = useSceneMenu(scene, callbacks, () => setEditing(true));
 
-  const wordCount = scene.word_count ? scene.word_count.toLocaleString() : "—";
+  const wordCount = scene.word_count != null ? scene.word_count.toLocaleString() : "—";
   const titleEl = editing
     ? <InlineRename current={scene.title}
         onCommit={(t) => { callbacks.onRenameScene(scene.id, t); setEditing(false); }}

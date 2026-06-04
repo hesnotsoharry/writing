@@ -37,6 +37,8 @@ interface BinderProps extends BinderContentProps {
   archivedCount?: number;
   onOpenQuickNotes?: () => void;
   onOpenArchive?: () => void;
+  /** Real whole-manuscript word total from useManuscriptWordCount (Phase 1). */
+  manuscriptTotal?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,34 +118,38 @@ interface DraggableChapterSectionProps {
   onSelectScene: (sceneId: string) => void; callbacks: BinderCallbacks;
 }
 
+/** Inline empty-state shown when a chapter has no scenes yet. */
+function ChapterEmptyHint({ folderId, onAddScene }: { folderId: string; onAddScene: (id: string) => void }) {
+  return (
+    <div className="scene-list" style={{ paddingLeft: 16 }}>
+      <p className="empty-hint">
+        No scenes yet —{" "}
+        <button type="button" style={{ color: "var(--accent-deep)", fontWeight: 600 }}
+          onClick={() => onAddScene(folderId)}>add one</button>
+      </p>
+    </div>
+  );
+}
+
 function DraggableChapterSection({
-  chapter,
-  selectedSceneId,
-  onSelectScene,
-  callbacks,
+  chapter, selectedSceneId, onSelectScene, callbacks,
 }: DraggableChapterSectionProps) {
   const [open, setOpen] = useState(true);
-  const { ref, style, attributes, listeners } = useSortableChapter(
-    chapter.folder.id
-  );
+  const { ref, style, attributes, listeners } = useSortableChapter(chapter.folder.id);
   return (
     <section ref={ref} style={style}>
       <div {...attributes} {...listeners}>
-        <ChapterHeader
-          chapter={chapter}
-          callbacks={callbacks}
-          open={open}
-          onToggle={() => setOpen((o) => !o)}
-        />
+        <ChapterHeader chapter={chapter} callbacks={callbacks}
+          open={open} onToggle={() => setOpen((o) => !o)} />
       </div>
       {open && (
-        <ChapterSceneList
-          folderId={chapter.folder.id}
-          scenes={chapter.scenes}
-          selectedSceneId={selectedSceneId}
-          onSelectScene={onSelectScene}
-          callbacks={callbacks}
-        />
+        <>
+          <ChapterSceneList folderId={chapter.folder.id} scenes={chapter.scenes}
+            selectedSceneId={selectedSceneId} onSelectScene={onSelectScene} callbacks={callbacks} />
+          {chapter.scenes.length === 0 && (
+            <ChapterEmptyHint folderId={chapter.folder.id} onAddScene={callbacks.onCreateScene} />
+          )}
+        </>
       )}
     </section>
   );
@@ -158,42 +164,41 @@ interface ShortPiecesSectionProps {
   onSelectScene: (sceneId: string) => void; callbacks: BinderCallbacks;
 }
 
-function ShortPiecesSection({
-  scenes,
-  selectedSceneId,
-  onSelectScene,
-  callbacks,
-}: ShortPiecesSectionProps) {
+function ShortPiecesList({ scenes, selectedSceneId, onSelectScene, callbacks }: ShortPiecesSectionProps) {
   const { isLive, liveItems, sceneById } = useDragActive();
   const renderScenes = isLive
     ? (liveItems[SHORT_PIECES_GROUP] ?? []).flatMap((id) => (sceneById[id] ? [sceneById[id]] : []))
     : scenes;
   return (
+    <SortableSceneList containerId={SHORT_PIECES_GROUP} sceneIds={scenes.map((s) => s.id)}>
+      {renderScenes.map((scene) => (
+        <DraggableScene key={scene.id} scene={scene} containerId={SHORT_PIECES_GROUP}
+          selectedSceneId={selectedSceneId} onSelectScene={onSelectScene} callbacks={callbacks} />
+      ))}
+    </SortableSceneList>
+  );
+}
+
+function ShortPiecesSection({ scenes, selectedSceneId, onSelectScene, callbacks }: ShortPiecesSectionProps) {
+  return (
     <section>
       <div className="bsection-head">
         <span>Short pieces</span>
         <span className="count">{scenes.length}</span>
-        <button
-          title="Add short piece"
-          onClick={() => callbacks.onCreateScene(null)}
-          className="add"
-          aria-label="Add short piece"
-        >
+        <button title="Add short piece" onClick={() => callbacks.onCreateScene(null)}
+          className="add" aria-label="Add short piece">
           <Icon name="plus" style={{ width: 14, height: 14 }} />
         </button>
       </div>
-      <SortableSceneList containerId={SHORT_PIECES_GROUP} sceneIds={scenes.map((s) => s.id)}>
-        {renderScenes.map((scene) => (
-          <DraggableScene
-            key={scene.id}
-            scene={scene}
-            containerId={SHORT_PIECES_GROUP}
-            selectedSceneId={selectedSceneId}
-            onSelectScene={onSelectScene}
-            callbacks={callbacks}
-          />
-        ))}
-      </SortableSceneList>
+      <ShortPiecesList scenes={scenes} selectedSceneId={selectedSceneId}
+        onSelectScene={onSelectScene} callbacks={callbacks} />
+      {scenes.length === 0 && (
+        <p className="empty-hint" style={{ paddingLeft: 8 }}>
+          Nothing here yet —{" "}
+          <button type="button" style={{ color: "var(--accent-deep)", fontWeight: 600 }}
+            onClick={() => callbacks.onCreateScene(null)}>add one</button>
+        </p>
+      )}
     </section>
   );
 }
@@ -217,14 +222,6 @@ function buildItemsMap(tree: BinderTree): ItemsMap {
 // BinderContent
 // ---------------------------------------------------------------------------
 
-function EmptyBinderHint() {
-  return (
-    <p className="empty-hint">
-      No scenes yet.
-    </p>
-  );
-}
-
 function BinderContent({ tree, selectedSceneId, onSelectScene, callbacks }: BinderContentProps) {
   const { isLive, liveItems } = useDragActive();
   const chapterIds = tree.chapters.map((ch) => ch.folder.id);
@@ -233,7 +230,6 @@ function BinderContent({ tree, selectedSceneId, onSelectScene, callbacks }: Bind
   const renderChapters = isLive
     ? (liveItems[CHAPTERS_GROUP] ?? []).flatMap((id) => (byId[id] ? [byId[id]] : []))
     : tree.chapters;
-  const isEmpty = tree.chapters.length === 0 && tree.shortPieces.length === 0;
   return (
     <>
       <div className="bsection-head">
@@ -261,7 +257,6 @@ function BinderContent({ tree, selectedSceneId, onSelectScene, callbacks }: Bind
       <ShortPiecesSection scenes={tree.shortPieces} selectedSceneId={selectedSceneId}
         onSelectScene={onSelectScene} callbacks={callbacks}
       />
-      {isEmpty && <EmptyBinderHint />}
     </>
   );
 }
@@ -288,28 +283,22 @@ function buildFolderById(tree: BinderTree): FolderById {
   return Object.fromEntries(tree.chapters.map((ch) => [ch.folder.id, ch.folder.title]));
 }
 
-function computeActiveWords(tree: BinderTree): number {
-  return [...tree.chapters.flatMap((ch) => ch.scenes), ...tree.shortPieces]
-    .reduce((sum, s) => sum + s.word_count, 0);
-}
-
 export function Binder(props: BinderProps) {
   const {
     tree, selectedSceneId, onSelectScene, callbacks,
     projects, activeProjectId, onSwitchProject, onCreateProject, dragCallbacks,
-    quickCount, archivedCount, onOpenQuickNotes, onOpenArchive,
+    quickCount, archivedCount, onOpenQuickNotes, onOpenArchive, manuscriptTotal,
   } = props;
   const items = buildItemsMap(tree);
   const sceneById = buildSceneById(tree);
   const folderById = buildFolderById(tree);
-  const activeWords = computeActiveWords(tree);
   return (
     <BinderToastProvider>
       <nav className="panel-binder" aria-label="Binder">
         <ProjectSwitcher
           projects={projects} activeProjectId={activeProjectId}
           onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-          activeWords={activeWords}
+          activeWords={manuscriptTotal}
         />
         <BinderDragProvider callbacks={dragCallbacks} items={items} sceneById={sceneById} folderById={folderById}>
           <div className="binder-scroll">

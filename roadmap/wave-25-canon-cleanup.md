@@ -165,7 +165,8 @@ Enforcement: none (convention) — product decision, Cole 2026-06-04.
 
 | Phase | Dispatched | Completed | Commit | Notes |
 |---|---|---|---|---|
-| 1 Foundation | 2026-06-04 | 2026-06-04 | (this commit) | gates green; review single-tier FLAGs adjudicated (reloadTree forward-contract accepted; subtitle scope reworded to P2; bible+null-project fallthrough = pre-existing, noted). reloadTree established for P4/P5; archivedCount deferred to Lane 22. |
+| 1 Foundation | 2026-06-04 | 2026-06-04 | 49da98b | gates green; review single-tier FLAGs adjudicated (reloadTree forward-contract accepted; subtitle scope reworded to P2; bible+null-project fallthrough = pre-existing, noted). reloadTree established for P4/P5; archivedCount deferred to Lane 22. |
+| 2 Binder | 2026-06-04 | 2026-06-04 | (this commit) | gates green (510 tests); 4 review FLAGs fixed pre-commit: 0-word count renders "0" not "—", onCreateScene inline (no window.prompt), short-pieces empty-state clickable "add one", + .active selected-row test. Dark-clay fix via useTheme removing inline tint so dark cascade applies. manuscriptTotal→subtitle; quick-notes footer→Inbox modal. |
 
 ## Follow-up candidates
 
