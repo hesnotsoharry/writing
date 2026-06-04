@@ -23,13 +23,22 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: var(--paper);
   overflow: hidden;
 }
-@media (min-width: 1180px) {
-  .win {
-    inset: 18px; border-radius: var(--r-lg);
-    box-shadow: var(--shadow-lg);
-    border: 1px solid var(--parchment-edge);
-  }
-}
+/*
+ * Floating-window treatment (inset / rounded corners / shadow over the desktop)
+ * is DISABLED for wave-5's square-frameless ship. It only reads correctly with
+ * Tauri `transparent: true`, where the 18px inset reveals the real desktop; with
+ * transparency OFF it just exposes the opaque `body` (#cfc6b4) as a cream frame.
+ * Re-enable this block together with `transparent: true` in the deferred
+ * floating-aesthetic follow-up. Until then `.win` fills the window (inset: 0).
+ *
+ * @media (min-width: 1180px) {
+ *   .win {
+ *     inset: 18px; border-radius: var(--r-lg);
+ *     box-shadow: var(--shadow-lg);
+ *     border: 1px solid var(--parchment-edge);
+ *   }
+ * }
+ */
 
 /* ---- Title bar (merged: brand · view switch · actions · window controls) -- */
 .titlebar {
