@@ -53,6 +53,21 @@ describe("runMigrations — version gating (vi.fn double)", () => {
     // No migration ran — nothing was executed.
     expect(db.executeCalls).toHaveLength(0);
   });
+
+  it("on a DB at version 1 runs ONLY migration 2 — skips baseline DDL, bumps to version 2", async () => {
+    const db = makeDb(1);
+    await runMigrations(db);
+
+    // NONE of migration 1's baseline CREATE TABLE statements may fire (migration 1 was skipped).
+    // Asserting zero CREATE TABLE calls covers all seven baseline tables — migration 1 is the
+    // only migration that issues CREATE TABLE, so any such call would prove it wrongly re-ran.
+    const baselineDdlFired = db.executeCalls.some((call) => call.includes("CREATE TABLE"));
+    expect(baselineDdlFired).toBe(false);
+
+    // The version bump to 2 must have fired.
+    const lastCall = db.executeCalls[db.executeCalls.length - 1];
+    expect(lastCall).toBe("PRAGMA user_version = 2");
+  });
 });
 
 describe("assertSafeVersion — PRAGMA interpolation guard", () => {

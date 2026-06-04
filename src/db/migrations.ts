@@ -1,4 +1,5 @@
 import type { DbHandle } from "./schema";
+import { ensureColumn } from "./schema";
 
 export interface Migration {
   version: number;
@@ -111,6 +112,16 @@ async function m001_sceneLinkEntities(db: DbHandle): Promise<void> {
   ]);
 }
 
+/**
+ * Formally register the plaintext_projection column in version history.
+ * No-op on all current DBs: fresh DBs already have it from migration 1's
+ * baseline DDL; existing dev DBs already gained it via pre-framework ensureColumn.
+ * This migration exists to record the column's introduction and advance user_version to 2.
+ */
+async function migration_002_plaintext_projection(db: DbHandle): Promise<void> {
+  await ensureColumn(db, "scene_docs", "plaintext_projection", "TEXT");
+}
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 /**
@@ -121,6 +132,7 @@ async function m001_sceneLinkEntities(db: DbHandle): Promise<void> {
  */
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "baseline-schema", up: migration_001_baseline },
+  { version: 2, name: "plaintext-projection-formal", up: migration_002_plaintext_projection },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
