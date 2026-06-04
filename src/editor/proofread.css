@@ -1,0 +1,9 @@
+.spell-error {
+  text-decoration: underline wavy var(--spell-error-color, #e5484d);
+  text-decoration-skip-ink: none;
+}
+
+.grammar-error {
+  text-decoration: underline wavy var(--grammar-error-color, #3b82f6);
+  text-decoration-skip-ink: none;
+}
