@@ -32,6 +32,33 @@ export interface Entity {
   aliases: string | null;
 }
 
+export type FieldKind = "fact" | "section";
+
+/** A generic entity_fields row — short facts and long prose sections share this shape. */
+export interface EntityField {
+  id: string;
+  entityId: string;
+  kind: FieldKind;
+  key: string;
+  value: string;
+  sort: number;
+}
+
+/** A directional entity→entity link (relationships / characters-here). */
+export interface EntityLink {
+  id: string;
+  fromId: string;
+  toId: string;
+  relation: string;
+}
+
+/**
+ * Entity plus its portrait path — the single-entity loader's return shape.
+ * portrait_path is intentionally NOT a field on the base Entity (Wave 24 Decision 4):
+ * it stays off the batch list-read path and out of the existing entity-shape assertions.
+ */
+export type EntityWithPortrait = Entity & { portraitPath: string | null };
+
 /** Abstraction over Story Bible persistence (characters, locations, scene links). */
 export interface StoryBibleStore {
   listCharacters(projectId: string): Promise<Character[]>;
@@ -71,6 +98,41 @@ export interface StoryBibleStore {
   ): Promise<{ characters: Entity[]; locations: Entity[] }>;
   /** Return scene_ids that reference the given entity (for usage counts). */
   findScenesForEntity(entityId: string): Promise<string[]>;
+
+  // ── Wave 24 Full Entry additive surface ───────────────────────────────────
+  /** Load one entity by type+id, including its portrait_path. Null if absent. */
+  getEntity(type: EntityType, id: string): Promise<EntityWithPortrait | null>;
+  /** All entity_fields rows for an entity, ordered by kind then sort. */
+  getEntityFields(entityId: string): Promise<EntityField[]>;
+  /** Upsert a field value on the logical key (entity_id, kind, key). */
+  setEntityField(
+    entityId: string,
+    kind: FieldKind,
+    key: string,
+    value: string
+  ): Promise<void>;
+  /** Add a new custom field (empty value, sort after the last); returns the row. */
+  addEntityField(
+    entityId: string,
+    kind: FieldKind,
+    key: string
+  ): Promise<EntityField>;
+  /** Remove a field row by id. */
+  deleteEntityField(fieldId: string): Promise<void>;
+  /** Set sort values for a list of field ids. */
+  reorderEntityFields(updates: { id: string; sort: number }[]): Promise<void>;
+  /** All directional links where from_id = entityId. */
+  listLinksFor(entityId: string): Promise<EntityLink[]>;
+  /** Add a directional link from→to; dedup-safe on (from_id, to_id). */
+  addLink(fromId: string, toId: string, relation: string): Promise<EntityLink>;
+  /** Remove a link by id. */
+  removeLink(linkId: string): Promise<void>;
+  /** Update a link's relation label. */
+  updateLinkRelation(linkId: string, relation: string): Promise<void>;
+  /** Set/replace the portrait_path for an entity. */
+  setPortrait(type: EntityType, id: string, path: string): Promise<void>;
+  /** Clear the portrait_path (set null). */
+  clearPortrait(type: EntityType, id: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,5 +309,65 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
         aliases: l.aliases,
       })),
     ];
+  }
+
+  // ── Wave 24 Full Entry additive surface — STUBS (orchestrator-declared; Phase 1 fills). ──
+  async getEntity(
+    _type: EntityType,
+    _id: string
+  ): Promise<EntityWithPortrait | null> {
+    throw new Error("not implemented");
+  }
+  async getEntityFields(_entityId: string): Promise<EntityField[]> {
+    throw new Error("not implemented");
+  }
+  async setEntityField(
+    _entityId: string,
+    _kind: FieldKind,
+    _key: string,
+    _value: string
+  ): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async addEntityField(
+    _entityId: string,
+    _kind: FieldKind,
+    _key: string
+  ): Promise<EntityField> {
+    throw new Error("not implemented");
+  }
+  async deleteEntityField(_fieldId: string): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async reorderEntityFields(
+    _updates: { id: string; sort: number }[]
+  ): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async listLinksFor(_entityId: string): Promise<EntityLink[]> {
+    throw new Error("not implemented");
+  }
+  async addLink(
+    _fromId: string,
+    _toId: string,
+    _relation: string
+  ): Promise<EntityLink> {
+    throw new Error("not implemented");
+  }
+  async removeLink(_linkId: string): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async updateLinkRelation(_linkId: string, _relation: string): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async setPortrait(
+    _type: EntityType,
+    _id: string,
+    _path: string
+  ): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async clearPortrait(_type: EntityType, _id: string): Promise<void> {
+    throw new Error("not implemented");
   }
 }

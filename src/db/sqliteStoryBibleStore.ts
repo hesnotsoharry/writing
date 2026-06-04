@@ -2,7 +2,11 @@ import { getDb } from "./schema";
 import type {
   Character,
   Entity,
+  EntityField,
+  EntityLink,
   EntityType,
+  FieldKind,
+  EntityWithPortrait,
   Location,
   SceneLink,
   StoryBibleStore,
@@ -212,5 +216,65 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
         aliases: l.aliases,
       })),
     ];
+  }
+
+  // ── Wave 24 Full Entry additive surface — STUBS (orchestrator-declared; Phase 1 fills). ──
+  async getEntity(
+    _type: EntityType,
+    _id: string
+  ): Promise<EntityWithPortrait | null> {
+    throw new Error("not implemented");
+  }
+  async getEntityFields(_entityId: string): Promise<EntityField[]> {
+    throw new Error("not implemented");
+  }
+  async setEntityField(
+    _entityId: string,
+    _kind: FieldKind,
+    _key: string,
+    _value: string
+  ): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async addEntityField(
+    _entityId: string,
+    _kind: FieldKind,
+    _key: string
+  ): Promise<EntityField> {
+    throw new Error("not implemented");
+  }
+  async deleteEntityField(_fieldId: string): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async reorderEntityFields(
+    _updates: { id: string; sort: number }[]
+  ): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async listLinksFor(_entityId: string): Promise<EntityLink[]> {
+    throw new Error("not implemented");
+  }
+  async addLink(
+    _fromId: string,
+    _toId: string,
+    _relation: string
+  ): Promise<EntityLink> {
+    throw new Error("not implemented");
+  }
+  async removeLink(_linkId: string): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async updateLinkRelation(_linkId: string, _relation: string): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async setPortrait(
+    _type: EntityType,
+    _id: string,
+    _path: string
+  ): Promise<void> {
+    throw new Error("not implemented");
+  }
+  async clearPortrait(_type: EntityType, _id: string): Promise<void> {
+    throw new Error("not implemented");
   }
 }
