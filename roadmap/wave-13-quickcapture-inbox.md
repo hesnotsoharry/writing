@@ -43,9 +43,12 @@ lead-authorized threading of `activeProjectId` + the badge hook into `App.overla
 - Tests in `src/test/`: store round-trips against `makeSqlJsDb`, `noteBodyToSceneDoc` ↔ `extractPlainText`
   round-trip, promote orchestration.
 - **Shared-shell threading (lead-authorized in-lane, flagged in merge report):**
-  `App.overlays.tsx` — add `activeProjectId` to `OverlayStackProps`, destructure `setHasQuickItems` +
-  `activeProjectId`, forward both to `<QuickCapture>` and `<Inbox>`.
-  `App.content.tsx` — pass `activeProjectId` to `<OverlayStack>` (line ~128) and invoke `useQuickItemsBadge`.
+  `App.overlays.tsx` — widen `OverlayStack`'s PARAM to `OverlayStackProps & { activeProjectId: string | null }`
+  (do NOT add `activeProjectId` to `OverlayStackProps` itself — `OverlayFlags extends OverlayStackProps` and
+  the frozen `App.tsx` builds that object without `activeProjectId`, so widening the interface breaks tsc),
+  destructure `setHasQuickItems` + `activeProjectId`, forward both to `<QuickCapture>` and `<Inbox>`.
+  `App.content.tsx` — pass `activeProjectId` to `<OverlayStack>` separately at the call site (line ~128) and
+  invoke `useQuickItemsBadge`.
 
 **Out of scope:**
 

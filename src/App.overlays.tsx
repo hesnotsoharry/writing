@@ -33,7 +33,7 @@ export interface OverlayStackProps {
   setHasQuickItems: Dispatch<SetStateAction<boolean>>;
 }
 
-export function OverlayStack({
+export function OverlayStack({ // wave-13: added activeProjectId param
   showQuickCapture, setShowQuickCapture,
   showInbox, setShowInbox,
   showArchive, setShowArchive,
@@ -41,10 +41,18 @@ export function OverlayStack({
   showExport, setShowExport,
   showSettings, setShowSettings,
   setTheme, setAccent,
-}: OverlayStackProps): ReactElement {
+  setHasQuickItems,
+  activeProjectId,
+}: OverlayStackProps & { activeProjectId: string | null }): ReactElement {
   return (
     <>
-      {showQuickCapture && <QuickCapture onClose={() => setShowQuickCapture(false)} />}
+      {showQuickCapture && ( // wave-13: enhanced QuickCapture wiring
+        <QuickCapture
+          onClose={() => setShowQuickCapture(false)}
+          activeProjectId={activeProjectId}
+          setHasQuickItems={setHasQuickItems}
+        />
+      )}
       {showInbox && <Inbox onClose={() => setShowInbox(false)} />}
       {showArchive && <Archive onClose={() => setShowArchive(false)} />}
       {showGoals && <Goals onClose={() => setShowGoals(false)} />}
