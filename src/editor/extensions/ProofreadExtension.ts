@@ -10,6 +10,11 @@ import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import type { NSpell } from "nspell";
 
 import { getSpeller } from "../../lib/dictionary";
+import {
+  readBoolSetting,
+  SETTINGS_CHANGED_EVENT,
+  SETTINGS_KEYS,
+} from "../../lib/settings";
 import type { Segment } from "./buildTextIndex";
 import { buildTextIndex, charOffsetToPmPos } from "./buildTextIndex";
 import type { CheckResult } from "./checkTypes";
@@ -74,6 +79,18 @@ async function runChecks(
   isCurrentSeq: () => boolean,
   spellerFactory: () => Promise<NSpell>,
 ): Promise<void> {
+  // Decision D: fresh-read-per-tick — no closure caching.
+  const spellEnabled = readBoolSetting(SETTINGS_KEYS.spellCheck, true);
+  if (!spellEnabled) {
+    // Clear existing underlines so toggling off takes effect immediately — but only
+    // if there are any, to avoid a redundant transaction on every tick while disabled.
+    const current = proofreadKey.getState(view.state);
+    if (current !== undefined && current !== DecorationSet.empty) {
+      view.dispatch(view.state.tr.setMeta(proofreadKey, []));
+    }
+    return;
+  }
+
   let speller: NSpell;
   try {
     speller = await spellerFactory();
@@ -126,6 +143,9 @@ function makePluginView(debounce: number) {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let seq = 0;
     let destroyed = false;
+    // Tracks the latest EditorView so the settings-changed handler can schedule
+    // a re-check without capturing a stale reference from the factory closure.
+    let latestView: EditorView | null = null;
 
     function schedule(view: EditorView): void {
       if (timer !== null) clearTimeout(timer);
@@ -138,13 +158,22 @@ function makePluginView(debounce: number) {
       }, debounce);
     }
 
+    function onSettingsChanged(): void {
+      if (destroyed || latestView === null) return;
+      schedule(latestView);
+    }
+
+    window.addEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged);
+
     return {
       update(view: EditorView, prev: EditorState) {
+        latestView = view;
         if (!view.state.doc.eq(prev.doc)) schedule(view);
       },
       destroy() {
         destroyed = true;
         if (timer !== null) { clearTimeout(timer); timer = null; }
+        window.removeEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged);
       },
     };
   };
