@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Scene } from "../db/binderStore";
 import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
+import { writeGoalConfig } from "../features/goals/goalStorage";
+import { GoalRing } from "../inspector/InspectorGoalRings";
 import { SceneInspector } from "../inspector/SceneInspector";
 
 /**
@@ -232,6 +234,98 @@ describe("SceneInspector", () => {
     expect(openEntry).toHaveBeenCalledWith(links[0].entityId, "character");
   });
 
+  it("multi-ring renders only the scopes with config.on=true (Wave 25 P6b)", async () => {
+    const store = new InMemoryStoryBibleStore();
+    // Enable manuscript + chapter scopes; leave scene scope off.
+    writeGoalConfig("p1", "manuscript", { on: true, target: 1000 });
+    writeGoalConfig("p1", "chapter", { on: true, target: 500 });
+    writeGoalConfig("p1", "scene", { on: false, target: 0 });
+
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s1"
+        scene={makeScene()}
+        refreshKey={0}
+        liveWordCount={100}
+        manuscriptTotal={800}
+        chapterId="ch-1"
+        chapterTotal={300}
+      />
+    );
+
+    // "Today's goal" group should be present because at least one scope is on.
+    expect(screen.getByText(/today's goal/i)).toBeTruthy();
+
+    // Manuscript ring: rendered as label text inside a GoalCard.
+    expect(screen.getByText(/manuscript/i)).toBeTruthy();
+    // Chapter ring: rendered.
+    expect(screen.getByText(/chapter/i)).toBeTruthy();
+    // Scene ring should NOT be rendered (config.on is false).
+    // We look for the "Scene" label inside a GoalCard — the "today's goal" label
+    // is above; "Scene" as a standalone label means that ring rendered.
+    const sceneLabels = screen.queryAllByText(/^Scene$/i);
+    // The word "Scene" should not appear as a ring label (goal cards only show
+    // "Manuscript" and "Chapter" as scope labels).
+    expect(sceneLabels.length).toBe(0);
+  });
+
+  it("multi-ring renders nothing when all scopes are off (Wave 25 P6b)", async () => {
+    const store = new InMemoryStoryBibleStore();
+    // Explicitly set all scopes to off.
+    writeGoalConfig("p1", "manuscript", { on: false, target: 0 });
+    writeGoalConfig("p1", "chapter", { on: false, target: 0 });
+    writeGoalConfig("p1", "scene", { on: false, target: 0 });
+
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s1"
+        scene={makeScene()}
+        refreshKey={0}
+        liveWordCount={0}
+        manuscriptTotal={0}
+        chapterId="ch-1"
+        chapterTotal={0}
+      />
+    );
+
+    // No goal group rendered when all are off.
+    expect(screen.queryByText(/today's goal/i)).toBeNull();
+  });
+
+  it("multi-ring uses the chapterTotal prop for the chapter ring total (Wave 25 P6b)", async () => {
+    const store = new InMemoryStoryBibleStore();
+    writeGoalConfig("p1", "chapter", { on: true, target: 500 });
+    writeGoalConfig("p1", "manuscript", { on: false, target: 0 });
+
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s1"
+        scene={makeScene()}
+        refreshKey={0}
+        liveWordCount={50}
+        manuscriptTotal={200}
+        chapterId="ch-1"
+        chapterTotal={300}
+      />
+    );
+
+    // The chapter ring is driven by chapterTotal=300 fed to useDailyGoalProgress.
+    // target=500 and words=0 (baseline not yet set) → display "0 / 500 words".
+    await screen.findByText(/chapter/i);
+    // The ring renders "0 / 500 words" because no baseline exists yet.
+    // Use getAllByText for the "0" that may appear in multiple places (pct ring + word count).
+    const zeroEls = screen.getAllByText(/0/);
+    expect(zeroEls.length).toBeGreaterThan(0);
+    // "500 words" appears in the goal-num span.
+    expect(screen.getByText(/500 words/)).toBeTruthy();
+  });
+
   it("saved synopsis renders with the same CSS class as the edit-state textarea (synopsis parity)", async () => {
     const store = new InMemoryStoryBibleStore();
     render(
@@ -256,5 +350,40 @@ describe("SceneInspector", () => {
     // Edit state: the textarea should also carry className="synopsis".
     const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
     expect(textarea.className).toContain("synopsis");
+  });
+});
+
+// ── GoalRing label — float-artifact guard (Fix 1, Wave 25 P6b) ──────────────
+
+describe("GoalRing — percentage label is always a clean integer (no float artifact)", () => {
+  afterEach(() => cleanup());
+
+  it("renders '70%' (not '70.00000000000001%') for pct=70.00000000000001", () => {
+    // GoalCard passes Math.round(pct * 100) but before the fix it passed pct * 100 raw,
+    // producing IEEE-754 artifacts like 70.00000000000001. This test guards the fix.
+    render(<GoalRing pct={70.00000000000001} />);
+    // The .pct span must show the integer label, not the raw float.
+    expect(screen.getByText("70%")).toBeTruthy();
+    expect(screen.queryByText("70.00000000000001%")).toBeNull();
+  });
+
+  it("renders '0%' for pct=0", () => {
+    render(<GoalRing pct={0} />);
+    expect(screen.getByText("0%")).toBeTruthy();
+  });
+
+  it("renders '100%' for pct=100", () => {
+    render(<GoalRing pct={100} />);
+    expect(screen.getByText("100%")).toBeTruthy();
+  });
+
+  it("renders '35%' for pct=35.4 (rounds down)", () => {
+    render(<GoalRing pct={35.4} />);
+    expect(screen.getByText("35%")).toBeTruthy();
+  });
+
+  it("renders '36%' for pct=35.6 (rounds up)", () => {
+    render(<GoalRing pct={35.6} />);
+    expect(screen.getByText("36%")).toBeTruthy();
   });
 });

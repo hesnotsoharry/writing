@@ -4,7 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GoalsStore } from "../db/sqliteGoalsStore";
+import type { GoalsInitialScope } from "../features/goals/Goals";
 import { Goals } from "../features/goals/Goals";
+import { readGoalConfig } from "../features/goals/goalStorage";
 
 /**
  * Wave 14 acceptance test (orchestrator-authored — Goals overlay boundary contract).
@@ -144,5 +146,124 @@ describe("Goals overlay", () => {
       />
     );
     expect(screen.getByTestId("goals-streak")).toHaveTextContent("5");
+  });
+});
+
+describe("Goals overlay — 'counts toward' scope dropdown (Wave 25 P6b)", () => {
+  it("default scope is Manuscript and Done writes config for manuscript scope", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const store = fakeStore();
+    render(
+      <Goals
+        onClose={onClose}
+        goalsOn
+        setGoalsOn={vi.fn()}
+        activeProjectId="proj-scope"
+        store={store}
+      />
+    );
+    // The "Counts toward" select should default to "Manuscript".
+    const select = screen.getByRole<HTMLSelectElement>("combobox", { name: /counts toward/i });
+    expect(select.value).toBe("manuscript");
+
+    const target = screen.getByRole("spinbutton");
+    await user.clear(target);
+    await user.type(target, "500");
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const cfg = readGoalConfig("proj-scope", "manuscript");
+    expect(cfg).toEqual({ on: true, target: 500 });
+  });
+
+  it("selecting Chapter scope and clicking Done writes config for chapter scope", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const store = fakeStore();
+    render(
+      <Goals
+        onClose={onClose}
+        goalsOn
+        setGoalsOn={vi.fn()}
+        activeProjectId="proj-scope"
+        store={store}
+      />
+    );
+    const select = screen.getByRole<HTMLSelectElement>("combobox", { name: /counts toward/i });
+    await user.selectOptions(select, "chapter");
+    expect(select.value).toBe("chapter");
+
+    const target = screen.getByRole("spinbutton");
+    await user.clear(target);
+    await user.type(target, "300");
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    // The chapter scope config should be written with the entered values.
+    const cfg = readGoalConfig("proj-scope", "chapter");
+    expect(cfg).toEqual({ on: true, target: 300 });
+    // The scene scope config should still be at its default (not touched).
+    const sCfg = readGoalConfig("proj-scope", "scene");
+    expect(sCfg).toEqual({ on: false, target: 0 });
+  });
+
+  it("selecting Scene scope and clicking Done writes config for scene scope", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const store = fakeStore();
+    render(
+      <Goals
+        onClose={onClose}
+        goalsOn
+        setGoalsOn={vi.fn()}
+        activeProjectId="proj-scope"
+        store={store}
+      />
+    );
+    const select = screen.getByRole<HTMLSelectElement>("combobox", { name: /counts toward/i });
+    await user.selectOptions(select, "scene");
+    expect(select.value).toBe("scene");
+
+    const target = screen.getByRole("spinbutton");
+    await user.clear(target);
+    await user.type(target, "200");
+    await user.click(screen.getByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const cfg = readGoalConfig("proj-scope", "scene");
+    expect(cfg).toEqual({ on: true, target: 200 });
+  });
+
+  it("opens pre-scoped to chapter when initialScope is provided", () => {
+    const initialScope: GoalsInitialScope = { scope: "chapter", targetId: "ch-1" };
+    render(
+      <Goals
+        onClose={() => {}}
+        goalsOn
+        setGoalsOn={vi.fn()}
+        activeProjectId="proj-scope"
+        store={fakeStore()}
+        initialScope={initialScope}
+      />
+    );
+    const select = screen.getByRole<HTMLSelectElement>("combobox", { name: /counts toward/i });
+    expect(select.value).toBe("chapter");
+  });
+
+  it("opens pre-scoped to scene when initialScope is provided", () => {
+    const initialScope: GoalsInitialScope = { scope: "scene", targetId: "sc-1" };
+    render(
+      <Goals
+        onClose={() => {}}
+        goalsOn
+        setGoalsOn={vi.fn()}
+        activeProjectId="proj-scope"
+        store={fakeStore()}
+        initialScope={initialScope}
+      />
+    );
+    const select = screen.getByRole<HTMLSelectElement>("combobox", { name: /counts toward/i });
+    expect(select.value).toBe("scene");
   });
 });

@@ -181,7 +181,7 @@ export default function App() {
   const { tree, loading, selectedSceneId, doc, projects, activeProjectId,
     view, setView, linksVersion,
     showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
-    showArchive, setShowArchive, showGoals, setShowGoals,
+    showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
     showExport, setShowExport, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems } = state;
 
@@ -197,7 +197,9 @@ export default function App() {
       linksVersion={linksVersion} onEntitiesChanged={wiring.onEntitiesChanged}
       storyBibleStore={storyBibleStore} reloadTree={wiring.reloadTree}
       overlays={{ showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
-        showArchive, setShowArchive, showGoals, setShowGoals, showExport, setShowExport,
+        showArchive, setShowArchive, showGoals, setShowGoals,
+        goalsInitialScope, setGoalsInitialScope,
+        showExport, setShowExport,
         showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, setGoalsOn,
         hasQuickItems, setHasQuickItems, setTheme, setAccent }}
     />

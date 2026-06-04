@@ -17,8 +17,8 @@ export interface StatusBarProps {
    * Pass null when no scene is selected — renders '—' (not a fabricated number).
    */
   sceneWordCount: number | null;
-  /** Whether the Goals mini-bar is shown. DEFERRED — wave-6. */
-  goalsOn?: boolean; // TODO(wave-6): wire goals state
+  /** Whether the Goals mini-bar is shown. */
+  goalsOn?: boolean;
   /**
    * Manuscript-wide word total (sum of all scenes, active swapped for live).
    * Wave-17 mount point — Lane 21 renders it in the manuscript slot.

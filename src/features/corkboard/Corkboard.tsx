@@ -56,6 +56,7 @@ interface SceneMenuArgs {
   setOverride: (id: string, s: SceneStatus) => void;
   onAfterStatusWrite?: () => void;
   onAfterDelete?: () => void;
+  onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
 }
 
 function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
@@ -86,6 +87,9 @@ function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
             .then(() => { a.reload(); a.onAfterDelete?.(); })
             .catch((err: unknown) => { console.warn("[corkboard] deleteScene failed", err); });
         },
+        onAddGoal: a.onAddGoal
+          ? () => a.onAddGoal!("scene", scene.id)
+          : undefined,
       }),
     });
   };
@@ -237,6 +241,8 @@ interface CorkboardProps {
   reloadTree?: () => void;
   /** Drag-reorder callbacks — when provided, cards become draggable. */
   dragCallbacks?: DragCallbacks;
+  /** Opens the Goals modal pre-scoped to a scene. Optional. */
+  onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
 }
 
 export function Corkboard({
@@ -246,11 +252,12 @@ export function Corkboard({
   setSceneStatus = (id, status) => defaultBinderStore.setSceneStatus(id, status),
   reloadTree,
   dragCallbacks,
+  onAddGoal,
 }: CorkboardProps) {
   const { overrides, statusOf, cycleStatus, setOverride } = useCorkStatus(setSceneStatus, reloadTree);
   const { localTree, reload } = useLocalTree(tree);
   const { menu, toast, renamingSceneId, setMenu, setToast, setRenamingSceneId, handleContextMenu } =
-    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree });
+    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree, onAddGoal });
   const shared: SharedGroupProps = {
     onSelectScene, onViewChange, onCycleStatus: cycleStatus, onContextMenu: handleContextMenu,
     onReload: reload, renamingSceneId, onRenameEnd: () => setRenamingSceneId(null),

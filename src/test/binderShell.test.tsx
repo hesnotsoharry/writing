@@ -301,3 +301,64 @@ describe("Binder — manuscriptTotal wired to ProjectSwitcher subtitle", () => {
     expect(sub?.textContent).toBe("Novel");
   });
 });
+
+// ── Right-click 'Add goal' context menu (Wave 25 P6b) ─────────────────────
+
+describe("Binder — right-click 'Add goal' context menu fires onAddGoal with correct scope+id", () => {
+  it("scene right-click 'Add goal…' calls onAddGoal('scene', sceneId)", () => {
+    const onAddGoal = vi.fn();
+    const props = makeProps({ callbacks: { onAddGoal } });
+    const { container } = render(<Binder {...props} />);
+
+    // The scene row is the <li class="scene-row"> element.
+    const sceneRow = container.querySelector("li.scene-row") as HTMLElement;
+    expect(sceneRow).not.toBeNull();
+    fireEvent.contextMenu(sceneRow);
+
+    // "Add goal…" should appear as a context-menu button.
+    const addGoalBtn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.includes("Add goal"),
+    ) as HTMLElement;
+    expect(addGoalBtn).toBeDefined();
+    fireEvent.click(addGoalBtn);
+
+    expect(onAddGoal).toHaveBeenCalledTimes(1);
+    expect(onAddGoal).toHaveBeenCalledWith("scene", "s1");
+  });
+
+  it("chapter right-click 'Add goal…' calls onAddGoal('chapter', folderId)", () => {
+    const onAddGoal = vi.fn();
+    const props = makeProps({ callbacks: { onAddGoal } });
+    const { container } = render(<Binder {...props} />);
+
+    // The chapter row is the <div class="chapter-row"> element.
+    const chapterRow = container.querySelector(".chapter-row") as HTMLElement;
+    expect(chapterRow).not.toBeNull();
+    fireEvent.contextMenu(chapterRow);
+
+    // "Add goal…" should appear as a context-menu button.
+    const addGoalBtn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.includes("Add goal"),
+    ) as HTMLElement;
+    expect(addGoalBtn).toBeDefined();
+    fireEvent.click(addGoalBtn);
+
+    expect(onAddGoal).toHaveBeenCalledTimes(1);
+    expect(onAddGoal).toHaveBeenCalledWith("chapter", "f1");
+  });
+
+  it("'Add goal…' is absent from scene context menu when onAddGoal is not provided", () => {
+    // No onAddGoal in callbacks — the menu item must not appear.
+    const props = makeProps(); // makeCallbacks does not include onAddGoal by default
+    const { container } = render(<Binder {...props} />);
+
+    const sceneRow = container.querySelector("li.scene-row") as HTMLElement;
+    expect(sceneRow).not.toBeNull();
+    fireEvent.contextMenu(sceneRow);
+
+    const addGoalBtn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Add goal…",
+    );
+    expect(addGoalBtn).toBeUndefined();
+  });
+});

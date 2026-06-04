@@ -11,6 +11,7 @@ import type { BinderTree } from "./binder/buildTree";
 import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
 import type { SqliteBinderStore } from "./db/sqliteBinderStore";
+import type { GoalsInitialScope } from "./features/goals/Goals";
 import { readGoalsOn } from "./features/goals/goalStorage";
 
 export type AppView = "editor" | "bible" | "cork";
@@ -71,6 +72,7 @@ function useModalFlags() {
   const [showInbox, setShowInbox] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
   const [showGoals, setShowGoals] = useState(false);
+  const [goalsInitialScope, setGoalsInitialScope] = useState<GoalsInitialScope | undefined>(undefined);
   const [showExport, setShowExport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
@@ -81,6 +83,7 @@ function useModalFlags() {
     showInbox, setShowInbox,
     showArchive, setShowArchive,
     showGoals, setShowGoals,
+    goalsInitialScope, setGoalsInitialScope,
     showExport, setShowExport,
     showSettings, setShowSettings,
     focusMode, setFocusMode,

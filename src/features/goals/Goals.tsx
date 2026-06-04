@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Icon } from "../../components/Icon";
 import type { GoalsStore } from "../../db/sqliteGoalsStore";
 import { SqliteGoalsStore } from "../../db/sqliteGoalsStore";
-import { writeGoalsOn,writeGoalTarget } from "./goalStorage";
+import type { GoalScope } from "./goalModel";
+import { readGoalConfig, writeGoalConfig, writeGoalsOn, writeGoalTarget } from "./goalStorage";
 import type { GoalTypeId } from "./goalTypes";
 import { GOAL_TYPES } from "./goalTypes";
 import { readStreak } from "./streak";
@@ -30,10 +31,17 @@ function GoalTypeButtons({ selected, onSelect }: { selected: GoalTypeId; onSelec
 }
 
 // ---------------------------------------------------------------------------
-// TargetRow
+// TargetRow — target input + "Counts toward" scope dropdown
 // ---------------------------------------------------------------------------
 
-function TargetRow({ target, onTargetChange }: { target: number; onTargetChange: (n: number) => void }): ReactElement {
+interface TargetRowProps {
+  target: number;
+  onTargetChange: (n: number) => void;
+  scope: GoalScope;
+  onScopeChange: (s: GoalScope) => void;
+}
+
+function TargetRow({ target, onTargetChange, scope, onScopeChange }: TargetRowProps): ReactElement {
   return (
     <div style={{ display: "flex", gap: 16, marginTop: 18 }}>
       <div style={{ flex: 1 }}>
@@ -53,13 +61,21 @@ function TargetRow({ target, onTargetChange }: { target: number; onTargetChange:
       </div>
       <div style={{ flex: 1 }}>
         <label className="field-label">Counts toward</label>
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          border: "1.5px solid var(--line)", borderRadius: "var(--r-md)", padding: "9px 12px",
-          background: "var(--paper)", fontSize: 14, color: "var(--ink-2)",
-        }}>
-          This project <Icon name="chevDown" style={{ width: 14, height: 14, color: "var(--ink-4)" }} />
-        </div>
+        <select
+          aria-label="Counts toward"
+          value={scope}
+          onChange={(e) => onScopeChange(e.target.value as GoalScope)}
+          style={{
+            display: "flex", alignItems: "center", border: "1.5px solid var(--line)",
+            borderRadius: "var(--r-md)", padding: "9px 12px", background: "var(--paper)",
+            fontSize: 14, color: "var(--ink)", width: "100%", boxSizing: "border-box",
+            appearance: "none", WebkitAppearance: "none", cursor: "pointer",
+          }}
+        >
+          <option value="manuscript">Manuscript</option>
+          <option value="chapter">Chapter</option>
+          <option value="scene">Scene</option>
+        </select>
       </div>
     </div>
   );
@@ -104,10 +120,12 @@ interface GoalsSheetProps {
   setType: (id: GoalTypeId) => void;
   target: number;
   setTarget: (n: number) => void;
+  scope: GoalScope;
+  setScope: (s: GoalScope) => void;
   streakCount: number;
 }
 
-function GoalsSheet({ goalsOn, onToggle, onClose, onDone, type, setType, target, setTarget, streakCount }: GoalsSheetProps): ReactElement {
+function GoalsSheet({ goalsOn, onToggle, onClose, onDone, type, setType, target, setTarget, scope, setScope, streakCount }: GoalsSheetProps): ReactElement {
   return (
     <div className="scrim" onClick={onClose}>
       <div className="sheet" style={{ width: 580 }} onClick={(e) => e.stopPropagation()}>
@@ -123,7 +141,7 @@ function GoalsSheet({ goalsOn, onToggle, onClose, onDone, type, setType, target,
           <div style={{ opacity: goalsOn ? 1 : 0.45, pointerEvents: goalsOn ? "auto" : "none", transition: "opacity .2s" }}>
             <label className="field-label">What kind of goal?</label>
             <GoalTypeButtons selected={type} onSelect={setType} />
-            <TargetRow target={target} onTargetChange={setTarget} />
+            <TargetRow target={target} onTargetChange={setTarget} scope={scope} onScopeChange={setScope} />
           </div>
         </div>
         <div className="sheet-foot">
@@ -142,44 +160,58 @@ function GoalsSheet({ goalsOn, onToggle, onClose, onDone, type, setType, target,
 // Goals overlay (public export — DI seam: test injects fake store)
 // ---------------------------------------------------------------------------
 
+export interface GoalsInitialScope {
+  scope: GoalScope;
+  /** null for manuscript; folderId for chapter; sceneId for scene. */
+  targetId: string | null;
+}
+
+/** Reads the initial target for the given project+scope (pure, no writes). */
+function initialTarget(projectId: string | null, scope: GoalScope): number {
+  if (projectId) {
+    const cfg = readGoalConfig(projectId, scope);
+    if (cfg.target > 0) return cfg.target;
+  }
+  const raw = localStorage.getItem("writing.goalTarget");
+  if (raw === null) return 1000;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : 1000;
+}
+
 export function Goals({
-  onClose,
-  goalsOn,
-  setGoalsOn,
-  activeProjectId,
-  store = defaultGoalsStore,
+  onClose, goalsOn, setGoalsOn, activeProjectId,
+  store = defaultGoalsStore, initialScope,
 }: {
-  onClose: () => void;
-  goalsOn: boolean;
+  onClose: () => void; goalsOn: boolean;
   setGoalsOn: Dispatch<SetStateAction<boolean>>;
-  activeProjectId: string | null;
-  store?: GoalsStore;
+  activeProjectId: string | null; store?: GoalsStore;
+  /** When opened from right-click 'Add goal', pre-selects the scope. */
+  initialScope?: GoalsInitialScope;
 }): ReactElement {
   const [type, setType] = useState<GoalTypeId>("daily");
-  const [target, setTarget] = useState<number>(() => {
-    const raw = localStorage.getItem("writing.goalTarget");
-    if (raw === null) return 1000;
-    const n = parseInt(raw, 10);
-    return Number.isFinite(n) ? n : 1000;
-  });
+  const [scope, setScope] = useState<GoalScope>(initialScope?.scope ?? "manuscript");
+  const [target, setTarget] = useState<number>(
+    () => initialTarget(activeProjectId, initialScope?.scope ?? "manuscript"),
+  );
   const streakCount = readStreak().count;
 
   function handleToggle() { const next = !goalsOn; setGoalsOn(next); writeGoalsOn(next); }
 
   function handleDone() {
+    if (activeProjectId) writeGoalConfig(activeProjectId, scope, { on: goalsOn, target });
     writeGoalTarget(target);
     writeGoalsOn(goalsOn);
     if (activeProjectId) {
-      void store.upsertGoal({ projectId: activeProjectId, goalType: type, target, enabled: goalsOn }).catch((err) => console.error("[goals] upsertGoal failed", err)).finally(onClose);
-    } else {
-      onClose();
-    }
+      void store.upsertGoal({ projectId: activeProjectId, goalType: type, target, enabled: goalsOn })
+        .catch((err) => console.error("[goals] upsertGoal failed", err)).finally(onClose);
+    } else { onClose(); }
   }
 
   return (
     <GoalsSheet
       goalsOn={goalsOn} onToggle={handleToggle} onClose={onClose} onDone={handleDone}
-      type={type} setType={setType} target={target} setTarget={setTarget} streakCount={streakCount}
+      type={type} setType={setType} target={target} setTarget={setTarget}
+      scope={scope} setScope={setScope} streakCount={streakCount}
     />
   );
 }

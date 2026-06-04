@@ -115,47 +115,89 @@ function useActiveScene(tree: BinderTree, selectedSceneId: string | null): Scene
   return selectedSceneId != null ? (all.find((s) => s.id === selectedSceneId) ?? null) : null;
 }
 
+/** Returns the folderId and chapter word total for the selected scene (null when short piece). */
+function useChapterInfo(
+  tree: BinderTree,
+  selectedSceneId: string | null,
+  liveWordCount: number,
+): { chapterId: string | null; chapterTotal: number | null } {
+  if (!selectedSceneId) return { chapterId: null, chapterTotal: null };
+  const chapter = tree.chapters.find((ch) => ch.scenes.some((s) => s.id === selectedSceneId));
+  if (!chapter) return { chapterId: null, chapterTotal: null };
+  const total = chapter.scenes.reduce(
+    (acc, s) => acc + (s.id === selectedSceneId ? liveWordCount : (s.word_count ?? 0)),
+    0,
+  );
+  return { chapterId: chapter.folder.id, chapterTotal: total };
+}
+
 // ---------------------------------------------------------------------------
 // AppContent
 // ---------------------------------------------------------------------------
+
+/** Builds the binder + inspector slots (extracted to keep useAppContentSlots ≤40 lines). */
+function buildSideSlots(p: {
+  tree: BinderTree; selectedSceneId: string | null; onSelectScene: (id: string) => void;
+  callbacks: AppContentProps["callbacks"]; projects: AppContentProps["projects"];
+  activeProjectId: string | null; onSwitchProject: (id: string) => void;
+  onCreateProject: () => void; dragCallbacks: DragCallbacks;
+  quickCount: number; manuscriptTotal: number; overlays: OverlayFlags;
+  storyBibleStore: AppContentProps["storyBibleStore"]; activeScene: Scene | null;
+  linksVersion: number; liveWordCount: number;
+  chapterId: string | null; chapterTotal: number | null;
+  onAddGoal: (s: "scene" | "chapter", id: string) => void;
+  showSidePanels: boolean; view: AppView;
+}) {
+  const { setShowArchive } = p.overlays;
+  const callbacksWithGoal = { ...p.callbacks, onAddGoal: p.onAddGoal };
+  const binderSlot = p.showSidePanels
+    ? <Binder tree={p.tree} selectedSceneId={p.selectedSceneId} onSelectScene={p.onSelectScene}
+        callbacks={callbacksWithGoal} projects={p.projects} activeProjectId={p.activeProjectId}
+        onSwitchProject={p.onSwitchProject} onCreateProject={p.onCreateProject}
+        dragCallbacks={p.dragCallbacks} quickCount={p.quickCount}
+        manuscriptTotal={p.manuscriptTotal}
+        onOpenQuickNotes={() => p.overlays.setShowInbox(true)}
+        onOpenArchive={() => setShowArchive(true)} />
+    : null;
+  const inspectorSlot = (p.showSidePanels && p.view === "editor" && p.activeProjectId)
+    ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId}
+        sceneId={p.selectedSceneId} scene={p.activeScene}
+        refreshKey={p.linksVersion} liveWordCount={p.liveWordCount}
+        manuscriptTotal={p.manuscriptTotal} chapterId={p.chapterId} chapterTotal={p.chapterTotal} />
+    : null;
+  return { binderSlot, inspectorSlot };
+}
 
 function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
     onEntitiesChanged, overlays, storyBibleStore } = props;
-  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
-    setShowSettings, setShowExport, setShowArchive } = overlays;
+  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals,
+    setShowQuickCapture, setShowSettings, setShowExport } = overlays;
   useGlobalKeybindings(overlays);
   useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
-  useEditorStyle(); // wave-17: --font-prose/--prose-size/--prose-leading/--prose-measure
+  useEditorStyle();
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
   const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", scope: "manuscript", targetId: null, currentScopeTotal: manuscriptTotal });
   const quickCount = useQuickCount(activeProjectId);
   const docName = projects.find((p) => p.id === activeProjectId)?.title;
   const activeScene = useActiveScene(tree, selectedSceneId);
-  // Binder and inspector are hidden in focus mode and also when the full-screen
-  // cork/bible views are active — those views own the entire center stage.
+  const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
+  const onAddGoal = (scope: "scene" | "chapter", targetId: string) => {
+    overlays.setGoalsInitialScope({ scope, targetId });
+    setShowGoals(true);
+  };
   const showSidePanels = !focusMode && view !== "cork" && view !== "bible";
-  const binderSlot = showSidePanels
-    ? (
-      <Binder tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
-        callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
-        onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-        dragCallbacks={dragCallbacks} quickCount={quickCount}
-        manuscriptTotal={manuscriptTotal}
-        onOpenQuickNotes={() => overlays.setShowInbox(true)}
-        onOpenArchive={() => setShowArchive(true)} />
-    )
-    : null;
-  const inspectorSlot = (showSidePanels && view === "editor" && activeProjectId)
-    ? <SceneInspector store={storyBibleStore} projectId={activeProjectId}
-        sceneId={selectedSceneId} scene={activeScene}
-        refreshKey={linksVersion} liveWordCount={liveWordCount} />
-    : null;
+  const { binderSlot, inspectorSlot } = buildSideSlots({
+    tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
+    onSwitchProject, onCreateProject, dragCallbacks, quickCount, manuscriptTotal, overlays,
+    storyBibleStore, activeScene, linksVersion, liveWordCount, chapterId, chapterTotal,
+    onAddGoal, showSidePanels, view,
+  });
   const { reloadTree } = props;
   const viewStageContent = buildViewStage(view, doc, activeProjectId,
-    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks });
+    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, liveWordCount, manuscriptTotal, goalProgress, docName,
     binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId };
@@ -199,6 +241,8 @@ interface ViewStageCtx {
   linksVersion: number;
   reloadTree: () => void;
   dragCallbacks: DragCallbacks;
+  /** Opens Goals modal pre-scoped; passed to Corkboard for right-click "Add goal". */
+  onAddGoal: (scope: "scene" | "chapter", targetId: string) => void;
 }
 
 function buildViewStage(
@@ -212,6 +256,7 @@ function buildViewStage(
         onViewChange={ctx.onViewChange}
         reloadTree={ctx.reloadTree}
         dragCallbacks={ctx.dragCallbacks}
+        onAddGoal={ctx.onAddGoal}
       />
     );
   }

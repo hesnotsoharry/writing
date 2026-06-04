@@ -24,6 +24,8 @@ export interface SceneMenuCallbacks {
   onExport: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  /** Opens the Goals modal pre-scoped to this scene. Optional — existing callers omit it. */
+  onAddGoal?: () => void;
 }
 
 export function buildSceneMenu(cb: SceneMenuCallbacks): MenuItem[] {
@@ -34,7 +36,7 @@ export function buildSceneMenu(cb: SceneMenuCallbacks): MenuItem[] {
     onClick: () => cb.onSetStatus(s),
   }));
 
-  return [
+  const items: MenuItem[] = [
     { label: "Rename",           onClick: cb.onRename    },
     { label: "Set status",       submenu: statusSubmenu  },
     { label: "Duplicate",        onClick: cb.onDuplicate },
@@ -43,6 +45,10 @@ export function buildSceneMenu(cb: SceneMenuCallbacks): MenuItem[] {
     { label: "Archive",          onClick: cb.onArchive   },
     { label: "Delete",           danger: true, onClick: cb.onDelete },
   ];
+  if (cb.onAddGoal !== undefined) {
+    items.splice(4, 0, { label: "Add goal…", onClick: cb.onAddGoal });
+  }
+  return items;
 }
 
 // ── Chapter menu ──────────────────────────────────────────────────────────────
@@ -54,10 +60,12 @@ export interface ChapterMenuCallbacks {
   onExport: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  /** Opens the Goals modal pre-scoped to this chapter. Optional — existing callers omit it. */
+  onAddGoal?: () => void;
 }
 
 export function buildChapterMenu(cb: ChapterMenuCallbacks): MenuItem[] {
-  return [
+  const items: MenuItem[] = [
     { label: "Rename chapter",          onClick: cb.onRename   },
     { label: "New scene",               onClick: cb.onNewScene },
     { type: "sep"                                              },
@@ -66,4 +74,9 @@ export function buildChapterMenu(cb: ChapterMenuCallbacks): MenuItem[] {
     { type: "sep"                                              },
     { label: "Delete chapter", danger: true, onClick: cb.onDelete },
   ];
+  if (cb.onAddGoal !== undefined) {
+    // Insert "Add goal…" after "New scene" (index 2, before the first sep).
+    items.splice(2, 0, { label: "Add goal…", onClick: cb.onAddGoal });
+  }
+  return items;
 }

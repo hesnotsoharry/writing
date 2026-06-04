@@ -8,6 +8,7 @@ import type { Dispatch, ReactElement, SetStateAction } from "react";
 
 import { Archive } from "./features/archive/Archive";
 import { Export } from "./features/export/Export";
+import type { GoalsInitialScope } from "./features/goals/Goals";
 import { Goals } from "./features/goals/Goals";
 import { Inbox } from "./features/inbox/Inbox";
 import { QuickCapture } from "./features/quickcapture/QuickCapture";
@@ -23,6 +24,9 @@ export interface OverlayStackProps {
   setShowArchive: (v: boolean) => void;
   showGoals: boolean;
   setShowGoals: (v: boolean) => void;
+  /** When set, the Goals overlay opens pre-scoped to this scope+target. */
+  goalsInitialScope?: GoalsInitialScope;
+  setGoalsInitialScope: (s: GoalsInitialScope | undefined) => void;
   showExport: boolean;
   setShowExport: (v: boolean) => void;
   showSettings: boolean;
@@ -33,39 +37,37 @@ export interface OverlayStackProps {
   setHasQuickItems: Dispatch<SetStateAction<boolean>>;
 }
 
-export function OverlayStack({ // wave-13: added activeProjectId param
+export function OverlayStack({
   showQuickCapture, setShowQuickCapture,
   showInbox, setShowInbox,
   showArchive, setShowArchive,
-  showGoals, setShowGoals,
+  showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
   showExport, setShowExport,
   showSettings, setShowSettings,
   setTheme, setAccent,
-  setGoalsOn,
-  setHasQuickItems,
-  goalsOn,
-  activeProjectId,
+  setGoalsOn, setHasQuickItems,
+  goalsOn, activeProjectId,
 }: OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null }): ReactElement {
+  const closeGoals = () => { setShowGoals(false); setGoalsInitialScope(undefined); };
   return (
     <>
-      {showQuickCapture && ( // wave-13: enhanced QuickCapture wiring
-        <QuickCapture
-          onClose={() => setShowQuickCapture(false)}
-          activeProjectId={activeProjectId}
-          setHasQuickItems={setHasQuickItems}
-        />
+      {showQuickCapture && (
+        <QuickCapture onClose={() => setShowQuickCapture(false)}
+          activeProjectId={activeProjectId} setHasQuickItems={setHasQuickItems} />
       )}
-      {showInbox && <Inbox onClose={() => setShowInbox(false)} activeProjectId={activeProjectId} setHasQuickItems={setHasQuickItems} />} {/* wave-13: */}
+      {showInbox && (
+        <Inbox onClose={() => setShowInbox(false)}
+          activeProjectId={activeProjectId} setHasQuickItems={setHasQuickItems} />
+      )}
       {showArchive && <Archive onClose={() => setShowArchive(false)} />}
-      {showGoals && <Goals onClose={() => setShowGoals(false)} goalsOn={goalsOn} setGoalsOn={setGoalsOn} activeProjectId={activeProjectId} />}
+      {showGoals && (
+        <Goals onClose={closeGoals} goalsOn={goalsOn} setGoalsOn={setGoalsOn}
+          activeProjectId={activeProjectId} initialScope={goalsInitialScope} />
+      )}
       {showExport && <Export onClose={() => setShowExport(false)} />}
       {showSettings && (
-        <Settings
-          onClose={() => setShowSettings(false)}
-          setTheme={setTheme}
-          setAccent={setAccent}
-          onOpenGoals={() => { setShowSettings(false); setShowGoals(true); }}
-        />
+        <Settings onClose={() => setShowSettings(false)} setTheme={setTheme} setAccent={setAccent}
+          onOpenGoals={() => { setShowSettings(false); setShowGoals(true); }} />
       )}
     </>
   );

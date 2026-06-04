@@ -137,6 +137,27 @@ describe("buildSceneMenu", () => {
     finalItem.onClick?.();
     expect(cb.onSetStatus).toHaveBeenCalledWith("final");
   });
+
+  it("'Add goal…' item is absent when onAddGoal is not provided (default 7 items)", () => {
+    const items = buildSceneMenu(makeSceneCb());
+    expect(items).toHaveLength(7);
+    const labels = items
+      .filter((it): it is Extract<MenuItem, { label: string }> => "label" in it)
+      .map((it) => it.label);
+    expect(labels).not.toContain("Add goal…");
+  });
+
+  it("'Add goal…' item is inserted (8 items) when onAddGoal is provided and fires the callback", () => {
+    const onAddGoal = vi.fn();
+    const items = buildSceneMenu(makeSceneCb({ onAddGoal }));
+    expect(items).toHaveLength(8);
+    const goal = items.find(
+      (it): it is Extract<MenuItem, { label: string }> => "label" in it && it.label === "Add goal…",
+    ) as MenuItemAction | undefined;
+    expect(goal).toBeDefined();
+    goal?.onClick?.();
+    expect(onAddGoal).toHaveBeenCalledOnce();
+  });
 });
 
 // ── buildChapterMenu ──────────────────────────────────────────────────────────
@@ -189,5 +210,26 @@ describe("buildChapterMenu", () => {
     const second = items[1] as MenuItemAction;
     second.onClick?.();
     expect(cb.onNewScene).toHaveBeenCalledOnce();
+  });
+
+  it("'Add goal…' item is absent from chapter menu when onAddGoal is not provided (default 7 items)", () => {
+    const items = buildChapterMenu(makeChapterCb());
+    expect(items).toHaveLength(7);
+    const labels = items
+      .filter((it): it is Extract<MenuItem, { label: string }> => "label" in it)
+      .map((it) => it.label);
+    expect(labels).not.toContain("Add goal…");
+  });
+
+  it("'Add goal…' is inserted in chapter menu (8 items) when onAddGoal is provided and fires it", () => {
+    const onAddGoal = vi.fn();
+    const items = buildChapterMenu(makeChapterCb({ onAddGoal }));
+    expect(items).toHaveLength(8);
+    const goal = items.find(
+      (it): it is Extract<MenuItem, { label: string }> => "label" in it && it.label === "Add goal…",
+    ) as MenuItemAction | undefined;
+    expect(goal).toBeDefined();
+    goal?.onClick?.();
+    expect(onAddGoal).toHaveBeenCalledOnce();
   });
 });

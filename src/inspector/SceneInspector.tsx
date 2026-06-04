@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "../components/Icon";
 import type { MenuDescriptor } from "../components/menu/ContextMenu";
@@ -6,31 +6,11 @@ import { ContextMenu } from "../components/menu/ContextMenu";
 import type { Scene } from "../db/binderStore";
 import { SqliteBinderStore } from "../db/sqliteBinderStore";
 import type { Entity, EntityType, SceneLink, StoryBibleStore } from "../db/storyBibleStore";
-import { useDailyGoalProgress } from "../features/goals/useDailyGoalProgress";
+import { anyGoalOn, GoalGroup } from "./InspectorGoalRings";
+import { SynopsisGroup } from "./InspectorSynopsis";
 
-// Module-level singleton — constructor is side-effect-free (getDb is lazy).
+// Module-level singleton for useManuscriptTotal (lazy getDb — no side-effects at import time).
 const binderStore = new SqliteBinderStore();
-
-// -- GoalRing — SVG ring showing daily-progress percentage ------------------
-function GoalRing({ pct }: { pct: number }) {
-  const r = 27;
-  const c = 2 * Math.PI * r;
-  const off = c * (1 - pct / 100);
-  return (
-    <div className="goal-ring">
-      <svg width="64" height="64" viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--parchment-deep)" strokeWidth="6" />
-        <circle
-          cx="32" cy="32" r={r}
-          fill="none" stroke="var(--accent)" strokeWidth="6"
-          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
-          transform="rotate(-90 32 32)"
-        />
-      </svg>
-      <span className="pct">{pct + "%"}</span>
-    </div>
-  );
-}
 
 // -- EntityCard — single character or location row --------------------------
 function EntityCard({ entity }: { entity: Entity }) {
@@ -77,101 +57,6 @@ function useSceneEntities(
   }, [store, sceneId, effectiveDep]);
 
   return groups;
-}
-
-// -- SynopsisEditField — controlled textarea for inline synopsis editing ----
-interface SynopsisEditFieldProps {
-  sceneId: string | null; localSynopsis: string;
-  onCommit: (next: string | null) => void; onCancel: () => void;
-}
-function SynopsisEditField({ sceneId, localSynopsis, onCommit, onCancel }: SynopsisEditFieldProps) {
-  const [draft, setDraft] = useState(localSynopsis);
-  const committedRef = useRef(false);
-
-  const commit = () => {
-    if (!sceneId || committedRef.current) return;
-    committedRef.current = true;
-    const trimmed = draft.trim();
-    onCommit(trimmed.length > 0 ? trimmed : null);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); }
-    if (e.key === "Escape") { onCancel(); }
-  };
-
-  // className="synopsis" gives the same font/border/bg/padding as the display div,
-  // producing visual parity between edit and saved states (Item B fix).
-  return (
-    <textarea
-      autoFocus
-      className="synopsis"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={onKeyDown}
-      style={{ width: "100%", resize: "vertical", overflowWrap: "anywhere",
-               wordBreak: "break-word", boxSizing: "border-box" }}
-    />
-  );
-}
-
-// -- SynopsisGroup — editable synopsis block --------------------------------
-interface SynopsisGroupProps { scene: Scene | null; sceneId: string | null; }
-function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
-  const [localSynopsis, setLocalSynopsis] = useState<string>(scene?.synopsis ?? "");
-  const [prevSceneId, setPrevSceneId] = useState<string | null>(sceneId);
-  const [editing, setEditing] = useState(false);
-
-  // Synchronous derived-state reset on scene change (React recommended pattern).
-  if (prevSceneId !== sceneId) {
-    setPrevSceneId(sceneId);
-    setLocalSynopsis(scene?.synopsis ?? "");
-    setEditing(false);
-  }
-
-  const handleCommit = (next: string | null) => {
-    setLocalSynopsis(next ?? "");
-    setEditing(false);
-    binderStore.setSceneSynopsis(sceneId!, next).catch((e: unknown) => {
-      console.error("[SceneInspector] setSceneSynopsis failed", e);
-    });
-  };
-
-  return (
-    <div className="insp-group">
-      <div className="insp-label">
-        <Icon name="fileText" className="ic" /> Synopsis
-        <button className="add" aria-label="Edit synopsis" onClick={() => { if (sceneId) setEditing(true); }}>
-          <Icon name="edit" style={{ width: 13, height: 13 }} />
-        </button>
-      </div>
-      {editing
-        ? <SynopsisEditField sceneId={sceneId} localSynopsis={localSynopsis}
-            onCommit={handleCommit} onCancel={() => setEditing(false)} />
-        : <div className="synopsis" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-            {localSynopsis}
-          </div>}
-    </div>
-  );
-}
-
-// -- GoalGroup — daily goal ring (rendered only when goals are on) ----------
-interface GoalGroupProps { pct: number; words: number; target: number; }
-function GoalGroup({ pct, words, target }: GoalGroupProps) {
-  const toGo = Math.max(0, target - words);
-  return (
-    <div className="insp-group">
-      <div className="insp-label"><Icon name="target" className="ic" /> Today&#39;s goal</div>
-      <div className="goal-card">
-        <GoalRing pct={pct} />
-        <div className="goal-info">
-          <div className="goal-num">{words}<span> / {target} words</span></div>
-          <div className="goal-desc">{toGo} to go</div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // -- useEntityPicker — async picker logic for linking existing entities -----
@@ -310,25 +195,47 @@ export interface SceneInspectorProps {
    * Signature: (entityId: string, type: EntityType) => void
    */
   onOpenEntry?: (entityId: string, type: EntityType) => void;
+  /**
+   * Pre-computed scope totals for the multi-ring goal display (Wave 25 P6b).
+   * manuscriptTotal — sum of all scenes (from useManuscriptWordCount in App.content).
+   * chapterTotal    — sum of word_count for all scenes in the active scene's chapter
+   *                   (active scene swapped for liveWordCount). Null when no chapter.
+   * chapterId       — folderId of the active scene's chapter; null for short pieces.
+   */
+  manuscriptTotal?: number;
+  chapterTotal?: number | null;
+  chapterId?: string | null;
 }
 
-export function SceneInspector({ store, projectId, sceneId, scene, refreshKey, liveWordCount, onOpenEntry }: SceneInspectorProps) {
+export function SceneInspector({
+  store, projectId, sceneId, scene, refreshKey, liveWordCount, onOpenEntry,
+  manuscriptTotal: manuscriptTotalProp, chapterTotal, chapterId,
+}: SceneInspectorProps) {
   const [localRev, setLocalRev] = useState(0);
   const effectiveDep = (refreshKey ?? 0) + localRev;
   const { characters, locations, ready } = useSceneEntities(store, sceneId, effectiveDep);
-  const currentTotal = useManuscriptTotal(projectId, sceneId, liveWordCount);
-  const { words, target, pct, on } = useDailyGoalProgress({
-    projectId,
-    scope: "manuscript",
-    targetId: null,
-    currentScopeTotal: currentTotal,
-  });
+  // Fall back to the internal DB-based total when App.content doesn't supply one yet.
+  const derivedTotal = useManuscriptTotal(projectId, sceneId, liveWordCount);
+  const resolvedManuscriptTotal = manuscriptTotalProp ?? derivedTotal;
+  const resolvedChapterId = chapterId ?? null;
+  const resolvedChapterTotal = chapterTotal ?? null;
+  // Scene word count: use liveWordCount (the active scene's live count).
+  const sceneWordCount = liveWordCount;
+  // Render goal group only when at least one scope is enabled (pure read, no side-effects).
+  const goalVisible = anyGoalOn(projectId, sceneId, resolvedChapterId);
   const bump = () => setLocalRev((r) => r + 1);
   return (
     <div className="panel-inspector">
       <div className="insp-scroll">
         <SynopsisGroup scene={scene} sceneId={sceneId} />
-        {on && <GoalGroup pct={pct * 100} words={words} target={target} />}
+        {goalVisible && (
+          <GoalGroup
+            projectId={projectId} sceneId={sceneId}
+            manuscriptTotal={resolvedManuscriptTotal}
+            chapterId={resolvedChapterId} chapterTotal={resolvedChapterTotal}
+            sceneWordCount={sceneWordCount}
+          />
+        )}
         <EntityGroup iconName="users" label="Characters in scene" entities={characters} ready={ready}
           emptyHint="No characters linked yet." linkLabel="Link a character"
           entityType="character" projectId={projectId} sceneId={sceneId} store={store}

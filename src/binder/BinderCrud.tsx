@@ -31,6 +31,11 @@ export interface BinderCallbacks {
   /** Archive stubs — real DB writes wired in a later wave. */
   onArchiveScene: (id: string) => void;
   onArchiveChapter: (id: string) => void;
+  /**
+   * Opens the Goals modal pre-scoped to a scene or chapter.
+   * Optional — omitting it disables the "Add goal…" item in context menus.
+   */
+  onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
 }
 
 // ── InlineRename ──────────────────────────────────────────────────────────
@@ -134,6 +139,9 @@ function useSceneMenu(
         onExport: () => showToast("Export — coming in a later wave"),
         onArchive: () => callbacks.onArchiveScene(scene.id),
         onDelete: () => confirmDeleteScene(scene, callbacks.onDeleteScene),
+        onAddGoal: callbacks.onAddGoal
+          ? () => callbacks.onAddGoal!("scene", scene.id)
+          : undefined,
       }),
     });
   }
@@ -191,6 +199,9 @@ function useChapterMenu(
         onExport: () => showToast("Export — coming in a later wave"),
         onArchive: () => callbacks.onArchiveChapter(folder.id),
         onDelete: () => confirmDeleteChapter(folder, callbacks.onDeleteChapter),
+        onAddGoal: callbacks.onAddGoal
+          ? () => callbacks.onAddGoal!("chapter", folder.id)
+          : undefined,
       }),
     });
   }
