@@ -115,8 +115,12 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     const db = await getDb();
     await db.execute("DELETE FROM scene_links WHERE scene_id = $1", [sceneId]);
     for (const link of links) {
+      // INSERT OR IGNORE: migration 3 added UNIQUE(scene_id, entity_id). This is a
+      // full-replace (the DELETE above clears the scene first), so set-semantics apply —
+      // a link present once is correct. OR IGNORE makes a duplicate (scene_id, entity_id)
+      // within `links` a no-op instead of throwing a UNIQUE constraint error.
       await db.execute(
-        "INSERT INTO scene_links (scene_id, entity_type, entity_id) VALUES ($1, $2, $3)",
+        "INSERT OR IGNORE INTO scene_links (scene_id, entity_type, entity_id) VALUES ($1, $2, $3)",
         [sceneId, link.entityType, link.entityId]
       );
     }
