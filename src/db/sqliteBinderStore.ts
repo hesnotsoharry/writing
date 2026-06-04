@@ -1,6 +1,6 @@
 import { computeReorder } from "../binder/computeReorder";
 import { normalizeStatus } from "../lib/status";
-import type { BinderStore, Folder, Project, Scene, SceneStatus } from "./binderStore";
+import type { ArchivedItem, BinderStore, Folder, Project, Scene, SceneStatus } from "./binderStore";
 import { getDb } from "./schema";
 
 /**
@@ -212,4 +212,36 @@ export class SqliteBinderStore implements BinderStore {
       ]);
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Archive methods — implemented in Phase 2 (sqliteArchiveStore).
+  // Stubs here so SqliteBinderStore satisfies the BinderStore interface
+  // while Phase 1 is merged.
+  // -------------------------------------------------------------------------
+
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  async archiveScene(_sceneId: string, _projectId: string): Promise<void> {
+    throw new Error("archiveScene: not yet implemented (Phase 2)");
+  }
+
+  async archiveChapter(_folderId: string, _projectId: string): Promise<void> {
+    throw new Error("archiveChapter: not yet implemented (Phase 2)");
+  }
+
+  async listArchived(_projectId: string): Promise<ArchivedItem[]> {
+    throw new Error("listArchived: not yet implemented (Phase 2)");
+  }
+
+  async restoreArchived(_archiveId: string): Promise<void> {
+    throw new Error("restoreArchived: not yet implemented (Phase 2)");
+  }
+
+  async purgeArchived(_archiveId: string): Promise<void> {
+    throw new Error("purgeArchived: not yet implemented (Phase 2)");
+  }
+
+  async archivedCount(_projectId: string): Promise<number> {
+    throw new Error("archivedCount: not yet implemented (Phase 2)");
+  }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 }
