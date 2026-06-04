@@ -100,7 +100,32 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit | Observation hit |
 |---|---|---|---|---|
+| 1 setSceneSynopsis store method | ✅ | ✅ | d0284c6 | Internal — verified via contract test (5/5) |
+| 2 Inspector wiring | ✅ | ✅ | de7b816 | Not directly observable (no Tauri runtime) — tsc + 4 component tests + diff-vs-canon + adversarial review |
+| 3 Corkboard wiring | ✅ | ✅ | fc3f9eb | Not directly observable — tsc + corkboard contract (10) + shortLabel (7) + adversarial review |
+| 4 Story Bible wiring | ✅ | ✅ | 3f445fd | Not directly observable — tsc + 4 component tests + adversarial review |
 
 ## Follow-up candidates
 
+(none qualify the Tier-3 triple gate — minor reviewer notes were addressed inline or are
+zero-present-harm future-field items; see handoff "Needs Cole's eyes" + flags.)
+
 ## Result
+
+**Shipped (4 phases, commits d0284c6..3f445fd):** the three Story surfaces now match the canon prototype.
+
+- **Phase 1** — additive `setSceneSynopsis` on `BinderStore`/`SqliteBinderStore`/`InMemoryBinderStore`
+  (the one Cole-authorized `src/db/` freeze deviation; no migration). Orchestrator-owned contract test.
+- **Phase 2** — Inspector: entity-link picker → `replaceSceneLinks` (full-replace preserves prior links);
+  editable synopsis → `setSceneSynopsis` (single-commit guarded); Today's-goal ring →
+  `useDailyGoalProgress`, rendered only when `on`, manuscript total self-sourced via a binder singleton;
+  role-only cards; long-text overflow-wrap.
+- **Phase 3** — Corkboard: right-click `buildSceneMenu` (Rename/Set-status/Delete real; Duplicate/Export/
+  Archive toast stubs); footer chips (≤2 char + 1 loc via `shortLabel`); editable card synopsis;
+  self-managed local working tree (frozen mount has no reload path). Status-dot cycle left byte-unchanged.
+- **Phase 4** — Story Bible: single "New character"/"New location" → create-then-rename; `.be-foot`
+  "N scenes" footer; notes drag-resize removed + overflow fix; `bible-col-title` icons.
+
+**Gates:** full lint PASS · full tsc PASS · full suite 391/391 pass (52 files). Per-phase adversarial
+reviews (attack-diff, single) all PASS-after-FLAG-addressed. No live UI smoke (no Tauri runtime) — human
+verification deferred to the lead's post-merge integrated smoke.
