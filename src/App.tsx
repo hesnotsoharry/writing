@@ -19,6 +19,7 @@ import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { SceneInspector } from "./inspector/SceneInspector";
+import { AppShell } from "./shell/AppShell";
 import { StatusBar } from "./shell/StatusBar";
 import { TitleBar } from "./shell/TitleBar";
 import { StoryBibleView } from "./storybible/StoryBibleView";
@@ -133,44 +134,40 @@ interface AppContentProps {
   onEntitiesChanged: () => void;
 }
 
-// Phase 2: TitleBar + StatusBar replace TempTitlebar. Phase 3 (AppShell) restructures into slots.
+// Phase 3: AppContent replaced by AppShell slot composition. The .win/.body token
+// classes own layout — the old inline flex/height:100vh wrapper is removed.
 function AppContent({
   tree, selectedSceneId, doc, onSelectScene, callbacks,
   projects, activeProjectId, onSwitchProject, onCreateProject,
   dragCallbacks, view, onViewChange, linksVersion, onEntitiesChanged,
 }: AppContentProps) {
+  // Active project title for the centered doc-name in TitleBar (wave-6 will add live save-state).
+  const docName = projects.find((p) => p.id === activeProjectId)?.title;
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <TitleBar view={view} onViewChange={onViewChange} />
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <Binder
-            tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
-            callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
-            onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
-            dragCallbacks={dragCallbacks}
-          />
-        </div>
-        {view === "bible" && activeProjectId ? (
-          <StoryBibleView
-            store={storyBibleStore}
-            projectId={activeProjectId}
-            onEntitiesChanged={onEntitiesChanged}
-          />
-        ) : (
-          <EditorPane doc={doc} />
-        )}
-        {view === "editor" && activeProjectId && (
-          <SceneInspector
-            store={storyBibleStore}
-            projectId={activeProjectId}
-            sceneId={selectedSceneId}
-            refreshKey={linksVersion}
-          />
-        )}
-      </div>
-      <StatusBar sceneWordCount={null} />
-    </div>
+    <AppShell
+      titleBar={<TitleBar view={view} onViewChange={onViewChange} docName={docName} />}
+      binder={
+        <Binder
+          tree={tree} selectedSceneId={selectedSceneId} onSelectScene={onSelectScene}
+          callbacks={callbacks} projects={projects} activeProjectId={activeProjectId}
+          onSwitchProject={onSwitchProject} onCreateProject={onCreateProject}
+          dragCallbacks={dragCallbacks}
+        />
+      }
+      viewStage={
+        // CorkboardSlot reserved (wave-N): add view === "cork" ? <Corkboard/> branch here.
+        view === "bible" && activeProjectId
+          ? <StoryBibleView store={storyBibleStore} projectId={activeProjectId} onEntitiesChanged={onEntitiesChanged} />
+          : <EditorPane doc={doc} />
+      }
+      inspector={
+        // Inspector visibility: matches the existing condition exactly — editor view + active project.
+        view === "editor" && activeProjectId
+          ? <SceneInspector store={storyBibleStore} projectId={activeProjectId} sceneId={selectedSceneId} refreshKey={linksVersion} />
+          : null
+      }
+      statusBar={<StatusBar sceneWordCount={null} />}
+    />
   );
 }
 
