@@ -48,7 +48,7 @@ git worktree add "C:/Web App/writing-wave16-spelling"     -b wave-16-spelling
 | 13 QuickCapture+Inbox | writing-wave13-quickcapture / wave-13-quickcapture-inbox | `src/features/quickcapture/` + `src/features/inbox/` | `design-reference/dialogs.jsx` | `/wave-plan-lite` |
 | 14 Goals | writing-wave14-goals / wave-14-goals | `src/features/goals/` (wires real target → goal-ring localStorage key; persistent streak) | `design-reference/dialogs.jsx` | `/wave-plan-lite` |
 | 15 Settings | writing-wave15-settings / wave-15-settings | `src/features/settings/` (+ consumes `useTheme` setters; **owns spellCheck/grammar/styleHints toggles** → feature-waves-plan § Settings-integration) | `design-reference/settings.jsx` | `/wave-plan-lite` |
-| 16 Spelling | writing-wave16-spelling / wave-16-spelling | `src/editor/extensions/` + `src/lib/dictionary.ts` + `Editor.tsx` registration + `package.json` (nspell/dictionary-en) | architect plan, feature-waves-plan § Wave S1 | `/wave-plan` (new dep + plugin) |
+| 16 Spelling **+ Grammar** | writing-wave16-spelling / wave-16-spelling-grammar | `src/editor/extensions/` + `src/lib/dictionary.ts` + `Editor.tsx` registration + `package.json` (nspell/dictionary-en) **+ `src-tauri/src/grammar.rs` + `src-tauri/Cargo.toml` (harper-core, version-PINNED)** | architect plan, feature-waves-plan § Wave S1 **+ S2** | `/wave-plan` (new deps + plugin + Rust IPC cmd) |
 
 **Per-lane kickoff prompt** (swap wave#/feature; run `npm install` FIRST in each fresh worktree):
 > "You're the **wave-12 Corkboard** lane in a parallel feature batch. Run `npm install` first. Read
@@ -68,5 +68,14 @@ git worktree add "C:/Web App/writing-wave16-spelling"     -b wave-16-spelling
 ## Merge order (lead)
 wiring (11) → **[12 / 13 / 14 / 15 / 16 in parallel]** → **17 Archive** (serialize last-ish — it has the one residual `src/binder/BinderCrud.ts` soft-delete seam; create its worktree AFTER 12–16 are merging) → **18 Export** (LAST — gated on the docx/PDF library decision; resolve jsPDF-vs-Tauri-sidecar at its `/wave-plan`). After each merge: combined gates, then one integrated smoke at the end.
 
-## Deferred (NOT in this batch)
-**Grammar (Wave S2 — Harper)** — defer until `harper.js` API stabilizes; reuses the Spelling lane's decoration-plugin contract. See feature-waves-plan § Wave S2.
+## Grammar — NOW IN-BATCH (Cole, 2026-06-03, overrides prior deferral)
+**Grammar (Wave S2 — Harper) is folded into the wave-16 editor lane** alongside Spelling, sharing the
+decoration-plugin + popover contract. Path decision (researched 2026-06-03): use **`harper-core` (Rust
+crate) via a `#[tauri::command]` over IPC**, NOT `harper.js` WASM in the renderer. Rationale: harper.js npm
+is still "early access" with an explicitly-unstable API (v1.2.0, June 2026) and recent renderer-context
+breakage; `harper-core` is the more-stable surface (Tauri's own desktop app uses it) and keeps grammar
+off the main thread. **Risk-control discipline (mandatory):** version-PIN harper-core, treat every bump as
+an explicit migration, add integration tests for the known edge-case breaks (Swift-like syntax, multi-line).
+Grammar toggle defaults **OFF** (Settings wave owns the key); spelling defaults ON. Detailed IPC-contract +
+grammar.rs API shape go through `sonnet-architect` + the decision-review cell at wave-16 `/wave-plan` time.
+See feature-waves-plan § Wave S2.
