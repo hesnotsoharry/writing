@@ -382,6 +382,83 @@ describe("add-from-location stores link as char→location (fromId=char, toId=lo
   });
 });
 
+// ── AddField collision guard (isReservedKey) ──────────────────────────────────
+
+describe("AddField collision guard — isReservedKey", () => {
+  it("adding a DEF_FIELDS label ('Age') is a no-op: no custom field created, default row unchanged", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const char = await store.createCharacter("p1", "Maren", null);
+
+    const { isReservedKey } = await import("../storybible/fullEntry/FeSubcomponents");
+    const { mergeFacts: mf } = await import("../storybible/fullEntry/defs");
+    const fields = await store.getEntityFields(char.id);
+    const existingCustomKeys = mf("character", fields).filter((f) => !f.isDefault).map((f) => f.label);
+    // Real production guard: isReservedKey must block "Age" (a DEF_FIELDS label).
+    if (!isReservedKey("Age", "character", existingCustomKeys)) {
+      await store.addEntityField(char.id, "fact", "Age");
+    }
+
+    // No custom row with key "Age" was inserted.
+    const after = await store.getEntityFields(char.id);
+    expect(after.filter((f) => f.key === "Age" && f.kind === "fact")).toHaveLength(0);
+  });
+
+  it("adding ROLE_KEY is a no-op: reserved eyebrow row is not exposed as a custom field", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const char = await store.createCharacter("p1", "Maren", null);
+
+    const { isReservedKey } = await import("../storybible/fullEntry/FeSubcomponents");
+    const { mergeFacts: mf, ROLE_KEY: rk } = await import("../storybible/fullEntry/defs");
+    const fields = await store.getEntityFields(char.id);
+    const existingCustomKeys = mf("character", fields).filter((f) => !f.isDefault).map((f) => f.label);
+    // Real production guard: isReservedKey must block rk (ROLE_KEY).
+    if (!isReservedKey(rk, "character", existingCustomKeys)) {
+      await store.addEntityField(char.id, "fact", rk);
+    }
+
+    // The eyebrow row must never appear as a custom detail field in mergeFacts.
+    const afterMerged = mf("character", await store.getEntityFields(char.id));
+    expect(afterMerged.find((f) => f.label === rk)).toBeUndefined();
+  });
+
+  it("adding a duplicate custom key is a no-op: only one field with that key exists", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const char = await store.createCharacter("p1", "Maren", null);
+    await store.addEntityField(char.id, "fact", "Hometown");
+
+    const { isReservedKey } = await import("../storybible/fullEntry/FeSubcomponents");
+    const { mergeFacts: mf } = await import("../storybible/fullEntry/defs");
+    const fields = await store.getEntityFields(char.id);
+    const existingCustomKeys = mf("character", fields).filter((f) => !f.isDefault).map((f) => f.label);
+    // Real production guard: isReservedKey must block "Hometown" (already present).
+    if (!isReservedKey("Hometown", "character", existingCustomKeys)) {
+      await store.addEntityField(char.id, "fact", "Hometown");
+    }
+
+    const afterMerged = mf("character", await store.getEntityFields(char.id));
+    expect(afterMerged.filter((f) => f.label === "Hometown")).toHaveLength(1);
+  });
+
+  it("adding a unique non-reserved key succeeds and appears in mergeFacts", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const char = await store.createCharacter("p1", "Maren", null);
+
+    const { isReservedKey } = await import("../storybible/fullEntry/FeSubcomponents");
+    const { mergeFacts: mf } = await import("../storybible/fullEntry/defs");
+    const fields = await store.getEntityFields(char.id);
+    const existingCustomKeys = mf("character", fields).filter((f) => !f.isDefault).map((f) => f.label);
+    // Real production guard: "Weapon of choice" is not reserved — guard must pass.
+    if (!isReservedKey("Weapon of choice", "character", existingCustomKeys)) {
+      await store.addEntityField(char.id, "fact", "Weapon of choice");
+    }
+
+    const afterMerged = mf("character", await store.getEntityFields(char.id));
+    const custom = afterMerged.find((f) => f.label === "Weapon of choice");
+    expect(custom).not.toBeUndefined();
+    expect(custom?.isDefault).toBe(false);
+  });
+});
+
 // ── Rename collision guard — exercised through store state ────────────────────
 
 describe("handleRenameLabel collision guard — DEF_FIELDS / ROLE_KEY / duplicate key", () => {

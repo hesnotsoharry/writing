@@ -85,26 +85,50 @@ export function FeScene({ sceneId, title, chapter, status, words, onOpen }: FeSc
   );
 }
 
+// ── Shared collision guard ────────────────────────────────────────────────────
+
+/**
+ * Returns true when a candidate key should be rejected for an entity of the
+ * given type. Used by both the ADD path (AddField) and the RENAME path
+ * (handleRenameLabel) so both enforce the same invariants:
+ *   • must not match a built-in DEF_FIELDS label
+ *   • must not equal ROLE_KEY (the reserved eyebrow field)
+ *   • must not duplicate an existing custom key already on this entity
+ */
+export function isReservedKey(
+  candidate: string,
+  entityType: EntityType,
+  existingCustomKeys: string[]
+): boolean {
+  const defLabels = new Set<string>(DEF_FIELDS[entityType]);
+  if (defLabels.has(candidate) || candidate === ROLE_KEY) return true;
+  return existingCustomKeys.includes(candidate);
+}
+
 // ── AddField ──────────────────────────────────────────────────────────────────
 
 interface AddFieldProps {
   entityId: string;
   store: StoryBibleStore;
   onAdded: () => void;
+  /** Entity type — needed to check against DEF_FIELDS. Optional; guard skipped when absent. */
+  entityType?: EntityType;
+  /** Keys of custom fields already on this entity — prevents duplicate additions. */
+  existingCustomKeys?: string[];
 }
 
-export function AddField({ entityId, store, onAdded }: AddFieldProps) {
+export function AddField({ entityId, store, onAdded, entityType, existingCustomKeys = [] }: AddFieldProps) {
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState("");
   const ref = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (adding && ref.current) ref.current.focus();
-  }, [adding]);
+  useEffect(() => { if (adding && ref.current) ref.current.focus(); }, [adding]);
 
   async function commit() {
     const key = label.trim();
-    if (key) {
+    // Collision guard: mirrors handleRenameLabel — no-op if key is reserved.
+    const blocked = key && entityType && isReservedKey(key, entityType, existingCustomKeys);
+    if (key && !blocked) {
       await store.addEntityField(entityId, "fact", key);
       onAdded();
     }
@@ -229,12 +253,12 @@ function useDetailsActions({ entityType, facts, store, refresh }: DetailsActions
   async function handleRenameLabel(fieldId: string, newKey: string) {
     const trimmed = newKey.trim();
     if (!trimmed) return; // empty label — no-op
-    // Collision guard: reject if newKey matches a DEF_FIELD, ROLE_KEY,
-    // or another existing custom field (prevents silent data corruption).
-    const defLabels = new Set<string>(DEF_FIELDS[entityType]);
-    if (defLabels.has(trimmed) || trimmed === ROLE_KEY) return;
-    const alreadyExists = facts.some((f) => f.label === trimmed && f.fieldId !== fieldId);
-    if (alreadyExists) return;
+    // Collision guard: shared predicate covers DEF_FIELDS, ROLE_KEY, and
+    // existing custom keys (excluding the field being renamed).
+    const otherCustomKeys = facts
+      .filter((f) => !f.isDefault && f.fieldId !== fieldId)
+      .map((f) => f.label);
+    if (isReservedKey(trimmed, entityType, otherCustomKeys)) return;
     // In-place rename: preserves sort order and id.
     await store?.updateEntityFieldKey(fieldId, trimmed);
     refresh();

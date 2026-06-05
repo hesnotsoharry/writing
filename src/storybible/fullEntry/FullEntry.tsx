@@ -196,21 +196,11 @@ interface FeRailProps {
 }
 
 /** Link an entity to a scene: load existing links, dedup, replace. */
-async function linkEntityToScene(
-  store: StoryBibleStore,
-  pickedSceneId: string,
-  entityType: EntityType,
-  entityId: string
-) {
+async function linkEntityToScene(store: StoryBibleStore, pickedSceneId: string, entityType: EntityType, entityId: string) {
   const existing = await store.loadSceneLinks(pickedSceneId);
-  const alreadyLinked = existing.some(
-    (l) => l.entityType === entityType && l.entityId === entityId
-  );
+  const alreadyLinked = existing.some((l) => l.entityType === entityType && l.entityId === entityId);
   if (!alreadyLinked) {
-    await store.replaceSceneLinks(pickedSceneId, [
-      ...existing,
-      { entityType, entityId },
-    ]);
+    await store.replaceSceneLinks(pickedSceneId, [...existing, { entityType, entityId }]);
   }
 }
 
@@ -221,9 +211,7 @@ function FeRail({
   const mergedFacts = mergeFacts(entityType, fields);
   const appearsIn = buildAppearsIn(sceneIds, folders, scenes);
   const onLinkScene = store
-    ? (id: string) => {
-        void linkEntityToScene(store, id, entityType, entity.id).then(refresh);
-      }
+    ? (id: string) => { void linkEntityToScene(store, id, entityType, entity.id).then(refresh); }
     : undefined;
   return (
     <div className="feB-side">
@@ -271,6 +259,7 @@ function FeDoc({
 }: FeDocProps) {
   const mergedSections = mergeSections(entityType, fields, entity.notes);
   const role = fields.find((f) => f.kind === "fact" && f.key === ROLE_KEY)?.value ?? "";
+  const customKeys = mergeFacts(entityType, fields).filter((f) => !f.isDefault).map((f) => f.label);
   return (
     <div className="feB-center">
       <div className="feB-doc">
@@ -287,7 +276,10 @@ function FeDoc({
           <FeProseSection key={sec.key} section={sec}
             onCommit={(v) => { void onCommitField("section", sec.key, v); }} />
         ))}
-        {store && <AddField entityId={entity.id} store={store} onAdded={refresh} />}
+        {store && (
+          <AddField entityId={entity.id} store={store} onAdded={refresh}
+            entityType={entityType} existingCustomKeys={customKeys} />
+        )}
       </div>
     </div>
   );
@@ -313,18 +305,16 @@ function FullEntryInner({ entity, kind, origin, store, folders = [], scenes = []
   const { handlePortraitAdd, handlePortraitRemove, handlePortraitError } =
     usePortraitFlows({ entity, storeType, store, portraitPath, setPortraitPath });
   const entityType = entity.type;
+  const displaySrc = toDisplaySrc(portraitPath);
 
   async function onCommitField(fieldKind: FieldKind, key: string, value: string) {
     await store?.setEntityField(entity.id, fieldKind, key, value);
     refresh();
   }
-
   async function handleDelete(deleteKind: string, deleteId: string) {
     if (portraitPath) await deletePortraitFile(portraitPath);
     onDelete?.(deleteKind, deleteId);
   }
-
-  const displaySrc = toDisplaySrc(portraitPath);
   return (
     <div className="fe-screen">
       <FeTopbar entity={entity} entityType={entityType} kind={resolvedKind}
