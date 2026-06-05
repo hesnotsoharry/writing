@@ -10,6 +10,9 @@ import type { GoalScope } from "../features/goals/goalModel";
 import { readGoalConfig } from "../features/goals/goalStorage";
 import { useDailyGoalProgress } from "../features/goals/useDailyGoalProgress";
 
+// Re-export family-aware goal components (Wave 27).
+export { FamilyGoalCard, PaceBar, StreakViz } from "../features/goals/InspectorGoalRings";
+
 // -- GoalRing — SVG ring showing daily-progress percentage ------------------
 export function GoalRing({ pct }: { pct: number }) {
   const r = 27;
