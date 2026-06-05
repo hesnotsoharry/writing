@@ -4,43 +4,22 @@ updated: 2026-06-05
 ---
 
 ## Current state
-- Trunk: **`master`** (HEAD `4f607b2`). Full suite green (803+), lint + tsc clean, `cargo check` clean.
-- **Wave 26 (canon-bugfix) SHIPPED + SMOKED + runtime-fixed.** All 9 phases (P1–P9) committed; mechanical
-  `/review` PASS + wave-end adversarial review done (see `roadmap/wave-26-canon-bugfix.md`). Then Cole's live
-  `tauri dev` smoke surfaced a batch of "passed-unit-tests-but-broke-at-runtime" bugs — **all fixed and
-  verified live this session.**
-- **Smoke tooling now exists** (the gap that let those bugs slip past green tests): a WebView2 CDP debug port
-  (`9222`, dev builds only) in `src-tauri/src/lib.rs` + a `tauri-devtools` MCP that attaches to it. The app is
-  now **agent-drivable** for real UI verification. See memory `app-can-be-smoked-via-cdp-port`.
+- Branch: sonnet-orchestrator-test · Latest commit: 249d1c7 · Tag: none
+- Wave 27 SHIPPED: story-planning-batch, all 8 phases (Goals, Snapshots, Outliner, Relationships, Entity types, Find & Replace, Focus mode, Auto-linking) committed + gates green
+- All tests passing (908 across 94 files) · lint ✓ · tsc ✓ · vitest ✓
 
-## Smoke-session fixes (committed `45547c1`..`4f607b2`, each verified live in-app)
-- **Corkboard snap-back** (`815cd13`) — `onDragEnd` cancelled when `over===active`, which is the normal case
-  for a real sortable drop. Now commits on actual order-change. (Console-traced via the smoke tool.)
-- **Off-screen menus** (`cb26a9f`) — inspector "Link a character/location" picker (~1000px off) + editor
-  spell popover (~300px off): `position:fixed` re-based by a transformed ancestor → portal both to `<body>`.
-  Editor right-click now suppresses the Windows native menu for all editor clicks.
-- **Binder footer pin + empty-gap** (`c4d38b2`) — the double `.panel-binder` (AppShell wrapper + inner nav):
-  inner nav now `height:100%` so the quick-notes footer pins to the panel bottom; empty-chapter hint 12px→3px.
-- **Synopsis edit boxes** (`4f607b2`) — killed the default focus OUTLINE (the "black/white border"), themed
-  the inspector + corkboard-card editors to the canon `.be-sketch` field (themed border, recessed bg,
-  auto-grow, no resize handle); empty synopsis renders no box. Plus dark-mode text readability + default
-  detail-box edit alignment.
+## Next 3 steps
+1. Merge sonnet-orchestrator-test to main; version bump (minor — feature wave) + CHANGELOG
+2. File follow-up 2026-06-05-27-outliner-drag-reorder (multi-file, meets triple gate)
+3. Plan Wave 28 — decide direction (Cole's call; prior OPEN follow-ups remain unresolved by Wave 27)
 
-## Follow-ups / parked
-- **Detail-box edit grid-shift (MINOR — follow-up):** clicking a full-entry DEFAULT detail box (Age/etc.) to
-  edit shifts the DETAILS grid by ~3px, shifts back on blur. Pre-existing box-model quirk — NOT the input
-  padding (live-tested; matching it made it worse). 3px transient, low priority. Pick up if it nags.
-- Recurring `src-tauri/Cargo.toml` CRLF churn — still uncommitted, excluded from all commits (gitattributes
-  follow-up someday).
-- Worktree cleanup (lanes 18–24 branches/worktrees, all merged) — still parked.
-
-## Next
-- Wave 26 is fully done + runtime-verified; awaiting Cole's next direction.
-- **For any future UI work: use the smoke tool** (`npm run tauri dev` → `tauri-devtools` MCP, drive +
-  `evaluate_script` + `list_console_messages`) to verify at runtime. That's the lesson of this wave — unit
-  tests passed while the rendered app was broken.
+## Active work
+- Open follow-ups: 10 prior OPEN (none resolved by Wave 27 diff) + 1 new candidate (Outliner drag) filed
+- Wave-27 audit complete: 3 candidate evaluated (1 qualified, 2 routed to Phase 0 inline)
+- Vendor-gotchas updated: 3 new files (d3-force, yjs, testing-library-react); tiptap + tauri-plugin-sql refreshed
 
 ## Reference index
-- Wave 26 plan: [wave-26-canon-bugfix.md](wave-26-canon-bugfix.md) · prior wave: [wave-25-canon-cleanup.md](wave-25-canon-cleanup.md)
-- Smoke setup: memory `app-can-be-smoked-via-cdp-port` · Build: `npm run tauri dev` · Test: `npm run test` · Lint: `npm run lint:fix`
-- Canon design source: `design-reference/` — read `BATCH-HANDOFF.md` for the story-planning feature wave (Goals, Snapshots, Outliner, Relationships, Entity types, Find&Focus); per-feature: `GOALS-SPEC.md`, `SNAPSHOTS-SPEC.md`, `OUTLINER-SPEC.md`, `RELATIONSHIPS-SPEC.md`, `ENTITY-TYPES-SPEC.md`, `FIND-FOCUS-SPEC.md`; cross-feature index: `FEATURE-WAVE-PLAN.md`
+- Wave 27 plan: [wave-27-story-planning-batch.md](wave-27-story-planning-batch.md)
+- Smoke tooling: memory `app-can-be-smoked-via-cdp-port` · Build: `npm run tauri dev` · Test: `npm run test`
+- Vendor gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/) — d3-force, yjs, testing-library-react (new)
+- Project conventions: [CLAUDE.md](../CLAUDE.md)

@@ -1,7 +1,7 @@
 ---
 vendor: tauri-plugin-sql
 sdkVersion: "2"
-lastVerified: 2026-06-03
+lastVerified: 2026-06-05
 related:
   - src/db/schema.ts
   - src/db/migrations.ts
@@ -44,3 +44,17 @@ no native build, so migration logic can be tested without a live Tauri runtime
 (`src/test/support/sqljsDb.ts`). It is NOT identical to the plugin's on-disk
 SQLite, so it does NOT replace a live-launch smoke on the real `writing.db` — it
 proves the SQL logic, not the plugin's disk round-trip.
+
+## Atomic multi-row updates: use COALESCE to fold conditional logic into the WHERE clause
+When updating multiple rows based on conditions (e.g., "update label count only
+if it exists, else set it to 1"), an UPDATE with a subquery + WHERE may fail to
+fire on rows that don't yet exist. Instead, use COALESCE to synthesize an initial
+value if NULL, then increment:
+```sql
+UPDATE scene_labels SET sort_order = COALESCE((SELECT MAX(sort_order) FROM scene_labels WHERE scene_id=?), 0) + 1
+WHERE scene_id=? AND label_id=?;
+```
+This is atomic in SQLite (runs in a single statement), avoiding a separate
+INSERT-or-skip. Especially useful in label assignment workflows where the row may
+not exist yet but should default to a sensible initial value (e.g., position 0)
+before incrementing.

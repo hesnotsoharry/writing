@@ -1,5 +1,5 @@
 ---
-status: PLANNED
+status: SHIPPED
 created: 2026-06-05
 ---
 
@@ -9,7 +9,7 @@ created: 2026-06-05
 
 ### Status
 
-PLANNED · target v0.6.0 · drafted 2026-06-05
+SHIPPED · v0.6.0 · shipped 2026-06-05
 
 ### Goal
 
@@ -166,18 +166,44 @@ Before declaring a phase complete, restate the observation point from the Phases
 |---|---|---|---|---|
 | 1 | 2026-06-05 | 2026-06-05 | a0de71d | Goals dialog verified via gate suite; runtime observation deferred (CDP smoke in a later phase) |
 | 2 | 2026-06-05 | 2026-06-05 | b6d084a | Panel FLAG addressed (initial diff load, async onCapture auto-select, interface doc); gates re-verified clean |
-| 3 | 2026-06-05 | 2026-06-05 | (commit below) | Panel FLAGs addressed: onStatus wired + cycled, updateLabel atomic COALESCE; drag-reorder deferred per spec |
+| 3 | 2026-06-05 | 2026-06-05 | dd5511c | Panel FLAGs addressed: onStatus wired + cycled, updateLabel atomic COALESCE; drag-reorder deferred per spec |
 | 4 | 2026-06-05 | 2026-06-05 | fe27e3b | Panel BLOCK+FLAGs addressed: cascade delete, RELATION_PRESETS map shape, EgoGraph freshness via onMutation |
-| 5 | — | — | — | — |
-| 6 | — | — | — | — |
-| 7 | — | — | — | — |
-| 8 | — | — | — | — |
+| 5 | 2026-06-05 | 2026-06-05 | 5dff935 | Panel FLAGs addressed: PeopleGroup guarded to char/loc, migration013+CRUD contract tests added; portrait no-op and detection.ts justified inline |
+| 6 | 2026-06-05 | 2026-06-05 | 7ea396f | BLOCK addressed: buildDocFromText now writes one paragraph per \n-split chunk; zero-match snapshot guard moved before takeSnapshot; dead guard removed; onUndoReplace wired |
+| 7 | 2026-06-05 | 2026-06-05 | 7ec8df5 | Panel FLAGs addressed: CSS gated behind data-dim/data-typewriter attrs, fade resets on popover close, matchMedia guarded, tests use real hook via renderHook, goal name rendered in HUD |
+| 8 | 2026-06-05 | 2026-06-05 | 42a04ab | BLOCK addressed: useState→useEffect with aliveRef guard; CSS added for .al-link/.al-peek; portrait rendered; aliases threaded to buildDecorations; AlIndex.entries deduplicated |
 
 ## Follow-up candidates
 
 - [Outliner drag-to-reorder rows]: explicitly deferred in OUTLINER-SPEC.md §known-follow-up; requires dnd-kit wiring + binder move op integration beyond this phase's scope | present-harm: K3 (2026-06-05) — drag handle renders but fires nothing; documented as known gap in canonical spec
 - [getAllSceneLabels no project_id scope]: sqliteLabelStore returns labels across all projects; affects multi-project installs only (single-project target use case unaffected today) | present-harm: K3 (2026-06-05) — sqliteLabelStore.ts getAllSceneLabels omits WHERE project_id
+- [Custom type singular derivation (.replace(/s$/,''))]: BibleEntitySection + CustomTypeCreator strip trailing 's' to form singular label (e.g. "New Vehicle"); edge cases like "Compass" → "Compas" produce wrong user-visible text; a smarter heuristic or dropping singularization is a single-file fix but out-of-band for Phase 5 | present-harm: K3 (2026-06-05) — BibleEntitySection.tsx:70, CustomTypeCreator.tsx:107
 
 ## Result
 
-<!-- Filled at ship by wrap team -->
+**Shipped 2026-06-05.** All 8 phases committed on branch `sonnet-orchestrator-test`.
+
+| Phase | Commit | Summary |
+|---|---|---|
+| 1 — Goals redesign | a0de71d | Type-adaptive editors (date picker, minutes/day, words/day), calendar heat-map, pace bar |
+| 2 — Snapshots / version history | b6d084a | `snapshotStore`, `scene_snapshots` table, VersionHistory overlay, HistoryRail, word-level diff |
+| 3 — Outliner + color labels | dd5511c | Outliner view, LabelBadges/LabelManager, `labels`+`scene_labels` tables, `--label-*` tokens |
+| 4 — Relationships | fe27e3b + ced5b9b | `entity_relations` table, RelationshipGroup, EgoGraph, RelationshipMap + d3-force layout |
+| 5 — Entity types expansion | 5dff935 | Items/Factions/Lore/Themes/Custom types, `entity_types_custom` table, tiered StoryBibleView, ThemeTracker |
+| 6 — Find & Replace overlay | 7ea396f | `manuscriptSearchStore`, FindReplace overlay, `Cmd+Shift+H`, paragraph-preserving replace, auto-snapshot Undo |
+| 7 — Focus mode enhancements | 7ec8df5 | Typewriter scroll, paragraph dimming, fading HUD with goals + timer, settings toggles |
+| 8 — Auto-linking Story Bible | 42a04ab | AutoLink TipTap extension, `alBuildIndex`, AutoLinkPeek hover card |
+| Wave-end fix | 249d1c7 | `snapUndoReplace` applies restored state to live Y.Doc (caught by wave-granularity adversarial review) |
+
+**Gates at ship:** 908 tests · lint ✓ · tsc ✓ · vitest ✓
+
+**Mechanical review verdict:** Wave-end attack-diff returned FLAG — `snapUndoReplace` wrote to SQLite but never applied to live in-memory Y.Doc; addressed at 249d1c7 before wrap.
+
+**Follow-up audit:** 3 candidates evaluated.
+- `Outliner drag-to-reorder` — **qualified** (multi-file + cannot-be-cleared); follow-up filed at `roadmap/follow-ups/2026-06-05-27-outliner-drag-reorder.md`.
+- `getAllSceneLabels no project_id scope` — fails CLEARABILITY gate (1-line fix, single file); route to Phase 0 inline in next wave.
+- `Custom type singular derivation` — fails CLEARABILITY gate (2-file polish fix); route to Phase 0 inline in next wave.
+
+**Decisions:** No architectural decisions locked this wave (all implementation choices followed existing patterns; no new library introductions required ADRs).
+
+**Vendor gotchas updated:** `.claude/vendor-gotchas/` — created `d3-force.md`, `yjs.md`, `testing-library-react.md`; updated `tiptap.md` (AutoLink aliveRef pattern) and `tauri-plugin-sql.md` (COALESCE atomic update).
