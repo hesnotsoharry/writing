@@ -55,6 +55,23 @@ export function snapRestore({ sceneId, doc, currentWords, set }: SnapCtx, snapsh
     .catch((e: unknown) => console.error("[snapshots] restore failed", e));
 }
 
+/**
+ * Undo a Replace-All operation by restoring the most-recent auto-snapshot for
+ * each touched scene. Called from the FindReplace onUndoReplace callback.
+ */
+export function snapUndoReplace(
+  sceneIds: string[],
+  save: (sceneId: string, base64: string, plaintext: string | null) => Promise<void>,
+): void {
+  for (const sid of sceneIds) {
+    snapshotStore.listSnapshots(sid)
+      .then((list) => list.find((s) => s.kind === "auto") ?? null)
+      .then((snap) => snap ? snapshotStore.getSnapshot(snap.id) : null)
+      .then((record) => { if (record) return save(sid, record.stateBase64, null); })
+      .catch((e: unknown) => console.error("[undo-replace] restore failed", e));
+  }
+}
+
 export function snapDelete(snapshotId: string, sceneId: string | null, set: SetSnapshots) {
   snapshotStore.deleteSnapshot(snapshotId)
     .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })

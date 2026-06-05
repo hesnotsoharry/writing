@@ -98,6 +98,7 @@ function useModalFlags() {
   const [hasQuickItems, setHasQuickItems] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historySceneId, setHistorySceneId] = useState<string | null>(null);
+  const [showFindReplace, setShowFindReplace] = useState(false);
   return {
     showQuickCapture, setShowQuickCapture,
     showInbox, setShowInbox,
@@ -112,6 +113,7 @@ function useModalFlags() {
     hasQuickItems, setHasQuickItems,
     showHistory, setShowHistory,
     historySceneId, setHistorySceneId,
+    showFindReplace, setShowFindReplace,
   };
 }
 

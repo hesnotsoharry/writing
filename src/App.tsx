@@ -6,7 +6,7 @@ import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
 import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
 import type { SnapCtx } from "./App.snapshots";
-import { fetchSnapshotText, snapCapture, snapDelete, snapRename, snapRestore, snapshotStore,snapTakeFromMenu } from "./App.snapshots";
+import { fetchSnapshotText, snapCapture, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace } from "./App.snapshots";
 import { useAppState, useProjectActions } from "./App.state";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { BinderTree } from "./binder/buildTree";
@@ -285,7 +285,8 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
     showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
-    showHistory, setShowHistory, historySceneId, bumpArchivedVersion } = state;
+    showHistory, setShowHistory, historySceneId, bumpArchivedVersion,
+    showFindReplace, setShowFindReplace, activeProjectId } = state;
   const { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords } = snap;
   const histTitle = historySceneId ? (sceneTitle(historySceneId) || sceneTitle(state.selectedSceneId)) : sceneTitle(state.selectedSceneId);
   return {
@@ -304,6 +305,11 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     onHistoryRestore: (id: string) => snapRestore(ctx, id),
     onHistoryDelete: (id: string) => snapDelete(id, historySceneId, setHistorySnapshots),
     onHistoryGetText: fetchSnapshotText,
+    showFindReplace, setShowFindReplace,
+    findReplaceProjectId: activeProjectId,
+    findReplaceSnapshotStore: snapshotStore,
+    onFindReplaceJump: wiring.handleSelectScene,
+    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore)),
   };
 }
 

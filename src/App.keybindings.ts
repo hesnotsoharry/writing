@@ -9,12 +9,13 @@
  * double-toggles under key-repeat.
  *
  * Shortcut map (mirrors design-reference/app.jsx:101-111):
- *   ⌘K / Ctrl+K  → toggle QuickCapture (open ↔ closed)
- *   ⌘. / Ctrl+.  → toggle focus mode   (on  ↔ off)
- *   ⌘E / Ctrl+E  → open Export
- *   ⌘, / Ctrl+,  → open Settings
- *   Escape        → close ALL overlays + exit focus (no preventDefault)
- *                   (fires regardless of whether a modifier is also held)
+ *   ⌘K / Ctrl+K          → toggle QuickCapture (open ↔ closed)
+ *   ⌘. / Ctrl+.          → toggle focus mode   (on  ↔ off)
+ *   ⌘E / Ctrl+E          → open Export
+ *   ⌘, / Ctrl+,          → open Settings
+ *   ⌘⇧H / Ctrl+Shift+H  → open Find & Replace
+ *   Escape               → close ALL overlays + exit focus (no preventDefault)
+ *                          (fires regardless of whether a modifier is also held)
  */
 import { type Dispatch, type SetStateAction, useEffect } from "react";
 
@@ -29,6 +30,7 @@ export interface KeybindingSetters {
   setShowExport: BoolSetter;
   setShowSettings: BoolSetter;
   setFocusMode: ToggleSetter;
+  setShowFindReplace: BoolSetter;
 }
 
 interface ModSets {
@@ -36,34 +38,37 @@ interface ModSets {
   setFocusMode: ToggleSetter;
   setShowExport: BoolSetter;
   setShowSettings: BoolSetter;
+  setShowFindReplace: BoolSetter;
 }
 
-function handleModKey(key: string, sets: ModSets, e: KeyboardEvent) {
+function handleModKey(key: string, shifted: boolean, sets: ModSets, e: KeyboardEvent) {
   if (key === "k") { e.preventDefault(); sets.setShowQuickCapture((v) => !v); }
   else if (key === ".") { e.preventDefault(); sets.setFocusMode((v) => !v); }
   else if (key === "e") { e.preventDefault(); sets.setShowExport(true); }
   else if (key === ",") { e.preventDefault(); sets.setShowSettings(true); }
+  else if (key === "h" && shifted) { e.preventDefault(); sets.setShowFindReplace(true); }
 }
 
 export function useGlobalKeybindings({
   setShowQuickCapture, setShowInbox, setShowArchive,
-  setShowGoals, setShowExport, setShowSettings, setFocusMode,
+  setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace,
 }: KeybindingSetters): void {
   useEffect(() => {
-    const sets = { setShowQuickCapture, setFocusMode, setShowExport, setShowSettings };
+    const sets = { setShowQuickCapture, setFocusMode, setShowExport, setShowSettings, setShowFindReplace };
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape") {
         setShowQuickCapture(false); setShowInbox(false); setShowArchive(false);
-        setShowGoals(false); setShowExport(false); setShowSettings(false); setFocusMode(false);
+        setShowGoals(false); setShowExport(false); setShowSettings(false);
+        setFocusMode(false); setShowFindReplace(false);
       } else if (mod) {
-        handleModKey(e.key.toLowerCase(), sets, e);
+        handleModKey(e.key.toLowerCase(), e.shiftKey, sets, e);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [
     setShowQuickCapture, setShowInbox, setShowArchive,
-    setShowGoals, setShowExport, setShowSettings, setFocusMode,
+    setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace,
   ]);
 }

@@ -27,10 +27,11 @@ function makeSetters(): KeybindingSetters {
     setShowExport: vi.fn(),
     setShowSettings: vi.fn(),
     setFocusMode: vi.fn(),
+    setShowFindReplace: vi.fn(),
   };
 }
 
-function fireKey(key: string, opts: { metaKey?: boolean; ctrlKey?: boolean } = {}) {
+function fireKey(key: string, opts: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean } = {}) {
   window.dispatchEvent(
     new KeyboardEvent("keydown", { key, bubbles: true, ...opts }),
   );
@@ -95,9 +96,19 @@ describe("useGlobalKeybindings", () => {
     expect(setters.setShowSettings).toHaveBeenCalledWith(true);
   });
 
+  it("⌘⇧H calls setShowFindReplace(true)", () => {
+    const setters = makeSetters();
+    renderHook(() => useGlobalKeybindings(setters));
+
+    fireKey("h", { metaKey: true, shiftKey: true });
+
+    expect(setters.setShowFindReplace).toHaveBeenCalledOnce();
+    expect(setters.setShowFindReplace).toHaveBeenCalledWith(true);
+  });
+
   // --- Escape (no modifier) closes all ---
 
-  it("Escape (no modifier) calls all six show-setters with false and setFocusMode(false)", () => {
+  it("Escape (no modifier) calls all show-setters with false including setShowFindReplace", () => {
     const setters = makeSetters();
     renderHook(() => useGlobalKeybindings(setters));
 
@@ -110,11 +121,12 @@ describe("useGlobalKeybindings", () => {
     expect(setters.setShowExport).toHaveBeenCalledWith(false);
     expect(setters.setShowSettings).toHaveBeenCalledWith(false);
     expect(setters.setFocusMode).toHaveBeenCalledWith(false);
+    expect(setters.setShowFindReplace).toHaveBeenCalledWith(false);
   });
 
   // --- FLAG-2: Escape WITH modifier held still closes all ---
 
-  it("Escape WITH metaKey held also triggers close-all (FLAG-2 guard)", () => {
+  it("Escape WITH metaKey held also triggers close-all including setShowFindReplace (FLAG-2 guard)", () => {
     const setters = makeSetters();
     renderHook(() => useGlobalKeybindings(setters));
 
@@ -127,6 +139,7 @@ describe("useGlobalKeybindings", () => {
     expect(setters.setShowExport).toHaveBeenCalledWith(false);
     expect(setters.setShowSettings).toHaveBeenCalledWith(false);
     expect(setters.setFocusMode).toHaveBeenCalledWith(false);
+    expect(setters.setShowFindReplace).toHaveBeenCalledWith(false);
   });
 
   // --- Listener cleanup on unmount ---

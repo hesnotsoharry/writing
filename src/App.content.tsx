@@ -285,8 +285,8 @@ function useAppContentSlots(props: AppContentProps) {
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree, entryStack,
     entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry, historySnapshots,
     onOpenHistory, onTakeSnapshot, labelStore } = props;
-  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget } = overlays;
-  useGlobalKeybindings(overlays); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
+  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget, setShowFindReplace } = overlays;
+  useGlobalKeybindings({ ...overlays, setShowFindReplace }); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle(); const motionOn = useMotion();
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });

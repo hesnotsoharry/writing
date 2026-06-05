@@ -9,10 +9,11 @@ import type { Dispatch, ReactElement, SetStateAction } from "react";
 import type { BinderTree } from "./binder/buildTree";
 import type { BinderStore } from "./db/binderStore";
 import type { SceneDocStore } from "./db/sceneDocStore";
-import type { Snapshot } from "./db/snapshotStore";
+import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { Archive } from "./features/archive/Archive";
 import { ExportOverlay } from "./features/export/Export";
 import type { ExportScope } from "./features/export/types";
+import { FindReplace } from "./features/findreplace/FindReplace";
 import type { GoalsInitialScope } from "./features/goals/Goals";
 import { Goals } from "./features/goals/Goals";
 import { Inbox } from "./features/inbox/Inbox";
@@ -67,6 +68,13 @@ export interface OverlayStackProps {
   onHistoryRestore?: (snapshotId: string) => void;
   onHistoryDelete?: (snapshotId: string) => void;
   onHistoryGetText?: (snapshotId: string) => Promise<string>;
+  // ── Find & Replace ──────────────────────────────────────────────────────────
+  showFindReplace: boolean;
+  setShowFindReplace: (v: boolean) => void;
+  findReplaceProjectId: string | null;
+  findReplaceSnapshotStore: SnapshotStore;
+  onFindReplaceJump?: (sceneId: string) => void;
+  onUndoReplace?: (sceneIds: string[]) => void;
 }
 
 type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
@@ -115,6 +123,15 @@ export function OverlayStack(p: OverlayStackAllProps): ReactElement {
           onRename={p.onHistoryRename} onRestore={p.onHistoryRestore}
           onDelete={p.onHistoryDelete} onClose={() => p.setShowHistory(false)}
           getSnapshotText={p.onHistoryGetText} />
+      )}
+      {p.showFindReplace && p.findReplaceProjectId && (
+        <FindReplace
+          projectId={p.findReplaceProjectId}
+          snapshotStore={p.findReplaceSnapshotStore}
+          onJump={p.onFindReplaceJump}
+          onClose={() => p.setShowFindReplace(false)}
+          onUndoReplace={p.onUndoReplace}
+        />
       )}
     </>
   );
