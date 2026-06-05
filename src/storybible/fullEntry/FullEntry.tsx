@@ -71,6 +71,7 @@ interface FeRailProps {
   // Relations
   relations: Relation[];
   allEntities: Entity[];
+  onRelationMutation: () => void;
 }
 
 /** Link an entity to a scene: load existing links, dedup, replace. */
@@ -85,7 +86,7 @@ async function linkEntityToScene(store: StoryBibleStore, pickedSceneId: string, 
 function FeRail({
   entity, entityType, store, folders, scenes, fields,
   sceneIds, refresh, onCommitField, onOpenScene, onPushEntry,
-  relations, allEntities,
+  relations, allEntities, onRelationMutation,
 }: FeRailProps) {
   const mergedFacts = mergeFacts(entityType, fields);
   const appearsIn = buildAppearsIn(sceneIds, folders, scenes);
@@ -111,7 +112,9 @@ function FeRail({
       <RelationshipGroup
         key={`rg-${entity.id}`}
         entityId={entity.id} projectId={entity.projectId}
+        entityType={entityType}
         store={store} onPushEntry={onPushEntry}
+        onMutation={onRelationMutation}
       />
       <EgoGraph
         entity={entity} relations={relations} allEntities={allEntities}
@@ -188,7 +191,7 @@ function FullEntryInner({ entity, kind, origin, store, folders = [], scenes = []
   onBack, onExit, onRename, onDelete, onOpenScene, onPushEntry }: FullEntryProps & { entity: EntityWithPortrait }) {
   const [renaming, setRenaming] = useState(false);
   const { fields, sceneIds, refresh } = useEntityDetail(store, entity.id);
-  const { relations, allEntities } = useRelations(store, entity.projectId, entity.id);
+  const { relations, allEntities, refreshRelations } = useRelations(store, entity.projectId, entity.id);
   const { resolvedKind, rootLabel, storeType } = resolveEntryContext(entity, kind, origin);
   const { portraitPath, setPortraitPath } = usePortraitState(entity.portraitPath);
   const portraitFlows = usePortraitFlows({ entity, storeType, store, portraitPath, setPortraitPath });
@@ -218,7 +221,8 @@ function FullEntryInner({ entity, kind, origin, store, folders = [], scenes = []
           folders={folders} scenes={scenes} fields={fields} sceneIds={sceneIds}
           refresh={refresh} onCommitField={onCommitField}
           onOpenScene={onOpenScene} onPushEntry={onPushEntry}
-          relations={relations} allEntities={allEntities} />
+          relations={relations} allEntities={allEntities}
+          onRelationMutation={refreshRelations} />
       </div>
     </div>
   );

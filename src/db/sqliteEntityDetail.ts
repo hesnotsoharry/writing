@@ -213,8 +213,9 @@ export async function sqliteClearPortrait(
   await db.execute(`UPDATE ${table} SET portrait_path = NULL WHERE id = $1`, [id]);
 }
 
-/** Purge entity_fields and entity_links rows for a deleted entity. */
+/** Purge entity_fields, entity_links, and entity_relations rows for a deleted entity. */
 export async function sqlitePurgeEntityDetail(db: DbHandle, id: string): Promise<void> {
   await db.execute("DELETE FROM entity_fields WHERE entity_id = $1", [id]);
   await db.execute("DELETE FROM entity_links WHERE from_id = $1 OR to_id = $1", [id]);
+  await db.execute("DELETE FROM entity_relations WHERE from_entity = $1 OR to_entity = $1", [id]);
 }

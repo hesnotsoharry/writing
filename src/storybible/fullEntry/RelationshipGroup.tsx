@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "../../components/Icon";
 import type { Entity, Relation, RelationPreset, StoryBibleStore } from "../../db/storyBibleStore";
-import { RELATION_PRESETS } from "../../db/storyBibleStore";
+import { getPresetsForType } from "../../db/storyBibleStore";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -20,10 +20,12 @@ function entityInitial(name: string): string {
 
 // ── LabelMenu ─────────────────────────────────────────────────────────────────
 
-function LabelMenu({ currentLabel, onPick }: {
+function LabelMenu({ currentLabel, entityType, onPick }: {
   currentLabel: string;
+  entityType: string;
   onPick: (p: RelationPreset) => void;
 }) {
+  const presets = getPresetsForType(entityType);
   return (
     <div style={{
       position: "absolute", left: 0, top: "100%", zIndex: 40,
@@ -31,7 +33,7 @@ function LabelMenu({ currentLabel, onPick }: {
       borderRadius: "var(--r-md)", boxShadow: "var(--shadow-md)",
       padding: "6px 0", minWidth: 180,
     }}>
-      {RELATION_PRESETS.map((p) => (
+      {presets.map((p) => (
         <button key={p.label} style={{
           display: "block", width: "100%", textAlign: "left",
           padding: "5px 14px", fontSize: "var(--text-sm)",
@@ -63,12 +65,13 @@ function useClickOutside(open: boolean, onClose: () => void) {
 interface RelationChipProps {
   relation: Relation;
   targetEntity: Entity | undefined;
+  entityType: string;
   onDelete: (id: string) => void;
   onRelabel: (id: string, label: string) => void;
   onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
 }
 
-function RelationChip({ relation, targetEntity, onDelete, onRelabel, onPushEntry }: RelationChipProps) {
+function RelationChip({ relation, targetEntity, entityType, onDelete, onRelabel, onPushEntry }: RelationChipProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useClickOutside(open, () => setOpen(false));
   if (!targetEntity) return null;
@@ -89,7 +92,7 @@ function RelationChip({ relation, targetEntity, onDelete, onRelabel, onPushEntry
           onClick={() => setOpen((v) => !v)}>
           {relation.label || <span style={{ color: "var(--ink-4)", fontStyle: "italic" }}>Add label…</span>}
         </button>
-        {open && <div ref={menuRef}><LabelMenu currentLabel={relation.label} onPick={(p) => { onRelabel(relation.id, p.label); setOpen(false); }} /></div>}
+        {open && <div ref={menuRef}><LabelMenu currentLabel={relation.label} entityType={entityType} onPick={(p) => { onRelabel(relation.id, p.label); setOpen(false); }} /></div>}
       </div>
       <button className="fe-unlink" title="Delete relation" onClick={() => onDelete(relation.id)}>
         <Icon name="x" style={{ width: 13, height: 13 }} />
@@ -127,11 +130,13 @@ function EntityPickerList({ candidates, onPick }: { candidates: Entity[]; onPick
 
 // ── LabelPickerPanel ───────────────────────────────────────────────────────────
 
-function LabelPickerPanel({ picked, onConfirm, onBack }: {
+function LabelPickerPanel({ picked, entityType, onConfirm, onBack }: {
   picked: Entity;
+  entityType: string;
   onConfirm: (label: string, inv: string | undefined) => void;
   onBack: () => void;
 }) {
+  const presets = getPresetsForType(entityType);
   const [chosen, setChosen] = useState<RelationPreset | null>(null);
   return (
     <div className="fe-picker" style={{ padding: "12px 14px" }}>
@@ -139,7 +144,7 @@ function LabelPickerPanel({ picked, onConfirm, onBack }: {
         Relation to <strong style={{ color: "var(--ink)" }}>{picked.name}</strong>:
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
-        {RELATION_PRESETS.map((p) => (
+        {presets.map((p) => (
           <button key={p.label} className={"rel-chip" + (chosen?.label === p.label ? " on" : "")}
             onClick={() => setChosen((prev) => prev?.label === p.label ? null : p)}>
             {p.label}
@@ -164,8 +169,9 @@ function LabelPickerPanel({ picked, onConfirm, onBack }: {
 
 // ── AddRelationFlow ────────────────────────────────────────────────────────────
 
-function AddRelationFlow({ candidates, onAdd }: {
+function AddRelationFlow({ candidates, entityType, onAdd }: {
   candidates: Entity[];
+  entityType: string;
   onAdd: (targetId: string, label: string, inv: string | undefined) => void;
 }) {
   const [picked, setPicked] = useState<Entity | null>(null);
@@ -173,6 +179,7 @@ function AddRelationFlow({ candidates, onAdd }: {
   return (
     <LabelPickerPanel
       picked={picked}
+      entityType={entityType}
       onConfirm={(label, inv) => onAdd(picked.id, label, inv)}
       onBack={() => setPicked(null)}
     />
@@ -199,11 +206,13 @@ function useRelationGroup(store: StoryBibleStore | undefined, projectId: string 
 
 interface RelGroupInnerProps {
   entityId: string; projectId: string;
+  entityType: string;
   store: StoryBibleStore;
   onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onMutation?: () => void;
 }
 
-function RelationshipGroupInner({ entityId, projectId, store, onPushEntry }: RelGroupInnerProps) {
+function RelationshipGroupInner({ entityId, projectId, entityType, store, onPushEntry, onMutation }: RelGroupInnerProps) {
   const { relations, allEntities, refresh } = useRelationGroup(store, projectId, entityId);
   const [adding, setAdding] = useState(false);
   const entityMap = new Map(allEntities.map((e) => [e.id, e]));
@@ -214,10 +223,10 @@ function RelationshipGroupInner({ entityId, projectId, store, onPushEntry }: Rel
 
   async function handleAdd(targetId: string, label: string, inv: string | undefined) {
     await store.addRelation(projectId, { fromEntity: entityId, toEntity: targetId, label, reciprocalLabel: inv });
-    setAdding(false); refresh();
+    setAdding(false); refresh(); onMutation?.();
   }
-  async function handleDelete(id: string) { await store.deleteRelation(id); refresh(); }
-  async function handleRelabel(id: string, label: string) { await store.updateRelationLabel(id, label); refresh(); }
+  async function handleDelete(id: string) { await store.deleteRelation(id); refresh(); onMutation?.(); }
+  async function handleRelabel(id: string, label: string) { await store.updateRelationLabel(id, label); refresh(); onMutation?.(); }
 
   return (
     <div className="insp-group">
@@ -231,11 +240,12 @@ function RelationshipGroupInner({ entityId, projectId, store, onPushEntry }: Rel
         const peerId = rel.fromEntity === entityId ? rel.toEntity : rel.fromEntity;
         return (
           <RelationChip key={rel.id} relation={rel} targetEntity={entityMap.get(peerId)}
+            entityType={entityType}
             onDelete={handleDelete} onRelabel={handleRelabel} onPushEntry={onPushEntry} />
         );
       })}
       {adding
-        ? <AddRelationFlow candidates={candidates} onAdd={handleAdd} />
+        ? <AddRelationFlow candidates={candidates} entityType={entityType} onAdd={handleAdd} />
         : <button className="fe-add" onClick={() => setAdding(true)}><Icon name="plus" className="ic" /> Add relation</button>}
     </div>
   );
@@ -245,11 +255,14 @@ function RelationshipGroupInner({ entityId, projectId, store, onPushEntry }: Rel
 
 export interface RelationshipGroupProps {
   entityId?: string; projectId?: string;
+  entityType?: string;
   store?: StoryBibleStore;
   onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  /** Called after any successful mutation so the parent can re-fetch shared relation state. */
+  onMutation?: () => void;
 }
 
-export function RelationshipGroup({ entityId, projectId, store, onPushEntry }: RelationshipGroupProps) {
+export function RelationshipGroup({ entityId, projectId, entityType = '*', store, onPushEntry, onMutation }: RelationshipGroupProps) {
   if (!entityId || !projectId || !store) return null;
-  return <RelationshipGroupInner key={entityId} entityId={entityId} projectId={projectId} store={store} onPushEntry={onPushEntry} />;
+  return <RelationshipGroupInner key={entityId} entityId={entityId} projectId={projectId} entityType={entityType} store={store} onPushEntry={onPushEntry} onMutation={onMutation} />;
 }

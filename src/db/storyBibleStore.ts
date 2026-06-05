@@ -96,25 +96,35 @@ export interface AddRelationArgs {
 
 /**
  * Curated relation presets keyed by entity type.
- * All types currently share the same interpersonal vocabulary;
- * Phase 5 can extend with per-type entries.
+ * Use '*' as the fallback key shared across all types.
+ * Phase 5 can extend with per-type entries (e.g. RELATION_PRESETS['character']).
+ * Consumers: call getPresetsForType(entityType) to resolve the right list.
  */
-export const RELATION_PRESETS: RelationPreset[] = [
-  { label: "Sibling of",    inv: "Sibling of" },
-  { label: "Parent of",     inv: "Child of" },
-  { label: "Child of",      inv: "Parent of" },
-  { label: "Spouse of",     inv: "Spouse of" },
-  { label: "Friend of",     inv: "Friend of" },
-  { label: "Ally of",       inv: "Ally of" },
-  { label: "Rival of",      inv: "Rival of" },
-  { label: "Mentor of",     inv: "Apprentice of" },
-  { label: "Apprentice of", inv: "Mentor of" },
-  { label: "Grandparent of",inv: "Grandchild of" },
-  { label: "Grandchild of", inv: "Grandparent of" },
-  { label: "Confidant of",  inv: "Confidant of" },
-  { label: "Member of",     inv: "Has member" },
-  { label: "Located in",    inv: "Contains" },
-];
+export const RELATION_PRESETS: Record<string, RelationPreset[]> = {
+  '*': [
+    { label: "Sibling of",    inv: "Sibling of" },
+    { label: "Parent of",     inv: "Child of" },
+    { label: "Child of",      inv: "Parent of" },
+    { label: "Spouse of",     inv: "Spouse of" },
+    { label: "Friend of",     inv: "Friend of" },
+    { label: "Ally of",       inv: "Ally of" },
+    { label: "Rival of",      inv: "Rival of" },
+    { label: "Mentor of",     inv: "Apprentice of" },
+    { label: "Apprentice of", inv: "Mentor of" },
+    { label: "Grandparent of",inv: "Grandchild of" },
+    { label: "Grandchild of", inv: "Grandparent of" },
+    { label: "Confidant of",  inv: "Confidant of" },
+    { label: "Member of",     inv: "Has member" },
+    { label: "Located in",    inv: "Contains" },
+  ],
+};
+
+/**
+ * Returns the preset list for the given entity type, falling back to '*'.
+ */
+export function getPresetsForType(entityType: string): RelationPreset[] {
+  return RELATION_PRESETS[entityType] ?? RELATION_PRESETS['*'] ?? [];
+}
 
 /**
  * Entity plus its portrait path — the single-entity loader's return shape.

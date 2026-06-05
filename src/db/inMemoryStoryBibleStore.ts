@@ -107,6 +107,7 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     const purged = imPurgeEntityDetail(id, this.entityFields, this.entityLinks, this.portraits);
     this.entityFields = purged.entityFields;
     this.entityLinks = purged.entityLinks;
+    this.relations = this.relations.filter((r) => r.fromEntity !== id && r.toEntity !== id);
   }
 
   async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {

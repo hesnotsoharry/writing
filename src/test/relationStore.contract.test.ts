@@ -113,6 +113,18 @@ describe("relation store contract (Wave 27 Phase 4)", () => {
     expect(all).toHaveLength(0);
   });
 
+  it("deleteEntity cascades — listRelations returns empty after the referenced entity is deleted", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const a = await store.createCharacter("proj-1", "A", null);
+    const b = await store.createCharacter("proj-1", "B", null);
+    await store.addRelation("proj-1", { fromEntity: a.id, toEntity: b.id, label: "Friend of" });
+
+    await store.deleteEntity("character", a.id);
+
+    const remaining = await store.listRelations("proj-1");
+    expect(remaining).toHaveLength(0);
+  });
+
   it("updateRelationLabel changes only the targeted edge's label", async () => {
     const store = new InMemoryStoryBibleStore();
     const a = await store.createCharacter("proj-1", "A", null);

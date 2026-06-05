@@ -201,23 +201,28 @@ export interface EgoGraphProps {
 }
 
 export function EgoGraph({ entity, relations, allEntities, onOpenEntry }: EgoGraphProps) {
-  const entityMap = new Map(allEntities.map((e) => [e.id, e]));
+  // Stable dep keys: entity.id catches entity switch; allEntities.length catches
+  // peer additions/removals; the join catches label changes and relation-set changes
+  // without depending on the array reference itself (which changes every render from useRelations).
+  const relKey = relations.map((r) => `${r.id}:${r.label}`).join(",");
 
   // useMemo must run unconditionally (hooks rules). Computes a no-op result when
   // relations is empty; the component returns null after the memo.
-  const graphData = useMemo<GraphData>(
-    () =>
-      relations.length > 0
-        ? buildGraphData(entity, relations, entityMap)
-        : { nodePositions: new Map(), edgeList: [], peerIds: new Set() },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entity.id, relations.length]
-  );
+  const graphData = useMemo<GraphData>(() => {
+    // entityMap is built inside the memo so peer renames always produce fresh node names.
+    const entityMap = new Map(allEntities.map((e) => [e.id, e]));
+    return relations.length > 0
+      ? buildGraphData(entity, relations, entityMap)
+      : { nodePositions: new Map(), edgeList: [], peerIds: new Set() };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity.id, allEntities.length, relKey]);
 
   if (relations.length === 0) return null;
 
   const { nodePositions, edgeList, peerIds } = graphData;
   const selfPos = nodePositions.get(entity.id);
+  // Render-side lookup map — cheap array→Map; only reaches here when relations exist.
+  const renderEntityMap = new Map(allEntities.map((e) => [e.id, e]));
 
   return (
     <div className="insp-group" style={{ marginTop: "var(--s-3)" }}>
@@ -228,7 +233,7 @@ export function EgoGraph({ entity, relations, allEntities, onOpenEntry }: EgoGra
         {selfPos && <SelfNode entity={entity} pos={selfPos} />}
         {Array.from(peerIds).map((peerId) => {
           const p = nodePositions.get(peerId);
-          const peer = entityMap.get(peerId);
+          const peer = renderEntityMap.get(peerId);
           return p && peer ? (
             <PeerNode key={peerId} peer={peer} pos={p} onOpenEntry={onOpenEntry} />
           ) : null;
