@@ -136,7 +136,12 @@ function useGroupDragHandlers(a: GroupDndHandlerArgs) {
     const aid = String(event.active.id);
     const final = liveIds ?? ids;
     // Cancel paths: clear liveIds synchronously (no async work to bridge).
-    if (!event.over || event.active.id === event.over.id) { setLiveIds(null); return; }
+    // A real reorder is signalled by the optimistic liveIds DIFFERING from the
+    // committed ids — NOT by event.over. With a SortableContext, onDragOver slides
+    // the dragged card into the target slot mid-drag, so at release the card is over
+    // ITSELF (over === active). The old `over === active → cancel` check therefore
+    // discarded EVERY genuine reorder, which is the snap-back. Commit on order-change.
+    if (!liveIds || final.join() === ids.join()) { setLiveIds(null); return; }
     const toIndex = final.indexOf(aid);
     // Safety: if the dragged id isn't in the list, nothing to do — clear and bail.
     if (toIndex === -1) { setLiveIds(null); return; }

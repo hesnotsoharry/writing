@@ -319,23 +319,19 @@ describe("Corkboard — DnD reorder wires to existing moveScene callback (Wave 2
       </CorkGroupDnd>,
     );
 
-    // Simulate DnD: s2 dragged to index 0 (before s1).
-    // capturedOnDragEnd is the onDragEnd prop captured from the rendered DndContext.
-    expect(capturedOnDragEnd).toBeDefined();
-    capturedOnDragEnd!({
-      active: { id: "s2", data: { current: undefined }, rect: { current: { initial: null, translated: null } } },
-      over: { id: "s1", rect: { width: 0, height: 0, top: 0, left: 0, bottom: 0, right: 0 }, data: { current: undefined }, disabled: false },
-      delta: { x: 0, y: 0 },
-      activatorEvent: new Event("pointerdown"),
-      collisions: null,
-    } as unknown as DragEndEvent);
+    // Simulate a REAL reorder: onDragStart seeds liveIds, onDragOver slides s2 ahead of
+    // s1 (liveIds -> ["s2","s1"]), then onDragEnd commits. dnd-kit reports over===active
+    // at release (the dragged card now occupies its own new slot) — the commit is driven
+    // by the order actually CHANGING, not by event.over. This guards the snap-back fix:
+    // the old `over===active → cancel` path would (wrongly) skip onMoveScene here.
+    expect(capturedOnDragStart).toBeDefined();
+    act(() => { capturedOnDragStart!(); });
+    act(() => { capturedOnDragOver!({ active: { id: "s2" }, over: { id: "s1" } } as unknown as DragOverEvent); });
+    act(() => { capturedOnDragEnd!({ active: { id: "s2" }, over: { id: "s2" } } as unknown as DragEndEvent); });
 
-    // onMoveScene must be called with (sceneId, folderId, toIndex).
-    // After onDragStart sets liveIds to ["s1","s2"] and onDragEnd reads liveIds,
-    // without a prior onDragStart the liveIds are null — falls back to ids = ["s1","s2"].
-    // s2 is at index 1 in the original order, so toIndex = 1.
+    // s2 moved to index 0 — onMoveScene fires with the new index (no snap-back cancel).
     expect(onMoveScene).toHaveBeenCalledTimes(1);
-    expect(onMoveScene).toHaveBeenCalledWith("s2", "f1", 1);
+    expect(onMoveScene).toHaveBeenCalledWith("s2", "f1", 0);
 
     // Fix 1 guard: onAfterDrop must NOT have been called (double-reload eliminated).
     // The single post-write reload is owned by onMoveScene's own .then(doReload) chain.
