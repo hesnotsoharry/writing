@@ -62,12 +62,20 @@ export function snapRestore({ sceneId, doc, currentWords, set }: SnapCtx, snapsh
 export function snapUndoReplace(
   sceneIds: string[],
   save: (sceneId: string, base64: string, plaintext: string | null) => Promise<void>,
+  getDoc: (sceneId: string) => Y.Doc | null = () => null,
 ): void {
   for (const sid of sceneIds) {
     snapshotStore.listSnapshots(sid)
       .then((list) => list.find((s) => s.kind === "auto") ?? null)
       .then((snap) => snap ? snapshotStore.getSnapshot(snap.id) : null)
-      .then((record) => { if (record) return save(sid, record.stateBase64, null); })
+      .then((record) => {
+        if (record) {
+          const savePromise = save(sid, record.stateBase64, null);
+          const doc = getDoc(sid);
+          if (doc) applyEncoded(doc, record.stateBase64);
+          return savePromise;
+        }
+      })
       .catch((e: unknown) => console.error("[undo-replace] restore failed", e));
   }
 }

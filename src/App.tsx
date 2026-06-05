@@ -36,7 +36,6 @@ const sceneDocStore = new SqliteSceneDocStore();
 const binderStore = new SqliteBinderStore();
 const storyBibleStore = new SqliteStoryBibleStore();
 const labelStore = new SqliteLabelStore();
-
 /**
  * Startup backfill: for every scene with word_count=0, load its stored
  * plaintext_projection and persist the real word count. Idempotent — only
@@ -70,11 +69,9 @@ async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
   unbindRef.current?.();
   unbindRef.current = null;
   setDoc(null);
-
   const d = new Y.Doc();
   const stored = await sceneDocStore.load(sceneId);
   if (myToken !== loadTokenRef.current || !mountedRef.current) return;
-
   applyEncoded(d, stored ?? "");
   const unbind = bindPersistence(d, sceneId, sceneDocStore, {
     debounceMs: 500,
@@ -97,15 +94,9 @@ interface InitProjectTreeOpts {
 }
 
 /** Run startup word-count backfill and refresh the tree if any rows changed. */
-async function backfillAndReload(
-  projectId: string,
-  setTree: (t: BinderTree) => void,
-  cancelled: { value: boolean }
-): Promise<void> {
+async function backfillAndReload(projectId: string, setTree: (t: BinderTree) => void, cancelled: { value: boolean }): Promise<void> {
   const backfilled = await backfillWordCounts(projectId);
-  if (backfilled > 0 && !cancelled.value) {
-    await reloadTree(binderStore, projectId, setTree);
-  }
+  if (backfilled > 0 && !cancelled.value) await reloadTree(binderStore, projectId, setTree);
 }
 
 /** Pick the first scene from a built tree, or null if none exist. */
@@ -177,7 +168,6 @@ function useSceneLoader(opts: SceneLoaderOptions) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   function clearScene() {
     loadTokenRef.current += 1;
     unbindRef.current?.();
@@ -188,7 +178,6 @@ function useSceneLoader(opts: SceneLoaderOptions) {
 
   return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene };
 }
-
 interface AppWiring {
   callbacks: BinderCallbacks;
   dragCallbacks: ReturnType<typeof useDragHandlers>;
@@ -243,8 +232,6 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
     handleSelectScene, reloadTree: doReloadTree };
 }
-
-
 function useSnapshotState(
   doc: Y.Doc | null, selectedSceneId: string | null,
   showHistory: boolean, historySceneId: string | null,
@@ -272,7 +259,6 @@ function useAppCore() {
   const snap = useSnapshotState(doc, selectedSceneId, showHistory, historySceneId);
   return { state, wiring, snap, setTheme, setAccent };
 }
-
 interface OverlaysInput {
   state: ReturnType<typeof useAppState>; wiring: AppWiring;
   snap: ReturnType<typeof useSnapshotState>; ctx: SnapCtx;
@@ -309,7 +295,7 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     findReplaceProjectId: activeProjectId,
     findReplaceSnapshotStore: snapshotStore,
     onFindReplaceJump: wiring.handleSelectScene,
-    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore)),
+    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null)),
   };
 }
 
@@ -323,7 +309,6 @@ export default function App() {
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
-
   const ctx: SnapCtx = { sceneId: selectedSceneId, doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory };
   const allScenes = [...(tree.chapters.flatMap((ch) => ch.scenes)), ...tree.shortPieces];
   const sceneTitle = (id: string | null) => id ? (allScenes.find((s) => s.id === id)?.title ?? "") : "";
