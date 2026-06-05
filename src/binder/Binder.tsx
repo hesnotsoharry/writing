@@ -120,14 +120,14 @@ interface DraggableChapterSectionProps {
 
 /** Inline empty-state shown when a chapter has no scenes yet. */
 function ChapterEmptyHint({ folderId, onAddScene }: { folderId: string; onAddScene: (id: string) => void }) {
+  // 28px = scene-list padding-left (12) + scene-row padding-left (16), so hint
+  // text aligns with scene titles.
   return (
-    <div className="scene-list" style={{ paddingLeft: 16 }}>
-      <p className="empty-hint">
-        No scenes yet —{" "}
-        <button type="button" style={{ color: "var(--accent-deep)", fontWeight: 600 }}
-          onClick={() => onAddScene(folderId)}>add one</button>
-      </p>
-    </div>
+    <p className="empty-hint" style={{ paddingLeft: 28 }}>
+      No scenes yet —{" "}
+      <button type="button" style={{ color: "var(--accent-deep)", fontWeight: 600 }}
+        onClick={() => onAddScene(folderId)}>add one</button>
+    </p>
   );
 }
 
@@ -136,6 +136,8 @@ function DraggableChapterSection({
 }: DraggableChapterSectionProps) {
   const [open, setOpen] = useState(true);
   const { ref, style, attributes, listeners } = useSortableChapter(chapter.folder.id);
+  const { isLive } = useDragActive();
+  const isEmpty = chapter.scenes.length === 0;
   return (
     <section ref={ref} style={style}>
       <div {...attributes} {...listeners}>
@@ -144,9 +146,12 @@ function DraggableChapterSection({
       </div>
       {open && (
         <>
+          {/* Always mount so useDroppable is always registered — avoids the
+              onDragOver race on first-drag-into-empty-chapter. The list
+              collapses to zero height via scene-list--empty when empty+not-live. */}
           <ChapterSceneList folderId={chapter.folder.id} scenes={chapter.scenes}
             selectedSceneId={selectedSceneId} onSelectScene={onSelectScene} callbacks={callbacks} />
-          {chapter.scenes.length === 0 && (
+          {isEmpty && !isLive && (
             <ChapterEmptyHint folderId={chapter.folder.id} onAddScene={callbacks.onCreateScene} />
           )}
         </>
@@ -180,6 +185,8 @@ function ShortPiecesList({ scenes, selectedSceneId, onSelectScene, callbacks }: 
 }
 
 function ShortPiecesSection({ scenes, selectedSceneId, onSelectScene, callbacks }: ShortPiecesSectionProps) {
+  const { isLive } = useDragActive();
+  const isEmpty = scenes.length === 0;
   return (
     <section>
       <div className="bsection-head">
@@ -190,10 +197,12 @@ function ShortPiecesSection({ scenes, selectedSceneId, onSelectScene, callbacks 
           <Icon name="plus" style={{ width: 14, height: 14 }} />
         </button>
       </div>
+      {/* Always mount so useDroppable is always registered. The list collapses to
+          zero height via scene-list--empty when empty+not-live. */}
       <ShortPiecesList scenes={scenes} selectedSceneId={selectedSceneId}
         onSelectScene={onSelectScene} callbacks={callbacks} />
-      {scenes.length === 0 && (
-        <p className="empty-hint" style={{ paddingLeft: 8 }}>
+      {isEmpty && !isLive && (
+        <p className="empty-hint" style={{ paddingLeft: 28 }}>
           Nothing here yet —{" "}
           <button type="button" style={{ color: "var(--accent-deep)", fontWeight: 600 }}
             onClick={() => callbacks.onCreateScene(null)}>add one</button>

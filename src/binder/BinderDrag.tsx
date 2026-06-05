@@ -307,9 +307,18 @@ export function SortableSceneList({ containerId, sceneIds, children }: SortableS
   // but liveItems stays until the committed prop arrives — this keeps the optimistic
   // order on screen during the async store-write gap, preventing the snap-back flicker.
   const sortableIds = isLive ? (liveItems[containerId] ?? []) : sceneIds;
+  // Collapse the drop-zone visually when empty and not in a live drag, so it
+  // contributes no gap above the empty-state hint. The <ul> stays mounted so
+  // useDroppable is always registered — avoids the race where onDragOver fires
+  // before React flushes the mount on first isLive flip.
+  const visuallyEmpty = sceneIds.length === 0 && !isLive;
   return (
     <SortableContext id={containerId} items={sortableIds} strategy={verticalListSortingStrategy}>
-      <ul ref={setNodeRef} className="scene-list" style={{ listStyle: "none", minHeight: 40 }}>
+      <ul
+        ref={setNodeRef}
+        className={"scene-list" + (visuallyEmpty ? " scene-list--empty" : "")}
+        style={{ listStyle: "none", minHeight: visuallyEmpty ? 0 : 40 }}
+      >
         {children}
       </ul>
     </SortableContext>
