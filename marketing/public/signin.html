@@ -97,27 +97,9 @@
 </footer>
 
 <script src="site.js"></script>
-<script>
-(function(){
-  /* ==========================================================================
-     PLACEHOLDER — TERMINAL-AGENT INTEGRATION POINT: MAGIC LINK  (token: WN_TODO_MAGICLINK)
-     --------------------------------------------------------------------------
-     The mock just swaps to the "check your inbox" card. In production, POST the
-     email to the backend, which sends a signed, short-lived magic-link email
-     (the link authenticates and lands the user on account.html). The same flow
-     is the "restore purchase" path — the account is keyed by email alone.
-     ========================================================================== */
-  var form=document.getElementById('magicForm');
-  if(form) form.addEventListener('submit',function(e){
-    e.preventDefault();
-    var email=document.getElementById('email').value||'you@example.com';
-    document.getElementById('sentTo').textContent=email;
-    document.getElementById('formCard').style.display='none';
-    document.getElementById('sentCard').style.display='block';
-  });
-  var resend=document.getElementById('resend');
-  if(resend) resend.addEventListener('click',function(e){ e.preventDefault(); e.target.textContent='sent again ✓'; });
-})();
-</script>
+<!-- supabase-config.js must be loaded BEFORE the signin module so that
+     window.WN_SB is populated when supabase-client.js initialises. -->
+<script src="supabase-config.js"></script>
+<script type="module" src="signin.js"></script>
 </body>
 </html>

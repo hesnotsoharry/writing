@@ -84,6 +84,10 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | Form-swap wiring + signInWithOtp call in place; `isValidEmail` unit-tested (17 cases). Live magic-link send + email delivery + redirect-allowlist deferred to provisioning. tsc 0, vitest 27/27. |
+
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
 
 ## Follow-up candidates
