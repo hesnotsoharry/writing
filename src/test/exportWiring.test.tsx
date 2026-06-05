@@ -61,8 +61,8 @@ function makeCallbacks(over: Partial<BinderCallbacks> = {}): BinderCallbacks {
 // Helper: click the first .cm-item that contains the given text substring
 // ---------------------------------------------------------------------------
 
-function clickMenuItem(container: HTMLElement, labelSubstr: string) {
-  const item = Array.from(container.querySelectorAll(".cm-item")).find(
+function clickMenuItem(_container: HTMLElement, labelSubstr: string) {
+  const item = Array.from(document.body.querySelectorAll(".cm-item")).find(
     (el) => el.textContent?.includes(labelSubstr),
   ) as HTMLElement | undefined;
   if (!item) throw new Error(`Menu item "${labelSubstr}" not found`);

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Icon, type IconName } from "../Icon";
 
@@ -148,7 +149,11 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
 
   if (!menu) return null;
 
-  return (
+  // Portal to <body> so the fixed-positioned menu escapes any ancestor that
+  // establishes a containing block for position:fixed (e.g. .insp-group carries
+  // an identity transform from its entrance animation — even matrix(1,0,0,1,0,0)
+  // re-bases fixed coords, which threw the picker ~1000px off-screen).
+  return createPortal(
     <>
       <div
         className="cm-backdrop"
@@ -163,6 +168,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
       >
         <MenuItems items={menu.items} onClose={onClose} />
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

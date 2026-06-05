@@ -55,7 +55,7 @@ describe("SpellCheckPopover — presentational contract (GrammarSuggestion[])", 
     const onSelect = vi.fn();
     const onClose = vi.fn();
 
-    const { container } = render(
+    render(
       <SpellCheckPopover
         x={10}
         y={10}
@@ -67,9 +67,9 @@ describe("SpellCheckPopover — presentational contract (GrammarSuggestion[])", 
 
     // Container must carry the canon context-menu class so it renders identically
     // to every other app context menu (border, shadow, border-radius from .cm).
-    expect(container.querySelector(".cm")).not.toBeNull();
+    expect(document.body.querySelector(".cm")).not.toBeNull();
     // Each suggestion button must carry .cm-item for canon item styling.
-    const items = container.querySelectorAll(".cm-item");
+    const items = document.body.querySelectorAll(".cm-item");
     expect(items.length).toBe(replaceSuggestions.length);
   });
 

@@ -141,8 +141,8 @@ describe("SceneRow — context menu", () => {
     const { container } = renderScene(makeScene(), makeCallbacks());
     const li = container.querySelector("li.scene-row") as HTMLElement;
     fireEvent.contextMenu(li);
-    expect(container.querySelector(".cm")).not.toBeNull();
-    const labels = Array.from(container.querySelectorAll(".cm-item")).map(
+    expect(document.body.querySelector(".cm")).not.toBeNull();
+    const labels = Array.from(document.body.querySelectorAll(".cm-item")).map(
       (el) => el.textContent
     );
     expect(labels.some((l) => l?.includes("Rename"))).toBe(true);
@@ -155,7 +155,7 @@ describe("SceneRow — context menu", () => {
   it("shows a Set status submenu item", () => {
     const { container } = renderScene(makeScene(), makeCallbacks());
     fireEvent.contextMenu(container.querySelector("li.scene-row") as HTMLElement);
-    const labels = Array.from(container.querySelectorAll(".cm-item")).map(
+    const labels = Array.from(document.body.querySelectorAll(".cm-item")).map(
       (el) => el.textContent
     );
     expect(labels.some((l) => l?.includes("Set status"))).toBe(true);
@@ -167,13 +167,13 @@ describe("SceneRow — context menu", () => {
     fireEvent.contextMenu(container.querySelector("li.scene-row") as HTMLElement);
 
     // Hover the "Set status" item to open the submenu.
-    const statusBtn = Array.from(container.querySelectorAll(".cm-item")).find(
+    const statusBtn = Array.from(document.body.querySelectorAll(".cm-item")).find(
       (el) => el.textContent?.includes("Set status")
     ) as HTMLElement;
     fireEvent.mouseEnter(statusBtn);
 
     // Click "To write" (blank).
-    const subItems = Array.from(container.querySelectorAll(".cm-sub .cm-item"));
+    const subItems = Array.from(document.body.querySelectorAll(".cm-sub .cm-item"));
     const toWriteBtn = subItems.find((el) => el.textContent?.includes("To write")) as HTMLElement;
     expect(toWriteBtn).not.toBeNull();
     fireEvent.click(toWriteBtn);
@@ -232,8 +232,8 @@ describe("ChapterHeader", () => {
     const { container } = renderChapter(makeChapter(), makeCallbacks());
     const row = container.querySelector(".chapter-row") as HTMLElement;
     fireEvent.contextMenu(row);
-    expect(container.querySelector(".cm")).not.toBeNull();
-    const labels = Array.from(container.querySelectorAll(".cm-item")).map(
+    expect(document.body.querySelector(".cm")).not.toBeNull();
+    const labels = Array.from(document.body.querySelectorAll(".cm-item")).map(
       (el) => el.textContent
     );
     expect(labels.some((l) => l?.includes("Rename"))).toBe(true);
@@ -251,12 +251,12 @@ describe("SceneRow — status submenu tick marks current status", () => {
     const { container } = renderScene(makeScene({ status: "draft" }), makeCallbacks());
     fireEvent.contextMenu(container.querySelector("li.scene-row") as HTMLElement);
 
-    const statusBtn = Array.from(container.querySelectorAll(".cm-item")).find(
+    const statusBtn = Array.from(document.body.querySelectorAll(".cm-item")).find(
       (el) => el.textContent?.includes("Set status")
     ) as HTMLElement;
     fireEvent.mouseEnter(statusBtn);
 
-    const subItems = Array.from(container.querySelectorAll(".cm-sub .cm-item"));
+    const subItems = Array.from(document.body.querySelectorAll(".cm-sub .cm-item"));
 
     // "Drafting" is the label for "draft" — should have a .tick child.
     const draftItem = subItems.find((el) => el.textContent?.includes("Drafting")) as HTMLElement;
@@ -288,7 +288,7 @@ describe("SceneRow — Duplicate fires toast", () => {
     const { container } = renderScene(makeScene(), makeCallbacks());
     fireEvent.contextMenu(container.querySelector("li.scene-row") as HTMLElement);
 
-    const duplicateBtn = Array.from(container.querySelectorAll(".cm-item")).find(
+    const duplicateBtn = Array.from(document.body.querySelectorAll(".cm-item")).find(
       (el) => el.textContent?.includes("Duplicate")
     ) as HTMLElement;
     fireEvent.click(duplicateBtn);

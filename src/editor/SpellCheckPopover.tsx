@@ -2,6 +2,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import type { Editor } from "@tiptap/react";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getSpeller } from "../lib/dictionary";
 import type { GrammarSuggestion } from "../lib/ipc";
@@ -99,7 +100,10 @@ export function SpellCheckPopover({
   usePopoverDismiss(ref, onClose);
   const empty = suggestions.length === 0;
 
-  return (
+  // Portal to <body> so the fixed-position popover escapes the editor's
+  // .canvas-wrap, which carries a transform (containing block for fixed) that
+  // otherwise re-bases left/top and threw the popover ~300px off the word.
+  return createPortal(
     <div
       ref={ref}
       className="cm"
@@ -124,7 +128,8 @@ export function SpellCheckPopover({
           </button>
         ))
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -198,6 +203,11 @@ function createContextMenuHandler(
   return async (e: MouseEvent): Promise<void> => {
     if (!editor || editor.isDestroyed) return;
 
+    // Suppress the Windows/WebView2 native context menu for EVERY editor
+    // right-click (not only on a misspelling) — the app owns right-click in
+    // the editor surface, so the OS menu must never win the fight.
+    e.preventDefault();
+
     const view = editor.view;
     const coords = view.posAtCoords({ left: e.clientX, top: e.clientY });
     if (!coords) return;
@@ -209,8 +219,6 @@ function createContextMenuHandler(
     // click lands exactly on the word's last character (overlap is half-open).
     const decos = decoSet.find(coords.pos, coords.pos + 1);
     if (decos.length === 0) return;
-
-    e.preventDefault();
 
     const deco = decos[0];
     const spec = deco.spec as ProofreadDecoSpec;

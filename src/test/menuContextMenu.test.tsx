@@ -36,11 +36,11 @@ describe("ContextMenu — viewport-edge position correction", () => {
     });
 
     const onClose = vi.fn();
-    const { container } = render(<ContextMenu menu={makeMenu(700, 50)} onClose={onClose} />);
+    render(<ContextMenu menu={makeMenu(700, 50)} onClose={onClose} />);
 
     rectSpy.mockRestore();
 
-    const cm = container.querySelector(".cm") as HTMLElement;
+    const cm = document.body.querySelector(".cm") as HTMLElement;
     // style.left is set to the clamped value by the layout effect.
     expect(Number(cm.style.left.replace("px", ""))).toBe(590);
   });
@@ -57,11 +57,11 @@ describe("ContextMenu — viewport-edge position correction", () => {
     });
 
     const onClose = vi.fn();
-    const { container } = render(<ContextMenu menu={makeMenu(50, 500)} onClose={onClose} />);
+    render(<ContextMenu menu={makeMenu(50, 500)} onClose={onClose} />);
 
     rectSpy.mockRestore();
 
-    const cm = container.querySelector(".cm") as HTMLElement;
+    const cm = document.body.querySelector(".cm") as HTMLElement;
     expect(Number(cm.style.top.replace("px", ""))).toBe(440);
   });
 
@@ -78,11 +78,11 @@ describe("ContextMenu — viewport-edge position correction", () => {
     });
 
     const onClose = vi.fn();
-    const { container } = render(<ContextMenu menu={makeMenu(100, 100)} onClose={onClose} />);
+    render(<ContextMenu menu={makeMenu(100, 100)} onClose={onClose} />);
 
     rectSpy.mockRestore();
 
-    const cm = container.querySelector(".cm") as HTMLElement;
+    const cm = document.body.querySelector(".cm") as HTMLElement;
     // Position stays at the requested values — no clamping applied.
     expect(Number(cm.style.left.replace("px", ""))).toBe(100);
     expect(Number(cm.style.top.replace("px", ""))).toBe(100);
