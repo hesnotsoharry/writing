@@ -165,7 +165,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 | Phase | Dispatched | Completed | Commit SHA | Observation point |
 |---|---|---|---|---|
 | 1 | 2026-06-05 | 2026-06-05 | a0de71d | Goals dialog verified via gate suite; runtime observation deferred (CDP smoke in a later phase) |
-| 2 | — | — | — | — |
+| 2 | 2026-06-05 | 2026-06-05 | b6d084a | Panel FLAG addressed (initial diff load, async onCapture auto-select, interface doc); gates re-verified clean |
 | 3 | — | — | — | — |
 | 4 | — | — | — | — |
 | 5 | — | — | — | — |
