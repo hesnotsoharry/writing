@@ -240,29 +240,29 @@ describe("buildChapterMenu", () => {
 function makeEntityCb(overrides?: Partial<EntityMenuCallbacks>): EntityMenuCallbacks {
   return {
     kind: "Character",
-    onEditName:     vi.fn(),
+    onEditName:      vi.fn(),
+    onEditRole:      vi.fn(),
+    onEditSketch:    vi.fn(),
     onOpenFullEntry: vi.fn(),
-    onDelete:       vi.fn(),
+    onDelete:        vi.fn(),
     ...overrides,
   };
 }
 
 describe("buildEntityMenu", () => {
-  it("returns exactly 4 items (Edit name, Open full entry, sep, Delete Character)", () => {
+  it("returns exactly 6 items (Edit name, Edit role, Edit sketch, Open full entry, sep, Delete)", () => {
     const items = buildEntityMenu(makeEntityCb());
-    expect(items).toHaveLength(4);
+    expect(items).toHaveLength(6);
   });
 
-  it("items are in order: Edit name / Open full entry / sep / Delete <kind>", () => {
+  it("items are in order: Edit name / Edit role / Edit sketch / Open full entry / sep / Delete <kind>", () => {
     const items = buildEntityMenu(makeEntityCb({ kind: "Character" }));
-    const first  = items[0] as MenuItemAction;
-    const second = items[1] as MenuItemAction;
-    const third  = items[2];
-    const fourth = items[3] as MenuItemAction;
-    expect(first.label).toBe("Edit name");
-    expect(second.label).toBe("Open full entry");
-    expect(third).toStrictEqual({ type: "sep" });
-    expect(fourth.label).toBe("Delete Character");
+    expect((items[0] as MenuItemAction).label).toBe("Edit name");
+    expect((items[1] as MenuItemAction).label).toBe("Edit role");
+    expect((items[2] as MenuItemAction).label).toBe("Edit sketch");
+    expect((items[3] as MenuItemAction).label).toBe("Open full entry");
+    expect(items[4]).toStrictEqual({ type: "sep" });
+    expect((items[5] as MenuItemAction).label).toBe("Delete Character");
   });
 
   it("Delete label uses the supplied kind for Location", () => {
@@ -277,17 +277,16 @@ describe("buildEntityMenu", () => {
     expect(last.danger).toBe(true);
   });
 
-  it("Edit name and Open full entry do NOT have danger flag", () => {
+  it("Edit name, Edit role, Edit sketch, Open full entry do NOT have danger flag", () => {
     const items = buildEntityMenu(makeEntityCb());
-    const first  = items[0] as MenuItemAction;
-    const second = items[1] as MenuItemAction;
-    expect(first.danger).toBeFalsy();
-    expect(second.danger).toBeFalsy();
+    for (const idx of [0, 1, 2, 3]) {
+      expect((items[idx] as MenuItemAction).danger).toBeFalsy();
+    }
   });
 
-  it("separator is at index 2", () => {
+  it("separator is at index 4", () => {
     const items = buildEntityMenu(makeEntityCb());
-    expect(items[2]).toStrictEqual({ type: "sep" });
+    expect(items[4]).toStrictEqual({ type: "sep" });
   });
 
   it("onEditName fires when Edit name onClick is called", () => {
@@ -297,10 +296,24 @@ describe("buildEntityMenu", () => {
     expect(cb.onEditName).toHaveBeenCalledOnce();
   });
 
-  it("onOpenFullEntry fires when Open full entry onClick is called", () => {
+  it("onEditRole fires when Edit role onClick is called", () => {
     const cb = makeEntityCb();
     const items = buildEntityMenu(cb);
     (items[1] as MenuItemAction).onClick?.();
+    expect(cb.onEditRole).toHaveBeenCalledOnce();
+  });
+
+  it("onEditSketch fires when Edit sketch onClick is called", () => {
+    const cb = makeEntityCb();
+    const items = buildEntityMenu(cb);
+    (items[2] as MenuItemAction).onClick?.();
+    expect(cb.onEditSketch).toHaveBeenCalledOnce();
+  });
+
+  it("onOpenFullEntry fires when Open full entry onClick is called", () => {
+    const cb = makeEntityCb();
+    const items = buildEntityMenu(cb);
+    (items[3] as MenuItemAction).onClick?.();
     expect(cb.onOpenFullEntry).toHaveBeenCalledOnce();
   });
 

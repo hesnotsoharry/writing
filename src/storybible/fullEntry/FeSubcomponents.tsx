@@ -1,6 +1,6 @@
 /**
  * Sub-components for FullEntry: FeHeroAvatar, FeScene, AddField, FeProseSection,
- * FeDetailsGroup, FeAppearsIn. Kept in a separate file to hold FullEntry.tsx
+ * FeDetailsGroup, FeAppearsIn, FeEyebrow. Kept in a separate file to hold FullEntry.tsx
  * under the 300-line limit.
  */
 
@@ -241,6 +241,42 @@ export function FeAppearsIn({ rows, onOpen }: FeAppearsInProps) {
       ) : (
         <div className="empty-hint">Not linked to any scene yet.</div>
       )}
+    </div>
+  );
+}
+
+// ── FeEyebrow — inline-editable role eyebrow ──────────────────────────────────
+
+export interface FeEyebrowProps {
+  role: string;
+  isChar: boolean;
+  onCommit: (v: string) => void;
+}
+
+export function FeEyebrow({ role, isChar, onCommit }: FeEyebrowProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(role);
+
+  function commit() {
+    setEditing(false);
+    const val = draft.trim();
+    if (val !== role) onCommit(val);
+  }
+
+  if (editing) {
+    return (
+      <input className="fe-eyebrow-input" value={draft} autoFocus
+        placeholder={isChar ? "Character role…" : "Location role…"}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); else if (e.key === "Escape") setEditing(false); }} />
+    );
+  }
+  return (
+    <div className={`fe-eyebrow${isChar ? "" : " location"}`}
+      title="Click to edit role"
+      onClick={() => { setDraft(role); setEditing(true); }}>
+      {role || (isChar ? "Character" : "Setting")}
     </div>
   );
 }

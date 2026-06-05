@@ -6,17 +6,17 @@ import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
 import { StoryBibleView } from "../storybible/StoryBibleView";
 
 /**
- * StoryBibleView acceptance test (updated Wave 25 Phase 7 — right-click menu).
+ * StoryBibleView acceptance test (updated Wave 26 Phase 7 — sketch area, role, right-click-only).
  *
  * Contract: <StoryBibleView store={StoryBibleStore} projectId={string} /> lets the writer
- * add, rename, and delete characters/locations via a right-click context menu on each card.
- * The canon add UX is a SINGLE "New character"/"New location" button that creates a blank
- * entity and immediately opens it in inline rename.
+ * add, rename, delete, edit role, and edit sketch for characters/locations via a right-click
+ * context menu on each card. The card body has NO click-to-edit handlers.
  *
- * Right-click menu shape (FULL-ENTRY-SPEC §1 + Decision 3):
- *   Edit name / Open full entry (deferred no-op) / [sep] / Delete Character|Location (danger)
+ * Right-click menu shape (Wave 26 Phase 7):
+ *   Edit name / Edit role / Edit sketch / Open full entry / [sep] / Delete Character|Location (danger)
  *
- * Notes-editing (auto-sized) is verified by manual smoke, not here.
+ * Role is stored as entity_fields[kind="fact", key="role"] — no new migration.
+ * The card shows a white "Character Sketch"/"Location Sketch" area.
  */
 
 afterEach(cleanup);
@@ -55,7 +55,7 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     expect(locations[0].name).toBe("Thornfield");
   });
 
-  it("right-clicking a card shows Edit name / Open full entry / Delete menu items", async () => {
+  it("right-clicking a card shows Edit name, Edit role, Edit sketch, Open full entry, and Delete menu items", async () => {
     const store = new InMemoryStoryBibleStore();
     await store.createCharacter("p1", "Sarah", null);
     render(<StoryBibleView store={store} projectId="p1" />);
@@ -65,6 +65,8 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     fireEvent.contextMenu(card);
 
     await screen.findByText("Edit name");
+    expect(screen.getByText("Edit role")).toBeTruthy();
+    expect(screen.getByText("Edit sketch")).toBeTruthy();
     expect(screen.getByText("Open full entry")).toBeTruthy();
     expect(screen.getByText("Delete Character")).toBeTruthy();
   });
@@ -126,20 +128,7 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     await screen.findByText(/0 scenes/i);
   });
 
-  it("double-click on entity name opens inline rename input", async () => {
-    const store = new InMemoryStoryBibleStore();
-    await store.createCharacter("p1", "Sarah", null);
-    render(<StoryBibleView store={store} projectId="p1" />);
-
-    const nameSpan = await screen.findByText("Sarah");
-    fireEvent.doubleClick(nameSpan);
-
-    // Inline rename input opens with the current name pre-filled.
-    const input = await screen.findByDisplayValue("Sarah");
-    expect(input.tagName).toBe("INPUT");
-  });
-
-  it("single left-click on entity name does NOT open inline rename", async () => {
+  it("card body has no click-to-edit: single click on name does not open rename input", async () => {
     const store = new InMemoryStoryBibleStore();
     await store.createCharacter("p1", "Sarah", null);
     render(<StoryBibleView store={store} projectId="p1" />);
@@ -147,9 +136,103 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     const nameSpan = await screen.findByText("Sarah");
     fireEvent.click(nameSpan);
 
-    // No input should appear after a single click.
     expect(screen.queryByDisplayValue("Sarah")).toBeNull();
-    // Name span is still visible (no mode change).
     expect(screen.getByText("Sarah")).toBeTruthy();
+  });
+
+  it("card body has no click-to-edit: double-click on name does not open rename input", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const nameSpan = await screen.findByText("Sarah");
+    fireEvent.doubleClick(nameSpan);
+
+    // Right-click-only policy: double-click must NOT open inline rename on the card body.
+    expect(screen.queryByDisplayValue("Sarah")).toBeNull();
+    expect(screen.getByText("Sarah")).toBeTruthy();
+  });
+
+  it("card renders 'Character Sketch' label in the sketch area for a character", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    await screen.findByText("Sarah");
+    expect(screen.getByText("Character Sketch")).toBeTruthy();
+  });
+
+  it("card renders 'Location Sketch' label in the sketch area for a location", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createLocation("p1", "Thornfield", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    await screen.findByText("Thornfield");
+    expect(screen.getByText("Location Sketch")).toBeTruthy();
+  });
+
+  it("right-click Edit role opens inline role input for that entity", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const card = (await screen.findByText("Sarah")).closest(".bible-entry")!;
+    fireEvent.contextMenu(card);
+    fireEvent.click(await screen.findByText("Edit role"));
+
+    const input = await screen.findByPlaceholderText("Role…");
+    expect(input.tagName).toBe("INPUT");
+  });
+
+  it("role round-trips through entity_fields[key='role']: set via Edit role, stored correctly", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const char = await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const card = (await screen.findByText("Sarah")).closest(".bible-entry")!;
+    fireEvent.contextMenu(card);
+    fireEvent.click(await screen.findByText("Edit role"));
+
+    const input = await screen.findByPlaceholderText("Role…");
+    fireEvent.change(input, { target: { value: "Protagonist" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(async () => {
+      const fields = await store.getEntityFields(char.id);
+      const role = fields.find((f) => f.kind === "fact" && f.key === "role");
+      expect(role?.value).toBe("Protagonist");
+    });
+  });
+
+  it("right-click Edit sketch opens inline sketch textarea for that entity", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const card = (await screen.findByText("Sarah")).closest(".bible-entry")!;
+    fireEvent.contextMenu(card);
+    fireEvent.click(await screen.findByText("Edit sketch"));
+
+    const textarea = await screen.findByPlaceholderText("Sketch notes…");
+    expect(textarea.tagName).toBe("TEXTAREA");
+  });
+
+  it("card .be-role shows the new value after Edit role is committed (refreshRole wiring)", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createCharacter("p1", "Sarah", null);
+    render(<StoryBibleView store={store} projectId="p1" />);
+
+    const card = (await screen.findByText("Sarah")).closest(".bible-entry")!;
+    fireEvent.contextMenu(card);
+    fireEvent.click(await screen.findByText("Edit role"));
+
+    const input = await screen.findByPlaceholderText("Role…");
+    fireEvent.change(input, { target: { value: "Protagonist" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // The .be-role element must update to reflect the committed value — not just
+    // the store — so this guards the refreshRole() → useEntityRole re-fetch path.
+    await screen.findByText("Protagonist");
+    expect(card.querySelector(".be-role")?.textContent).toBe("Protagonist");
   });
 });

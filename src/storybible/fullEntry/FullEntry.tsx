@@ -19,11 +19,12 @@ import type {
   FieldKind,
   StoryBibleStore,
 } from "../../db/storyBibleStore";
-import { buildAppearsIn, mergeFacts, mergeSections } from "./defs";
+import { buildAppearsIn, mergeFacts, mergeSections, ROLE_KEY } from "./defs";
 import {
   AddField,
   FeAppearsIn,
   FeDetailsGroup,
+  FeEyebrow,
   FeHeroAvatar,
   FeProseSection,
 } from "./FeSubcomponents";
@@ -143,7 +144,8 @@ interface FeHeroProps {
   renaming: boolean;
   setRenaming: (v: boolean) => void;
   kind: string;
-  /** asset:// URL for the current portrait, or null when no portrait is set. */
+  role: string;
+  onCommitRole: (value: string) => void;
   displaySrc?: string | null;
   onPortraitAdd?: () => void;
   onPortraitRemove?: () => void;
@@ -152,38 +154,25 @@ interface FeHeroProps {
 }
 
 function FeHero({
-  entity, entityType, renaming, setRenaming, kind,
-  displaySrc, onPortraitAdd, onPortraitRemove, onPortraitError,
-  onRename,
+  entity, entityType, renaming, setRenaming, kind, role, onCommitRole,
+  displaySrc, onPortraitAdd, onPortraitRemove, onPortraitError, onRename,
 }: FeHeroProps) {
   const isChar = entityType === "character";
   const initial = entity.name.trim()[0]?.toUpperCase() ?? "";
   return (
     <div className="fe-hero">
-      <FeHeroAvatar
-        type={entityType}
-        initial={initial}
-        displaySrc={displaySrc}
-        onAdd={onPortraitAdd}
-        onRemove={onPortraitRemove}
-        onPortraitError={onPortraitError}
-      />
+      <FeHeroAvatar type={entityType} initial={initial} displaySrc={displaySrc}
+        onAdd={onPortraitAdd} onRemove={onPortraitRemove} onPortraitError={onPortraitError} />
       <div className="fe-hero-body">
-        <div className={`fe-eyebrow${isChar ? "" : " location"}`}>
-          {isChar ? "Character" : "Setting"}
-        </div>
+        <FeEyebrow key={role} role={role} isChar={isChar} onCommit={onCommitRole} />
         {renaming ? (
           <div style={{ margin: "2px 0 4px" }}>
-            <RenameInput
-              value={entity.name}
+            <RenameInput value={entity.name}
               onCommit={(t) => { setRenaming(false); onRename?.(kind, entity.id, t); }}
-              onCancel={() => setRenaming(false)}
-            />
+              onCancel={() => setRenaming(false)} />
           </div>
         ) : (
-          <h1 className="fe-name" onDoubleClick={() => setRenaming(true)}>
-            {entity.name}
-          </h1>
+          <h1 className="fe-name" onDoubleClick={() => setRenaming(true)}>{entity.name}</h1>
         )}
       </div>
     </div>
@@ -256,11 +245,14 @@ function FeDoc({
   onRename, onCommitField,
 }: FeDocProps) {
   const mergedSections = mergeSections(entityType, fields, entity.notes);
+  const role = fields.find((f) => f.kind === "fact" && f.key === ROLE_KEY)?.value ?? "";
   return (
     <div className="feB-center">
       <div className="feB-doc">
         <FeHero entity={entity} entityType={entityType} kind={kind}
           renaming={renaming} setRenaming={setRenaming} onRename={onRename}
+          role={role}
+          onCommitRole={(v) => { void onCommitField("fact", ROLE_KEY, v); }}
           displaySrc={displaySrc}
           onPortraitAdd={onPortraitAdd}
           onPortraitRemove={onPortraitRemove}

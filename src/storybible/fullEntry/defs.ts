@@ -41,6 +41,13 @@ export const SEED_KEY: Record<EntityType, string> = {
   location: "significance",
 };
 
+/**
+ * Reserved entity_fields key for the entity's role subtitle.
+ * Stored as kind="fact", key=ROLE_KEY. Excluded from DEF_FIELDS so it never
+ * appears as a generic detail field — Phase 8 treats user-added fields only.
+ */
+export const ROLE_KEY = "role";
+
 // ── Pure output types ───────────────────────────────────────────────────────
 
 export interface MergedFact {

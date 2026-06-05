@@ -550,6 +550,30 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .bible-entry .be-notes-input:hover { border-color: var(--parchment-edge); }
 .bible-entry .be-notes-input:focus { outline: none; background: var(--paper); border-color: var(--accent); }
 .bible-entry .be-notes-input::placeholder { color: var(--ink-4); }
+/* sketch area — white box with label, right-click-only editing */
+.bible-entry .be-sketch {
+  margin: 6px 0 4px; border-radius: var(--r-sm);
+  border: 1px solid var(--parchment-edge); background: var(--paper);
+  overflow: hidden;
+}
+.bible-entry .be-sketch-label {
+  padding: 3px 8px; font-size: 9px; font-weight: var(--w-semi);
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-4);
+  border-bottom: 1px solid var(--parchment-edge); background: var(--parchment);
+}
+.bible-entry .be-sketch-body {
+  min-height: 40px; padding: 6px 8px;
+  font-size: var(--text-xs); line-height: 1.5; color: var(--ink-2);
+}
+.bible-entry .be-sketch-empty { color: var(--ink-4); font-style: italic; }
+.bible-entry .be-sketch-input {
+  display: block; width: 100%; min-height: 56px; padding: 6px 8px;
+  border: none; resize: none; box-sizing: border-box;
+  font: inherit; font-size: var(--text-xs); line-height: 1.5;
+  background: var(--paper); color: var(--ink-2);
+  overflow-x: hidden; overflow-wrap: anywhere;
+}
+.bible-entry .be-sketch-input:focus { outline: none; }
 .bible-entry .be-foot { margin-top: 7px; font-size: 10px; color: var(--ink-4);
   display: flex; align-items: center; gap: 5px; }
 

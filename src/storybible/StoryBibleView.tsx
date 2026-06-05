@@ -5,129 +5,13 @@ import type { MenuDescriptor } from "../components/menu/ContextMenu";
 import { ContextMenu } from "../components/menu/ContextMenu";
 import { buildEntityMenu } from "../components/menu/sceneMenu";
 import type { Character, Location, StoryBibleStore } from "../db/storyBibleStore";
-
-// ---------------------------------------------------------------------------
-// useSceneCount — per-entity scene count from findScenesForEntity
-// ---------------------------------------------------------------------------
-
-function useSceneCount(store: StoryBibleStore, id: string, refreshVersion: number): number {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    store.findScenesForEntity(id).then((ids) => {
-      if (active) setCount(ids.length);
-    }).catch((e: unknown) => console.error("[StoryBibleView] findScenesForEntity failed", e));
-    return () => { active = false; };
-  }, [store, id, refreshVersion]);
-
-  return count;
-}
-
-// ---------------------------------------------------------------------------
-// EntityFoot
-// ---------------------------------------------------------------------------
-
-interface EntityFootProps {
-  store: StoryBibleStore;
-  id: string;
-  refreshVersion: number;
-}
-
-function EntityFoot({ store, id, refreshVersion }: EntityFootProps) {
-  const count = useSceneCount(store, id, refreshVersion);
-  return (
-    <div className="be-foot">
-      <Icon name="fileText" style={{ width: 11, height: 11 }} />
-      {" "}{count} scenes
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// EntityRowName
-// ---------------------------------------------------------------------------
-
-interface EntityRowNameProps {
-  id: string;
-  name: string;
-  type: "character" | "location";
-  store: StoryBibleStore;
-  onMutated: () => void;
-  autoEdit?: boolean;
-  onEditDone?: () => void;
-}
-
-function EntityRowName({ id, name, type, store, onMutated, autoEdit, onEditDone }: EntityRowNameProps) {
-  const [editing, setEditing] = useState(autoEdit ?? false);
-  // key={id} on the parent remounts this component when id changes, so name is always fresh.
-  const [draft, setDraft] = useState(name);
-
-  async function commit() {
-    setEditing(false);
-    onEditDone?.();
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== name) {
-      await store.renameEntity(type, id, trimmed);
-      onMutated();
-    }
-  }
-
-  if (editing) {
-    return (
-      <input
-        className="rename-input"
-        value={draft}
-        autoFocus
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => { void commit(); }}
-        onKeyDown={(e) => { if (e.key === "Enter") void commit(); }}
-      />
-    );
-  }
-  return (
-    <span
-      className="be-name"
-      onDoubleClick={() => { setDraft(name); setEditing(true); }}
-    >
-      {name}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// EntityRowNotes
-// ---------------------------------------------------------------------------
-
-interface EntityRowNotesProps {
-  id: string;
-  notes: string | null;
-  type: "character" | "location";
-  store: StoryBibleStore;
-  onMutated: () => void;
-}
-
-function EntityRowNotes({ id, notes, type, store, onMutated }: EntityRowNotesProps) {
-  const [draft, setDraft] = useState(notes ?? "");
-
-  async function handleBlur() {
-    const val = draft.trim() || null;
-    if (val !== notes) {
-      await store.updateEntityNotes(type, id, val);
-      onMutated();
-    }
-  }
-
-  return (
-    <textarea
-      className="be-notes-input"
-      value={draft}
-      placeholder="Notes…"
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => { void handleBlur(); }}
-    />
-  );
-}
+import {
+  EntityFoot,
+  EntityRoleEdit,
+  EntityRowName,
+  EntitySketch,
+  useEntityRole,
+} from "./EntityCardParts";
 
 // ---------------------------------------------------------------------------
 // EntityRow
@@ -138,42 +22,57 @@ interface EntityRowProps {
   name: string;
   notes: string | null;
   type: "character" | "location";
-  roleLabel: string;
   store: StoryBibleStore;
   onMutated: () => void;
   refreshVersion: number;
   justCreated?: boolean;
   /** Bumped when the context-menu "Edit name" fires; causes EntityRowName to remount in edit mode. */
   renameVersion?: number;
+  /** Bumped when the context-menu "Edit role" fires; causes EntityRoleEdit to remount in edit mode. */
+  editRoleVersion?: number;
+  /** Bumped when the context-menu "Edit sketch" fires; causes EntitySketch to remount in edit mode. */
+  editSketchVersion?: number;
   onEditDone?: () => void;
   onContextMenu: (e: React.MouseEvent, id: string) => void;
 }
 
-function EntityRow({ id, name, notes, type, roleLabel, store, onMutated, refreshVersion, justCreated, renameVersion, onEditDone, onContextMenu }: EntityRowProps) {
+// Derive remount keys from version numbers — version 0 means "not editing".
+function rowKeys(id: string, rv?: number, rrv?: number, rsv?: number) {
+  return {
+    nameKey: rv ? `${id}-r${rv}` : id,
+    roleKey: rrv ? `${id}-role${rrv}` : `${id}-role0`,
+    sketchKey: rsv ? `${id}-sk${rsv}` : `${id}-sk0`,
+  };
+}
+
+function EntityRow({
+  id, name, notes, type, store, onMutated,
+  refreshVersion, justCreated, renameVersion, editRoleVersion, editSketchVersion,
+  onEditDone, onContextMenu,
+}: EntityRowProps) {
   const initial = name.trim()[0]?.toUpperCase() ?? "";
-  // Remounting EntityRowName (via key change) is the cleanest way to open the rename input
-  // from an external trigger (context-menu "Edit name") without violating the no-setState-in-effect rule.
-  const nameKey = renameVersion ? `${id}-r${renameVersion}` : id;
+  const { nameKey, roleKey, sketchKey } = rowKeys(id, renameVersion, editRoleVersion, editSketchVersion);
+  const sketchLabel = type === "character" ? "Character Sketch" : "Location Sketch";
+  const { role, refreshRole } = useEntityRole(store, id, refreshVersion);
+  const editingRole = (editRoleVersion ?? 0) > 0;
+  const editingSketch = (editSketchVersion ?? 0) > 0;
 
   return (
-    <div
-      className="bible-entry"
-      onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, id); }}
-    >
+    <div className="bible-entry" onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, id); }}>
       <div className={"avatar " + type}>{initial}</div>
       <div className="be-body">
-        <EntityRowName
-          key={nameKey}
-          id={id}
-          name={name}
-          type={type}
-          store={store}
+        <EntityRowName key={nameKey} id={id} name={name} type={type} store={store}
           onMutated={onMutated}
           autoEdit={justCreated || (renameVersion !== undefined && renameVersion > 0)}
-          onEditDone={onEditDone}
-        />
-        <div className="be-role">{roleLabel}</div>
-        <EntityRowNotes key={`${id}-${refreshVersion}`} id={id} notes={notes} type={type} store={store} onMutated={onMutated} />
+          onEditDone={onEditDone} />
+        {editingRole
+          ? <EntityRoleEdit key={roleKey} id={id} role={role} store={store}
+              onMutated={() => { refreshRole(); onMutated(); }}
+              editing onEditDone={onEditDone} />
+          : <div className="be-role">{role || type}</div>}
+        <EntitySketch key={sketchKey} id={id} notes={notes} type={type}
+          sketchLabel={sketchLabel} store={store} onMutated={onMutated}
+          editing={editingSketch} onEditDone={onEditDone} />
         <EntityFoot store={store} id={id} refreshVersion={refreshVersion} />
       </div>
     </div>
@@ -205,7 +104,6 @@ interface EntitySectionProps {
   colTitle: string;
   entities: (Character | Location)[];
   type: "character" | "location";
-  roleLabel: string;
   iconName: "users" | "mapPin";
   iconColor: string;
   addLabel: string;
@@ -216,16 +114,24 @@ interface EntitySectionProps {
   onOpenEntry?: (id: string, kind: "Character" | "Location") => void;
 }
 
-type RenameRequest = { id: string; version: number } | null;
+type EditRequest = { id: string; version: number } | null;
 
 interface EntitySectionState {
   justCreatedId: string | null;
   setJustCreatedId: (id: string | null) => void;
   menu: MenuDescriptor | null;
-  renameRequest: RenameRequest;
-  setRenameRequest: (r: RenameRequest) => void;
+  renameRequest: EditRequest;
+  setRenameRequest: (r: EditRequest) => void;
+  editRoleRequest: EditRequest;
+  setEditRoleRequest: (r: EditRequest) => void;
+  editSketchRequest: EditRequest;
+  setEditSketchRequest: (r: EditRequest) => void;
   handleContextMenu: (e: React.MouseEvent, id: string) => void;
   closeMenu: () => void;
+}
+
+function bumpEditRequest(prev: EditRequest, id: string): EditRequest {
+  return { id, version: (prev?.id === id ? prev.version : 0) + 1 };
 }
 
 function useEntitySectionState(
@@ -236,19 +142,20 @@ function useEntitySectionState(
 ): EntitySectionState {
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
-  const [renameRequest, setRenameRequest] = useState<RenameRequest>(null);
-  const kind = type === "character" ? "Character" : "Location";
+  const [renameRequest, setRenameRequest] = useState<EditRequest>(null);
+  const [editRoleRequest, setEditRoleRequest] = useState<EditRequest>(null);
+  const [editSketchRequest, setEditSketchRequest] = useState<EditRequest>(null);
+  const kind: "Character" | "Location" = type === "character" ? "Character" : "Location";
 
   function handleContextMenu(e: React.MouseEvent, id: string) {
     setMenu({ x: e.clientX, y: e.clientY, items: buildEntityMenu({
-      kind: kind as "Character" | "Location",
-      onEditName: () => setRenameRequest((prev) => ({ id, version: (prev?.version ?? 0) + 1 })),
+      kind,
+      onEditName:   () => setRenameRequest((p) => bumpEditRequest(p, id)),
+      onEditRole:   () => setEditRoleRequest((p) => bumpEditRequest(p, id)),
+      onEditSketch: () => setEditSketchRequest((p) => bumpEditRequest(p, id)),
       onOpenFullEntry: () => {
-        if (onOpenEntry) {
-          onOpenEntry(id, kind as "Character" | "Location");
-        } else {
-          console.warn("[StoryBibleView] Open full entry — no handler provided");
-        }
+        if (onOpenEntry) onOpenEntry(id, kind);
+        else console.warn("[StoryBibleView] Open full entry — no handler provided");
       },
       onDelete: () => {
         store.deleteEntity(type, id).then(onMutated)
@@ -257,21 +164,38 @@ function useEntitySectionState(
     }) });
   }
 
-  return { justCreatedId, setJustCreatedId, menu, renameRequest, setRenameRequest, handleContextMenu, closeMenu: () => setMenu(null) };
+  return {
+    justCreatedId, setJustCreatedId, menu,
+    renameRequest, setRenameRequest,
+    editRoleRequest, setEditRoleRequest,
+    editSketchRequest, setEditSketchRequest,
+    handleContextMenu, closeMenu: () => setMenu(null),
+  };
 }
 
-function EntitySection({ colTitle, entities, type, roleLabel, iconName, iconColor, addLabel, store, projectId, onMutated, refreshVersion, onOpenEntry }: EntitySectionProps) {
-  const { justCreatedId, setJustCreatedId, menu, renameRequest, setRenameRequest, handleContextMenu, closeMenu } = useEntitySectionState(type, store, onMutated, onOpenEntry);
+function rowVersion(req: EditRequest, id: string): number {
+  return req?.id === id ? req.version : 0;
+}
+
+function EntitySection({
+  colTitle, entities, type, iconName, iconColor, addLabel,
+  store, projectId, onMutated, refreshVersion, onOpenEntry,
+}: EntitySectionProps) {
+  const s = useEntitySectionState(type, store, onMutated, onOpenEntry);
 
   function handleAdd() {
-    const create = type === "character"
+    const p = type === "character"
       ? store.createCharacter(projectId, addLabel, null)
       : store.createLocation(projectId, addLabel, null);
-    create.then((created) => { setJustCreatedId(created.id); onMutated(); })
+    p.then((created) => { s.setJustCreatedId(created.id); onMutated(); })
       .catch((e: unknown) => console.error("[StoryBibleView] create failed", e));
   }
 
-  const onEditDone = () => { setJustCreatedId(null); setRenameRequest(null); };
+  function onEditDone() {
+    s.setJustCreatedId(null); s.setRenameRequest(null);
+    s.setEditRoleRequest(null); s.setEditSketchRequest(null);
+  }
+
   return (
     <div>
       <div className="bible-col-title">
@@ -279,13 +203,15 @@ function EntitySection({ colTitle, entities, type, roleLabel, iconName, iconColo
       </div>
       {entities.map((e) => (
         <EntityRow key={e.id} id={e.id} name={e.name} notes={e.notes} type={type}
-          roleLabel={roleLabel} store={store} onMutated={onMutated}
-          refreshVersion={refreshVersion} justCreated={justCreatedId === e.id}
-          renameVersion={renameRequest?.id === e.id ? renameRequest.version : 0}
-          onEditDone={onEditDone} onContextMenu={handleContextMenu} />
+          store={store} onMutated={onMutated} refreshVersion={refreshVersion}
+          justCreated={s.justCreatedId === e.id}
+          renameVersion={rowVersion(s.renameRequest, e.id)}
+          editRoleVersion={rowVersion(s.editRoleRequest, e.id)}
+          editSketchVersion={rowVersion(s.editSketchRequest, e.id)}
+          onEditDone={onEditDone} onContextMenu={s.handleContextMenu} />
       ))}
       <AddEntityButton addLabel={addLabel} onAdd={handleAdd} />
-      <ContextMenu menu={menu} onClose={closeMenu} />
+      <ContextMenu menu={s.menu} onClose={s.closeMenu} />
     </div>
   );
 }
@@ -351,10 +277,10 @@ export function StoryBibleView({ store, projectId, onEntitiesChanged, onOpenEntr
       <div className="corkboard-inner" style={{ maxWidth: 960 }}>
         <div className="bible-grid">
           <EntitySection {...shared} colTitle={`Characters · ${characters.length}`}
-            entities={characters} type="character" roleLabel="Character"
+            entities={characters} type="character"
             iconName="users" iconColor="var(--character)" addLabel="New character" />
           <EntitySection {...shared} colTitle={`Locations · ${locations.length}`}
-            entities={locations} type="location" roleLabel="Location"
+            entities={locations} type="location"
             iconName="mapPin" iconColor="var(--location)" addLabel="New location" />
         </div>
       </div>
