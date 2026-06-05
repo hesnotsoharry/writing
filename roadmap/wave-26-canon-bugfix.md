@@ -75,7 +75,7 @@ backup are deliberately untouched (separate waves).
 | 5 | Inspector: synopsis box + linked-entity open | sonnet-implementer | trophy · internal-only · reviewTier single. Synopsis edit textarea → clay token (not black); the existing-link chip click fires onOpenEntry→openEntry (not only the create path). Canon: `inspector.jsx`. | Typing in the inspector synopsis shows a clay edit box (not black); clicking a linked character/location chip opens that entity's full entry with a back-to-writing nav. |
 | 6 | Canon-style editor menu + Export modal | sonnet-implementer | trophy · internal-only · reviewTier single. Route the editor right-click menu through the app ContextMenu styling; restyle ExportOverlay to `design-reference/dialogs.jsx`. Styling only — export logic unchanged. | Right-clicking the editor shows an app-themed context menu matching the app's other menus, and the Export modal renders in the canon sheet style. |
 | 7 | Story-bible cards + editable linked role | sonnet-implementer | trophy · internal-only · reviewTier single. White sketch ("Character/Location Sketch" label); right-click-only menu (Edit name/role/sketch / Open full entry / Delete); role becomes editable + linked card↔full-entry eyebrow (stored as a reserved entity_field key — Decision 2, no migration). Canon: `views.jsx`, `menu.jsx`, `full-entry.jsx`. | A story-bible card shows a white sketch area labeled "Character Sketch"/"Location Sketch"; right-clicking shows Edit name / Edit role / Edit sketch / Open full entry / Delete; editing the role updates it on both the card row and the full-entry eyebrow. |
-| 8 | Full-entry detail fields + entity links | sonnet-implementer | trophy · internal-only · reviewTier single (may escalate). "+ Add field" adds 2 editable detail boxes (title+body) via entity_fields; default 4 editable; fix edit-box overlapping the title; wire char→scene, char→location, location→scene link controls (entity_links + replaceSceneLinks). Canon: `full-entry.jsx`, FULL-ENTRY-SPEC §8. | On a full entry, clicking "+" adds two editable detail boxes (title + body), the default 4 boxes are editable, a saved box no longer overlaps its title, and the link controls add a character→scene, character→location, and location→scene link that then shows in the entry. |
+| 8 | Full-entry detail fields + entity links | sonnet-implementer | trophy · internal-only · reviewTier single (may escalate). "+ Add field" adds an editable detail box (editable title + body) via entity_fields — ONE box per click, both parts editable (Cole 2026-06-04, clarifying the earlier "two boxes" wording: SPEC models one entity_fields row per field); default 4 editable; fix edit-box overlapping the title; wire char→scene, char→location, location→scene link controls (entity_links + replaceSceneLinks). Canon: `full-entry.jsx`, FULL-ENTRY-SPEC §8. | On a full entry, clicking "+ Add field" adds an editable detail box (editable title + body), the default 4 boxes are editable, a saved box no longer overlaps its title, and the link controls add a character→scene, character→location, and location→scene link that then shows in the entry (incl. the linked character on the location's "Characters here"). |
 | 9 | Trivial: Rust unused-var warning | haiku-implementer | trophy · internal-only · reviewTier skip. Prefix `_app` (or use it) in `open_path` at src-tauri/src/lib.rs:12. | The `tauri dev` / `cargo` build output no longer prints the "unused variable: app" warning. |
 
 ### Acceptance criteria
@@ -89,7 +89,7 @@ backup are deliberately untouched (separate waves).
 - [ ] The editor right-click menu renders with the app `ContextMenu` classes/tokens; the Export overlay markup matches the canon `dialogs.jsx` sheet structure.
 - [ ] Story-bible cards render a white sketch area labeled "Character Sketch" (characters) / "Location Sketch" (locations); the card has no click-to-edit handlers — interaction is via a right-click menu with Edit name / Edit role / Edit sketch / Open full entry / Delete.
 - [ ] The role field is editable from the card row and from the full-entry eyebrow, and edits in one surface are reflected in the other (single stored value).
-- [ ] On a full entry, "+ Add field" appends two editable detail boxes (editable title + body) persisted via `entity_fields`; the 4 default boxes are editable; the edit affordance does not visually overlap the box title.
+- [ ] On a full entry, "+ Add field" appends an editable detail box (editable title + body — ONE box per click; Cole 2026-06-04) persisted via `entity_fields`; the 4 default boxes are editable; the edit affordance does not visually overlap the box title.
 - [ ] Full-entry link controls create a character→scene link, a character→location link (`entity_links`), and a location→scene link, and the new link appears in the entry.
 - [ ] `cargo`/`tauri` build emits no `unused variable: app` warning.
 - [ ] `npm run lint`, `npx tsc --noEmit`, and the full `npm run test` suite pass at wave end.
@@ -132,7 +132,15 @@ Enforcement: advisory-only (Phase 7/8 reviewer checks no migration was added).
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point |
 |---|---|---|---|---|
-| 1 | 2026-06-04 | 2026-06-04 | pending | Cannot observe directly (no Tauri runtime in this context). Root cause confirmed from code: AppShell.tsx rendered `.panel-binder` and `.panel-inspector` wrapper divs unconditionally regardless of slot content. Fix: wrappers now elided when slot is null. Render-level tests added to appShell.slots.contract.test.tsx asserting the DOM element is absent. Cole re-smokes to confirm full-bleed at runtime. |
+| 1 | 2026-06-04 | 2026-06-04 | ee1aeab | Cannot observe directly (no Tauri runtime in this context). Root cause confirmed from code: AppShell.tsx rendered `.panel-binder` and `.panel-inspector` wrapper divs unconditionally regardless of slot content. Fix: wrappers now elided when slot is null. Render-level tests added to appShell.slots.contract.test.tsx asserting the DOM element is absent. Cole re-smokes to confirm full-bleed at runtime. |
+| 2 | 2026-06-04 | 2026-06-04 | bbca8cf | Cannot observe directly. Scene `word_count` now persisted on save + backfilled on project load from `scene_docs.plaintext_projection`; status-bar + subtitle read the manuscript sum (constant across scenes), per-scene rows show real counts. |
+| 3 | 2026-06-04 | 2026-06-04 | 4d526e9 | Cannot observe directly (no Tauri runtime). `.binder-foot` bottom-pinned via flex-column (scroll flex:1 between flex:none switcher+footer). Empty-state gap removed by collapsing the empty `SortableSceneList` to minHeight:0 while keeping the dnd-kit drop target mounted (adversarial review caught + fixed a drop-target unmount race in the first pass); hints aligned to 28px. lint+tsc clean, 51/51 binder tests. Cole smokes the footer pin + empty-chapter gap + drag-into-empty-chapter. |
+| 4 | 2026-06-04 | 2026-06-04 | 4cb99db | Cannot observe directly. Diagnosed (refuting the plan's first guess): persist was already wired; snap-back came from `onDragEnd` clearing optimistic `liveIds` synchronously before the async write+reload landed. Fix: hold `liveIds` on success; render-phase guard clears it only when committed `ids` MATCHES the held order (server caught up) — robust vs error-path reload. Attack-hypothesis + attack-diff reviews both ran; diff review BLOCKED on vacuous tests → replaced with a full-drag-cycle test, orchestrator teeth-verified it goes RED on revert. lint+tsc clean, 15/15 corkboard + 51/51 binder. Cole smokes drag-hold + persist + binder mirror. |
+| 5 | 2026-06-04 | 2026-06-04 | 00e5f1f | Cannot observe directly. Synopsis textarea bg → `var(--parchment-deep)` (the token's own role is "recessed wells" — correct for an edit field; plan's "clay" was loose phrasing). Existing linked-entity card click → `onOpenEntry(id,type)` (same App adapter the create path uses); `handleCreate`→`useEntityCreate` hook (behavior-preserving, lint cap). Review FLAG on token + canon-faithful div-onClick a11y gap — both adjudicated acceptable. 17/17 inspector, lint+tsc clean. Cole smokes clay synopsis box + click-linked-chip-opens-entry. |
+| 6 | 2026-06-04 | 2026-06-04 | da8a9b9 | Cannot observe directly. Styling-only. Editor spell/grammar popover (the only custom editor right-click surface; plain right-click = native OS menu by design) → canon `.cm`/`.cm-item` classes, dead `.spell-popover` CSS deleted; positioning verified non-regressive (`.cm` is position:fixed z-index:61, viewport coords hold). Export header → download-icon title + x-icon close; FormatPicker radio fieldset → canon `.fmt-grid`/`.fmt` cards (classes already in app.css) with role=radiogroup + arrow-key nav. Review FLAG on test-gap + body-canon → both addressed (`.cm` test assertions added, fmt-grid adopted). 56/56 spell+export, lint+tsc clean. Cole smokes editor right-click menu chrome + Export modal sheet. |
+| 7 | 2026-06-04 | 2026-06-04 | 59f531d | Cannot observe directly. Cards: white "Character/Location Sketch" area; right-click-only (double-click rename removed) via canon ContextMenu (Edit name/role/sketch · Open full entry · Delete). Role editable+linked as a SINGLE `entity_fields` kind=fact key='role' value via existing methods — NO migration (Decision 2); card & FullEntry eyebrow share the row; mergeFacts excludes role from generic detail boxes. Review FLAG on FeEyebrow stale-draft → fixed with `key={role}` remount (project pattern); both round-trip directions now tested. StoryBibleView split → EntityCardParts.tsx. 105/105 storybible+fullentry+menu, lint+tsc clean. Cole smokes sketch label + right-click menu + role edits reflecting card↔eyebrow. |
+| 8 | 2026-06-04 | 2026-06-04 | 1ea8242 | Cannot observe directly. '+ Add field' → ONE editable detail box (title+body) as entity_fields kind=fact (Cole clarified 1/click, not 2); default 4 editable; edit-box overlap fixed. Links: char→scene + location→scene (Appears-in picker), char→location (char's Locations group), and location 'Characters here' reverse-shows linked chars via NEW migration-free listLinksTo(toId). Rename now in-place via NEW updateEntityFieldKey (preserves sort; collision-guarded). 4 review rounds: BLOCK on box-count (Cole-resolved) + a real link-DIRECTION bug on location-side add (fixed, regression-tested). sqlite/inMemory parity verified vs DDL. NO migration. 63 fullentry + 31 storybible, lint+tsc clean. Cole smokes +Add field, the 3 link types both-sided, rename, no overlap. |
+| 9 | 2026-06-04 | 2026-06-04 | 0f43522 | Verified directly via `cargo check` (Rust gate IS runnable here, unlike the JS UI): no `unused variable: app` warning after prefixing `_app` in `open_path` (src-tauri/src/lib.rs:12). Tauri still injects the AppHandle. Done out of order (independent file) while P8's fix round ran. |
 
 ## Follow-up candidates
 
@@ -140,4 +148,37 @@ Enforcement: advisory-only (Phase 7/8 reviewer checks no migration was added).
 
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+### Mechanical review
+
+**Inputs resolved:**
+- Plan: `roadmap/wave-26-canon-bugfix.md`
+- Diff range: `8657797..0f43522` (P3–P9; P1/P2 pre-session)
+- Graph: fallback (grep + import-following)
+- Run: 2026-06-04, full suite 799/799, lint+tsc clean
+
+#### Check 1: Forward-trace — PASS
+Net-new symbols all reach production consumers: `ROLE_KEY` → EntityCardParts/FullEntry/FeSubcomponents; `FeAppearsIn` → FullEntry; `LocationLinkGroup` → PeopleGroup; `listLinksTo` → `PeopleGroup.tsx:158` (usePeopleGroup); `updateEntityFieldKey` → `FeSubcomponents.tsx:239` (handleRenameLabel); EntityCardParts component exports → StoryBibleView; `FeEyebrow` → FullEntry. No dead paths.
+
+#### Check 2: Plan universals — PASS
+"both chapters and short pieces" (P3 empty-state) — both sections touched. "ALL interaction via right-click / no click-to-edit" (P7) — double-click removed, test-asserted. "the 4 default boxes are editable" + "character→scene, character→location, location→scene" (P8) — all covered. No narrowed quantifiers.
+
+#### Check 3: Export audit — PASS
+New exports (`ROLE_KEY`, `listLinksTo`, `updateEntityFieldKey`, `FeAppearsIn`, `FeLocationLinks`/`LocationLinkGroup`, EntityCardParts/FeEyebrow extractions) each have ≥1 production (non-test) consumer. No dead exports.
+
+#### Checks N/A: 4–6 (no schema property removals; no cross-boundary phases — all internal-only; no stryker.config / mutation:test script)
+
+#### Verdict
+
+**PASS** — Checks 1–3 ran clean against the P3–P9 diff; 4–6 N/A. Per-phase adversarial reviews (attack-diff on every phase, attack-hypothesis on P4) all adjudicated and flags addressed during implementation. Full suite 799/799, lint+tsc clean. Wrap PARKED pending Cole's runtime smoke (plan directive).
+
+### Wave-end adversarial review (integration layer)
+
+Wave-granularity attack-diff (cross-phase seams; per-phase correctness already established). Verdict **FLAG → addressed**:
+- P7↔P8 shared-file seam (`defs.ts` mergeFacts, `FeSubcomponents.tsx`, `FullEntry.tsx`): role exclusion + DEF rows + custom fields are mutually exclusive by predicate — compose correctly, no double-render. PASS.
+- sqlite `listLinksTo`/`updateEntityFieldKey` parity vs inMemory + DDL column names verified. PASS.
+- Nav consistency (P5/P7/P8 → `openEntry`/`pushEntry`) + cross-phase CSS: PASS.
+- **FLAG (fixed `c84fbc0`):** guard asymmetry — `+ Add field` (P8) lacked the reserved/duplicate-key guard that the rename path had. Fixed by an exported `isReservedKey()` helper shared by both paths; tests rewritten to call the real guard. No data corruption pre-fix (UNIQUE constraint protected). 803/803, tsc+lint clean.
+
+State at smoke handoff: master `c84fbc0`, 9 phases + guard addendum, 803/803 full suite, lint+tsc clean, cargo check clean.
+
+<!-- Wrap team (HANDOFF collapse / decision-promote / vendor-gotcha) runs AFTER Cole's smoke confirms. -->>
