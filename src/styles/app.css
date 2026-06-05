@@ -625,6 +625,165 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   border-radius: 50%; background: #fff; box-shadow: var(--shadow-xs); transition: transform var(--dur) var(--ease); }
 .toggle.on::after { transform: translateX(16px); }
 
+/* ---- Goals: manager list / adaptive editor / inspector visualizations ---- */
+
+/* Master toggle row */
+.goal-master { display: flex; align-items: center; gap: 12px; padding: 4px 2px 16px; }
+.gm-title { font-size: 14px; font-weight: var(--w-semi); color: var(--ink); }
+.gm-sub { font-size: 12px; color: var(--ink-3); }
+
+/* Goal list */
+.goal-list-wrap.dim { opacity: 0.45; pointer-events: none; }
+.goal-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 8px; }
+.goal-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--paper);
+}
+.goal-row:hover { border-color: var(--accent-ring); }
+.gr-ic .ic { width: 16px; height: 16px; color: var(--accent); }
+.gr-main { flex: 1; min-width: 0; }
+.gr-name { font-size: 13px; font-weight: var(--w-semi); color: var(--ink); }
+.gr-sum { font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+.gr-acts { display: flex; gap: 2px; flex-shrink: 0; }
+.goal-empty { display: flex; align-items: center; gap: 10px; padding: 16px 8px;
+  font-size: 13px; color: var(--ink-4); font-style: italic; }
+.goal-add {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 8px 10px; border-radius: var(--r-md); margin-top: 4px;
+  font-size: 13px; font-weight: var(--w-medium); color: var(--accent);
+  border: 1.5px dashed var(--accent-ring); background: transparent;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.goal-add:hover { background: var(--accent-wash); border-color: var(--accent); }
+
+/* GoalRowMini — compact progress in the list row */
+.grm { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.grm-amount { flex-direction: column; align-items: flex-end; gap: 3px; min-width: 52px; }
+.grm-bar { width: 48px; height: 4px; background: var(--parchment-edge); border-radius: var(--r-pill); overflow: hidden; }
+.grm-fill { height: 100%; background: var(--accent); border-radius: var(--r-pill); transition: width .3s; }
+.grm-pct { font-size: 10px; font-weight: var(--w-semi); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.grm-pill { font-size: 11px; font-weight: var(--w-semi); padding: 2px 8px;
+  border-radius: var(--r-pill); flex-shrink: 0; }
+.grm-pill.behind { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.grm-pill.ontrack { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.grm-streak { display: flex; align-items: center; gap: 4px;
+  font-size: 13px; font-weight: var(--w-bold); color: var(--accent); }
+
+/* Goal target adaptive section */
+.goal-target { margin-top: 18px; }
+.gt-row { display: flex; gap: 16px; }
+.gt-seg { width: 100%; }
+
+/* Stepper */
+.stepper { display: inline-flex; align-items: center; border: 1.5px solid var(--line);
+  border-radius: var(--r-md); overflow: hidden; background: var(--paper); }
+.st-btn { padding: 8px 10px; color: var(--ink-3); transition: background var(--dur-fast), color var(--dur-fast); flex: none; }
+.st-btn:hover { background: var(--parchment-deep); color: var(--ink); }
+.st-input { width: 64px; text-align: center; border: none; outline: none;
+  font-size: 15px; font-weight: var(--w-bold); color: var(--ink); background: transparent;
+  font-variant-numeric: tabular-nums; }
+.st-suffix { font-size: 12px; color: var(--ink-3); padding: 0 10px 0 0; white-space: nowrap; }
+
+/* Deadline goal editor */
+.gt-deadline { margin-top: 2px; }
+.gt-datepick { margin-top: 6px; border: 1.5px solid var(--line); border-radius: var(--r-md);
+  overflow: hidden; background: var(--paper); }
+.gt-date-display { display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-bottom: 1px solid var(--line);
+  font-size: 14px; font-weight: var(--w-semi); color: var(--ink); }
+.gt-pace-hint { display: flex; align-items: flex-start; gap: 8px;
+  margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--parchment); font-size: 13px; color: var(--ink-2); line-height: 1.4; }
+
+/* Calendar (date-picker + heat-map shared layout) */
+.cal { padding: var(--s-3); }
+.cal-head { display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: var(--s-3); }
+.cal-title { font-size: 13px; font-weight: var(--w-semi); color: var(--ink); }
+.cal-dow, .heat-dow { display: grid; grid-template-columns: repeat(7, 1fr);
+  text-align: center; font-size: 10px; font-weight: var(--w-semi);
+  color: var(--ink-4); letter-spacing: 0.04em; margin-bottom: 4px; }
+.cal-grid, .heat-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-empty, .heat-empty { aspect-ratio: 1; }
+.cal-day {
+  aspect-ratio: 1; display: grid; place-items: center;
+  border-radius: var(--r-sm); font-size: 12px; font-weight: var(--w-medium);
+  color: var(--ink); transition: background var(--dur-fast), color var(--dur-fast);
+}
+.cal-day:hover:not(:disabled) { background: var(--accent-wash); }
+.cal-day.sel { background: var(--accent); color: #fff; }
+.cal-day.today:not(.sel) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-day:disabled { color: var(--ink-4); cursor: default; }
+
+/* Calendar heat-map (progress dots in list view) */
+.heat-map { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.heat-label { display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: var(--w-semi); color: var(--ink-3);
+  letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; }
+.heat-day {
+  aspect-ratio: 1; border-radius: var(--r-xs);
+  background: var(--parchment-edge);
+  transition: background var(--dur-fast);
+}
+.heat-day.met { background: var(--accent); opacity: 0.85; }
+.heat-day.today:not(.met) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.heat-day.future { opacity: 0.25; }
+
+/* Streak goal editor */
+.gt-streak { margin-top: 2px; }
+.streak-opts { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.streak-opt { display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r-md);
+  border: 1.5px solid var(--line); background: var(--paper);
+  text-align: left; transition: all var(--dur-fast); }
+.streak-opt:hover:not(:disabled) { border-color: var(--accent-ring); }
+.streak-opt.on { border-color: var(--accent); background: var(--accent-wash); }
+.streak-opt:disabled { opacity: 0.5; cursor: default; }
+.so-dot { width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--line); flex: none; margin-top: 2px;
+  transition: border-color var(--dur-fast), background var(--dur-fast); }
+.streak-opt.on .so-dot { border-color: var(--accent); background: var(--accent); }
+.so-body { display: flex; flex-direction: column; gap: 2px; }
+.so-title { font-size: 13px; font-weight: var(--w-semi); color: var(--ink); }
+.so-desc { font-size: 11px; color: var(--ink-3); line-height: 1.4; }
+
+/* Inspector goal-card family modifiers */
+.goal-card--deadline { flex-direction: column; align-items: stretch; }
+.goal-card--streak { align-items: center; gap: 12px; }
+.goal-deadline-head { width: 100%; }
+.gd-label { display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: var(--w-semi); color: var(--ink-3);
+  letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; }
+
+/* PaceBar */
+.pace { width: 100%; }
+.pace-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.pace-days { font-size: 13px; color: var(--ink-2); }
+.pace-days b { font-weight: var(--w-bold); color: var(--ink); }
+.pace-status { font-size: 11px; font-weight: var(--w-semi); padding: 2px 8px;
+  border-radius: var(--r-pill); }
+.pace-status.behind { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.pace-status.ontrack { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.pace-track { position: relative; height: 6px; background: var(--parchment-edge);
+  border-radius: var(--r-pill); overflow: visible; }
+.pace-fill { position: absolute; inset-y: 0; left: 0; background: var(--accent);
+  border-radius: var(--r-pill); transition: width .4s; }
+.pace-notch { position: absolute; top: -3px; width: 2px; height: 12px;
+  background: var(--ink-3); border-radius: 1px; transform: translateX(-50%); }
+.pace-foot { display: flex; align-items: center; justify-content: space-between;
+  margin-top: 6px; font-size: 11px; color: var(--ink-3); }
+.pace-rate { font-size: 11px; }
+.pace-rate b { color: var(--ink); font-weight: var(--w-semi); }
+
+/* StreakViz */
+.streak-flame { display: flex; align-items: center; gap: 4px; }
+.streak-flame .ic { width: 28px; height: 28px; color: var(--accent); flex: none; }
+.sf-num { font-size: 22px; font-weight: var(--w-bold); color: var(--ink); font-variant-numeric: tabular-nums; }
+.streak-dots { display: flex; gap: 4px; margin-bottom: 4px; }
+.sd { width: 8px; height: 8px; border-radius: 50%; background: var(--parchment-edge); }
+.sd.on { background: var(--accent); }
+
 /* ---- Export -------------------------------------------------------------- */
 .exp-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; }
 .exp-seg { display: flex; background: var(--parchment-deep); border-radius: var(--r-md); padding: 3px; gap: 2px; }

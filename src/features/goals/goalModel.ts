@@ -1,21 +1,13 @@
 /**
  * goalModel.ts — daily goal progress model (localStorage-only; no migration).
  *
- * Strategy: on the first observation of a new day, snapshot the scope total as
- * the "baseline". Words written today = max(0, currentScopeTotal − baseline).
- *
- * Scope dimension (Wave 25): each goal is keyed by projectId + scope + targetId.
- *   scope    — 'manuscript' | 'chapter' | 'scene'
- *   targetId — null (manuscript), folderId (chapter), or sceneId (scene)
- *
- * localStorage keys (scope-aware):
- *   writing.goal.baseline.<projectId>.<scope>.<targetId|_>.<YYYY-MM-DD>
- *   writing.goal.met.<projectId>.<scope>.<targetId|_>.<YYYY-MM-DD>
- *
- * Back-compat: the old manuscript-scoped keys lacked the scope/targetId
- * segments. The scoped helpers are the canonical form; the backward-compat
- * shims below accept the old two-arg signature and map to scope='manuscript'.
+ * Wave 27 additions: GoalRecord, GoalProgress, goalProgress(), goalSummary(),
+ * readMonthlyMetDays() — family-aware progress derivation for the adaptive
+ * Goals editor + inspector visualizations.
  */
+
+import type { GoalFamily, GoalTypeId } from "./goalTypes";
+import { GOAL_META } from "./goalTypes";
 
 // ── Scope types ───────────────────────────────────────────────────────────────
 
@@ -32,13 +24,6 @@ export interface ScopedGoalKey {
 
 // ── Key helpers ───────────────────────────────────────────────────────────────
 
-/**
- * Returns the local calendar date as "YYYY-MM-DD".
- *
- * `toISOString()` is UTC — for a US-East user that resets at ~7 pm, zeroing
- * evening word counts. `toLocaleDateString('sv')` uses the Swedish locale's
- * ISO-8601-shaped date format but in the browser's local timezone.
- */
 function today(): string {
   return new Date().toLocaleDateString("sv"); // "YYYY-MM-DD" in local time
 }
@@ -56,12 +41,173 @@ function metKey(key: ScopedGoalKey, date: string): string {
   return `writing.goal.met.${key.projectId}.${key.scope}.${encodeTargetId(key.targetId)}.${date}`;
 }
 
-// ── Scope-aware public API ────────────────────────────────────────────────────
+// ── Goal record types (Wave 27) ───────────────────────────────────────────────
+
+export interface GoalRecord {
+  id: string;
+  type: GoalTypeId;
+  words?: number;
+  minutes?: number;
+  scope?: string;
+  current?: number;
+  finalWords?: number;
+  date?: string;
+  startWords?: number;
+  startDate?: string;
+  qualifies?: "any" | "daily" | "time";
+  qualifyAmount?: number;
+  milestone?: number | null;
+  streakDays?: number;
+  best?: number;
+  week?: boolean[];
+}
+
+export type GoalProgress =
+  | {
+      family: "amount";
+      unit: "words" | "minutes";
+      current: number;
+      target: number;
+      pct: number;
+      remaining: number;
+      period: string;
+    }
+  | {
+      family: "deadline";
+      valid: boolean;
+      daysLeft: number;
+      perDay: number;
+      wordPct: number;
+      timePct: number;
+      delta: number;
+      current: number;
+      finalWords: number;
+      due: Date;
+    }
+  | {
+      family: "streak";
+      days: number;
+      best: number;
+      week: boolean[];
+      milestone: number | null;
+    };
+
+const GOAL_PERIOD: Record<string, string> = {
+  daily: "each day", session: "each sitting", project: "total", time: "each day",
+};
+
+function amountProgress(g: GoalRecord): Extract<GoalProgress, { family: "amount" }> {
+  const meta = GOAL_META[g.type];
+  const target = g.words != null ? g.words : (g.minutes ?? 0);
+  const current = g.current ?? 0;
+  const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+  return {
+    family: "amount",
+    unit: (meta?.unit ?? "words") as "words" | "minutes",
+    current,
+    target,
+    pct,
+    remaining: Math.max(0, target - current),
+    period: GOAL_PERIOD[g.type] ?? "",
+  };
+}
+
+interface DeadlineDateCalc {
+  valid: boolean; totalDays: number; elapsed: number; daysLeft: number;
+}
+
+function calcDeadlineDates(g: GoalRecord): DeadlineDateCalc {
+  const DAY = 86_400_000;
+  const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0);
+  const due = new Date((g.date ?? "") + "T00:00:00");
+  const start = new Date((g.startDate ?? g.date ?? "") + "T00:00:00");
+  const valid = !isNaN(due.getTime()) && !isNaN(start.getTime());
+  const totalDays = valid ? Math.max(1, Math.round((due.getTime() - start.getTime()) / DAY)) : 1;
+  const elapsed = valid
+    ? Math.min(totalDays, Math.max(0, Math.round((todayDate.getTime() - start.getTime()) / DAY)))
+    : 0;
+  const daysLeft = valid ? Math.max(0, Math.round((due.getTime() - todayDate.getTime()) / DAY)) : 0;
+  return { valid, totalDays, elapsed, daysLeft };
+}
+
+function calcDeadlineRates(
+  g: GoalRecord, daysLeft: number, totalDays: number, elapsed: number,
+): { perDay: number; wordPct: number; timePct: number; delta: number } {
+  const remaining = Math.max(0, (g.finalWords ?? 0) - (g.current ?? 0));
+  const perDay = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
+  const wordPct = g.finalWords
+    ? Math.min(100, Math.round(((g.current ?? 0) / g.finalWords) * 100)) : 0;
+  const timePct = Math.round((elapsed / totalDays) * 100);
+  const base = g.startWords ?? 0;
+  const expected = Math.round(base + ((g.finalWords ?? 0) - base) * (elapsed / totalDays));
+  return { perDay, wordPct, timePct, delta: (g.current ?? 0) - expected };
+}
+
+function deadlineProgress(g: GoalRecord): Extract<GoalProgress, { family: "deadline" }> {
+  const { valid, totalDays, elapsed, daysLeft } = calcDeadlineDates(g);
+  const due = new Date((g.date ?? "") + "T00:00:00");
+  const { perDay, wordPct, timePct, delta } = calcDeadlineRates(g, daysLeft, totalDays, elapsed);
+  return {
+    family: "deadline", valid, daysLeft, perDay, wordPct, timePct, delta,
+    current: g.current ?? 0, finalWords: g.finalWords ?? 0, due,
+  };
+}
 
 /**
- * Ensure today's baseline is recorded for the given scope target (write side-effect).
- * Safe to call from a `useEffect` — idempotent after the first call.
+ * Derive normalized, display-ready progress for any GoalRecord.
+ * Pure — no side-effects. Mirrors design-reference/data.jsx goalProgress().
  */
+export function goalProgress(g: GoalRecord): GoalProgress {
+  const meta = GOAL_META[g.type];
+  const fam: GoalFamily = meta ? meta.family : "amount";
+  if (fam === "amount") return amountProgress(g);
+  if (fam === "deadline") return deadlineProgress(g);
+  return {
+    family: "streak",
+    days: g.streakDays ?? 0,
+    best: g.best ?? 0,
+    week: g.week ?? [],
+    milestone: g.milestone ?? null,
+  };
+}
+
+/** One-line summary. Mirrors design-reference/data.jsx goalSummary(). */
+export function goalSummary(g: GoalRecord): string {
+  const p = goalProgress(g);
+  if (p.family === "amount") {
+    const u = p.unit === "minutes" ? "min" : "words";
+    return p.target > 0 ? `${p.target.toLocaleString()} ${u} ${p.period}` : "No target set";
+  }
+  if (p.family === "deadline") {
+    return `${p.perDay.toLocaleString()} words/day · ${p.daysLeft} days left`;
+  }
+  return (
+    (p.days > 0 ? `${p.days}-day streak` : "Not started yet") +
+    (p.milestone ? ` · aiming for ${p.milestone}` : "")
+  );
+}
+
+/**
+ * Read which days of the given month the goal was met for a scope target.
+ * Returns a Set of 1-based day numbers. Used by CalHeatMap.
+ */
+export function readMonthlyMetDays(
+  key: ScopedGoalKey,
+  year: number,
+  month: number,
+): Set<number> {
+  const met = new Set<number>();
+  const daysIn = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= daysIn; d++) {
+    const dateStr = [year, String(month + 1).padStart(2, "0"), String(d).padStart(2, "0")].join("-");
+    const k = `writing.goal.met.${key.projectId}.${key.scope}.${encodeTargetId(key.targetId)}.${dateStr}`;
+    if (localStorage.getItem(k) === "1") met.add(d);
+  }
+  return met;
+}
+
+// ── Scope-aware public API ────────────────────────────────────────────────────
+
 export function ensureDailyBaselineScoped(key: ScopedGoalKey, currentTotal: number): void {
   const storageKey = baselineKey(key, today());
   if (localStorage.getItem(storageKey) === null) {
@@ -69,11 +215,6 @@ export function ensureDailyBaselineScoped(key: ScopedGoalKey, currentTotal: numb
   }
 }
 
-/**
- * Read words written today for a given scope target — pure, no writes.
- * Returns 0 when no baseline exists yet (before the first `useEffect` fires).
- * Result is clamped to 0 (never negative).
- */
 export function readDailyWordsScoped(key: ScopedGoalKey, currentTotal: number): number {
   const stored = localStorage.getItem(baselineKey(key, today()));
   if (stored === null) return 0;
@@ -81,56 +222,31 @@ export function readDailyWordsScoped(key: ScopedGoalKey, currentTotal: number): 
   return Math.max(0, currentTotal - (Number.isFinite(baseline) ? baseline : currentTotal));
 }
 
-/**
- * Returns words written today for the given scoped target.
- * On first call for a new day: persists currentTotal as baseline.
- * Result clamped to 0.
- */
 export function dailyWordsScoped(key: ScopedGoalKey, currentTotal: number): number {
   ensureDailyBaselineScoped(key, currentTotal);
   return readDailyWordsScoped(key, currentTotal);
 }
 
-/**
- * Record that the writing goal was met today for the given scope target.
- * Idempotent — safe to call on every render once the threshold is crossed.
- */
 export function recordGoalMetScoped(key: ScopedGoalKey): void {
-  const date = today();
-  localStorage.setItem(metKey(key, date), "1");
+  localStorage.setItem(metKey(key, today()), "1");
 }
 
-/**
- * Count consecutive calendar days (ending today) on which the goal was met
- * for the given scope target.
- */
 export function goalStreakScoped(key: ScopedGoalKey): number {
   let streak = 0;
   const msPerDay = 86_400_000;
   const now = Date.now();
-
   for (let i = 0; i < 3650; i++) {
     const date = new Date(now - i * msPerDay).toLocaleDateString("sv");
-    if (localStorage.getItem(metKey(key, date)) === "1") {
-      streak++;
-    } else {
-      break;
-    }
+    if (localStorage.getItem(metKey(key, date)) === "1") streak++;
+    else break;
   }
-
   return streak;
 }
 
 // ── Backward-compat shims (manuscript scope) ──────────────────────────────────
-//
-// The old API accepted (projectId, currentTotal) with no scope. These shims
-// delegate to the scoped functions with scope='manuscript', targetId=null.
-// Existing call sites and tests continue to work without change.
 
 const manuscriptKey = (projectId: string): ScopedGoalKey => ({
-  projectId,
-  scope: "manuscript",
-  targetId: null,
+  projectId, scope: "manuscript", targetId: null,
 });
 
 /** @deprecated Use ensureDailyBaselineScoped. */
