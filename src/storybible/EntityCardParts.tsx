@@ -80,7 +80,7 @@ export function EntityFoot({ store, id, refreshVersion }: EntityFootProps) {
 export interface EntityRowNameProps {
   id: string;
   name: string;
-  type: "character" | "location";
+  type: string;
   store: StoryBibleStore;
   onMutated: () => void;
   autoEdit?: boolean;
@@ -120,7 +120,7 @@ export function EntityRowName({
 export interface EntitySketchProps {
   id: string;
   notes: string | null;
-  type: "character" | "location";
+  type: string;
   sketchLabel: string;
   store: StoryBibleStore;
   onMutated: () => void;

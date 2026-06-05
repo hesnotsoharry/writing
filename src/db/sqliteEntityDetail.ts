@@ -28,14 +28,25 @@ export async function sqliteGetEntity(
   type: EntityType,
   id: string
 ): Promise<EntityWithPortrait | null> {
-  const table = type === "character" ? "characters" : "locations";
-  const rows = await db.select<EntityRow[]>(
-    `SELECT id, project_id, name, notes, aliases, portrait_path FROM ${table} WHERE id = $1`,
+  if (type === "character" || type === "location") {
+    const table = type === "character" ? "characters" : "locations";
+    const rows = await db.select<EntityRow[]>(
+      `SELECT id, project_id, name, notes, aliases, portrait_path FROM ${table} WHERE id = $1`,
+      [id]
+    );
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return { id: r.id, projectId: r.project_id, type, name: r.name, notes: r.notes, aliases: r.aliases, portraitPath: r.portrait_path };
+  }
+  // Generic entities table (item/faction/lore/theme/custom types).
+  // No portrait_path on entities table — always null.
+  const rows = await db.select<Omit<EntityRow, "portrait_path">[]>(
+    "SELECT id, project_id, name, notes, aliases FROM entities WHERE id = $1",
     [id]
   );
   if (rows.length === 0) return null;
   const r = rows[0];
-  return { id: r.id, projectId: r.project_id, type, name: r.name, notes: r.notes, aliases: r.aliases, portraitPath: r.portrait_path };
+  return { id: r.id, projectId: r.project_id, type, name: r.name, notes: r.notes, aliases: r.aliases, portraitPath: null };
 }
 
 export async function sqliteGetEntityFields(
@@ -200,6 +211,8 @@ export async function sqliteSetPortrait(
   id: string,
   path: string
 ): Promise<void> {
+  // Generic entities (item/faction/lore/theme/custom) have no portrait_path column — no-op.
+  if (type !== "character" && type !== "location") return;
   const table = type === "character" ? "characters" : "locations";
   await db.execute(`UPDATE ${table} SET portrait_path = $1 WHERE id = $2`, [path, id]);
 }
@@ -209,6 +222,8 @@ export async function sqliteClearPortrait(
   type: EntityType,
   id: string
 ): Promise<void> {
+  // Generic entities have no portrait_path column — no-op.
+  if (type !== "character" && type !== "location") return;
   const table = type === "character" ? "characters" : "locations";
   await db.execute(`UPDATE ${table} SET portrait_path = NULL WHERE id = $1`, [id]);
 }

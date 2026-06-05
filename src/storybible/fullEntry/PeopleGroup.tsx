@@ -41,7 +41,7 @@ function charInitial(name: string): string {
 interface FePersonCardProps {
   link: EntityLink;
   target: Character | undefined;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
   onUnlink: (linkId: string) => void;
   onRelabel: (linkId: string, relation: string) => void;
 }
@@ -178,7 +178,7 @@ interface LinkActionsCtx {
   projectId: string;
   refresh: () => void;
   setPicking: (v: boolean) => void;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
 }
 
 function useLinkActions(ctx: LinkActionsCtx) {
@@ -222,7 +222,7 @@ interface CharLinksGroupProps {
   charMap: Map<string, Character>;
   candidates: PickerCandidate[];
   act: ReturnType<typeof useLinkActions>;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
 }
 
 function CharLinksGroup({ label, charLinks, charMap, candidates, act, onPushEntry }: CharLinksGroupProps) {
@@ -262,7 +262,7 @@ interface PeopleGroupInnerProps {
   projectId: string;
   entityType: "character" | "location";
   store: StoryBibleStore;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
 }
 
 function PeopleGroupInner({ entityId, projectId, entityType, store, onPushEntry }: PeopleGroupInnerProps) {
@@ -306,7 +306,7 @@ export interface PeopleGroupProps {
   projectId?: string;
   entityType?: "character" | "location";
   store?: StoryBibleStore;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
 }
 
 export function PeopleGroup({ entityId, projectId, entityType, store, onPushEntry }: PeopleGroupProps) {

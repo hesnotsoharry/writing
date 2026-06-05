@@ -244,3 +244,121 @@ describe("StoryBibleStore contract", () => {
     });
   });
 });
+
+describe("Custom entity type CRUD", () => {
+  it("createEntity + listEntitiesByType returns only entities of same type in same project", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const item1 = await store.createEntity("proj-1", "item", "Sword", "Sharp");
+    const item2 = await store.createEntity("proj-1", "item", "Shield", "Defense");
+    await store.createEntity("proj-1", "faction", "Wildfire", "Fire-based");
+
+    const items = await store.listEntitiesByType("proj-1", "item");
+
+    expect(items).toHaveLength(2);
+    expect(items.map((e) => e.id).sort()).toEqual([item1.id, item2.id].sort());
+    expect(items.every((e) => e.type === "item")).toBe(true);
+  });
+
+  it("listEntitiesByType is project-scoped", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const item1 = await store.createEntity("proj-1", "item", "Sword", null);
+    const item2 = await store.createEntity("proj-2", "item", "Shield", null);
+
+    const proj1Items = await store.listEntitiesByType("proj-1", "item");
+    const proj2Items = await store.listEntitiesByType("proj-2", "item");
+
+    expect(proj1Items).toHaveLength(1);
+    expect(proj1Items[0].id).toBe(item1.id);
+    expect(proj2Items).toHaveLength(1);
+    expect(proj2Items[0].id).toBe(item2.id);
+  });
+
+  it("listEntitiesByType returns empty array if no entities of that type", async () => {
+    const store = new InMemoryStoryBibleStore();
+    await store.createEntity("proj-1", "item", "Sword", null);
+
+    const factions = await store.listEntitiesByType("proj-1", "faction");
+
+    expect(factions).toHaveLength(0);
+  });
+
+  it("createCustomType + listCustomTypes returns custom types for project", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const type1 = await store.createCustomType({
+      projectId: "proj-1",
+      name: "Artifact",
+      icon: "crown",
+      color: "gold",
+    });
+    const type2 = await store.createCustomType({
+      projectId: "proj-1",
+      name: "Monument",
+      icon: "column",
+      color: "gray",
+    });
+
+    const types = await store.listCustomTypes("proj-1");
+
+    expect(types).toHaveLength(2);
+    expect(types.map((t) => t.id).sort()).toEqual([type1.id, type2.id].sort());
+  });
+
+  it("listCustomTypes is project-scoped", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const type1 = await store.createCustomType({
+      projectId: "proj-1",
+      name: "Artifact",
+      icon: "crown",
+      color: "gold",
+    });
+    const type2 = await store.createCustomType({
+      projectId: "proj-2",
+      name: "Monument",
+      icon: "column",
+      color: "gray",
+    });
+
+    const proj1Types = await store.listCustomTypes("proj-1");
+    const proj2Types = await store.listCustomTypes("proj-2");
+
+    expect(proj1Types).toHaveLength(1);
+    expect(proj1Types[0].id).toBe(type1.id);
+    expect(proj2Types).toHaveLength(1);
+    expect(proj2Types[0].id).toBe(type2.id);
+  });
+
+  it("deleteCustomType removes only the specified type", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const type1 = await store.createCustomType({
+      projectId: "proj-1",
+      name: "Artifact",
+      icon: "crown",
+      color: "gold",
+    });
+    const type2 = await store.createCustomType({
+      projectId: "proj-1",
+      name: "Monument",
+      icon: "column",
+      color: "gray",
+    });
+
+    await store.deleteCustomType(type1.id);
+
+    const types = await store.listCustomTypes("proj-1");
+    expect(types).toHaveLength(1);
+    expect(types[0].id).toBe(type2.id);
+  });
+
+  it("createCustomType stores fieldsJson and sectionsJson as empty arrays by default", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const type = await store.createCustomType({
+      projectId: "proj-1",
+      name: "Artifact",
+      icon: "crown",
+      color: "gold",
+    });
+
+    expect(type.fieldsJson).toBe("[]");
+    expect(type.sectionsJson).toBe("[]");
+  });
+});

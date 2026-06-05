@@ -12,7 +12,6 @@ import { FeEyebrow, FeHeroAvatar } from "./FeSubcomponents";
 
 export interface FeTopbarProps {
   entity: EntityWithPortrait;
-  entityType: EntityType;
   kind: string;
   rootLabel: string;
   setRenaming: (v: boolean) => void;
@@ -22,10 +21,11 @@ export interface FeTopbarProps {
 }
 
 export function FeTopbar({
-  entity, entityType, kind, rootLabel, setRenaming,
+  entity, kind, rootLabel, setRenaming,
   onBack, onExit, onDelete,
 }: FeTopbarProps) {
-  const isChar = entityType === "character";
+  // Breadcrumb tier label: pluralise kind for display (Character → Characters etc.)
+  const tierLabel = kind.endsWith("s") ? kind : kind + "s";
   return (
     <div className="fe-topbar">
       <button className="fe-back" onClick={onBack} title="Back">
@@ -34,7 +34,7 @@ export function FeTopbar({
       <div className="fe-crumb">
         <button className="fe-crumb-root" onClick={onExit}>{rootLabel}</button>
         <span className="sep">/</span>
-        <span>{isChar ? "Characters" : "Locations"}</span>
+        <span>{tierLabel}</span>
         <span className="sep">/</span>
         <span className="here">{entity.name}</span>
       </div>
@@ -73,11 +73,18 @@ export function FeHero({
   displaySrc, onPortraitAdd, onPortraitRemove, onPortraitError, onRename,
 }: FeHeroProps) {
   const isChar = entityType === "character";
+  const isPortraitType = entityType === "character" || entityType === "location";
   const initial = entity.name.trim()[0]?.toUpperCase() ?? "";
   return (
     <div className="fe-hero">
-      <FeHeroAvatar type={entityType as "character" | "location"} initial={initial} displaySrc={displaySrc}
-        onAdd={onPortraitAdd} onRemove={onPortraitRemove} onPortraitError={onPortraitError} />
+      <FeHeroAvatar
+        type={isPortraitType ? (entityType as "character" | "location") : "location"}
+        initial={initial}
+        displaySrc={isPortraitType ? displaySrc : null}
+        onAdd={isPortraitType ? onPortraitAdd : undefined}
+        onRemove={isPortraitType ? onPortraitRemove : undefined}
+        onPortraitError={isPortraitType ? onPortraitError : undefined}
+      />
       <div className="fe-hero-body">
         <FeEyebrow key={role} role={role} isChar={isChar} onCommit={onCommitRole} />
         {renaming ? (

@@ -36,7 +36,9 @@ export function useLoadEntry(
       Promise.resolve().then(() => { if (alive) setEntity(null); }).catch(() => { /* ignore */ });
       return () => { alive = false; };
     }
-    const type: EntityType = topKind === "Character" ? "character" : "location";
+    // Map display-form kind (Title-case) to storage type (lower-case).
+    // "Character" → "character", "Location" → "location", others → lowercase.
+    const type: EntityType = topKind.toLowerCase();
     store.getEntity(type, topId)
       .then((e) => { if (alive) setEntity(e); })
       .catch((err: unknown) => {
@@ -59,7 +61,7 @@ export interface EntryViewStageProps {
   entryOrigin: "write" | "bible";
   tree: BinderTree;
   onSelectScene: (sceneId: string) => void;
-  onPushEntry: (id: string, kind: "Character" | "Location") => void;
+  onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void;
   onExitEntry: () => void;
   onRenameEntity: (kind: string, id: string, name: string) => void;

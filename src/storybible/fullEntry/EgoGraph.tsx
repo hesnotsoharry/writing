@@ -166,10 +166,10 @@ function SelfNode({ entity, pos }: { entity: Entity; pos: { x: number; y: number
 function PeerNode({ peer, pos, onOpenEntry }: {
   peer: Entity;
   pos: { x: number; y: number };
-  onOpenEntry?: (id: string, kind: "Character" | "Location") => void;
+  onOpenEntry?: (id: string, kind: string) => void;
 }) {
   const round = peer.type === "character";
-  const kindForEntry: "Character" | "Location" = round ? "Character" : "Location";
+  const kindForEntry = peer.type.charAt(0).toUpperCase() + peer.type.slice(1);
   const initial = peer.name.trim()[0]?.toUpperCase() ?? "?";
   return (
     <g style={{ cursor: "pointer" }} onClick={() => onOpenEntry?.(peer.id, kindForEntry)}>
@@ -197,7 +197,7 @@ export interface EgoGraphProps {
   entity: Entity;
   relations: Relation[];
   allEntities: Entity[];
-  onOpenEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onOpenEntry?: (entityId: string, kind: string) => void;
 }
 
 export function EgoGraph({ entity, relations, allEntities, onOpenEntry }: EgoGraphProps) {

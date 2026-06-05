@@ -22,10 +22,15 @@ export interface ExportTarget {
 
 export type AppView = "editor" | "bible" | "cork" | "outline" | "entry";
 
-/** A single frame on the entry navigation stack. */
+/**
+ * A single frame on the entry navigation stack.
+ * `kind` is the display-form of the entity type (Title-case, e.g. "Character",
+ * "Location", "Item", "Faction", "Lore", "Theme", or any custom type name).
+ * Widened to `string` for Phase 5 (new built-in + custom entity types).
+ */
 export interface EntryFrame {
   id: string;
-  kind: "Character" | "Location";
+  kind: string;
 }
 
 export async function loadProject(
@@ -119,7 +124,7 @@ function useEntryNav(setView: (v: AppView) => void, getView: () => AppView) {
   const [entryOrigin, setEntryOrigin] = useState<"write" | "bible">("bible");
 
   /** Open a fresh entry journey — resets the stack, captures the current view as origin. */
-  function openEntry(id: string, kind: "Character" | "Location") {
+  function openEntry(id: string, kind: string) {
     const origin = getView() === "editor" ? "write" : "bible";
     setEntryOrigin(origin as "write" | "bible");
     setEntryStack([{ id, kind }]);
@@ -127,7 +132,7 @@ function useEntryNav(setView: (v: AppView) => void, getView: () => AppView) {
   }
 
   /** Push onto the stack (navigate into a related entity from within an entry). */
-  function pushEntry(id: string, kind: "Character" | "Location") {
+  function pushEntry(id: string, kind: string) {
     setEntryStack((prev) => [...prev, { id, kind }]);
   }
 

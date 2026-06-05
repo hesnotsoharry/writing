@@ -30,6 +30,8 @@ import {
 import type {
   AddRelationArgs,
   Character,
+  CreateCustomTypeArgs,
+  CustomEntityType,
   Entity,
   EntityField,
   EntityLink,
@@ -65,11 +67,13 @@ function imAddRelation(projectId: string, args: AddRelationArgs, relations: Rela
 export class InMemoryStoryBibleStore implements StoryBibleStore {
   private characters: Character[] = [];
   private locations: Location[] = [];
+  private genericEntities: Entity[] = [];
   private sceneLinks: (SceneLink & { sceneId: string })[] = [];
   private entityFields: EntityField[] = [];
   private entityLinks: EntityLink[] = [];
   private portraits = new Map<string, string>();
   private relations: Relation[] = [];
+  private customTypes: CustomEntityType[] = [];
 
   async listCharacters(projectId: string): Promise<Character[]> {
     return this.characters.filter((c) => c.projectId === projectId);
@@ -88,11 +92,21 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   }
 
   async renameEntity(type: EntityType, id: string, name: string): Promise<void> {
+    if (type !== "character" && type !== "location") {
+      const e = this.genericEntities.find((x) => x.id === id);
+      if (e) e.name = name;
+      return;
+    }
     const r = imRenameEntity(type, id, name, { characters: this.characters, locations: this.locations });
     this.characters = r.characters; this.locations = r.locations;
   }
 
   async updateEntityNotes(type: EntityType, id: string, notes: string | null): Promise<void> {
+    if (type !== "character" && type !== "location") {
+      const e = this.genericEntities.find((x) => x.id === id);
+      if (e) e.notes = notes;
+      return;
+    }
     const r = imUpdateEntityNotes(type, id, notes, { characters: this.characters, locations: this.locations });
     this.characters = r.characters; this.locations = r.locations;
   }
@@ -100,8 +114,10 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   async deleteEntity(type: EntityType, id: string): Promise<void> {
     if (type === "character") {
       this.characters = this.characters.filter((c) => c.id !== id);
-    } else {
+    } else if (type === "location") {
       this.locations = this.locations.filter((l) => l.id !== id);
+    } else {
+      this.genericEntities = this.genericEntities.filter((e) => e.id !== id);
     }
     this.sceneLinks = this.sceneLinks.filter((sl) => !(sl.entityType === type && sl.entityId === id));
     const purged = imPurgeEntityDetail(id, this.entityFields, this.entityLinks, this.portraits);
@@ -130,10 +146,16 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   async listEntities(projectId: string): Promise<Entity[]> {
     const chars = await this.listCharacters(projectId);
     const locs = await this.listLocations(projectId);
-    return imListEntities(chars, locs);
+    const gen = this.genericEntities.filter((e) => e.projectId === projectId);
+    return [...imListEntities(chars, locs), ...gen];
   }
 
   async getEntity(type: EntityType, id: string): Promise<EntityWithPortrait | null> {
+    if (type !== "character" && type !== "location") {
+      const e = this.genericEntities.find((x) => x.id === id);
+      if (!e) return null;
+      return { ...e, portraitPath: null };
+    }
     const ctx: ImEntityCtx = { characters: this.characters, locations: this.locations, portraits: this.portraits };
     return imGetEntity(type, id, ctx);
   }
@@ -188,6 +210,46 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
 
   async clearPortrait(_type: EntityType, id: string): Promise<void> {
     imClearPortrait(id, this.portraits);
+  }
+
+  // ── Wave 27 Phase 5 — Entity types expansion ─────────────────────────────
+
+  async createEntity(
+    projectId: string,
+    type: EntityType,
+    name: string,
+    notes: string | null
+  ): Promise<Entity> {
+    const entity: Entity = { id: crypto.randomUUID(), projectId, type, name, notes, aliases: null };
+    this.genericEntities.push(entity);
+    return entity;
+  }
+
+  async listEntitiesByType(projectId: string, type: EntityType): Promise<Entity[]> {
+    return this.genericEntities.filter((e) => e.projectId === projectId && e.type === type);
+  }
+
+  async createCustomType(args: CreateCustomTypeArgs): Promise<CustomEntityType> {
+    const { projectId, name, icon, color } = args;
+    const ct: CustomEntityType = {
+      id: crypto.randomUUID(),
+      projectId,
+      name,
+      icon,
+      color,
+      fieldsJson: "[]",
+      sectionsJson: "[]",
+    };
+    this.customTypes.push(ct);
+    return ct;
+  }
+
+  async listCustomTypes(projectId: string): Promise<CustomEntityType[]> {
+    return this.customTypes.filter((ct) => ct.projectId === projectId);
+  }
+
+  async deleteCustomType(id: string): Promise<void> {
+    this.customTypes = this.customTypes.filter((ct) => ct.id !== id);
   }
 
   async addRelation(projectId: string, args: AddRelationArgs): Promise<Relation> {

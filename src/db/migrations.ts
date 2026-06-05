@@ -1,3 +1,10 @@
+import {
+  migration_009_scene_snapshots,
+  migration_010_labels,
+  migration_011_scene_labels,
+  migration_012_entity_relations,
+  migration_013_entity_types,
+} from "./migrations2";
 import type { DbHandle } from "./schema";
 import { ensureColumn } from "./schema";
 
@@ -340,121 +347,8 @@ async function migration_008_entity_portrait(db: DbHandle): Promise<void> {
   }
 }
 
-/**
- * Create the scene_snapshots table for per-scene version history.
- *
- * state_base64 is TEXT, never BLOB — tauri-plugin-sql does not reliably
- * round-trip binary columns (project CLAUDE.md gotcha, also documented in
- * migration_004_feature_tables).
- *
- * kind is 'manual' | 'auto'. label is NULL for auto-saves.
- * word_count and created_at are non-null integers (Unix ms epoch).
- * scene_id is NOT FOREIGN-KEY-constrained, matching the pattern of all prior
- * feature tables in this project.
- */
-async function migration_009_scene_snapshots(db: DbHandle): Promise<void> {
-  await db.execute(
-    `CREATE TABLE IF NOT EXISTS scene_snapshots (
-      id TEXT PRIMARY KEY,
-      scene_id TEXT NOT NULL,
-      label TEXT,
-      state_base64 TEXT NOT NULL,
-      word_count INTEGER NOT NULL,
-      created_at INTEGER NOT NULL,
-      kind TEXT NOT NULL
-    )`
-  );
-  await db.execute(
-    `CREATE INDEX IF NOT EXISTS idx_scene_snapshots_scene_id ON scene_snapshots (scene_id)`
-  );
-}
-
-/**
- * Create the labels table for color-label management.
- *
- * color stores the token name ('clay', 'sea', etc.) — never a hex value.
- * Keeping re-theming cohesive: the UI always reads the token; the DB stores
- * the palette key. sort is an integer for label reordering.
- * project_id scopes labels to a project (NOT NULL, no FK constraint — matches
- * the pattern of all prior project-scoped feature tables in this project).
- */
-async function migration_010_labels(db: DbHandle): Promise<void> {
-  await db.execute(
-    `CREATE TABLE IF NOT EXISTS labels (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      color TEXT NOT NULL,
-      sort INTEGER NOT NULL DEFAULT 0
-    )`
-  );
-  await db.execute(
-    `CREATE INDEX IF NOT EXISTS idx_labels_project_id ON labels (project_id)`
-  );
-}
-
-/**
- * Create the scene_labels join table for many-to-many scene↔label assignment.
- *
- * PRIMARY KEY (scene_id, label_id) is the natural deduplication key — a scene
- * can have a label at most once. No separate UUID PK needed (the composite PK
- * is the identity). No FK constraints — matches the pattern of all prior
- * feature tables in this project.
- */
-async function migration_011_scene_labels(db: DbHandle): Promise<void> {
-  await db.execute(
-    `CREATE TABLE IF NOT EXISTS scene_labels (
-      scene_id TEXT NOT NULL,
-      label_id TEXT NOT NULL,
-      PRIMARY KEY (scene_id, label_id)
-    )`
-  );
-  await db.execute(
-    `CREATE INDEX IF NOT EXISTS idx_scene_labels_scene_id ON scene_labels (scene_id)`
-  );
-  await db.execute(
-    `CREATE INDEX IF NOT EXISTS idx_scene_labels_label_id ON scene_labels (label_id)`
-  );
-}
-
-/**
- * Create the entity_relations table for typed directed relationship edges.
- *
- * reciprocal_id references the inverse edge row (TEXT NULL — not every relation
- * has an automatic reciprocal; custom labels are one-directional).
- * project_id scopes relations to a project (NOT NULL, no FK constraint — matches
- * the pattern of all prior project-scoped feature tables in this project).
- * created_at is an INTEGER (Unix ms epoch).
- *
- * UNIQUE(project_id, from_entity, to_entity) prevents duplicate directed edges
- * between the same pair within a project. The INSERT OR IGNORE in addRelation
- * relies on this constraint for deduplication.
- */
-async function migration_012_entity_relations(db: DbHandle): Promise<void> {
-  await db.execute(
-    `CREATE TABLE IF NOT EXISTS entity_relations (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      from_entity TEXT NOT NULL,
-      to_entity TEXT NOT NULL,
-      relation_label TEXT NOT NULL DEFAULT '',
-      reciprocal_id TEXT,
-      created_at INTEGER NOT NULL,
-      UNIQUE(project_id, from_entity, to_entity)
-    )`
-  );
-  await db.execute(
-    `CREATE INDEX IF NOT EXISTS idx_entity_relations_project_id ON entity_relations (project_id)`
-  );
-  await db.execute(
-    `CREATE INDEX IF NOT EXISTS idx_entity_relations_from_entity ON entity_relations (from_entity)`
-  );
-  await db.execute(
-    `CREATE INDEX IF NOT EXISTS idx_entity_relations_to_entity ON entity_relations (to_entity)`
-  );
-}
-
 // ─── Registry ────────────────────────────────────────────────────────────────
+// Migrations 009–013 live in migrations2.ts (extracted to keep this file ≤300 lines).
 
 /**
  * Ordered list of all migrations. APPEND ONLY — never reorder or remove entries.
@@ -475,6 +369,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 10, name: "labels", up: migration_010_labels },
   { version: 11, name: "scene-labels", up: migration_011_scene_labels },
   { version: 12, name: "entity-relations", up: migration_012_entity_relations },
+  { version: 13, name: "entity-types", up: migration_013_entity_types },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

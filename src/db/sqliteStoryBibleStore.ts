@@ -17,6 +17,13 @@ import {
   sqliteUpdateLinkRelation,
 } from "./sqliteEntityDetail";
 import {
+  sqliteCreateCustomType,
+  sqliteCreateEntity,
+  sqliteDeleteCustomType,
+  sqliteListCustomTypes,
+  sqliteListEntitiesByType,
+} from "./sqliteEntityTypeStore";
+import {
   sqliteAddRelation,
   sqliteDeleteRelation,
   sqliteListRelations,
@@ -25,6 +32,8 @@ import {
 import type {
   AddRelationArgs,
   Character,
+  CreateCustomTypeArgs,
+  CustomEntityType,
   Entity,
   EntityField,
   EntityLink,
@@ -109,8 +118,10 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     const db = await getDb();
     if (type === "character") {
       await db.execute("UPDATE characters SET name = $1 WHERE id = $2", [name, id]);
-    } else {
+    } else if (type === "location") {
       await db.execute("UPDATE locations SET name = $1 WHERE id = $2", [name, id]);
+    } else {
+      await db.execute("UPDATE entities SET name = $1 WHERE id = $2", [name, id]);
     }
   }
 
@@ -122,8 +133,10 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     const db = await getDb();
     if (type === "character") {
       await db.execute("UPDATE characters SET notes = $1 WHERE id = $2", [notes, id]);
-    } else {
+    } else if (type === "location") {
       await db.execute("UPDATE locations SET notes = $1 WHERE id = $2", [notes, id]);
+    } else {
+      await db.execute("UPDATE entities SET notes = $1 WHERE id = $2", [notes, id]);
     }
   }
 
@@ -131,8 +144,10 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     const db = await getDb();
     if (type === "character") {
       await db.execute("DELETE FROM characters WHERE id = $1", [id]);
-    } else {
+    } else if (type === "location") {
       await db.execute("DELETE FROM locations WHERE id = $1", [id]);
+    } else {
+      await db.execute("DELETE FROM entities WHERE id = $1", [id]);
     }
     await db.execute(
       "DELETE FROM scene_links WHERE entity_id = $1 AND entity_type = $2",
@@ -222,11 +237,19 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   }
 
   async listEntities(projectId: string): Promise<Entity[]> {
+    const db = await getDb();
     const chars = await this.listCharacters(projectId);
     const locs = await this.listLocations(projectId);
+    const genRows = await db.select<
+      { id: string; project_id: string; entity_type: string; name: string; notes: string | null; aliases: string | null }[]
+    >(
+      "SELECT id, project_id, entity_type, name, notes, aliases FROM entities WHERE project_id = $1",
+      [projectId]
+    );
     return [
-      ...chars.map((c) => ({ id: c.id, projectId: c.projectId, type: "character" as const, name: c.name, notes: c.notes, aliases: c.aliases })),
-      ...locs.map((l) => ({ id: l.id, projectId: l.projectId, type: "location" as const, name: l.name, notes: l.notes, aliases: l.aliases })),
+      ...chars.map((c) => ({ id: c.id, projectId: c.projectId, type: "character" as EntityType, name: c.name, notes: c.notes, aliases: c.aliases })),
+      ...locs.map((l) => ({ id: l.id, projectId: l.projectId, type: "location" as EntityType, name: l.name, notes: l.notes, aliases: l.aliases })),
+      ...genRows.map((r) => ({ id: r.id, projectId: r.project_id, type: r.entity_type, name: r.name, notes: r.notes, aliases: r.aliases })),
     ];
   }
 
@@ -286,6 +309,13 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   async clearPortrait(type: EntityType, id: string): Promise<void> {
     return sqliteClearPortrait(await getDb(), type, id);
   }
+
+  // ── Wave 27 Phase 5 — Entity types expansion (implementations in sqliteEntityTypeStore.ts) ──
+  async createEntity(projectId: string, type: EntityType, name: string, notes: string | null): Promise<Entity> { return sqliteCreateEntity(await getDb(), { projectId, type, name, notes }); }
+  async listEntitiesByType(projectId: string, type: EntityType): Promise<Entity[]> { return sqliteListEntitiesByType(await getDb(), projectId, type); }
+  async createCustomType(args: CreateCustomTypeArgs): Promise<CustomEntityType> { return sqliteCreateCustomType(await getDb(), args); }
+  async listCustomTypes(projectId: string): Promise<CustomEntityType[]> { return sqliteListCustomTypes(await getDb(), projectId); }
+  async deleteCustomType(id: string): Promise<void> { return sqliteDeleteCustomType(await getDb(), id); }
 
   // ── Wave 27 Phase 4 — Typed relation edges (implemented in sqliteRelationStore.ts) ──
   async addRelation(projectId: string, args: AddRelationArgs): Promise<Relation> { return sqliteAddRelation(projectId, args); }

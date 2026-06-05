@@ -68,7 +68,7 @@ interface RelationChipProps {
   entityType: string;
   onDelete: (id: string) => void;
   onRelabel: (id: string, label: string) => void;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
 }
 
 function RelationChip({ relation, targetEntity, entityType, onDelete, onRelabel, onPushEntry }: RelationChipProps) {
@@ -76,7 +76,7 @@ function RelationChip({ relation, targetEntity, entityType, onDelete, onRelabel,
   const menuRef = useClickOutside(open, () => setOpen(false));
   if (!targetEntity) return null;
   const isChar = targetEntity.type === "character";
-  const kind: "Character" | "Location" = isChar ? "Character" : "Location";
+  const kind = targetEntity.type.charAt(0).toUpperCase() + targetEntity.type.slice(1);
   return (
     <div className="entity-card fe-person" style={{ position: "relative" }}>
       <div className={"avatar " + (isChar ? "character" : "location")} style={{ cursor: "pointer", flexShrink: 0 }}
@@ -208,7 +208,7 @@ interface RelGroupInnerProps {
   entityId: string; projectId: string;
   entityType: string;
   store: StoryBibleStore;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
   onMutation?: () => void;
 }
 
@@ -257,7 +257,7 @@ export interface RelationshipGroupProps {
   entityId?: string; projectId?: string;
   entityType?: string;
   store?: StoryBibleStore;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
   /** Called after any successful mutation so the parent can re-fetch shared relation state. */
   onMutation?: () => void;
 }

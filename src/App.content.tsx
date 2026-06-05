@@ -71,8 +71,8 @@ export interface AppContentProps {
   archivedVersion: number;
   entryStack: EntryFrame[];
   entryOrigin: "write" | "bible";
-  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
-  onPushEntry: (id: string, kind: "Character" | "Location") => void;
+  onOpenEntry: (id: string, kind: string) => void;
+  onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void;
   onExitEntry: () => void;
   historySnapshots?: Snapshot[];
@@ -198,7 +198,7 @@ interface SideSlotsProps {
   onAddGoal: (s: "scene" | "chapter", id: string) => void;
   onExport: (s: "scene" | "chapter", id: string) => void;
   showSidePanels: boolean; view: AppView;
-  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
+  onOpenEntry: (id: string, kind: string) => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
 }
 
@@ -219,18 +219,22 @@ function buildSideSlots(p: SideSlotsProps) {
         chapterId={p.chapterId} chapterTotal={p.chapterTotal}
         historySnapshots={p.historySnapshots} onOpenHistory={p.onOpenHistory}
         onTakeSnapshot={p.onTakeSnapshot}
-        onOpenEntry={(entityId, type) => p.onOpenEntry(entityId, type === "character" ? "Character" : "Location")} />
+        onOpenEntry={(entityId, type) => {
+          const kind = type === "character" ? "Character" : type === "location" ? "Location" : type.charAt(0).toUpperCase() + type.slice(1);
+          p.onOpenEntry(entityId, kind);
+        }} />
     : null;
   return { binderSlot, inspectorSlot };
 }
 
 function makeEntityHandlers(store: SqliteStoryBibleStore, onEntitiesChanged: () => void) {
   const onRenameEntity = (kind: string, id: string, name: string) => {
-    store.renameEntity(kind === "Character" ? "character" : "location", id, name)
+    // kind is Title-case display form; store takes lowercase entity_type
+    store.renameEntity(kind.toLowerCase(), id, name)
       .catch((e: unknown) => console.error("[AppContent] renameEntity failed", e));
   };
   const onDeleteEntity = (kind: string, id: string) => {
-    store.deleteEntity(kind === "character" ? "character" : "location", id)
+    store.deleteEntity(kind.toLowerCase(), id)
       .then(onEntitiesChanged)
       .catch((e: unknown) => console.error("[AppContent] deleteEntity failed", e));
   };
@@ -247,8 +251,8 @@ interface ViewStageArgs {
   onArchiveScene: (id: string) => void;
   onExport: (s: "scene", id: string) => void;
   entryStack: EntryFrame[]; entryOrigin: "write" | "bible";
-  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
-  onPushEntry: (id: string, kind: "Character" | "Location") => void;
+  onOpenEntry: (id: string, kind: string) => void;
+  onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void; onExitEntry: () => void;
   onRenameEntity: (kind: string, id: string, name: string) => void;
   onDeleteEntity: (kind: string, id: string) => void;
@@ -278,11 +282,10 @@ function makeViewStage(a: ViewStageArgs) {
 function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
-    onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree,
-    entryStack, entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry,
-    historySnapshots, onOpenHistory, onTakeSnapshot, labelStore } = props;
-  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals,
-    setShowQuickCapture, setShowSettings, setShowExport, setExportTarget } = overlays;
+    onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree, entryStack,
+    entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry, historySnapshots,
+    onOpenHistory, onTakeSnapshot, labelStore } = props;
+  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget } = overlays;
   useGlobalKeybindings(overlays); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle(); const motionOn = useMotion();
   const liveWordCount = useLiveWordCount(doc);
@@ -291,8 +294,7 @@ function useAppContentSlots(props: AppContentProps) {
   const quickCount = useQuickCount(activeProjectId); const archivedCount = useArchivedCount(activeProjectId, archivedVersion);
   const docName = projects.find((p) => p.id === activeProjectId)?.title; const activeScene = useActiveScene(tree, selectedSceneId);
   const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
-  const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };
-  const onExport = (scope: "scene" | "chapter", id: string) => { setExportTarget(scope, id); setShowExport(true); };
+  const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };  const onExport = (scope: "scene" | "chapter", id: string) => { setExportTarget(scope, id); setShowExport(true); };
   const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";
   const { binderSlot, inspectorSlot } = buildSideSlots({
     tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
@@ -301,18 +303,17 @@ function useAppContentSlots(props: AppContentProps) {
     chapterId, chapterTotal, onAddGoal, onExport, showSidePanels, view, onOpenEntry,
     historySnapshots, onOpenHistory, onTakeSnapshot,
   });
-  const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);
-  const ls = useLabelState(activeProjectId, labelStore);
+  const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const viewStageContent = makeViewStage({
     view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene,
     onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
     onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
     onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls,
   });
-  return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
-    setShowSettings, setShowExport, setExportTarget, liveWordCount, manuscriptTotal,
-    goalProgress, docName, binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId,
-    motionOn, labelState: ls, labelStore,
+  return {
+    focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,
+    setShowExport, setExportTarget, liveWordCount, manuscriptTotal, goalProgress, docName,
+    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn, labelState: ls, labelStore,
   };
 }
 

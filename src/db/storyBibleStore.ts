@@ -95,6 +95,31 @@ export interface AddRelationArgs {
 }
 
 /**
+ * A user-defined custom entity type stored in entity_types_custom.
+ * Built-in types (character/location/item/faction/lore/theme) are code-defined
+ * and never appear in this table.
+ */
+export interface CustomEntityType {
+  id: string;
+  projectId: string;
+  name: string;
+  icon: string;
+  color: string;
+  /** JSON-serialized array of {key: string; label: string} objects. */
+  fieldsJson: string;
+  /** JSON-serialized array of {key: string; icon: string; label: string} objects. */
+  sectionsJson: string;
+}
+
+/** Options object for createCustomType (>4 params rule). */
+export interface CreateCustomTypeArgs {
+  projectId: string;
+  name: string;
+  icon: string;
+  color: string;
+}
+
+/**
  * Curated relation presets keyed by entity type.
  * Use '*' as the fallback key shared across all types.
  * Phase 5 can extend with per-type entries (e.g. RELATION_PRESETS['character']).
@@ -218,6 +243,31 @@ export interface StoryBibleStore {
   setPortrait(type: EntityType, id: string, path: string): Promise<void>;
   /** Clear the portrait_path (set null). */
   clearPortrait(type: EntityType, id: string): Promise<void>;
+
+  // ── Wave 27 Phase 5 — Entity types expansion ─────────────────────────────
+  /**
+   * Create a generic entity row of the given type (item/faction/lore/theme/custom).
+   * Stores in the `entities` table (NOT characters/locations).
+   */
+  createEntity(
+    projectId: string,
+    type: EntityType,
+    name: string,
+    notes: string | null
+  ): Promise<Entity>;
+
+  /**
+   * List all entities of the given type for a project (from the generic `entities` table).
+   * Does NOT include characters or locations (those have their own tables).
+   */
+  listEntitiesByType(projectId: string, type: EntityType): Promise<Entity[]>;
+
+  /** Create a custom entity-type definition. */
+  createCustomType(args: CreateCustomTypeArgs): Promise<CustomEntityType>;
+  /** List all custom entity-type definitions for a project. */
+  listCustomTypes(projectId: string): Promise<CustomEntityType[]>;
+  /** Delete a custom entity-type definition (does NOT cascade-delete entity rows). */
+  deleteCustomType(id: string): Promise<void>;
 
   // ── Wave 27 Phase 4 — Typed relation edges ────────────────────────────────
   /**

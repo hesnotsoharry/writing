@@ -20,7 +20,7 @@ function locInitial(name: string): string {
 interface FeLocationCardProps {
   link: EntityLink;
   target: Location | undefined;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
   onUnlink: (linkId: string) => void;
   onRelabel: (linkId: string, relation: string) => void;
 }
@@ -123,7 +123,7 @@ export interface LocationLinkGroupProps {
   entityId: string;
   projectId: string;
   store: StoryBibleStore;
-  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onPushEntry?: (entityId: string, kind: string) => void;
 }
 
 export function LocationLinkGroup({ entityId, projectId, store, onPushEntry }: LocationLinkGroupProps) {

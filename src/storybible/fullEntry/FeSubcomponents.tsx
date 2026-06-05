@@ -11,7 +11,7 @@ import { Icon } from "../../components/Icon";
 import type { EntityType, StoryBibleStore } from "../../db/storyBibleStore";
 import { STATUS_META } from "../../lib/status";
 import type { MergedFact, MergedSection } from "./defs";
-import { DEF_FIELDS, ROLE_KEY } from "./defs";
+import { DEF_FIELDS, FALLBACK_FIELDS, ROLE_KEY } from "./defs";
 import { Editable } from "./Editable";
 
 // ── FeHeroAvatar ──────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ export function isReservedKey(
   entityType: EntityType,
   existingCustomKeys: string[]
 ): boolean {
-  const defLabels = new Set<string>(DEF_FIELDS[entityType]);
+  const defLabels = new Set<string>(DEF_FIELDS[entityType] ?? FALLBACK_FIELDS);
   if (defLabels.has(candidate) || candidate === ROLE_KEY) return true;
   return existingCustomKeys.includes(candidate);
 }

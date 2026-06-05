@@ -85,7 +85,7 @@ export interface ChapterMenuCallbacks {
 // ── Entity menu (story bible) ──────────────────────────────────────────────
 
 export interface EntityMenuCallbacks {
-  kind: "Character" | "Location";
+  kind: string;
   onEditName: () => void;
   /** Edit the reserved role field (entity_fields key="role"). */
   onEditRole: () => void;

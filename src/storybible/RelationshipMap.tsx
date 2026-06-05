@@ -28,7 +28,7 @@ export interface EdgeEntry { a: string; b: string; label: string; }
 export interface RelationshipMapProps {
   entities: Entity[];
   relations: Relation[];
-  onOpenEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  onOpenEntry?: (entityId: string, kind: string) => void;
   onBack?: () => void;
 }
 
@@ -153,12 +153,12 @@ function MapNodeItem({ entity, p, r, hover, onHover, onOpenEntry }: {
   r: number;
   hover: string | null;
   onHover: (id: string) => void;
-  onOpenEntry?: (id: string, kind: "Character" | "Location") => void;
+  onOpenEntry?: (id: string, kind: string) => void;
 }) {
   const dim = hover !== null && hover !== entity.id;
   const round = entity.type === "character";
   const initial = entity.name.trim()[0]?.toUpperCase() ?? "?";
-  const kindForEntry: "Character" | "Location" = round ? "Character" : "Location";
+  const kindForEntry = entity.type.charAt(0).toUpperCase() + entity.type.slice(1);
   return (
     <g style={{ cursor: "pointer", opacity: dim ? 0.18 : 1, transition: "opacity 0.15s" }}
       onClick={() => onOpenEntry?.(entity.id, kindForEntry)}
@@ -256,7 +256,7 @@ function MapCanvas({ W, H, pan, edges, nodes, pos, degree, hover, setHover, N,
   pos: Map<string, { x: number; y: number }>;
   degree: Record<string, number>;
   hover: string | null; setHover: (id: string | null) => void; N: number;
-  onOpenEntry?: (id: string, kind: "Character" | "Location") => void;
+  onOpenEntry?: (id: string, kind: string) => void;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseMove: (e: React.MouseEvent) => void;
   onMouseUp: () => void;

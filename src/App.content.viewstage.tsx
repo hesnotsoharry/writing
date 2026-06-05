@@ -38,8 +38,8 @@ export interface ViewStageCtx {
   onExport: (scope: "scene", targetId: string) => void;
   entryStack: EntryFrame[];
   entryOrigin: "write" | "bible";
-  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
-  onPushEntry: (id: string, kind: "Character" | "Location") => void;
+  onOpenEntry: (id: string, kind: string) => void;
+  onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void;
   onExitEntry: () => void;
   onRenameEntity: (kind: string, id: string, name: string) => void;
