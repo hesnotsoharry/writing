@@ -49,9 +49,18 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
     return;
   }
 
-  // Guard: lemon.js must be loaded (CDN script with defer, same page).
+  // Initialize lemon.js. Current versions expose window.createLemonSqueezy()
+  // which must be called to populate window.LemonSqueezy (.Setup/.Url.Open);
+  // older auto-init behavior is gone. (Script: assets.lemonsqueezy.com/lemon.js —
+  // the app.lemonsqueezy.com/js/lemon.js URL now serves an HTML redirect that
+  // breaks when loaded as a <script src>.)
+  if (typeof window.createLemonSqueezy === "function") {
+    window.createLemonSqueezy();
+  }
+
+  // Guard: lemon.js must have loaded + initialized.
   if (typeof window.LemonSqueezy === "undefined") {
-    console.warn("[checkout.js] window.LemonSqueezy not found — lemon.js may not have loaded. Checkout disabled.");
+    console.warn("[checkout.js] LemonSqueezy unavailable — lemon.js may not have loaded. Checkout disabled.");
     return;
   }
 
