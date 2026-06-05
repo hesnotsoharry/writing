@@ -20,7 +20,7 @@ export interface ExportTarget {
   targetId: string;
 }
 
-export type AppView = "editor" | "bible" | "cork" | "entry";
+export type AppView = "editor" | "bible" | "cork" | "outline" | "entry";
 
 /** A single frame on the entry navigation stack. */
 export interface EntryFrame {

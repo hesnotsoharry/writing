@@ -61,6 +61,18 @@
   --note: #9a7b3f;             /* misc notes — muted ochre */
   --note-tint: #efe6d2;
 
+  /* ---- Color-label palette (outliner + entity types) — token names only -- */
+  /* Shared between the Outliner's scene labels and the Entity Types accent    */
+  /* colors; stored in DB as the token name (e.g. "clay"), never as hex.      */
+  --label-clay:  #b25a38;
+  --label-sea:   #3f6f9e;
+  --label-moss:  #4e7c6b;
+  --label-plum:  #7a5c8e;
+  --label-gold:  #b07d2e;
+  --label-slate: #5f6b72;
+  --label-rose:  #a8567a;
+  --label-ink:   #7a6f5d;
+
   /* ---- Semantic ---------------------------------------------------------- */
   --good: #4e7c6b;
   --warn: #b07d2e;
@@ -138,6 +150,16 @@
   --location-tint: #1f2a26;
   --note: #c39b54;
   --note-tint: #2c2619;
+
+  /* ---- Color-label palette — dark mode variants -------------------------- */
+  --label-clay:  #cf7853;
+  --label-sea:   #6d9bc9;
+  --label-moss:  #6fa890;
+  --label-plum:  #a98cc0;
+  --label-gold:  #c69a4a;
+  --label-slate: #8b97a0;
+  --label-rose:  #c98aa6;
+  --label-ink:   #a99e8a;
 
   --good: #6fa890;
   --warn: #c69a4a;

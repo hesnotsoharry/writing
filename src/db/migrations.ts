@@ -369,6 +369,54 @@ async function migration_009_scene_snapshots(db: DbHandle): Promise<void> {
   );
 }
 
+/**
+ * Create the labels table for color-label management.
+ *
+ * color stores the token name ('clay', 'sea', etc.) — never a hex value.
+ * Keeping re-theming cohesive: the UI always reads the token; the DB stores
+ * the palette key. sort is an integer for label reordering.
+ * project_id scopes labels to a project (NOT NULL, no FK constraint — matches
+ * the pattern of all prior project-scoped feature tables in this project).
+ */
+async function migration_010_labels(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS labels (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      sort INTEGER NOT NULL DEFAULT 0
+    )`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_labels_project_id ON labels (project_id)`
+  );
+}
+
+/**
+ * Create the scene_labels join table for many-to-many scene↔label assignment.
+ *
+ * PRIMARY KEY (scene_id, label_id) is the natural deduplication key — a scene
+ * can have a label at most once. No separate UUID PK needed (the composite PK
+ * is the identity). No FK constraints — matches the pattern of all prior
+ * feature tables in this project.
+ */
+async function migration_011_scene_labels(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS scene_labels (
+      scene_id TEXT NOT NULL,
+      label_id TEXT NOT NULL,
+      PRIMARY KEY (scene_id, label_id)
+    )`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_scene_labels_scene_id ON scene_labels (scene_id)`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_scene_labels_label_id ON scene_labels (label_id)`
+  );
+}
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 /**
@@ -387,6 +435,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 7, name: "entity-links", up: migration_007_entity_links },
   { version: 8, name: "entity-portrait", up: migration_008_entity_portrait },
   { version: 9, name: "scene-snapshots", up: migration_009_scene_snapshots },
+  { version: 10, name: "labels", up: migration_010_labels },
+  { version: 11, name: "scene-labels", up: migration_011_scene_labels },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

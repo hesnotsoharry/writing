@@ -166,7 +166,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 |---|---|---|---|---|
 | 1 | 2026-06-05 | 2026-06-05 | a0de71d | Goals dialog verified via gate suite; runtime observation deferred (CDP smoke in a later phase) |
 | 2 | 2026-06-05 | 2026-06-05 | b6d084a | Panel FLAG addressed (initial diff load, async onCapture auto-select, interface doc); gates re-verified clean |
-| 3 | — | — | — | — |
+| 3 | 2026-06-05 | 2026-06-05 | (commit below) | Panel FLAGs addressed: onStatus wired + cycled, updateLabel atomic COALESCE; drag-reorder deferred per spec |
 | 4 | — | — | — | — |
 | 5 | — | — | — | — |
 | 6 | — | — | — | — |
@@ -175,8 +175,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Follow-up candidates
 
-<!-- DEFAULT: empty. Tier-3 triple-gate only. Most mid-wave friction is fixed inline.
-     Format when used: - [item]: [why it cannot be done in-wave] | present-harm: [K1/K2/K3 pointer] -->
+- [Outliner drag-to-reorder rows]: explicitly deferred in OUTLINER-SPEC.md §known-follow-up; requires dnd-kit wiring + binder move op integration beyond this phase's scope | present-harm: K3 (2026-06-05) — drag handle renders but fires nothing; documented as known gap in canonical spec
+- [getAllSceneLabels no project_id scope]: sqliteLabelStore returns labels across all projects; affects multi-project installs only (single-project target use case unaffected today) | present-harm: K3 (2026-06-05) — sqliteLabelStore.ts getAllSceneLabels omits WHERE project_id
 
 ## Result
 

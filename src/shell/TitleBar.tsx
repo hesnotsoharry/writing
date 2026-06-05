@@ -31,6 +31,9 @@ export interface TitleBarProps {
 
 /** Segmented Write / Corkboard / Story Bible view switch. */
 function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onViewChange">): ReactElement {
+  // Both "cork" and "outline" are sub-modes of the planning area; the Corkboard
+  // button activates for both, and clicking it navigates to "cork" (the default).
+  const inPlanningArea = view === "cork" || view === "outline";
   return (
     <div className="segmented">
       <button
@@ -42,8 +45,8 @@ function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onView
         {" Write"}
       </button>
       <button
-        className={view === "cork" ? "on" : ""}
-        aria-pressed={view === "cork"}
+        className={inPlanningArea ? "on" : ""}
+        aria-pressed={inPlanningArea}
         onClick={() => { onViewChange("cork"); }}
       >
         <Icon name="grid" className="ic" />

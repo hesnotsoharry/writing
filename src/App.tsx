@@ -16,6 +16,7 @@ import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
 import type { Snapshot } from "./db/snapshotStore";
 import { SqliteBinderStore } from "./db/sqliteBinderStore";
+import { SqliteLabelStore } from "./db/sqliteLabelStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { useTheme } from "./theme/useTheme";
@@ -34,6 +35,7 @@ interface LoadSceneCtx {
 const sceneDocStore = new SqliteSceneDocStore();
 const binderStore = new SqliteBinderStore();
 const storyBibleStore = new SqliteStoryBibleStore();
+const labelStore = new SqliteLabelStore();
 
 /**
  * Startup backfill: for every scene with word_count=0, load its stored
@@ -336,6 +338,7 @@ export default function App() {
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
       onTakeSnapshot={selectedSceneId ? () => snapTakeFromMenu(ctx, selectedSceneId) : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent })}
+      labelStore={labelStore}
     />
   );
 }

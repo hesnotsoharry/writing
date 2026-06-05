@@ -2,12 +2,15 @@
  * AppContent and its helpers — extracted from App.tsx to satisfy the
  * 300-line file limit. App.tsx owns bootstrapping + wiring; this file
  * owns the rendered shell composition (slots, focus mode, overlay stack).
+ *
+ * View-stage routing (CorkOutlinerView, buildViewStage) lives in
+ * App.content.viewstage.tsx. EditorPane lives in App.content.editor.tsx.
  */
 import type { Dispatch, SetStateAction } from "react";
-import { useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type * as Y from "yjs";
 
-import { EntryViewStage } from "./App.entryView";
+import { buildViewStage } from "./App.content.viewstage";
 import { useGlobalKeybindings } from "./App.keybindings";
 import type { OverlayStackProps } from "./App.overlays";
 import { OverlayStack } from "./App.overlays";
@@ -18,14 +21,14 @@ import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
 import { Icon } from "./components/Icon";
 import type { Project, Scene } from "./db/binderStore";
+import type { Label, LabelColor, LabelStore } from "./db/labelStore";
 import type { Snapshot } from "./db/snapshotStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
-import { Editor } from "./editor/Editor";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
-import { usePageFlip } from "./editor/usePageFlip";
 import { useArchivedCount } from "./features/archive/useArchivedCount";
-import { Corkboard } from "./features/corkboard/Corkboard";
 import { useDailyGoalProgress } from "./features/goals/useDailyGoalProgress";
+import { LabelManager } from "./features/outliner/LabelManager";
+import { type OtlSort } from "./features/outliner/Outliner";
 import { useQuickCount } from "./features/quickcapture/useQuickCount";
 import { useQuickItemsBadge } from "./features/quickcapture/useQuickItemsBadge";
 import { SceneInspector } from "./inspector/SceneInspector";
@@ -33,7 +36,6 @@ import { useManuscriptWordCount } from "./lib/manuscriptWords";
 import { AppShell } from "./shell/AppShell";
 import { StatusBar } from "./shell/StatusBar";
 import { TitleBar } from "./shell/TitleBar";
-import { StoryBibleView } from "./storybible/StoryBibleView";
 import { useEditorStyle } from "./theme/useEditorStyle";
 import { useMotion } from "./theme/useMotion";
 
@@ -65,56 +67,23 @@ export interface AppContentProps {
   onEntitiesChanged: () => void;
   overlays: OverlayFlags;
   storyBibleStore: SqliteStoryBibleStore;
-  /** Reload the binder tree from the store — exposed for downstream phases (Corkboard P5, Inspector P4). */
   reloadTree: () => void;
-  /** Bump counter for archive-count recomputation — increment after any archive or restore. */
   archivedVersion: number;
-  // Entry nav — supplied by useAppState().entryNav, wired through App.tsx
   entryStack: EntryFrame[];
   entryOrigin: "write" | "bible";
   onOpenEntry: (id: string, kind: "Character" | "Location") => void;
   onPushEntry: (id: string, kind: "Character" | "Location") => void;
   onEntryBack: () => void;
   onExitEntry: () => void;
-  // ── History rail (inspector) ─────────────────────────────────────────────
   historySnapshots?: Snapshot[];
   onOpenHistory?: () => void;
   onTakeSnapshot?: () => void;
+  labelStore: LabelStore;
 }
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-/**
- * EditorPane — owns the page-flip lifecycle so the flip state survives
- * the doc=null→doc=newDoc transition that unmounts/remounts Editor.
- * prevSceneRef lives here (above the unmount boundary) and correctly
- * tracks the outgoing scene even while the Editor is unmounted.
- */
-function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion }: {
-  doc: Y.Doc | null;
-  view: AppView;
-  tree: BinderTree;
-  selectedSceneId: string | null;
-  storyBibleStore: SqliteStoryBibleStore;
-  linksVersion: number;
-}) {
-  // captureProseRef: Editor writes its captureProse fn here; usePageFlip reads it.
-  const captureProseRef = useRef<() => string>(() => "");
-  const { flip, onAnimationEnd } = usePageFlip({
-    selectedSceneId, tree, view, captureProse: () => captureProseRef.current(),
-  });
-  return (
-    <main className="canvas-pane">
-      {doc
-        ? <Editor doc={doc} tree={tree} selectedSceneId={selectedSceneId}
-            storyBibleStore={storyBibleStore} linksVersion={linksVersion}
-            flip={flip} onAnimationEnd={onAnimationEnd} captureProseRef={captureProseRef} />
-        : <div className="canvas-empty">Select a scene to start writing.</div>}
-    </main>
-  );
-}
 
 function FocusExitButton({ onExit }: { onExit: () => void }) {
   return (
@@ -132,24 +101,90 @@ function useActiveScene(tree: BinderTree, selectedSceneId: string | null): Scene
   return selectedSceneId != null ? (all.find((s) => s.id === selectedSceneId) ?? null) : null;
 }
 
-/** Returns the folderId and chapter word total for the selected scene (null when short piece). */
 function useChapterInfo(
-  tree: BinderTree,
-  selectedSceneId: string | null,
-  liveWordCount: number,
+  tree: BinderTree, selectedSceneId: string | null, liveWordCount: number,
 ): { chapterId: string | null; chapterTotal: number | null } {
   if (!selectedSceneId) return { chapterId: null, chapterTotal: null };
   const chapter = tree.chapters.find((ch) => ch.scenes.some((s) => s.id === selectedSceneId));
   if (!chapter) return { chapterId: null, chapterTotal: null };
   const total = chapter.scenes.reduce(
-    (acc, s) => acc + (s.id === selectedSceneId ? liveWordCount : (s.word_count ?? 0)),
-    0,
+    (acc, s) => acc + (s.id === selectedSceneId ? liveWordCount : (s.word_count ?? 0)), 0,
   );
   return { chapterId: chapter.folder.id, chapterTotal: total };
 }
 
 // ---------------------------------------------------------------------------
-// AppContent
+// Label state hook
+// ---------------------------------------------------------------------------
+
+function useLabelState(activeProjectId: string | null, labelStore: LabelStore) {
+  const [labels, setLabels] = useState<Label[]>([]);
+  const [sceneLabels, setSceneLabels] = useState<Record<string, string[]>>({});
+  const [showLabelManager, setShowLabelManager] = useState(false);
+  const [outlinerSort, setOutlinerSort] = useState<OtlSort>({ col: "manual", dir: "asc" });
+  const [outlinerRenaming, setOutlinerRenaming] = useState<string | null>(null);
+
+  const refreshLabels = useCallback(() => {
+    if (!activeProjectId) return;
+    labelStore.listLabels(activeProjectId)
+      .then(setLabels)
+      .catch((e: unknown) => console.error("[labels] listLabels failed", e));
+    labelStore.getAllSceneLabels()
+      .then((all) => {
+        const byId: Record<string, string[]> = {};
+        for (const [sid, lbls] of Object.entries(all)) { byId[sid] = lbls.map((l) => l.id); }
+        setSceneLabels(byId);
+      })
+      .catch((e: unknown) => console.error("[labels] getAllSceneLabels failed", e));
+  }, [activeProjectId, labelStore]);
+
+  useEffect(() => { refreshLabels(); }, [refreshLabels]);
+
+  return { labels, sceneLabels, showLabelManager, setShowLabelManager,
+    outlinerSort, setOutlinerSort, outlinerRenaming, setOutlinerRenaming, refreshLabels };
+}
+
+// ---------------------------------------------------------------------------
+// Label manager overlay
+// ---------------------------------------------------------------------------
+
+interface LabelManagerOverlayProps {
+  show: boolean;
+  activeProjectId: string | null;
+  labels: Label[];
+  labelStore: LabelStore;
+  onClose: () => void;
+  onChanged: () => void;
+}
+
+function LabelManagerOverlay({ show, activeProjectId, labels, labelStore, onClose, onChanged }: LabelManagerOverlayProps) {
+  if (!show || !activeProjectId) return null;
+  return (
+    <LabelManager
+      labels={labels}
+      onClose={onClose}
+      onRename={(id, name) => {
+        labelStore.updateLabel(id, { name }).then(onChanged)
+          .catch((e: unknown) => console.error("[labels] updateLabel name failed", e));
+      }}
+      onColor={(id, color: LabelColor) => {
+        labelStore.updateLabel(id, { color }).then(onChanged)
+          .catch((e: unknown) => console.error("[labels] updateLabel color failed", e));
+      }}
+      onAdd={() => {
+        labelStore.createLabel(activeProjectId).then(onChanged)
+          .catch((e: unknown) => console.error("[labels] createLabel failed", e));
+      }}
+      onDelete={(id) => {
+        labelStore.deleteLabel(id).then(onChanged)
+          .catch((e: unknown) => console.error("[labels] deleteLabel failed", e));
+      }}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Side-slot builder
 // ---------------------------------------------------------------------------
 
 interface SideSlotsProps {
@@ -167,7 +202,6 @@ interface SideSlotsProps {
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
 }
 
-/** Builds the binder + inspector slots (extracted to keep useAppContentSlots ≤40 lines). */
 function buildSideSlots(p: SideSlotsProps) {
   const callbacksWithGoal = { ...p.callbacks, onAddGoal: p.onAddGoal, onExport: p.onExport };
   const binderSlot = p.showSidePanels
@@ -190,7 +224,6 @@ function buildSideSlots(p: SideSlotsProps) {
   return { binderSlot, inspectorSlot };
 }
 
-/** Pure helpers for entity rename/delete wired to the store — extracted to trim useAppContentSlots. */
 function makeEntityHandlers(store: SqliteStoryBibleStore, onEntitiesChanged: () => void) {
   const onRenameEntity = (kind: string, id: string, name: string) => {
     store.renameEntity(kind === "Character" ? "character" : "location", id, name)
@@ -204,12 +237,50 @@ function makeEntityHandlers(store: SqliteStoryBibleStore, onEntitiesChanged: () 
   return { onRenameEntity, onDeleteEntity };
 }
 
+interface ViewStageArgs {
+  view: AppView; doc: Y.Doc | null; activeProjectId: string | null;
+  storyBibleStore: SqliteStoryBibleStore; onEntitiesChanged: () => void;
+  tree: BinderTree; onSelectScene: (id: string) => void; onViewChange: (v: AppView) => void;
+  selectedSceneId: string | null; linksVersion: number; reloadTree: () => void;
+  dragCallbacks: DragCallbacks;
+  onAddGoal: (s: "scene" | "chapter", id: string) => void;
+  onArchiveScene: (id: string) => void;
+  onExport: (s: "scene", id: string) => void;
+  entryStack: EntryFrame[]; entryOrigin: "write" | "bible";
+  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
+  onPushEntry: (id: string, kind: "Character" | "Location") => void;
+  onEntryBack: () => void; onExitEntry: () => void;
+  onRenameEntity: (kind: string, id: string, name: string) => void;
+  onDeleteEntity: (kind: string, id: string) => void;
+  labelStore: LabelStore; ls: ReturnType<typeof useLabelState>;
+}
+
+function makeViewStage(a: ViewStageArgs) {
+  return buildViewStage(a.view, a.doc, a.activeProjectId, {
+    storyBibleStore: a.storyBibleStore, onEntitiesChanged: a.onEntitiesChanged,
+    tree: a.tree, onSelectScene: a.onSelectScene, onViewChange: a.onViewChange,
+    selectedSceneId: a.selectedSceneId, linksVersion: a.linksVersion, reloadTree: a.reloadTree,
+    dragCallbacks: a.dragCallbacks, onAddGoal: a.onAddGoal, onArchiveScene: a.onArchiveScene,
+    onExport: a.onExport, entryStack: a.entryStack, entryOrigin: a.entryOrigin,
+    onOpenEntry: a.onOpenEntry, onPushEntry: a.onPushEntry, onEntryBack: a.onEntryBack,
+    onExitEntry: a.onExitEntry, onRenameEntity: a.onRenameEntity, onDeleteEntity: a.onDeleteEntity,
+    labelStore: a.labelStore, labels: a.ls.labels, sceneLabels: a.ls.sceneLabels,
+    outlinerSort: a.ls.outlinerSort, setOutlinerSort: a.ls.setOutlinerSort,
+    outlinerRenaming: a.ls.outlinerRenaming, setOutlinerRenaming: a.ls.setOutlinerRenaming,
+    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useAppContentSlots
+// ---------------------------------------------------------------------------
+
 function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree,
     entryStack, entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry,
-    historySnapshots, onOpenHistory, onTakeSnapshot } = props;
+    historySnapshots, onOpenHistory, onTakeSnapshot, labelStore } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals,
     setShowQuickCapture, setShowSettings, setShowExport, setExportTarget } = overlays;
   useGlobalKeybindings(overlays); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
@@ -217,17 +288,12 @@ function useAppContentSlots(props: AppContentProps) {
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
   const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", scope: "manuscript", targetId: null, currentScopeTotal: manuscriptTotal });
-  const quickCount = useQuickCount(activeProjectId);
-  const archivedCount = useArchivedCount(activeProjectId, archivedVersion);
-  const docName = projects.find((p) => p.id === activeProjectId)?.title;
-  const activeScene = useActiveScene(tree, selectedSceneId);
+  const quickCount = useQuickCount(activeProjectId); const archivedCount = useArchivedCount(activeProjectId, archivedVersion);
+  const docName = projects.find((p) => p.id === activeProjectId)?.title; const activeScene = useActiveScene(tree, selectedSceneId);
   const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
-  const onAddGoal = (scope: "scene" | "chapter", id: string) => {
-    overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true);
-  };
+  const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };
   const onExport = (scope: "scene" | "chapter", id: string) => { setExportTarget(scope, id); setShowExport(true); };
-  // Side panels (binder + inspector) hidden in cork, bible, and entry views.
-  const showSidePanels = !focusMode && view !== "cork" && view !== "bible" && view !== "entry";
+  const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";
   const { binderSlot, inspectorSlot } = buildSideSlots({
     tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
@@ -236,21 +302,31 @@ function useAppContentSlots(props: AppContentProps) {
     historySnapshots, onOpenHistory, onTakeSnapshot,
   });
   const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);
-  const viewStageContent = buildViewStage(view, doc, activeProjectId,
-    { storyBibleStore, onEntitiesChanged, tree, onSelectScene, onViewChange, selectedSceneId,
-      linksVersion, reloadTree, dragCallbacks, onAddGoal, onArchiveScene: callbacks.onArchiveScene,
-      onExport, entryStack, entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry,
-      onRenameEntity, onDeleteEntity });
+  const ls = useLabelState(activeProjectId, labelStore);
+  const viewStageContent = makeViewStage({
+    view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene,
+    onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
+    onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
+    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls,
+  });
   return { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
-    setShowSettings, setShowExport, setExportTarget, onExport, liveWordCount, manuscriptTotal,
-    goalProgress, docName, binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn };
+    setShowSettings, setShowExport, setExportTarget, liveWordCount, manuscriptTotal,
+    goalProgress, docName, binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId,
+    motionOn, labelState: ls, labelStore,
+  };
 }
+
+// ---------------------------------------------------------------------------
+// AppContent
+// ---------------------------------------------------------------------------
 
 export function AppContent(props: AppContentProps) {
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, setExportTarget, liveWordCount, manuscriptTotal, goalProgress,
-    docName, binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn } = useAppContentSlots(props);
-  const { view, onViewChange } = props;
+    docName, binderSlot, inspectorSlot, viewStageContent, overlays, motionOn,
+    labelState, labelStore,
+  } = useAppContentSlots(props);
+  const { view, onViewChange, activeProjectId } = props;
   return (
     <>
       <AppShell focusMode={focusMode} anim={motionOn} viewKey={view}
@@ -258,10 +334,7 @@ export function AppContent(props: AppContentProps) {
           goalsOn={goalsOn} hasQuickItems={hasQuickItems}
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}
           onEnterFocus={() => setFocusMode(true)} onOpenSettings={() => setShowSettings(true)}
-          onOpenExport={() => {
-            setExportTarget("manuscript", activeProjectId ?? "");
-            setShowExport(true);
-          }} />}
+          onOpenExport={() => { setExportTarget("manuscript", activeProjectId ?? ""); setShowExport(true); }} />}
         binder={binderSlot}
         viewStage={<>{focusMode && <FocusExitButton onExit={() => setFocusMode(false)} />}{viewStageContent}</>}
         inspector={inspectorSlot}
@@ -269,63 +342,14 @@ export function AppContent(props: AppContentProps) {
           manuscriptTotal={manuscriptTotal} goal={goalProgress} />}
       />
       <OverlayStack {...overlays} activeProjectId={activeProjectId} />
+      <LabelManagerOverlay
+        show={labelState.showLabelManager}
+        activeProjectId={activeProjectId}
+        labels={labelState.labels}
+        labelStore={labelStore}
+        onClose={() => labelState.setShowLabelManager(false)}
+        onChanged={labelState.refreshLabels}
+      />
     </>
   );
 }
-
-// ---------------------------------------------------------------------------
-// View-stage builder
-// ---------------------------------------------------------------------------
-
-interface ViewStageCtx {
-  storyBibleStore: SqliteStoryBibleStore;
-  onEntitiesChanged: () => void;
-  tree: BinderTree;
-  onSelectScene: (sceneId: string) => void;
-  onViewChange: (view: AppView) => void;
-  selectedSceneId: string | null;
-  linksVersion: number;
-  reloadTree: () => void;
-  dragCallbacks: DragCallbacks;
-  /** Opens Goals modal pre-scoped; passed to Corkboard for right-click "Add goal". */
-  onAddGoal: (scope: "scene" | "chapter", targetId: string) => void;
-  /** Archives a scene; passed to Corkboard so its context-menu archive is real, not a toast. */
-  onArchiveScene: (sceneId: string) => void;
-  /** Opens Export overlay pre-scoped to a scene; passed to Corkboard. */
-  onExport: (scope: "scene", targetId: string) => void;
-  // Entry nav
-  entryStack: EntryFrame[];
-  entryOrigin: "write" | "bible";
-  onOpenEntry: (id: string, kind: "Character" | "Location") => void;
-  onPushEntry: (id: string, kind: "Character" | "Location") => void;
-  onEntryBack: () => void;
-  onExitEntry: () => void;
-  onRenameEntity: (kind: string, id: string, name: string) => void;
-  onDeleteEntity: (kind: string, id: string) => void;
-}
-
-function buildViewStage(
-  view: AppView, doc: Y.Doc | null, activeProjectId: string | null, ctx: ViewStageCtx,
-) {
-  if (view === "cork") {
-    return <Corkboard tree={ctx.tree} onSelectScene={ctx.onSelectScene}
-      onViewChange={ctx.onViewChange} reloadTree={ctx.reloadTree}
-      dragCallbacks={ctx.dragCallbacks} onAddGoal={ctx.onAddGoal}
-      onArchiveScene={ctx.onArchiveScene} onExport={ctx.onExport} />;
-  }
-  if (view === "bible" && activeProjectId) {
-    return <StoryBibleView store={ctx.storyBibleStore} projectId={activeProjectId}
-      onEntitiesChanged={ctx.onEntitiesChanged} onOpenEntry={ctx.onOpenEntry} />;
-  }
-  if (view === "entry") {
-    return <EntryViewStage
-      store={ctx.storyBibleStore} entryStack={ctx.entryStack}
-      entryOrigin={ctx.entryOrigin} tree={ctx.tree}
-      onSelectScene={ctx.onSelectScene} onPushEntry={ctx.onPushEntry}
-      onEntryBack={ctx.onEntryBack} onExitEntry={ctx.onExitEntry}
-      onRenameEntity={ctx.onRenameEntity} onDeleteEntity={ctx.onDeleteEntity} />;
-  }
-  return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
-    storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion} />;
-}
-
