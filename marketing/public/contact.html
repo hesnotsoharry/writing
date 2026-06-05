@@ -59,7 +59,47 @@
     </div>
   </div>
 </section>
-<script>document.getElementById('contactForm').addEventListener('submit',function(e){e.preventDefault();var n=e.target.querySelector('.news-note');n.textContent="Thanks — your message is on its way. We will be in touch soon.";e.target.reset();});</script>
+<script type="module">
+import { isValidEmail } from './form-utils.js';
+var form = document.getElementById('contactForm');
+var btn  = form.querySelector('button[type="submit"]');
+var note = form.closest('.acct-card').querySelector('.news-note');
+form.addEventListener('submit', async function (e) {
+  e.preventDefault();
+  var inputs = form.querySelectorAll('input, textarea');
+  var name    = inputs[0].value.trim();
+  var email   = inputs[1].value.trim();
+  var message = inputs[2].value.trim();
+  if (!name || !isValidEmail(email) || !message) {
+    note.textContent = 'Please fill in all fields with a valid email.';
+    note.style.color = 'var(--error, #c0392b)';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    var res = await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, message: message }),
+    });
+    if (res.ok) {
+      note.textContent = 'Thanks — your message is on its way. We will be in touch soon.';
+      note.style.color = '';
+      form.reset();
+    } else {
+      note.textContent = 'Something went wrong. Please email support@writersnook.app directly.';
+      note.style.color = 'var(--error, #c0392b)';
+    }
+  } catch (_) {
+    note.textContent = 'Could not reach the server. Please try again shortly.';
+    note.style.color = 'var(--error, #c0392b)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send message';
+  }
+});
+</script>
 <footer class="foot">
   <div class="wrap">
     <div class="foot-top">

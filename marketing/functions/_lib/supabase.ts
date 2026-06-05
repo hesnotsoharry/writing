@@ -7,6 +7,7 @@ export interface Env {
   LEMON_SQUEEZY_SIGNING_SECRET: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
+  CONTACT_TO?: string;
 }
 
 /**

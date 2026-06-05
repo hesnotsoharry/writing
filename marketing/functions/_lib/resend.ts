@@ -5,6 +5,7 @@ interface EmailMessage {
   subject: string;
   html: string;
   text: string;
+  replyTo?: string;
 }
 
 interface SendResult {
@@ -19,13 +20,15 @@ export async function sendEmail(env: Env, msg: EmailMessage): Promise<SendResult
     return { id: null, skipped: true };
   }
 
-  const body = JSON.stringify({
+  const payload: Record<string, unknown> = {
     from: env.RESEND_FROM,
     to: Array.isArray(msg.to) ? msg.to : [msg.to],
     subject: msg.subject,
     html: msg.html,
     text: msg.text,
-  });
+  };
+  if (msg.replyTo) payload["reply_to"] = msg.replyTo;
+  const body = JSON.stringify(payload);
 
   try {
     const resp = await fetch("https://api.resend.com/emails", {
