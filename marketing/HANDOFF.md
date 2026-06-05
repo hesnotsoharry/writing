@@ -105,10 +105,15 @@ Every spot that needs a backend / Lemon Squeezy wiring is marked **inline** with
 a `WN_TODO_*` token (grep for it) or listed here. The mock uses `#` or a fake
 redirect so the flow is clickable end-to-end.
 
+> **Update (waves m1–m2):** the static site now lives in **`public/`**; Cloudflare Pages Functions in
+> `functions/`, Supabase schema in `supabase/`. The fulfillment **webhook + purchases schema are wired
+> (m1)**; **`WN_TODO_PAYMENT` + `WN_TODO_COUPONS` are wired (m2)** — see **`CHECKOUT-SETUP.md`**.
+> `WN_TODO_MAGICLINK`, downloads, license key, account data, newsletter, and contact remain (waves m3–m4).
+
 | Token / location | What the mock does | What production needs |
 |---|---|---|
-| **`WN_TODO_PAYMENT`** — `checkout.html` pay button | redirects to `purchase-success.html` | Hand off to **Lemon Squeezy Checkout** (overlay/hosted/embedded) with line items: app ($49 one-time) + optional Cloud Backup & Sync ($5/mo) + applied coupon + email. On success, route to `purchase-success.html` with order/license context. |
-| **`WN_TODO_COUPONS`** — `checkout.html` `COUPONS` map | client-side demo codes `FOUNDERS` (20%), `EARLYBIRD` ($10) | **Real coupons live in Lemon Squeezy** (incl. the launch **FOUNDERS** code). Validate via LS Checkout or LS API; remove client-side discount math (user-editable). |
+| **`WN_TODO_PAYMENT`** — `checkout.html` pay button | ✅ **WIRED (m2)** | lemon.js overlay via `public/checkout.js` → LS hosted checkout (one-time app, founder $29, prefilled email + coupon→`discount_code`); `Checkout.Success` → `purchase-success.html`. Sync add-on hidden (Phase-2). Slot real store/variant IDs in `public/ls-config.js` — see `CHECKOUT-SETUP.md`. |
+| **`WN_TODO_COUPONS`** — `checkout.html` coupon field | ✅ **WIRED (m2)** | client-side discount math removed; the coupon input value is passed through as `checkout[discount_code]` for LS to validate. Create targeted codes (e.g. `FOUNDERS`) in the LS dashboard. |
 | **`WN_TODO_MAGICLINK`** — `signin.html` form | swaps to "check your inbox" card | POST email → backend sends signed, short-lived magic-link email; link authenticates and lands on `account.html`. Same flow = "restore purchase" (account keyed by email). |
 | **Downloads** — `purchase-success.html` & `account.html` (`href="#"` on the macOS/Windows buttons) | dead links | Real installer URLs, **authenticated to the purchase** (LS-signed/licensed download links). |
 | **License key** — `purchase-success.html` `#lickey`, `account.html` `#lickey` | hard-coded `WNOOK-…` string | Real key from Lemon Squeezy license API. App verifies it once with LS on activation. |
