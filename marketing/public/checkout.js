@@ -64,10 +64,20 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
     return;
   }
 
-  // Wire the Checkout.Success event: redirect to the thank-you page.
+  // Wire the Checkout.Success event: capture order data, then redirect.
   window.LemonSqueezy.Setup({
     eventHandler: function (data) {
       if (data && data.event === "Checkout.Success") {
+        var d = (data.data) || {};
+        try {
+          sessionStorage.setItem("wn_order", JSON.stringify({
+            email: d.user_email || null,
+            orderNumber: (d.order_number != null) ? d.order_number : null,
+            totalCents: (d.total != null) ? d.total : null,
+            productName: (d.first_order_item || {}).product_name || null,
+            receiptUrl: (d.urls || {}).receipt || null,
+          }));
+        } catch (e) { /* sessionStorage unavailable — page falls back to generic */ }
         window.location.href = "purchase-success.html";
       }
     },

@@ -37,7 +37,7 @@
     </div>
     <span class="eyebrow center">Payment complete</span>
     <h1 class="display" style="font-size:clamp(34px,4.8vw,52px);margin-top:14px">You're in. Welcome to the&nbsp;Nook.</h1>
-    <p class="lede" style="margin:18px auto 0;max-width:560px">Your copy of Writers Nook is ready — and it's already tied to your purchase. We've emailed everything below to <strong style="color:var(--ink)">nina@example.com</strong> too.</p>
+    <p class="lede" style="margin:18px auto 0;max-width:560px">Your copy of Writers Nook is ready — and it's already tied to your purchase. We've emailed everything below to <strong style="color:var(--ink)" id="lede-email">your email address</strong> too.</p>
   </div>
 </header>
 
@@ -53,14 +53,14 @@
       <div class="dl-meta"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>These links are authenticated to your purchase — no extra sign-in needed. Version 1.0 · also valid from your account.</div>
     </div>
 
-    <!-- license key -->
+    <!-- license key / receipt -->
     <div class="acct-card io" style="padding:30px;margin-top:22px">
       <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg>Your license key</div>
-      <div class="keybox">
-        <code id="lickey">WNOOK-7Q4M-XP2D-9KFA-T1RE</code>
-        <button class="copybtn" id="copyKey"><svg class="ic" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy</button>
-      </div>
-      <p style="font-size:13.5px;color:var(--ink-3);margin:12px 0 0">Paste this into Writers Nook once to activate it — the app verifies it a single time, then you're set. It's saved to your account too, so you can always find it again, and it activates on all your computers.</p>
+      <p style="margin:10px 0 14px">Your license key is in your confirmation email and on your <a href="account.html">account page</a>.</p>
+      <a id="receipt-link" class="m-btn m-btn-ghost" href="#" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15a0 0 0 010 0H6a0 0 0 010 0z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+        View my license &amp; receipt
+      </a>
     </div>
 
     <!-- next steps + order -->
@@ -69,17 +69,17 @@
         <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Next steps</div>
         <ol class="steps-ol">
           <li><div><div class="st-t">Download &amp; install</div><div class="st-d">Open the file and drag Writers Nook in.</div></div></li>
-          <li><div><div class="st-t">Enter your license key</div><div class="st-d">Paste the key above when prompted.</div></div></li>
+          <li><div><div class="st-t">Enter your license key</div><div class="st-d">Find your key in your confirmation email or on your account page, and paste it when prompted.</div></div></li>
           <li><div><div class="st-t">Turn on backup (optional)</div><div class="st-d">Add Cloud Backup &amp; Sync any time, for $5/mo.</div></div></li>
         </ol>
       </div>
-      <div class="acct-card">
+      <div class="acct-card" id="order-summary-section">
         <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15a0 0 0 010 0H6a0 0 0 010 0z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>Order summary</div>
-        <div class="kv"><span class="k">Writers Nook — app</span><span class="v">$29.00</span></div>
-        <div class="kv"><span class="k">Order</span><span class="v">#WN-10428</span></div>
-        <div class="kv"><span class="k">Date</span><span class="v">June 4, 2026</span></div>
-        <div class="kv"><span class="k">Total paid</span><span class="v">$29.00 USD</span></div>
-        <div style="margin-top:16px"><a class="ls-trust" href="#"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Receipt &amp; payment by Lemon Squeezy</a></div>
+        <div class="kv"><span class="k">Product</span><span class="v" id="succ-product">—</span></div>
+        <div class="kv"><span class="k">Order</span><span class="v" id="succ-order">—</span></div>
+        <div class="kv"><span class="k">Total paid</span><span class="v" id="succ-amount">—</span></div>
+        <div class="kv"><span class="k">Email</span><span class="v" id="succ-email">—</span></div>
+        <div id="generic-note" style="display:none;margin-top:12px;font-size:13.5px;color:var(--ink-3)">Order details will be in your confirmation email. Visit your <a href="account.html">account page</a> to see your license key.</div>
       </div>
     </div>
 
@@ -111,16 +111,6 @@
 </footer>
 
 <script src="site.js"></script>
-<script>
-(function(){
-  var btn=document.getElementById('copyKey');
-  if(btn) btn.addEventListener('click',function(){
-    var k=document.getElementById('lickey').textContent.trim();
-    navigator.clipboard&&navigator.clipboard.writeText(k);
-    btn.classList.add('done'); btn.innerHTML='<svg class="ic" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Copied';
-    setTimeout(function(){ btn.classList.remove('done'); btn.innerHTML='<svg class="ic" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy'; },1800);
-  });
-})();
-</script>
+<script type="module" src="purchase-success.js"></script>
 </body>
 </html>
