@@ -90,7 +90,8 @@
           <div class="co-line-amt">$49.00</div>
         </div>
 
-        <!-- add-on toggle -->
+        <!-- WN_PHASE2: re-enable sync add-on -->
+        <!--
         <label class="co-addon" id="addonRow">
           <span class="co-line-ic alt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.5A4.5 4.5 0 0017 8h-1.26A7 7 0 104 15"/><path d="M12 12v8m0-8l-3 3m3-3l3 3"/></svg></span>
           <span class="co-line-body">
@@ -99,6 +100,7 @@
           </span>
           <span class="co-switch"><input type="checkbox" id="addon"><span class="co-knob"></span></span>
         </label>
+        -->
 
         <!-- coupon -->
         <div class="co-coupon" id="couponWrap">
@@ -236,118 +238,57 @@
 }
 </style>
 
+<script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>
+<script src="ls-config.js"></script>
+<script type="module" src="checkout.js"></script>
 <script src="site.js"></script>
 <script>
 (function(){
-  var APP_PRICE = 49, SUB_PRICE = 5;
-  /* ===========================================================================
-     PLACEHOLDER — TERMINAL-AGENT INTEGRATION POINT: COUPONS  (token: WN_TODO_COUPONS)
-     ---------------------------------------------------------------------------
-     These are DEMO coupon codes for the front-end mock only. The REAL coupons
-     (e.g. the FOUNDERS launch code) are created & validated in Lemon Squeezy.
-     Replace this client-side map with Lemon Squeezy discount handling:
-       - pass the entered code to LS Checkout (it applies & validates), or
-       - validate via the LS API and reflect the discounted total here.
-     Do NOT keep real discount logic client-side (it is user-editable).
-     =========================================================================== */
-  var COUPONS = {
-    'FOUNDERS': { label: 'Founders (20% off)', type: 'pct', value: 20 },   // demo — real value set in Lemon Squeezy
-    'EARLYBIRD': { label: 'Early bird ($10 off)', type: 'flat', value: 10 } // demo
-  };
-  var applied = null;
-
-  var addon = document.getElementById('addon');
-  var row = document.getElementById('addonRow');
-  function money(n){ return '$' + n.toFixed(2); }
-
-  function discountAmount(){
-    if(!applied) return 0;
-    var c = COUPONS[applied];
-    var d = c.type === 'pct' ? APP_PRICE * c.value/100 : c.value;
-    return Math.min(d, APP_PRICE);
-  }
-
-  function update(){
-    var on = addon.checked;
-    row.classList.toggle('on', on);
-
-    // discount row
-    var disc = discountAmount();
-    var discRow = document.getElementById('discRow');
-    if(applied){
-      discRow.hidden = false;
-      document.getElementById('discLabel').textContent = COUPONS[applied].label;
-      document.getElementById('discAmt').textContent = '-' + money(disc);
-    } else { discRow.hidden = true; }
-
-    // monthly line: 0 -> 5
-    document.getElementById('monthly').textContent = money(on ? SUB_PRICE : 0) + '/mo';
-
-    // totals
-    var today = APP_PRICE - disc;
-    document.getElementById('grand').textContent = money(today) + ' USD';
-    document.getElementById('payTotal').textContent = money(today);
-
-    // subscription note
-    var subNote = document.getElementById('subNote');
-    if(on){ subNote.hidden = false; document.getElementById('subText').textContent = 'then ' + money(SUB_PRICE) + '/mo, billed monthly'; }
-    else { subNote.hidden = true; }
-  }
-
-  addon.addEventListener('change', update);
-
-  // coupon apply
+  // Coupon input: the value flows to checkout[discount_code] via checkout.js.
+  // Client-side discount math is removed — LS is the source of truth for pricing.
+  // The coupon DOM elements are kept so checkout.js can read the entered code.
   var couponInput = document.getElementById('coupon');
   var applyBtn = document.getElementById('applyCoupon');
   var msg = document.getElementById('couponMsg');
+
+  // Apply button now just gives visual feedback; real validation happens inside LS.
   function applyCoupon(){
     var code = (couponInput.value || '').trim().toUpperCase();
-    if(applied){ // acts as "remove"
-      applied = null; couponInput.value=''; couponInput.disabled=false;
-      applyBtn.textContent='Apply'; applyBtn.classList.remove('applied');
-      msg.hidden = true; update(); return;
-    }
     if(!code){ return; }
-    if(COUPONS[code]){
-      applied = code; couponInput.value = code; couponInput.disabled = true;
-      applyBtn.textContent = 'Remove'; applyBtn.classList.add('applied');
-      msg.hidden = false; msg.className = 'co-coupon-msg ok';
-      msg.textContent = COUPONS[code].label + ' applied.';
-    } else {
-      msg.hidden = false; msg.className = 'co-coupon-msg err';
-      msg.textContent = "That code isn't valid. Double-check and try again.";
-    }
-    update();
+    // Show the code as "staged" so the buyer knows it will be applied on checkout.
+    applyBtn.textContent = 'Remove'; applyBtn.classList.add('applied');
+    msg.hidden = false; msg.className = 'co-coupon-msg ok';
+    msg.textContent = 'Code "' + code + '" will be applied at checkout.';
   }
-  applyBtn.addEventListener('click', applyCoupon);
-  couponInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); applyCoupon(); } });
+  function removeCoupon(){
+    couponInput.value = ''; couponInput.disabled = false;
+    applyBtn.textContent = 'Apply'; applyBtn.classList.remove('applied');
+    msg.hidden = true;
+  }
 
-  update();
-
-  document.getElementById('payBtn').addEventListener('click', function(){
-    /* ========================================================================
-       PLACEHOLDER — TERMINAL-AGENT INTEGRATION POINT: PAYMENT  (token: WN_TODO_PAYMENT)
-       ------------------------------------------------------------------------
-       The mock just forwards to the success page. In production, hand off to
-       Lemon Squeezy Checkout (overlay/hosted/embedded) with the chosen line
-       items: app ($49 one-time) + optionally Cloud Backup & Sync ($5/mo) +
-       any applied coupon + the email. On LS success webhook/redirect, send the
-       buyer to purchase-success.html with their order/license context.
-       ======================================================================== */
-    window.location.href = 'purchase-success.html';
-  });
+  if(applyBtn){
+    applyBtn.addEventListener('click', function(){
+      if(applyBtn.classList.contains('applied')){ removeCoupon(); return; }
+      applyCoupon();
+    });
+  }
+  if(couponInput){
+    couponInput.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); applyCoupon(); }
+    });
+  }
 
   // light input formatting for realism
-  var card=document.getElementById('card');
+  var card = document.getElementById('card');
   if(card) card.addEventListener('input', function(){
-    var v=this.value.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim();
-    this.value=v;
+    var v = this.value.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim();
+    this.value = v;
   });
-  var exp=document.getElementById('exp');
+  var exp = document.getElementById('exp');
   if(exp) exp.addEventListener('input', function(){
-    var v=this.value.replace(/\D/g,'').slice(0,4);
-    if(v.length>2) v=v.slice(0,2)+' / '+v.slice(2);
-    this.value=v;
+    var v = this.value.replace(/\D/g,'').slice(0,4);
+    if(v.length > 2) v = v.slice(0,2) + ' / ' + v.slice(2);
+    this.value = v;
   });
 })();
 </script>

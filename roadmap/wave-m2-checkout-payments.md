@@ -86,6 +86,10 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | URL-builder contract proven (vitest 4/4); pay-click wiring + Setup handler in place. Full browser-overlay observation deferred — needs real LS test store/variant IDs in ls-config.js. tsc 0, vitest 10/10. |
+
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
 
 ## Follow-up candidates
