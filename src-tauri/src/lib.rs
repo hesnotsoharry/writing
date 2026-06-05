@@ -9,7 +9,7 @@ fn greet(name: &str) -> String {
 /// Open a file or directory path in the system's default application
 /// (Finder/Explorer). Consumed by Lane 21's "Reveal in folder" button.
 #[tauri::command]
-fn open_path(app: tauri::AppHandle, path: &str) -> Result<(), String> {
+fn open_path(_app: tauri::AppHandle, path: &str) -> Result<(), String> {
     tauri_plugin_opener::open_path(path, None::<&str>)
         .map_err(|e| e.to_string())
 }
