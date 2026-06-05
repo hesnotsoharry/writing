@@ -18,6 +18,7 @@ import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
 import { Icon } from "./components/Icon";
 import type { Project, Scene } from "./db/binderStore";
+import type { Snapshot } from "./db/snapshotStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { Editor } from "./editor/Editor";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
@@ -75,6 +76,10 @@ export interface AppContentProps {
   onPushEntry: (id: string, kind: "Character" | "Location") => void;
   onEntryBack: () => void;
   onExitEntry: () => void;
+  // ── History rail (inspector) ─────────────────────────────────────────────
+  historySnapshots?: Snapshot[];
+  onOpenHistory?: () => void;
+  onTakeSnapshot?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,43 +152,40 @@ function useChapterInfo(
 // AppContent
 // ---------------------------------------------------------------------------
 
-/** Builds the binder + inspector slots (extracted to keep useAppContentSlots ≤40 lines). */
-function buildSideSlots(p: {
+interface SideSlotsProps {
   tree: BinderTree; selectedSceneId: string | null; onSelectScene: (id: string) => void;
   callbacks: AppContentProps["callbacks"]; projects: AppContentProps["projects"];
   activeProjectId: string | null; onSwitchProject: (id: string) => void;
   onCreateProject: () => void; dragCallbacks: DragCallbacks;
   quickCount: number; archivedCount: number; manuscriptTotal: number; overlays: OverlayFlags;
   storyBibleStore: AppContentProps["storyBibleStore"]; activeScene: Scene | null;
-  linksVersion: number; liveWordCount: number;
-  chapterId: string | null; chapterTotal: number | null;
+  linksVersion: number; liveWordCount: number; chapterId: string | null; chapterTotal: number | null;
   onAddGoal: (s: "scene" | "chapter", id: string) => void;
   onExport: (s: "scene" | "chapter", id: string) => void;
   showSidePanels: boolean; view: AppView;
   onOpenEntry: (id: string, kind: "Character" | "Location") => void;
-}) {
-  const { setShowArchive } = p.overlays;
+  historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
+}
+
+/** Builds the binder + inspector slots (extracted to keep useAppContentSlots ≤40 lines). */
+function buildSideSlots(p: SideSlotsProps) {
   const callbacksWithGoal = { ...p.callbacks, onAddGoal: p.onAddGoal, onExport: p.onExport };
   const binderSlot = p.showSidePanels
     ? <Binder tree={p.tree} selectedSceneId={p.selectedSceneId} onSelectScene={p.onSelectScene}
         callbacks={callbacksWithGoal} projects={p.projects} activeProjectId={p.activeProjectId}
         onSwitchProject={p.onSwitchProject} onCreateProject={p.onCreateProject}
-        dragCallbacks={p.dragCallbacks} quickCount={p.quickCount}
-        archivedCount={p.archivedCount}
-        manuscriptTotal={p.manuscriptTotal}
-        onOpenQuickNotes={() => p.overlays.setShowInbox(true)}
-        onOpenArchive={() => setShowArchive(true)} />
+        dragCallbacks={p.dragCallbacks} quickCount={p.quickCount} archivedCount={p.archivedCount}
+        manuscriptTotal={p.manuscriptTotal} onOpenQuickNotes={() => p.overlays.setShowInbox(true)}
+        onOpenArchive={() => p.overlays.setShowArchive(true)} />
     : null;
-  // Inspector is hidden when the full-entry view is active (it renders its own right rail).
   const inspectorSlot = (p.showSidePanels && p.view === "editor" && p.activeProjectId)
     ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId}
-        sceneId={p.selectedSceneId} scene={p.activeScene}
-        refreshKey={p.linksVersion} liveWordCount={p.liveWordCount}
-        manuscriptTotal={p.manuscriptTotal} chapterId={p.chapterId} chapterTotal={p.chapterTotal}
-        onOpenEntry={(entityId, type) => {
-          const kind = type === "character" ? "Character" : "Location";
-          p.onOpenEntry(entityId, kind);
-        }} />
+        sceneId={p.selectedSceneId} scene={p.activeScene} refreshKey={p.linksVersion}
+        liveWordCount={p.liveWordCount} manuscriptTotal={p.manuscriptTotal}
+        chapterId={p.chapterId} chapterTotal={p.chapterTotal}
+        historySnapshots={p.historySnapshots} onOpenHistory={p.onOpenHistory}
+        onTakeSnapshot={p.onTakeSnapshot}
+        onOpenEntry={(entityId, type) => p.onOpenEntry(entityId, type === "character" ? "Character" : "Location")} />
     : null;
   return { binderSlot, inspectorSlot };
 }
@@ -206,7 +208,8 @@ function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree,
-    entryStack, entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry } = props;
+    entryStack, entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry,
+    historySnapshots, onOpenHistory, onTakeSnapshot } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals,
     setShowQuickCapture, setShowSettings, setShowExport, setExportTarget } = overlays;
   useGlobalKeybindings(overlays); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
@@ -230,6 +233,7 @@ function useAppContentSlots(props: AppContentProps) {
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, showSidePanels, view, onOpenEntry,
+    historySnapshots, onOpenHistory, onTakeSnapshot,
   });
   const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);
   const viewStageContent = buildViewStage(view, doc, activeProjectId,

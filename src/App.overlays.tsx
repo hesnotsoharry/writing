@@ -9,6 +9,7 @@ import type { Dispatch, ReactElement, SetStateAction } from "react";
 import type { BinderTree } from "./binder/buildTree";
 import type { BinderStore } from "./db/binderStore";
 import type { SceneDocStore } from "./db/sceneDocStore";
+import type { Snapshot } from "./db/snapshotStore";
 import { Archive } from "./features/archive/Archive";
 import { ExportOverlay } from "./features/export/Export";
 import type { ExportScope } from "./features/export/types";
@@ -17,6 +18,7 @@ import { Goals } from "./features/goals/Goals";
 import { Inbox } from "./features/inbox/Inbox";
 import { QuickCapture } from "./features/quickcapture/QuickCapture";
 import { Settings } from "./features/settings/Settings";
+import { VersionHistory } from "./storybible/VersionHistory";
 import type { AccentPalette, Theme } from "./theme/useTheme";
 
 export interface OverlayStackProps {
@@ -52,11 +54,24 @@ export interface OverlayStackProps {
   binderStore: BinderStore;
   /** Called after a restore inside Archive so the binder count and tree refresh. */
   onArchiveChanged: () => void;
+  // ── Version history ─────────────────────────────────────────────────────
+  showHistory: boolean;
+  setShowHistory: (v: boolean) => void;
+  historySceneId: string | null;
+  historySceneTitle: string;
+  historySnapshots: Snapshot[];
+  historyCurrentText: string;
+  historyCurrentWords: number;
+  onHistoryCapture?: () => Promise<string | null>;
+  onHistoryRename?: (snapshotId: string, label: string) => void;
+  onHistoryRestore?: (snapshotId: string) => void;
+  onHistoryDelete?: (snapshotId: string) => void;
+  onHistoryGetText?: (snapshotId: string) => Promise<string>;
 }
 
 type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
 
-export function OverlayStack(p: OverlayStackAllProps): ReactElement {
+function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
   const closeGoals = () => { p.setShowGoals(false); p.setGoalsInitialScope(undefined); };
   return (
     <>
@@ -69,12 +84,8 @@ export function OverlayStack(p: OverlayStackAllProps): ReactElement {
           activeProjectId={p.activeProjectId} setHasQuickItems={p.setHasQuickItems} />
       )}
       {p.showArchive && (
-        <Archive
-          projectId={p.activeProjectId ?? undefined}
-          store={p.binderStore}
-          onClose={() => p.setShowArchive(false)}
-          onChanged={p.onArchiveChanged}
-        />
+        <Archive projectId={p.activeProjectId ?? undefined} store={p.binderStore}
+          onClose={() => p.setShowArchive(false)} onChanged={p.onArchiveChanged} />
       )}
       {p.showGoals && (
         <Goals onClose={closeGoals} goalsOn={p.goalsOn} setGoalsOn={p.setGoalsOn}
@@ -88,6 +99,22 @@ export function OverlayStack(p: OverlayStackAllProps): ReactElement {
       {p.showSettings && (
         <Settings onClose={() => p.setShowSettings(false)} setTheme={p.setTheme} setAccent={p.setAccent}
           onOpenGoals={() => { p.setShowSettings(false); p.setShowGoals(true); }} />
+      )}
+    </>
+  );
+}
+
+export function OverlayStack(p: OverlayStackAllProps): ReactElement {
+  return (
+    <>
+      <FeatureOverlays {...p} />
+      {p.showHistory && p.historySceneId && (
+        <VersionHistory sceneId={p.historySceneId} sceneTitle={p.historySceneTitle}
+          snapshots={p.historySnapshots} currentText={p.historyCurrentText}
+          currentWords={p.historyCurrentWords} onCapture={p.onHistoryCapture}
+          onRename={p.onHistoryRename} onRestore={p.onHistoryRestore}
+          onDelete={p.onHistoryDelete} onClose={() => p.setShowHistory(false)}
+          getSnapshotText={p.onHistoryGetText} />
       )}
     </>
   );

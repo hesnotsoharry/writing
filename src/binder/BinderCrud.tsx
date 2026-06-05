@@ -41,6 +41,16 @@ export interface BinderCallbacks {
    * Optional — omitting it falls back to the "coming in a later wave" toast.
    */
   onExport?: (scope: "scene" | "chapter", targetId: string) => void;
+  /**
+   * Take a named snapshot of a scene.
+   * Optional — existing callers omit it; missing = item hidden from menu.
+   */
+  onTakeSnapshot?: (sceneId: string) => void;
+  /**
+   * Open the Version History overlay for a scene.
+   * Optional — existing callers omit it; missing = item hidden from menu.
+   */
+  onOpenHistory?: (sceneId: string) => void;
 }
 
 // ── InlineRename ──────────────────────────────────────────────────────────
@@ -148,6 +158,12 @@ function useSceneMenu(
         onDelete: () => confirmDeleteScene(scene, callbacks.onDeleteScene),
         onAddGoal: callbacks.onAddGoal
           ? () => callbacks.onAddGoal!("scene", scene.id)
+          : undefined,
+        onTakeSnapshot: callbacks.onTakeSnapshot
+          ? () => callbacks.onTakeSnapshot!(scene.id)
+          : undefined,
+        onOpenHistory: callbacks.onOpenHistory
+          ? () => callbacks.onOpenHistory!(scene.id)
           : undefined,
       }),
     });

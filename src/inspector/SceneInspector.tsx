@@ -4,8 +4,10 @@ import { Icon } from "../components/Icon";
 import type { MenuDescriptor } from "../components/menu/ContextMenu";
 import { ContextMenu } from "../components/menu/ContextMenu";
 import type { Scene } from "../db/binderStore";
+import type { Snapshot } from "../db/snapshotStore";
 import { SqliteBinderStore } from "../db/sqliteBinderStore";
 import type { Entity, EntityType, SceneLink, StoryBibleStore } from "../db/storyBibleStore";
+import { HistoryRail } from "./HistoryRail";
 import { anyGoalOn, GoalGroup } from "./InspectorGoalRings";
 import { SynopsisGroup } from "./InspectorSynopsis";
 
@@ -212,23 +214,46 @@ export interface SceneInspectorProps {
   manuscriptTotal?: number;
   chapterTotal?: number | null;
   chapterId?: string | null;
+  // ── History rail ──────────────────────────────────────────────────────────
+  /** Last 3 snapshots for the active scene (pre-loaded by App). */
+  historySnapshots?: Snapshot[];
+  /** Open the full version history overlay. */
+  onOpenHistory?: () => void;
+  /** Take a snapshot from the history rail + button. */
+  onTakeSnapshot?: () => void;
+}
+
+function EntityGroups({ store, projectId, sceneId, characters, locations, ready, bump, onOpenEntry }: {
+  store: StoryBibleStore; projectId: string; sceneId: string | null;
+  characters: Entity[]; locations: Entity[]; ready: boolean; bump: () => void;
+  onOpenEntry?: (entityId: string, type: EntityType) => void;
+}) {
+  return (
+    <>
+      <EntityGroup iconName="users" label="Characters in scene" entities={characters} ready={ready}
+        emptyHint="No characters linked yet." linkLabel="Link a character"
+        entityType="character" projectId={projectId} sceneId={sceneId} store={store}
+        onLinked={bump} onOpenEntry={onOpenEntry} />
+      <EntityGroup iconName="mapPin" label="Locations in scene" entities={locations} ready={ready}
+        emptyHint="No locations linked yet." linkLabel="Link a location"
+        entityType="location" projectId={projectId} sceneId={sceneId} store={store}
+        onLinked={bump} onOpenEntry={onOpenEntry} />
+    </>
+  );
 }
 
 export function SceneInspector({
   store, projectId, sceneId, scene, refreshKey, liveWordCount, onOpenEntry,
   manuscriptTotal: manuscriptTotalProp, chapterTotal, chapterId,
+  historySnapshots, onOpenHistory, onTakeSnapshot,
 }: SceneInspectorProps) {
   const [localRev, setLocalRev] = useState(0);
   const effectiveDep = (refreshKey ?? 0) + localRev;
   const { characters, locations, ready } = useSceneEntities(store, sceneId, effectiveDep);
-  // Fall back to the internal DB-based total when App.content doesn't supply one yet.
   const derivedTotal = useManuscriptTotal(projectId, sceneId, liveWordCount);
   const resolvedManuscriptTotal = manuscriptTotalProp ?? derivedTotal;
   const resolvedChapterId = chapterId ?? null;
   const resolvedChapterTotal = chapterTotal ?? null;
-  // Scene word count: use liveWordCount (the active scene's live count).
-  const sceneWordCount = liveWordCount;
-  // Render goal group only when at least one scope is enabled (pure read, no side-effects).
   const goalVisible = anyGoalOn(projectId, sceneId, resolvedChapterId);
   const bump = () => setLocalRev((r) => r + 1);
   return (
@@ -236,21 +261,15 @@ export function SceneInspector({
       <div className="insp-scroll">
         <SynopsisGroup scene={scene} sceneId={sceneId} />
         {goalVisible && (
-          <GoalGroup
-            projectId={projectId} sceneId={sceneId}
-            manuscriptTotal={resolvedManuscriptTotal}
-            chapterId={resolvedChapterId} chapterTotal={resolvedChapterTotal}
-            sceneWordCount={sceneWordCount}
-          />
+          <GoalGroup projectId={projectId} sceneId={sceneId}
+            manuscriptTotal={resolvedManuscriptTotal} chapterId={resolvedChapterId}
+            chapterTotal={resolvedChapterTotal} sceneWordCount={liveWordCount} />
         )}
-        <EntityGroup iconName="users" label="Characters in scene" entities={characters} ready={ready}
-          emptyHint="No characters linked yet." linkLabel="Link a character"
-          entityType="character" projectId={projectId} sceneId={sceneId} store={store}
-          onLinked={bump} onOpenEntry={onOpenEntry} />
-        <EntityGroup iconName="mapPin" label="Locations in scene" entities={locations} ready={ready}
-          emptyHint="No locations linked yet." linkLabel="Link a location"
-          entityType="location" projectId={projectId} sceneId={sceneId} store={store}
-          onLinked={bump} onOpenEntry={onOpenEntry} />
+        <EntityGroups store={store} projectId={projectId} sceneId={sceneId}
+          characters={characters} locations={locations} ready={ready}
+          bump={bump} onOpenEntry={onOpenEntry} />
+        <HistoryRail snapshots={historySnapshots ?? []} currentWords={liveWordCount}
+          onOpenAll={onOpenHistory} onCapture={onTakeSnapshot} />
       </div>
     </div>
   );

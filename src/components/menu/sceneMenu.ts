@@ -27,6 +27,10 @@ export interface SceneMenuCallbacks {
   onDelete: () => void;
   /** Opens the Goals modal pre-scoped to this scene. Optional — existing callers omit it. */
   onAddGoal?: () => void;
+  /** Take a named snapshot of the scene. Optional — existing callers omit it. */
+  onTakeSnapshot?: () => void;
+  /** Open the Version History overlay for the scene. Optional — existing callers omit it. */
+  onOpenHistory?: () => void;
 }
 
 export function buildSceneMenu(cb: SceneMenuCallbacks): MenuItem[] {
@@ -48,6 +52,21 @@ export function buildSceneMenu(cb: SceneMenuCallbacks): MenuItem[] {
   ];
   if (cb.onAddGoal !== undefined) {
     items.splice(4, 0, { label: "Add goal…", onClick: cb.onAddGoal });
+  }
+  // Version history items: insert a sep + Take snapshot + Version history…
+  // before the existing sep (which is now at index 4 or 5 depending on onAddGoal).
+  // Simplest: append after Export scene…, before the sep block.
+  if (cb.onTakeSnapshot !== undefined || cb.onOpenHistory !== undefined) {
+    // Find the first sep index to insert before it.
+    const sepIdx = items.findIndex((it) => it.type === "sep");
+    const historyItems: MenuItem[] = [];
+    if (cb.onTakeSnapshot !== undefined) {
+      historyItems.push({ label: "Take snapshot", onClick: cb.onTakeSnapshot });
+    }
+    if (cb.onOpenHistory !== undefined) {
+      historyItems.push({ label: "Version history…", onClick: cb.onOpenHistory });
+    }
+    items.splice(sepIdx, 0, ...historyItems);
   }
   return items;
 }

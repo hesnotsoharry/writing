@@ -340,6 +340,35 @@ async function migration_008_entity_portrait(db: DbHandle): Promise<void> {
   }
 }
 
+/**
+ * Create the scene_snapshots table for per-scene version history.
+ *
+ * state_base64 is TEXT, never BLOB — tauri-plugin-sql does not reliably
+ * round-trip binary columns (project CLAUDE.md gotcha, also documented in
+ * migration_004_feature_tables).
+ *
+ * kind is 'manual' | 'auto'. label is NULL for auto-saves.
+ * word_count and created_at are non-null integers (Unix ms epoch).
+ * scene_id is NOT FOREIGN-KEY-constrained, matching the pattern of all prior
+ * feature tables in this project.
+ */
+async function migration_009_scene_snapshots(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS scene_snapshots (
+      id TEXT PRIMARY KEY,
+      scene_id TEXT NOT NULL,
+      label TEXT,
+      state_base64 TEXT NOT NULL,
+      word_count INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      kind TEXT NOT NULL
+    )`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_scene_snapshots_scene_id ON scene_snapshots (scene_id)`
+  );
+}
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 /**
@@ -357,6 +386,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 6, name: "entity-fields", up: migration_006_entity_fields },
   { version: 7, name: "entity-links", up: migration_007_entity_links },
   { version: 8, name: "entity-portrait", up: migration_008_entity_portrait },
+  { version: 9, name: "scene-snapshots", up: migration_009_scene_snapshots },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

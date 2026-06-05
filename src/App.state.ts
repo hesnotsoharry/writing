@@ -91,6 +91,8 @@ function useModalFlags() {
   const [focusMode, setFocusMode] = useState(false);
   const [goalsOn, setGoalsOn] = useState(() => readGoalsOn());
   const [hasQuickItems, setHasQuickItems] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historySceneId, setHistorySceneId] = useState<string | null>(null);
   return {
     showQuickCapture, setShowQuickCapture,
     showInbox, setShowInbox,
@@ -103,6 +105,8 @@ function useModalFlags() {
     focusMode, setFocusMode,
     goalsOn, setGoalsOn,
     hasQuickItems, setHasQuickItems,
+    showHistory, setShowHistory,
+    historySceneId, setHistorySceneId,
   };
 }
 

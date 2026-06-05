@@ -1,10 +1,12 @@
 import type { MutableRefObject } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
 import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
+import type { SnapCtx } from "./App.snapshots";
+import { fetchSnapshotText, snapCapture, snapDelete, snapRename, snapRestore, snapshotStore,snapTakeFromMenu } from "./App.snapshots";
 import { useAppState, useProjectActions } from "./App.state";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { BinderTree } from "./binder/buildTree";
@@ -12,12 +14,13 @@ import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
 import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
+import type { Snapshot } from "./db/snapshotStore";
 import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { useTheme } from "./theme/useTheme";
 import { bindPersistence } from "./yjs/bindPersistence";
-import { applyEncoded } from "./yjs/serialize";
+import { applyEncoded, extractPlainText } from "./yjs/serialize";
 
 interface LoadSceneCtx {
   unbindRef: MutableRefObject<(() => void) | null>;
@@ -239,42 +242,100 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     handleSelectScene, reloadTree: doReloadTree };
 }
 
-export default function App() {
+
+function useSnapshotState(
+  doc: Y.Doc | null, selectedSceneId: string | null,
+  showHistory: boolean, historySceneId: string | null,
+) {
+  const [historySnapshots, setHistorySnapshots] = useState<Snapshot[]>([]);
+  const historyCurrentText = doc && selectedSceneId ? extractPlainText(doc) : "";
+  const historyCurrentWords = historyCurrentText.trim()
+    ? historyCurrentText.trim().split(/\s+/).filter(Boolean).length : 0;
+  useEffect(() => {
+    if (!historySceneId || !showHistory) return;
+    let alive = true;
+    snapshotStore.listSnapshots(historySceneId)
+      .then((list) => { if (alive) setHistorySnapshots(list); })
+      .catch((e: unknown) => console.error("[snapshots] listSnapshots failed", e));
+    return () => { alive = false; };
+  }, [historySceneId, showHistory]);
+  return { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords };
+}
+
+function useAppCore() {
   const state = useAppState();
   const { setTheme, setAccent } = useTheme();
   const wiring = useAppWiring(state);
-  const { tree, loading, selectedSceneId, doc, projects, activeProjectId,
-    view, setView, linksVersion, archivedVersion, bumpArchivedVersion,
-    showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
+  const { doc, selectedSceneId, showHistory, historySceneId } = state;
+  const snap = useSnapshotState(doc, selectedSceneId, showHistory, historySceneId);
+  return { state, wiring, snap, setTheme, setAccent };
+}
+
+interface OverlaysInput {
+  state: ReturnType<typeof useAppState>; wiring: AppWiring;
+  snap: ReturnType<typeof useSnapshotState>; ctx: SnapCtx;
+  sceneTitle: (id: string | null) => string; tree: BinderTree;
+  setTheme: ReturnType<typeof useTheme>["setTheme"]; setAccent: ReturnType<typeof useTheme>["setAccent"];
+}
+
+function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent }: OverlaysInput) {
+  const { showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
     showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
     showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
+    showHistory, setShowHistory, historySceneId, bumpArchivedVersion } = state;
+  const { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords } = snap;
+  const histTitle = historySceneId ? (sceneTitle(historySceneId) || sceneTitle(state.selectedSceneId)) : sceneTitle(state.selectedSceneId);
+  return {
+    showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
+    showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
+    showExport, setShowExport, exportScope: exportTarget.scope, exportTargetId: exportTarget.targetId,
+    setExportTarget: (scope: typeof exportTarget.scope, targetId: string) => setExportTarget({ scope, targetId }),
+    exportSceneDocStore: sceneDocStore, exportTree: tree, showSettings, setShowSettings,
+    focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
+    setTheme, setAccent, binderStore,
+    onArchiveChanged: () => { bumpArchivedVersion(); wiring.reloadTree(); },
+    showHistory, setShowHistory, historySceneId, historySceneTitle: histTitle,
+    historySnapshots, historyCurrentText, historyCurrentWords,
+    onHistoryCapture: () => snapCapture(ctx),
+    onHistoryRename: (id: string, label: string) => snapRename(id, label, historySceneId, setHistorySnapshots),
+    onHistoryRestore: (id: string) => snapRestore(ctx, id),
+    onHistoryDelete: (id: string) => snapDelete(id, historySceneId, setHistorySnapshots),
+    onHistoryGetText: fetchSnapshotText,
+  };
+}
+
+export default function App() {
+  const { state, wiring, snap, setTheme, setAccent } = useAppCore();
+  const { tree, loading, selectedSceneId, doc, projects, activeProjectId,
+    view, setView, linksVersion, archivedVersion,
+    setShowHistory, setHistorySceneId,
     entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
+  const { historySnapshots, setHistorySnapshots, historyCurrentWords } = snap;
+
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
-  const onArchiveChanged = () => { bumpArchivedVersion(); wiring.reloadTree(); };
+
+  const ctx: SnapCtx = { sceneId: selectedSceneId, doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory };
+  const allScenes = [...(tree.chapters.flatMap((ch) => ch.scenes)), ...tree.shortPieces];
+  const sceneTitle = (id: string | null) => id ? (allScenes.find((s) => s.id === id)?.title ?? "") : "";
   return (
-    <AppContent
-      tree={tree} selectedSceneId={selectedSceneId} doc={doc}
-      onSelectScene={wiring.handleSelectScene} callbacks={wiring.callbacks}
+    <AppContent tree={tree} selectedSceneId={selectedSceneId} doc={doc}
+      onSelectScene={wiring.handleSelectScene} callbacks={{ ...wiring.callbacks,
+        onTakeSnapshot: (id) => snapTakeFromMenu({ ...ctx, sceneId: id }, id),
+        onOpenHistory: (id) => { setHistorySceneId(id); setShowHistory(true); },
+      }}
       projects={projects} activeProjectId={activeProjectId}
       onSwitchProject={wiring.onSwitchProject} onCreateProject={wiring.onCreateProject}
       dragCallbacks={wiring.dragCallbacks} view={view} onViewChange={setView}
       linksVersion={linksVersion} onEntitiesChanged={wiring.onEntitiesChanged}
-      storyBibleStore={storyBibleStore} reloadTree={wiring.reloadTree}
-      archivedVersion={archivedVersion}
+      storyBibleStore={storyBibleStore} reloadTree={wiring.reloadTree} archivedVersion={archivedVersion}
       entryStack={entryStack} entryOrigin={entryOrigin}
-      onOpenEntry={openEntry} onPushEntry={pushEntry}
-      onEntryBack={entryBack} onExitEntry={exitEntry}
-      overlays={{ showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
-        showArchive, setShowArchive, showGoals, setShowGoals,
-        goalsInitialScope, setGoalsInitialScope,
-        showExport, setShowExport,
-        exportScope: exportTarget.scope, exportTargetId: exportTarget.targetId,
-        setExportTarget: (scope, targetId) => setExportTarget({ scope, targetId }),
-        exportSceneDocStore: sceneDocStore, exportTree: tree,
-        showSettings, setShowSettings, focusMode, setFocusMode, goalsOn, setGoalsOn,
-        hasQuickItems, setHasQuickItems, setTheme, setAccent, binderStore, onArchiveChanged }}
+      onOpenEntry={openEntry} onPushEntry={pushEntry} onEntryBack={entryBack} onExitEntry={exitEntry}
+      historySnapshots={historySnapshots}
+      onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
+      onTakeSnapshot={selectedSceneId ? () => snapTakeFromMenu(ctx, selectedSceneId) : undefined}
+      overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent })}
     />
   );
 }
