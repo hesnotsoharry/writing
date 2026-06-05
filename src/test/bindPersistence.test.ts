@@ -38,6 +38,39 @@ describe("bindPersistence", () => {
     unbind();
   });
 
+  it("calls onSaved with the correct word count after a debounced save", async () => {
+    const store = new InMemorySceneDocStore();
+    const doc = new Y.Doc();
+    let capturedId: string | null = null;
+    let capturedCount: number | null = null;
+    const unbind = bindPersistence(doc, "scene-wc", store, {
+      debounceMs: 500,
+      onSaved: (id, wordCount) => { capturedId = id; capturedCount = wordCount; },
+    });
+
+    appendParagraph(doc, "five words in this paragraph");
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(capturedId).toBe("scene-wc");
+    // "five words in this paragraph" = 5 words
+    expect(capturedCount).toBe(5);
+    unbind();
+  });
+
+  it("calls onSaved with wordCount=0 for an empty doc", async () => {
+    const store = new InMemorySceneDocStore();
+    const doc = new Y.Doc();
+    let capturedCount: number | null = null;
+    const unbind = bindPersistence(doc, "empty", store, {
+      debounceMs: 500,
+      onSaved: (_id, wordCount) => { capturedCount = wordCount; },
+    });
+    // No content appended — empty doc
+    await vi.advanceTimersByTimeAsync(500);
+    expect(capturedCount).toBe(0);
+    unbind();
+  });
+
   it("stops saving after unbind", async () => {
     const store = new InMemorySceneDocStore();
     const doc = new Y.Doc();

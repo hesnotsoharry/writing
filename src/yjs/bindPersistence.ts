@@ -5,7 +5,12 @@ import { encodeDoc, extractPlainText } from "./serialize";
 
 export interface BindPersistenceOpts {
   debounceMs?: number;
-  onSaved?: (sceneId: string) => void;
+  /**
+   * Called after a debounced save completes.
+   * `wordCount` is the word count computed from the saved plaintext
+   * (split on whitespace; 0 for an empty doc).
+   */
+  onSaved?: (sceneId: string, wordCount: number) => void;
 }
 
 /**
@@ -27,8 +32,9 @@ export function bindPersistence(
     timer = setTimeout(() => {
       timer = null;
       const text = extractPlainText(doc);
+      const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
       void store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null)
-        .then(() => { onSaved?.(sceneId); });
+        .then(() => { onSaved?.(sceneId, wordCount); });
     }, debounceMs);
   };
 
