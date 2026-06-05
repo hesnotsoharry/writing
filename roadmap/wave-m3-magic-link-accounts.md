@@ -86,7 +86,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | Form-swap wiring + signInWithOtp call in place; `isValidEmail` unit-tested (17 cases). Live magic-link send + email delivery + redirect-allowlist deferred to provisioning. tsc 0, vitest 27/27. |
+| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | e08e9f3 | Form-swap wiring + signInWithOtp call in place; `isValidEmail` unit-tested (17 cases). Live magic-link send + email delivery + redirect-allowlist deferred to provisioning. tsc 0, vitest 27/27. |
+| 2 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | `renderAccount` pure contract proven (acceptance 3/3, unmodified); account.js getSession→RLS read→DOM + sign-in-prompt/sign-out wired; demo $49→$29; activations/downloads/subscription left as WN_M4 stubs. Authenticated render deferred to live Supabase; unauthenticated state browser-observable. tsc 0, vitest 30/30. |
 
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
 
