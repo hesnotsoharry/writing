@@ -16,6 +16,16 @@ fn open_path(_app: tauri::AppHandle, path: &str) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Debug-only: expose the WebView2 DevTools (CDP) endpoint on 127.0.0.1:9222 so a
+    // chrome-devtools MCP can attach and drive/inspect the app for UI smoke. Gated on
+    // debug_assertions (false in release builds), so the port never ships to users.
+    // Set before the builder so it's in place before WebView2 creates its environment.
+    #[cfg(debug_assertions)]
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--remote-debugging-port=9222",
+    );
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
