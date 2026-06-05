@@ -2,7 +2,7 @@
  * InspectorSynopsis — editable synopsis block for the right-pane inspector.
  * Extracted from SceneInspector.tsx to keep that file under the 300-line limit.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "../components/Icon";
 import type { Scene } from "../db/binderStore";
@@ -20,6 +20,15 @@ interface SynopsisEditFieldProps {
 function SynopsisEditField({ sceneId, localSynopsis, onCommit, onCancel }: SynopsisEditFieldProps) {
   const [draft, setDraft] = useState(localSynopsis);
   const committedRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow fallback for browsers where field-sizing:content is not supported.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
 
   const commit = () => {
     if (!sceneId || committedRef.current) return;
@@ -35,15 +44,13 @@ function SynopsisEditField({ sceneId, localSynopsis, onCommit, onCancel }: Synop
 
   return (
     <textarea
+      ref={textareaRef}
       autoFocus
-      className="synopsis"
+      className="synopsis synopsis-edit"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={onKeyDown}
-      style={{ width: "100%", resize: "vertical", overflowWrap: "anywhere",
-               wordBreak: "break-word", boxSizing: "border-box",
-               background: "var(--parchment-deep)", color: "var(--ink)" }}
     />
   );
 }
@@ -77,12 +84,14 @@ export function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
           <Icon name="edit" style={{ width: 13, height: 13 }} />
         </button>
       </div>
-      {editing
-        ? <SynopsisEditField sceneId={sceneId} localSynopsis={localSynopsis}
-            onCommit={handleCommit} onCancel={() => setEditing(false)} />
-        : <div className="synopsis" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-            {localSynopsis}
-          </div>}
+      {editing ? (
+        <SynopsisEditField sceneId={sceneId} localSynopsis={localSynopsis}
+          onCommit={handleCommit} onCancel={() => setEditing(false)} />
+      ) : localSynopsis ? (
+        <div className="synopsis" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+          {localSynopsis}
+        </div>
+      ) : null}
     </div>
   );
 }

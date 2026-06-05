@@ -382,6 +382,17 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   color: var(--ink-2); background: var(--paper); border: 1px solid var(--line);
   border-radius: var(--r-md); padding: var(--s-3) var(--s-3); font-style: italic;
 }
+/* Edit-mode override — matches .be-sketch-input theming */
+.synopsis.synopsis-edit {
+  display: block; width: 100%; min-height: 56px; padding: 6px 8px;
+  border: 1px solid var(--parchment-edge); border-radius: var(--r-md);
+  background: var(--parchment-deep); color: var(--ink);
+  resize: none; box-sizing: border-box; font: inherit; font-size: var(--text-md);
+  line-height: 1.55; font-style: normal;
+  overflow-x: hidden; overflow-wrap: anywhere;
+  field-sizing: content;
+}
+.synopsis.synopsis-edit:focus { outline: none; }
 
 .entity-card {
   display: flex; align-items: center; gap: 10px; padding: 8px;
@@ -518,6 +529,16 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   color: var(--ink); margin-bottom: 6px; line-height: 1.2; }
 .card .card-syn { font-size: var(--text-xs); line-height: 1.5; color: var(--ink-2); flex: 1;
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+/* Edit-mode textarea — matches .be-sketch-input theming */
+.card .card-syn-edit {
+  display: block; width: 100%; min-height: 56px; padding: 6px 8px;
+  border: 1px solid var(--parchment-edge); border-radius: var(--r-sm);
+  background: var(--parchment-deep); color: var(--ink);
+  resize: none; box-sizing: border-box; font: inherit; font-size: var(--text-xs);
+  line-height: 1.5; overflow-x: hidden; overflow-wrap: anywhere;
+  field-sizing: content;
+}
+.card .card-syn-edit:focus { outline: none; }
 .card .card-foot { display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap; }
 .chip {
   display: inline-flex; align-items: center; gap: 4px;

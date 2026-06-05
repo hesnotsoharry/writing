@@ -184,6 +184,11 @@ function CardFoot({ sceneId }: { sceneId: string }) {
 // SynopsisCell — synopsis with inline edit
 // ---------------------------------------------------------------------------
 
+// Auto-grow helper — called onInput; harmless when field-sizing:content handles it.
+function growTextarea(e: React.FormEvent<HTMLTextAreaElement>) {
+  const el = e.currentTarget; el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`;
+}
+
 function SynopsisCell({ scene }: { scene: Scene }) {
   const { editing, draft, setDraft, shown, startEdit, commit } = useSynopsisEdit(scene);
   if (editing) {
@@ -192,6 +197,7 @@ function SynopsisCell({ scene }: { scene: Scene }) {
         className="card-syn card-syn-edit"
         value={draft}
         autoFocus
+        onInput={growTextarea}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
