@@ -16,9 +16,8 @@ function CorkCard({ scene, chapterId, handlers, renaming, i }) {
       onContextMenu={e => handlers.onMenu(e, "scene", { scene, chapterId })}>
       <div className="pin"></div>
       <div className="card-status">
-        {meta.done
-          ? <Icon name="check" className="scene-check" style={{ width: 12, height: 12 }} onClick={e => { e.stopPropagation(); handlers.onStatus(e, scene); }} />
-          : <span className="dot" style={{ background: meta.dot }} onClick={e => { e.stopPropagation(); handlers.onStatus(e, scene); }}></span>}
+        <StatusGlyph status={scene.status} size={13}
+          onClick={e => { e.stopPropagation(); handlers.onStatus(e, scene); }} />
         <span className="lbl">{meta.label}</span>
         <span className="w">{scene.words ? scene.words.toLocaleString() + "w" : "—"}</span>
       </div>
@@ -86,33 +85,52 @@ function BibleEntry({ entity, kind, handlers, renaming, i }) {
   );
 }
 
-function StoryBible({ chars, locs, handlers, renaming }) {
+const bibColor = (c) => (c === "character" || c === "location") ? ("var(--" + c + ")") : ("var(--label-" + c + ")");
+
+function StoryBible({ groups, tiers, handlers, renaming }) {
+  const byTier = {};
+  groups.forEach((g) => {
+    const tier = (window.ENTITY_TYPE_DEFS[g.key] || {}).tier || "Other";
+    (byTier[tier] = byTier[tier] || []).push(g);
+  });
   return (
     <div className="corkboard">
-      <div className="corkboard-inner" style={{ maxWidth: 960 }}>
-        <div className="bible-grid">
-          <div>
-            <div className="bible-col-title">
-              <Icon name="users" style={{ width: 14, height: 14, color: "var(--character)" }} />
-              Characters · {chars.length}
+      <div className="corkboard-inner" style={{ maxWidth: 1100 }}>
+        {tiers.filter((t) => byTier[t]).map((tier) => (
+          <div className="bib-tier" key={tier}>
+            <div className="bib-tier-label">{tier}</div>
+            <div className="bib-cols">
+              {byTier[tier].map((g) => {
+                const def = window.ENTITY_TYPE_DEFS[g.key];
+                return (
+                  <div className="tcol" key={g.key}>
+                    <div className="tcol-head" style={{ color: bibColor(def.color) }}>
+                      <Icon name={def.icon} className="ic" />
+                      <span className="nm">{def.label}</span>
+                      <span className="ct">{g.entities.length}</span>
+                    </div>
+                    {g.entities.map((e) => (
+                      <div className="bib-row" key={e.id} onClick={() => handlers.onOpenEntity(e, g.key)}
+                        onContextMenu={(ev) => handlers.onEntityMenu(ev, e, g.key)}>
+                        <div className="bib-badge round" style={{ background: "color-mix(in srgb, " + bibColor(e.color) + " 16%, transparent)", color: bibColor(e.color) }}>{e.initial}</div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div className="nm">{e.name}</div>
+                          <div className="role">{e.role || def.label}</div>
+                        </div>
+                      </div>
+                    ))}
+                    <button className="tcol-add" onClick={() => handlers.onAddEntity(g.key)}>
+                      <Icon name="plus" style={{ width: 12, height: 12 }} /> New {def.label.replace(/s$/, "").toLowerCase()}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-            {chars.map((c, i) => <BibleEntry key={c.id} entity={c} kind="Character" handlers={handlers} renaming={renaming === c.id} i={i} />)}
-            <button className="add-entity" style={{ justifyContent: "center", border: "1px dashed var(--parchment-edge)", padding: 9 }}
-              onClick={() => handlers.onAddEntity("Character")}>
-              <Icon name="plus" style={{ width: 13, height: 13 }} /> New character
-            </button>
           </div>
-          <div>
-            <div className="bible-col-title">
-              <Icon name="mapPin" style={{ width: 14, height: 14, color: "var(--location)" }} />
-              Locations · {locs.length}
-            </div>
-            {locs.map((l, i) => <BibleEntry key={l.id} entity={l} kind="Location" handlers={handlers} renaming={renaming === l.id} i={i} />)}
-            <button className="add-entity" style={{ justifyContent: "center", border: "1px dashed var(--parchment-edge)", padding: 9 }}
-              onClick={() => handlers.onAddEntity("Location")}>
-              <Icon name="plus" style={{ width: 13, height: 13 }} /> New location
-            </button>
-          </div>
+        ))}
+        <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+          <button className="bib-newtype" onClick={() => handlers.onNewType()}><Icon name="plus" style={{ width: 14, height: 14 }} /> New type…</button>
+          <button className="bib-newtype" onClick={() => handlers.onOpenMap()}><Icon name="users" style={{ width: 14, height: 14 }} /> Relationship map</button>
         </div>
       </div>
     </div>

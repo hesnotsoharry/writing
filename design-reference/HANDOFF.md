@@ -1,5 +1,10 @@
 # Writers Nook — Design Canon (handoff)
 
+> **Latest batch (Jun 2026): read `BATCH-HANDOFF.md` first.** It maps every change
+> from the story-planning feature wave (Goals · Snapshots · Outliner+labels ·
+> Relationships · Entity types · Find&replace+Focus) to its file, with the
+> consolidated schema/store to-do and per-feature `*-SPEC.md` index.
+
 This folder is the **canonical UI/UX reference** for Writers Nook ("Quiet Study" design
 direction). It is a self-contained, interactive React prototype (JSX via in-browser Babel) plus a
 design-tokens page. Open `index.html` to run it; open `Design tokens.html` for the token/component
@@ -26,13 +31,16 @@ don't share scope). When converting:
 | File | Maps to / role |
 |---|---|
 | `tokens.css`, `app.css` | **Styles — use directly.** |
-| `icons.jsx` | Inline SVG icon set (`<Icon name="…">`). |
+| `icons.jsx` | Inline SVG icon set (`<Icon name="…">`) + `StatusGlyph` (status → small symbol, tinted by status colour). |
 | `chrome.jsx` | Title bar (brand · view switch · actions · window controls) + status bar. |
 | `binder.jsx` | Left panel — maps onto your existing `Binder.tsx` (project switch, chapters→scenes, short pieces, context menus, inline rename, archived foot). |
-| `canvas.jsx` | Center writing surface — the visual layer around your TipTap `Editor.tsx`. `proseFor()`/`FormatBubble` are demo-only; real prose comes from the editor. |
-| `inspector.jsx` | Right panel — synopsis, characters/locations in scene, goal ring. |
+| `canvas.jsx` | Center writing surface — the visual layer around your TipTap `Editor.tsx`. `proseFor()`/`FormatBubble` are demo-only; real prose comes from the editor. Now also renders **auto-links** (see `autolink.jsx`). |
+| `autolink.jsx` | **Auto-linking Story-Bible names in prose** — the case-aware matcher (`alBuildIndex`/`alLinkNodes`), the `AutoLink` span, and the hover `AutoLinkPeek`. Presentational; in prod run the matcher as a TipTap decoration over the real doc. See `AUTOLINK-SPEC.md`. |
+| `inspector.jsx` | Right panel — synopsis, a stack of goal cards (ring / pace bar / streak flame), a version-history rail, and characters/locations in scene; goal cards + snapshots right-clickable. |
 | `views.jsx` | Corkboard + Story Bible full views. |
-| `dialogs.jsx` | Quick capture, Quick-notes inbox, Archive, Goals, Export. |
+| `outliner.jsx` | Outliner table (sortable, inline-edit) + color labels (assignment popover + manager). Sibling of the corkboard via a planMode toggle. See `OUTLINER-SPEC.md`. |
+| `dialogs.jsx` | Quick capture, Quick-notes inbox, Archive, Goals (manager + adaptive editor + calendar), Export. See `GOALS-SPEC.md`. |
+| `snapshots.jsx` | Version history — inspector rail + overlay with inline word diff + restore. See `SNAPSHOTS-SPEC.md`. |
 | `settings.jsx` | Settings modal (Appearance / Editor / Writing / Backup / About). |
 | `menu.jsx` | Reusable right-click `ContextMenu`, `Toast`, `RenameInput`. |
 | `treeops.jsx` | Pure immutable binder tree ops (rename/move/delete/archive/duplicate) — useful logic, but your real source of truth is SQLite/Yjs. |
@@ -50,7 +58,9 @@ don't share scope). When converting:
 - **Settings values** are persisted to `localStorage` via the Tweaks hook in the prototype; wire them
   to your real settings store. Settings keys that genuinely affect the canvas today:
   `--prose-size`, `--prose-leading` (line spacing), `--prose-measure` (editor width), `--font-prose`,
-  `data-theme`, accent vars, and the `.anim` class (page animations on/off).
+  `data-theme`, accent vars, and the `.anim` class (page animations on/off). Also
+  `autolink` / `autolinkStyle` / `autolinkScope` / `autolinkTypes` drive the in-prose
+  Story-Bible linking (see `AUTOLINK-SPEC.md`).
 
 ## Page-flip / motion (it's in CSS + a tiny JS trigger)
 

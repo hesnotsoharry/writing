@@ -43,4 +43,4 @@ updated: 2026-06-05
 ## Reference index
 - Wave 26 plan: [wave-26-canon-bugfix.md](wave-26-canon-bugfix.md) · prior wave: [wave-25-canon-cleanup.md](wave-25-canon-cleanup.md)
 - Smoke setup: memory `app-can-be-smoked-via-cdp-port` · Build: `npm run tauri dev` · Test: `npm run test` · Lint: `npm run lint:fix`
-- Canon design source: `design-reference/*.jsx` + `FULL-ENTRY-SPEC.md` + `app.css`/`tokens.css`
+- Canon design source: `design-reference/` — read `BATCH-HANDOFF.md` for the story-planning feature wave (Goals, Snapshots, Outliner, Relationships, Entity types, Find&Focus); per-feature: `GOALS-SPEC.md`, `SNAPSHOTS-SPEC.md`, `OUTLINER-SPEC.md`, `RELATIONSHIPS-SPEC.md`, `ENTITY-TYPES-SPEC.md`, `FIND-FOCUS-SPEC.md`; cross-feature index: `FEATURE-WAVE-PLAN.md`

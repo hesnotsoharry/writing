@@ -1,0 +1,87 @@
+/* Corkboard outliner + color labels — exploration styles. Built on tokens.css.
+   Rough first pass. Reuses .scrim/.sheet, .exp-seg, theme vars. */
+
+/* view switch (corkboard ⇄ outliner) */
+.otl-wrap { padding: 24px 28px; max-width: 1100px; margin: 0 auto; }
+.otl-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.otl-top .ttl { font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
+.otl-top .spacer { flex: 1; }
+
+/* --- Direction A: dense table -------------------------------------------- */
+.otl-table { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; background: var(--paper);
+  box-shadow: var(--shadow-card); }
+.otl-grid { display: grid; grid-template-columns: 22px 26px minmax(150px, 1.2fr) minmax(180px, 2fr) 64px 168px; align-items: center; }
+.otl-head { background: var(--parchment); border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
+.otl-head .hcell { padding: 9px 10px; }
+.otl-head button.hcell { display: flex; align-items: center; gap: 5px; text-align: left; color: inherit; width: 100%; transition: color var(--dur-fast); }
+.otl-head button.hcell:hover { color: var(--ink); }
+.otl-head .sortcaret { color: var(--accent); }
+
+.otl-chrow { background: var(--parchment-deep); font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--ink-2); padding: 6px 12px; border-bottom: 1px solid var(--line); }
+
+.otl-row { border-bottom: 1px solid var(--line-soft); transition: background var(--dur-fast); }
+.otl-row:last-child { border-bottom: none; }
+.otl-row:hover { background: var(--parchment); }
+.otl-cell { padding: 8px 10px; min-width: 0; font-size: 13px; color: var(--ink); }
+.otl-handle { color: var(--ink-4); display: grid; place-items: center; cursor: grab; opacity: 0; transition: opacity var(--dur-fast); }
+.otl-row:hover .otl-handle { opacity: 1; }
+.otl-statusbtn { display: grid; place-items: center; }
+.otl-statusbtn .dot { width: 9px; height: 9px; border-radius: 50%; }
+.otl-title { font-weight: 600; outline: none; border-radius: 4px; padding: 2px 4px; margin: -2px -4px; }
+.otl-title:focus { background: var(--accent-wash); box-shadow: 0 0 0 2px var(--accent-ring); }
+.otl-syn { color: var(--ink-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  outline: none; border-radius: 4px; padding: 2px 4px; margin: -2px -4px; }
+.otl-syn:focus { white-space: normal; background: var(--accent-wash); box-shadow: 0 0 0 2px var(--accent-ring); overflow: visible; }
+.otl-words { font-variant-numeric: tabular-nums; color: var(--ink-3); font-size: 12px; }
+
+/* labels */
+.otl-labels { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.lbl-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+  padding: 2px 8px; border-radius: var(--r-pill); white-space: nowrap; }
+.lbl-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.lbl-add { width: 18px; height: 18px; border-radius: 50%; border: 1px dashed var(--parchment-edge);
+  color: var(--ink-4); display: grid; place-items: center; flex: none; transition: all var(--dur-fast); }
+.lbl-add:hover { border-color: var(--accent); color: var(--accent); }
+
+/* label assignment popover */
+.lbl-menu { position: fixed; z-index: 70; min-width: 196px; background: var(--paper);
+  border: 1px solid var(--parchment-edge); border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+  padding: 5px; animation: cm-in 110ms var(--ease-out); }
+.lbl-menu-opt { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px; border-radius: var(--r-sm);
+  text-align: left; font-size: 13px; color: var(--ink-2); transition: background var(--dur-fast); }
+.lbl-menu-opt:hover { background: var(--parchment-deep); }
+.lbl-menu-opt .check { margin-left: auto; color: var(--accent); opacity: 0; }
+.lbl-menu-opt.on .check { opacity: 1; }
+.lbl-menu-sep { height: 1px; background: var(--line); margin: 5px 4px; }
+.lbl-menu-manage { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 9px; border-radius: var(--r-sm);
+  font-size: 12.5px; font-weight: 600; color: var(--ink-3); }
+.lbl-menu-manage:hover { background: var(--parchment-deep); color: var(--ink); }
+
+/* --- Direction B: roomy list --------------------------------------------- */
+.otl-list { display: flex; flex-direction: column; gap: 9px; }
+.otl-list .chrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-3); margin: 10px 2px 2px; }
+.otl-li { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--paper);
+  padding: 12px 14px; display: grid; grid-template-columns: 18px 1fr auto; gap: 12px; align-items: start;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.otl-li:hover { border-color: var(--parchment-edge); box-shadow: var(--shadow-xs); }
+.otl-li .grip { color: var(--ink-4); padding-top: 2px; cursor: grab; }
+.otl-li-main { min-width: 0; }
+.otl-li-top { display: flex; align-items: center; gap: 9px; margin-bottom: 4px; }
+.otl-li-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
+.otl-li-status .dot { width: 8px; height: 8px; border-radius: 50%; }
+.otl-li-title { font-size: 15px; font-weight: 600; color: var(--ink); font-family: var(--font-prose); }
+.otl-li-syn { font-size: 13px; line-height: 1.5; color: var(--ink-2); margin-bottom: 8px; }
+.otl-li-right { text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+
+/* --- Label manager overlay ----------------------------------------------- */
+.lblmgr-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line-soft); }
+.lblmgr-row:last-child { border-bottom: none; }
+.lblmgr-name { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
+.lblmgr-swatches { display: flex; gap: 6px; }
+.sw-btn { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; transition: transform var(--dur-fast); }
+.sw-btn:hover { transform: scale(1.12); }
+.sw-btn.on { border-color: var(--ink); }
+.lblmgr-foot-hint { font-size: 11.5px; color: var(--ink-4); display: flex; align-items: center; gap: 6px; }

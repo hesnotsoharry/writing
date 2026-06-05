@@ -4,18 +4,88 @@
    "Link a character/location" opens a picker that links an existing entity to the
    open scene. */
 
-function GoalRing({ pct }) {
-  const r = 27, c = 2 * Math.PI * r;
-  const off = c * (1 - pct / 100);
+function GoalRing({ pct, size = 64, stroke = 6, label }) {
+  const r = (size - stroke) / 2 - 1, c = 2 * Math.PI * r, ctr = size / 2;
+  const off = c * (1 - Math.min(100, pct) / 100);
   return (
-    <div className="goal-ring">
-      <svg width="64" height="64" viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--parchment-deep)" strokeWidth="6" />
-        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--accent)" strokeWidth="6"
+    <div className="goal-ring" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={"0 0 " + size + " " + size}>
+        <circle cx={ctr} cy={ctr} r={r} fill="none" stroke="var(--parchment-deep)" strokeWidth={stroke} />
+        <circle cx={ctr} cy={ctr} r={r} fill="none" stroke="var(--accent)" strokeWidth={stroke}
           strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
-          transform="rotate(-90 32 32)" />
+          transform={"rotate(-90 " + ctr + " " + ctr + ")"} />
       </svg>
-      <span className="pct">{pct + "%"}</span>
+      <span className="pct">{label != null ? label : pct + "%"}</span>
+    </div>
+  );
+}
+
+// Deadline-pace visual: a progress track where the fill is words-done and the
+// notch is where you'd be if you'd held an even pace. Fill behind notch = behind.
+function PaceBar({ p }) {
+  const behind = p.delta < 0;
+  const statusText = behind ? Math.abs(p.delta).toLocaleString() + " behind"
+    : p.delta > 0 ? p.delta.toLocaleString() + " ahead" : "On pace";
+  return (
+    <div className="pace">
+      <div className="pace-top">
+        <div className="pace-days"><b>{p.daysLeft}</b> days left</div>
+        <span className={"pace-status " + (behind ? "behind" : "ontrack")}>{statusText}</span>
+      </div>
+      <div className="pace-track">
+        <div className="pace-fill" style={{ width: Math.max(2, p.wordPct) + "%" }}></div>
+        <div className="pace-notch" style={{ left: Math.min(99, p.timePct) + "%" }} title="On-pace mark"></div>
+      </div>
+      <div className="pace-foot">
+        <span>{p.current.toLocaleString()} / {p.finalWords.toLocaleString()} words</span>
+        <span className="pace-rate"><b>{p.perDay.toLocaleString()}</b>/day to finish</span>
+      </div>
+    </div>
+  );
+}
+
+function StreakViz({ p }) {
+  return (
+    <>
+      <div className="streak-flame">
+        <Icon name="flame" className="ic" />
+        <span className="sf-num">{p.days}</span>
+      </div>
+      <div className="goal-info">
+        <div className="streak-dots">
+          {p.week.map((on, i) => <span key={i} className={"sd" + (on ? " on" : "")}></span>)}
+        </div>
+        <div className="goal-desc">
+          {p.best ? "Best: " + p.best + " days" : "Keep it going"}
+          {p.milestone ? " · " + p.days + "/" + p.milestone + " to milestone" : ""}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function GoalCard({ goal, onMenu }) {
+  const meta = GOAL_META[goal.type];
+  const p = goalProgress(goal);
+  const fam = p.family;
+  return (
+    <div className={"goal-card goal-card--" + fam} onContextMenu={(e) => onMenu(e, goal)} title="Right-click to edit or remove">
+      {fam === "amount" && (
+        <>
+          <GoalRing pct={p.pct} />
+          <div className="goal-info">
+            <div className="goal-num">{p.current.toLocaleString()}<span> / {p.target.toLocaleString()} {p.unit === "minutes" ? "min" : "words"}</span></div>
+            <div className="goal-desc">{p.remaining > 0 ? p.remaining.toLocaleString() + " to go" : "Goal reached"} · {p.period || meta.name.toLowerCase()}</div>
+          </div>
+        </>
+      )}
+      {fam === "deadline" && (
+        <div className="goal-deadline-head">
+          <div className="gd-label"><Icon name="calendar" className="ic" style={{ width: 13, height: 13, color: "var(--accent)" }} /> Deadline pace</div>
+          <PaceBar p={p} />
+        </div>
+      )}
+      {fam === "streak" && <StreakViz p={p} />}
     </div>
   );
 }
@@ -59,10 +129,34 @@ function InspPicker({ candidates, placeholder, onPick, onClose }) {
   );
 }
 
-function Inspector({ scene, allChars, allLocs, goalsOn, sessionWords, sessionTarget, onOpenEntity, onLinkScene, onAddEntity }) {
+// Collapsible inspector section. Open/closed persists per group in localStorage.
+function InspGroup({ gkey, icon, label, action, defaultOpen = true, children }) {
+  const storeKey = "wn-insp-" + gkey;
+  const [open, setOpen] = React.useState(() => {
+    try { const v = localStorage.getItem(storeKey); return v === null ? defaultOpen : v === "1"; }
+    catch (e) { return defaultOpen; }
+  });
+  const toggle = () => setOpen(o => {
+    const n = !o;
+    try { localStorage.setItem(storeKey, n ? "1" : "0"); } catch (e) {}
+    return n;
+  });
+  return (
+    <div className={"insp-group" + (open ? "" : " is-collapsed")}>
+      <div className="insp-label insp-label--toggle" onClick={toggle} role="button" aria-expanded={open}>
+        <Icon name="chevDown" className={"insp-caret" + (open ? "" : " closed")} style={{ width: 12, height: 12 }} />
+        <Icon name={icon} className="ic" /> {label}
+        {action && <span className="insp-act" onClick={e => e.stopPropagation()}>{action}</span>}
+      </div>
+      {open && children}
+    </div>
+  );
+}
+window.InspGroup = InspGroup;
+
+function Inspector({ scene, allChars, allLocs, goalsOn, goals, onOpenEntity, onLinkScene, onAddEntity, onGoalMenu, onManageGoals, snapshots, snapCurrentWords, onOpenHistory, onCaptureSnap }) {
   const chars = scene.characters.map(n => allChars.find(c => c.name === n)).filter(Boolean);
   const locs = scene.locations.map(n => allLocs.find(l => l.name === n)).filter(Boolean);
-  const pct = Math.min(100, Math.round((sessionWords / sessionTarget) * 100));
   const [pickChar, setPickChar] = React.useState(false);
   const [pickLoc, setPickLoc] = React.useState(false);
   React.useEffect(() => { setPickChar(false); setPickLoc(false); }, [scene.id]);
@@ -72,45 +166,37 @@ function Inspector({ scene, allChars, allLocs, goalsOn, sessionWords, sessionTar
   return (
     <div className="panel-inspector">
       <div className="insp-scroll">
-        <div className="insp-group">
-          <div className="insp-label">
-            <Icon name="fileText" className="ic" /> Synopsis
-            <button className="add"><Icon name="edit" style={{ width: 13, height: 13 }} /></button>
-          </div>
+        <InspGroup gkey="synopsis" icon="fileText" label="Synopsis"
+          action={<button className="add"><Icon name="edit" style={{ width: 13, height: 13 }} /></button>}>
           <div className="synopsis">{scene.synopsis}</div>
-        </div>
+        </InspGroup>
 
         {goalsOn && (
-          <div className="insp-group">
-            <div className="insp-label"><Icon name="target" className="ic" /> Today's goal</div>
-            <div className="goal-card">
-              <GoalRing pct={pct} />
-              <div className="goal-info">
-                <div className="goal-num">{sessionWords}<span> / {sessionTarget} words</span></div>
-                <div className="goal-desc">{sessionTarget - sessionWords} to go · 6-day streak 🔥</div>
-              </div>
-            </div>
-          </div>
+          <InspGroup gkey="goals" icon="target" label="Goals"
+            action={<button className="add" title="Manage goals" onClick={onManageGoals}><Icon name="cog" style={{ width: 14, height: 14 }} /></button>}>
+            {goals.length
+              ? goals.map(g => <GoalCard key={g.id} goal={g} onMenu={onGoalMenu} />)
+              : <button className="add-entity" onClick={onManageGoals}><Icon name="plus" style={{ width: 13, height: 13 }} /> Set a goal</button>}
+          </InspGroup>
         )}
 
-        <div className="insp-group">
-          <div className="insp-label">
-            <Icon name="users" className="ic" /> Characters in scene
-            <button className="add" title="Add a new character" onClick={() => onAddEntity("Character")}><Icon name="plus" style={{ width: 14, height: 14 }} /></button>
-          </div>
+        {snapshots && (
+          <HistorySection snapshots={snapshots} currentWords={snapCurrentWords}
+            onOpenAll={onOpenHistory} onCapture={onCaptureSnap} />
+        )}
+
+        <InspGroup gkey="chars" icon="users" label="Characters in scene"
+          action={<button className="add" title="Add a new character" onClick={() => onAddEntity("Character")}><Icon name="plus" style={{ width: 14, height: 14 }} /></button>}>
           {chars.length ? chars.map(c => <EntityCard key={c.id} entity={c} onClick={() => onOpenEntity(c, "Character")} />)
             : <div className="empty-hint">No characters linked yet.</div>}
           {pickChar
             ? <InspPicker candidates={charCands} placeholder="Search characters…"
                 onPick={(c) => { onLinkScene("Character", c); setPickChar(false); }} onClose={() => setPickChar(false)} />
             : <button className="add-entity" onClick={() => setPickChar(true)}><Icon name="plus" style={{ width: 13, height: 13 }} /> Link a character</button>}
-        </div>
+        </InspGroup>
 
-        <div className="insp-group">
-          <div className="insp-label">
-            <Icon name="mapPin" className="ic" /> Locations in scene
-            <button className="add" title="Add a new location" onClick={() => onAddEntity("Location")}><Icon name="plus" style={{ width: 14, height: 14 }} /></button>
-          </div>
+        <InspGroup gkey="locs" icon="mapPin" label="Locations in scene"
+          action={<button className="add" title="Add a new location" onClick={() => onAddEntity("Location")}><Icon name="plus" style={{ width: 14, height: 14 }} /></button>}>
           {locs.length ? locs.map(l => (
             <EntityCard key={l.id} entity={{ ...l, role: l.notes.split(".")[0] }} onClick={() => onOpenEntity(l, "Location")} />
           )) : <div className="empty-hint">No locations linked yet.</div>}
@@ -118,7 +204,7 @@ function Inspector({ scene, allChars, allLocs, goalsOn, sessionWords, sessionTar
             ? <InspPicker candidates={locCands} placeholder="Search locations…"
                 onPick={(l) => { onLinkScene("Location", l); setPickLoc(false); }} onClose={() => setPickLoc(false)} />
             : <button className="add-entity" onClick={() => setPickLoc(true)}><Icon name="plus" style={{ width: 13, height: 13 }} /> Link a location</button>}
-        </div>
+        </InspGroup>
       </div>
     </div>
   );

@@ -46,14 +46,38 @@ const ICON_PATHS = {
   arrowRight: '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
   sparkle: '<path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.6"/>',
+  box: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  circleOpen: '<circle cx="12" cy="12" r="8"/>',
+  pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
 };
 
-function Icon({ name, className, style }) {
+function Icon({ name, className, style, onClick }) {
   return (
     <svg className={className} style={style} viewBox="0 0 24 24" fill="none"
+      onClick={onClick}
       stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
       dangerouslySetInnerHTML={{ __html: ICON_PATHS[name] || "" }} />
   );
 }
 
-window.Icon = Icon;
+/* StatusGlyph — a small symbol (not a dot) standing in for a scene status,
+   tinted with that status's colour. Reads STATUS_META lazily (defined in
+   data.jsx, which loads after this file). Used wherever a status indicator
+   appears: binder, canvas eyebrow, corkboard cards, outliner, full entry. */
+function StatusGlyph({ status, size = 13, onClick, title, className, style }) {
+  const m = (window.STATUS_META && window.STATUS_META[status]) || {};
+  return (
+    <span
+      className={"status-glyph" + (onClick ? " clickable" : "") + (className ? " " + className : "")}
+      onClick={onClick} title={title || m.label}
+      style={{ color: m.dot, ...(style || {}) }}>
+      <Icon name={m.icon || "circleOpen"} style={{ width: size, height: size, display: "block" }} />
+    </span>
+  );
+}
+
+Object.assign(window, { Icon, StatusGlyph });

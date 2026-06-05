@@ -1,0 +1,69 @@
+/* New entity types — exploration styles. Built on tokens.css + app.css + full-entry.css.
+   Tiered Story Bible, per-type entry cards, the Themes tracker, custom-type creator.
+   Rough first pass. */
+
+/* tiered bible */
+.bib-tier { margin-bottom: 24px; }
+.bib-tier-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+.bib-tier-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.bib-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(228px, 1fr)); gap: 14px; align-items: start; }
+.tcol { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px;
+  box-shadow: var(--shadow-card); }
+.tcol-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line-soft); }
+.tcol-head .ic { width: 15px; height: 15px; }
+.tcol-head .nm { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.tcol-head .ct { margin-left: auto; font-size: 11px; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.bib-row { display: flex; align-items: center; gap: 9px; padding: 6px 5px; border-radius: var(--r-sm); cursor: pointer; transition: background var(--dur-fast); }
+.bib-row:hover { background: var(--parchment-deep); }
+.bib-badge { width: 28px; height: 28px; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.bib-badge.round { border-radius: 50%; }
+.bib-badge.sq { border-radius: var(--r-sm); }
+.bib-row .nm { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bib-row .role { font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcol-add { width: 100%; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px; border: 1px dashed var(--parchment-edge); border-radius: var(--r-sm); color: var(--ink-3);
+  font-size: 12px; font-weight: 600; transition: all var(--dur-fast); }
+.tcol-add:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+.bib-newtype { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: var(--r-pill);
+  border: 1.5px dashed var(--parchment-edge); color: var(--ink-2); font-size: 12.5px; font-weight: 600; transition: all var(--dur-fast); }
+.bib-newtype:hover { border-color: var(--accent); color: var(--accent); }
+
+/* per-type entry card (reuses .fe-* facts/sections) */
+.et-card { width: 340px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); padding: 18px; }
+.et-hero { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.et-badge { width: 46px; height: 46px; flex: none; display: grid; place-items: center; }
+.et-badge .ic { width: 24px; height: 24px; }
+.et-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.et-name { font-size: 20px; font-weight: 700; color: var(--ink); font-family: var(--font-prose); line-height: 1.1; }
+.et-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-bottom: 14px; }
+.et-fact-l { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-4); }
+.et-fact-v { font-size: 13px; color: var(--ink); }
+.et-sec { margin-bottom: 12px; }
+.et-sec-label { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--ink-3); margin-bottom: 5px; }
+.et-sec-label .ic { width: 13px; height: 13px; }
+.et-prose { font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+
+/* themes — "where it surfaces" tracker */
+.theme-surf { display: flex; flex-direction: column; gap: 3px; }
+.theme-scene { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: var(--r-sm); }
+.theme-scene:hover { background: var(--parchment-deep); }
+.theme-scene .sc-nm { font-size: 13px; color: var(--ink); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.theme-scene .sc-ch { font-size: 10.5px; color: var(--ink-4); }
+.theme-bar { width: 56px; height: 6px; border-radius: 3px; background: var(--parchment-deep); overflow: hidden; flex: none; }
+.theme-bar i { display: block; height: 100%; border-radius: 3px; }
+.theme-int { font-size: 10.5px; color: var(--ink-3); width: 44px; text-align: right; flex: none; }
+
+/* custom-type creator */
+.et-row { display: flex; gap: 16px; }
+.et-iconpick { display: flex; gap: 6px; flex-wrap: wrap; }
+.et-icon-btn { width: 34px; height: 34px; border-radius: var(--r-md); border: 1.5px solid var(--line); background: var(--paper);
+  display: grid; place-items: center; color: var(--ink-2); transition: all var(--dur-fast); }
+.et-icon-btn:hover { border-color: var(--accent-ring); }
+.et-icon-btn.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
+.et-sw { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; transition: transform var(--dur-fast); }
+.et-sw:hover { transform: scale(1.1); }
+.et-sw.on { border-color: var(--ink); }
+.et-preview { margin-top: 16px; padding: 13px; border-radius: var(--r-md); background: var(--parchment); }

@@ -71,7 +71,25 @@ function Appearance({ t, setTweak }) {
   );
 }
 
+const LINK_TYPES = [["character", "Characters"], ["location", "Locations"], ["item", "Items"], ["faction", "Factions"], ["lore", "Lore"]];
+
+function LinkTypeChips({ value, onChange }) {
+  const set = new Set(value || []);
+  const toggle = (k) => { const n = new Set(set); n.has(k) ? n.delete(k) : n.add(k); onChange([...n]); };
+  return (
+    <div className="set-typechips">
+      {LINK_TYPES.map(([k, l]) => (
+        <button key={k} className={"set-typechip" + (set.has(k) ? " on" : "")} onClick={() => toggle(k)}>
+          {set.has(k) && <Icon name="check" style={{ width: 12, height: 12 }} />} {l}
+        </button>
+      ))}
+      <span className="set-typechip dis" title="Themes are abstract — never named directly in prose">Themes</span>
+    </div>
+  );
+}
+
 function EditorSettings({ t, setTweak }) {
+  const alOn = t.autolink !== false;
   return (
     <>
       <SetRow label="Typeface" desc="The face you write in.">
@@ -92,6 +110,22 @@ function EditorSettings({ t, setTweak }) {
       <SetRow label="Smart quotes & dashes" desc="Turn straight quotes curly, -- into em dashes.">
         <SetToggle value={t.smartQuotes} onChange={v => setTweak("smartQuotes", v)} />
       </SetRow>
+      <SetRow label="Link Story Bible names" desc="Names of your cast, places, items, factions and lore become quiet, hoverable links as you write.">
+        <SetToggle value={alOn} onChange={v => setTweak("autolink", v)} />
+      </SetRow>
+      {alOn && (
+        <>
+          <SetRow label="Link appearance" desc="A persistent underline in your accent colour, or only on hover.">
+            <Seg value={t.autolinkStyle || "underline"} options={[["underline", "Underline"], ["hover", "On hover"]]} onChange={v => setTweak("autolinkStyle", v)} />
+          </SetRow>
+          <SetRow label="Link how often">
+            <Seg value={t.autolinkScope || "all"} options={[["all", "Every mention"], ["first", "First per scene"]]} onChange={v => setTweak("autolinkScope", v)} />
+          </SetRow>
+          <SetRow label="Which types link" desc="Themes are never linked — they aren’t named directly in prose.">
+            <LinkTypeChips value={t.autolinkTypes || ["character", "location", "item", "faction", "lore"]} onChange={v => setTweak("autolinkTypes", v)} />
+          </SetRow>
+        </>
+      )}
       <SetRow label="Typewriter scrolling" desc="Keep the line you're writing vertically centred." last>
         <SetToggle value={t.typewriter} onChange={v => setTweak("typewriter", v)} />
       </SetRow>

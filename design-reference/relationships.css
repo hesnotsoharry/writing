@@ -1,0 +1,46 @@
+/* Story-bible relationships — exploration styles. Built on tokens.css + app.css
+   + full-entry.css (reuses .insp-group, .fe-add, .avatar, .entity-*, .toggle).
+   Rough first pass. */
+
+/* relation row (on the Full Entry rail / list) */
+.rel-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-md);
+  transition: background var(--dur-fast); }
+.rel-row:hover { background: var(--parchment-deep); }
+.rel-relation { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-deep); }
+.rel-row .rel-acts { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity var(--dur-fast); }
+.rel-row:hover .rel-acts { opacity: 1; }
+
+/* add-relation flow */
+.rel-add-panel { border: 1.5px solid var(--accent-ring); border-radius: var(--r-md); background: var(--paper); padding: 12px; margin-top: 6px; }
+.rel-step-label { font-size: var(--text-2xs); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 8px; display: block; }
+.rel-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.rel-chip { font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: var(--r-pill);
+  border: 1.5px solid var(--line); background: var(--paper); color: var(--ink-2); transition: all var(--dur-fast); }
+.rel-chip:hover { border-color: var(--accent-ring); }
+.rel-chip.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-deep); }
+.rel-chip.custom { border-style: dashed; color: var(--ink-3); }
+.rel-recip { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 12px;
+  background: var(--parchment); border-radius: var(--r-md); }
+.rel-recip .rr-text { font-size: 12.5px; color: var(--ink-2); line-height: 1.4; }
+.rel-recip .rr-text b { color: var(--ink); }
+.rel-pickrow { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-md); width: 100%; text-align: left; transition: background var(--dur-fast); }
+.rel-pickrow:hover { background: var(--parchment-deep); }
+
+/* graph (ego + map) */
+.relgraph { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); display: block;
+  box-shadow: var(--shadow-card); }
+.relgraph .edge { stroke: var(--parchment-edge); stroke-width: 1.6; }
+.relgraph .edge.dim { opacity: 0.25; }
+.relgraph .edge-label { font-size: 9px; fill: var(--ink-3); text-anchor: middle; font-family: var(--font-ui); }
+.relgraph .node-name { font-size: 11px; font-weight: 600; fill: var(--ink-2); text-anchor: middle; font-family: var(--font-ui); }
+.relgraph .node-mono { font-size: 15px; font-weight: 700; text-anchor: middle; dominant-baseline: central; font-family: var(--font-ui); }
+.relgraph .node { cursor: pointer; }
+.relgraph .node.dim { opacity: 0.28; }
+
+.relmap-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.relmap-filter { display: flex; gap: 6px; }
+
+/* relation label as a clickable preset trigger (canon Full Entry) */
+.fe-rel-pick { text-align: left; cursor: pointer; border-radius: 4px; padding: 1px 4px; margin: 0 -4px; }
+.fe-rel-pick:hover { background: var(--parchment-deep); }

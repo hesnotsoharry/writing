@@ -12,6 +12,10 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "spellcheck": true,
   "smartQuotes": true,
   "typewriter": false,
+  "autolink": true,
+  "autolinkStyle": "underline",
+  "autolinkScope": "all",
+  "autolinkTypes": ["character", "location", "item", "faction", "lore"],
   "defaultStatus": "blank",
   "confirmDelete": true,
   "reopenLast": true,
@@ -57,9 +61,18 @@ function App() {
   const [focus, setFocus] = React.useState(false);
   const [overlay, setOverlay] = React.useState(null);
   const [goalsOn, setGoalsOn] = React.useState(t.goalsOn);
+  const [goals, setGoals] = React.useState(GOALS);
+  const [snapshots, setSnapshots] = React.useState(SNAPSHOTS_BY_SCENE);
+  const [labels, setLabels] = React.useState(LABELS);
+  const [sceneLabels, setSceneLabels] = React.useState(SCENE_LABELS);
   const [quickNotes, setQuickNotes] = React.useState(QUICK_NOTES);
   const [chars, setChars] = React.useState(CHARACTERS);
   const [locs, setLocs] = React.useState(LOCATIONS);
+  const [items, setItems] = React.useState(ITEMS);
+  const [factions, setFactions] = React.useState(FACTIONS);
+  const [lore, setLore] = React.useState(LORE);
+  const [themes, setThemes] = React.useState(THEMES);
+  const [customTypes, setCustomTypes] = React.useState([]);
   const [menu, setMenu] = React.useState(null);
   const [toast, setToast] = React.useState(null);
   const [renaming, setRenaming] = React.useState(null);
@@ -72,8 +85,31 @@ function App() {
   const scenes = flattenScenes(tree);
   const scene = scenes[activeId] || Object.values(scenes)[0];
   const accentHex = Array.isArray(t.accent) ? t.accent[0] : t.accent;
-  const sessionWords = 320, sessionTarget = 500;
   const projMeta = PROJECTS.find(p => p.id === activeProject) || PROJECTS[0];
+
+  // ---- goal actions
+  const saveGoal = (g) => setGoals(gs => gs.some(x => x.id === g.id) ? gs.map(x => x.id === g.id ? g : x) : [...gs, g]);
+  const deleteGoal = (id) => setGoals(gs => gs.filter(x => x.id !== id));
+
+  // ---- snapshot actions (mock; in prod -> snapshotStore over scene Yjs doc)
+  const captureSnapshot = (sceneId, label, kind) => {
+    const sc = scenes[sceneId];
+    const id = "snap-" + Date.now().toString(36);
+    const snap = { id, sceneId, label: label || null, when: "just now",
+      words: sc ? sc.words : 0, kind: kind || "manual", text: SCENE_CURRENT_TEXT[sceneId] || (sc ? sc.synopsis : "") || "" };
+    setSnapshots(m => ({ ...m, [sceneId]: [snap, ...(m[sceneId] || [])] }));
+    return id;
+  };
+  const renameSnapshot = (sceneId, id, label) =>
+    setSnapshots(m => ({ ...m, [sceneId]: (m[sceneId] || []).map(s => s.id === id ? { ...s, label: label || null } : s) }));
+  const deleteSnapshot = (sceneId, id) =>
+    setSnapshots(m => ({ ...m, [sceneId]: (m[sceneId] || []).filter(s => s.id !== id) }));
+  const restoreSnapshot = (sceneId, id) => {
+    // Safety net: snapshot "now" before restoring, then (mock) toast.
+    captureSnapshot(sceneId, "Before restore", "auto");
+    const snap = (snapshots[sceneId] || []).find(s => s.id === id);
+    setToast({ label: "Restored “" + ((snap && snap.label) || "Auto-save") + "” · previous draft saved to history" });
+  };
 
   // ---- theme + tokens
   React.useEffect(() => {
@@ -126,6 +162,34 @@ function App() {
     setRenaming(null);
   };
   const setStatus = (id, status) => setTree(tr => mapScene(tr, id, s => ({ ...s, status })));
+  const setSynopsis = (id, synopsis) => setTree(tr => mapScene(tr, id, s => ({ ...s, synopsis })));
+
+  // ---- project-wide find & replace (titles + synopses), undoable
+  const replaceAll = (q, repl, opts) => {
+    if (!q) return;
+    let src = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (opts && opts.whole) src = "\\b" + src + "\\b";
+    let re; try { re = new RegExp(src, opts && opts.caseSensitive ? "g" : "gi"); } catch (e) { return; }
+    const prev = trees[activeProject];
+    const fix = s => ({ ...s, title: s.title.replace(re, repl), synopsis: (s.synopsis || "").replace(re, repl) });
+    const next = { chapters: prev.chapters.map(c => ({ ...c, scenes: c.scenes.map(fix) })), shortPieces: prev.shortPieces.map(fix) };
+    withUndo("Replaced “" + q + "” → “" + repl + "”", prev, next);
+  };
+
+  // ---- label actions (corkboard/outliner)
+  const toggleSceneLabel = (sceneId, labelId) => setSceneLabels(m => {
+    const cur = m[sceneId] || [];
+    return { ...m, [sceneId]: cur.includes(labelId) ? cur.filter(x => x !== labelId) : [...cur, labelId] };
+  });
+  const renameLabel = (id, name) => setLabels(ls => ls.map(l => l.id === id ? { ...l, name } : l));
+  const setLabelColor = (id, color) => setLabels(ls => ls.map(l => l.id === id ? { ...l, color } : l));
+  const addLabel = () => setLabels(ls => [...ls, { id: "l-" + Date.now().toString(36), name: "New label", color: "ink" }]);
+  // Register a custom entity type (appears as a Custom-tier column in the bible).
+  const createType = (def) => {
+    window.ENTITY_TYPE_DEFS[def.key] = def;
+    setCustomTypes(cts => [...cts, def]);
+    setToast({ label: "Created the “" + def.label + "” type" });
+  };
 
   function deleteScene(id) {
     const prev = snapshot();
@@ -245,17 +309,34 @@ function App() {
       return { ...prev, [id]: next };
     });
   }
+  // Set a relation on `fromId` AND its reverse on `toId` (auto-reciprocal).
+  function relateReciprocal(fromId, toId, label, inv) {
+    setEntryEdits(prev => {
+      const peopleOf = (eid) => (prev[eid] && prev[eid].people) || ((window.ENTITY_DETAILS[eid] || {}).people) || [];
+      const upsert = (arr, otherId, rel) => arr.some(p => p.id === otherId)
+        ? arr.map(p => p.id === otherId ? { ...p, relation: rel } : p)
+        : [...arr, { id: otherId, relation: rel }];
+      return {
+        ...prev,
+        [fromId]: { ...prev[fromId], people: upsert(peopleOf(fromId), toId, label) },
+        [toId]: { ...prev[toId], people: upsert(peopleOf(toId), fromId, inv) },
+      };
+    });
+  }
 
   // ---- render
   const entry = entryStack[entryStack.length - 1] || null;
   return <AppShell {...{
     t, setTweak, view, setView, tree, scenes, scene, activeId, setActiveId, focus, setFocus,
-    overlay, setOverlay, goalsOn, setGoalsOn, quickNotes, chars, locs, menu, setMenu, toast, setToast,
-    renaming, setRenaming, archived, projMeta, accentHex, sessionWords, sessionTarget,
+    overlay, setOverlay, goalsOn, setGoalsOn, goals, snapshots, labels, sceneLabels, quickNotes, chars, locs, items, factions, lore, themes, menu, setMenu, toast, setToast,
+    renaming, setRenaming, archived, projMeta, accentHex,
     entry, entryOrigin, entryEdits,
     actions: { rename, setStatus, deleteScene, archiveScene, deleteChap, archiveChap, dupScene, addSceneTo,
       addChap, restoreItem, purgeItem, saveNote, editNote, deleteNote, promoteNote, renameEntity, deleteEntity, addEntity,
-      openEntry, pushEntry, entryBack, exitEntry, patchEntry, linkSceneEntity, addSceneEntity, addRelatedEntity,
+      openEntry, pushEntry, entryBack, exitEntry, patchEntry, relateReciprocal, linkSceneEntity, addSceneEntity, addRelatedEntity,
+      saveGoal, deleteGoal,
+      captureSnapshot, renameSnapshot, deleteSnapshot, restoreSnapshot,
+      setSynopsis, toggleSceneLabel, renameLabel, setLabelColor, addLabel, replaceAll, createType, customTypes,
       switchProject: id => { setActiveProject(id); const ft = flattenScenes(trees[id]); const f = trees[id].chapters[0]?.scenes[0] || trees[id].shortPieces[0]; setActiveId(f ? f.id : null); setView("write"); },
       newProject: () => setToast({ label: "New manuscript — wired in the real app" }) },
   }} />;

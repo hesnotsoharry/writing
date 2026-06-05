@@ -1,0 +1,82 @@
+/* Find & replace (project-wide) + focus/composition mode — exploration styles.
+   Built on tokens.css + app.css. Rough first pass. */
+
+/* --- Find & replace overlay --------------------------------------------- */
+.fr-sheet { width: 680px; max-width: 94vw; height: 560px; max-height: 90vh; }
+.fr-inputs { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.fr-field { display: flex; align-items: center; gap: 9px; border: 1.5px solid var(--line); border-radius: var(--r-md);
+  padding: 9px 12px; background: var(--paper); }
+.fr-field:focus-within { border-color: var(--accent); }
+.fr-field .ic { width: 15px; height: 15px; color: var(--ink-4); flex: none; }
+.fr-field input { flex: 1; border: none; outline: none; background: transparent; font-size: 14px; color: var(--ink); font-family: var(--font-ui); }
+.fr-row { display: flex; align-items: center; gap: 10px; }
+.fr-opts { display: flex; gap: 6px; margin-left: auto; }
+.fr-opt { width: 30px; height: 30px; border-radius: var(--r-sm); border: 1.5px solid var(--line); background: var(--paper);
+  font-size: 13px; font-weight: 700; color: var(--ink-3); display: grid; place-items: center; }
+.fr-opt.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-deep); }
+
+.fr-results { flex: 1; overflow-y: auto; padding: 8px 10px; }
+.fr-summary { font-size: 12px; color: var(--ink-3); padding: 2px 8px 8px; }
+.fr-summary b { color: var(--ink); }
+.fr-chgroup { font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3);
+  padding: 10px 8px 5px; }
+.fr-scene { padding: 5px 8px 3px; }
+.fr-scene-head { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+.fr-scene-head .ct { margin-left: auto; font-size: 11px; color: var(--ink-4); font-weight: 500; }
+.fr-match { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: var(--r-sm);
+  font-size: 13px; color: var(--ink-2); line-height: 1.45; cursor: pointer; font-family: var(--font-prose); }
+.fr-match:hover { background: var(--parchment-deep); }
+.fr-snippet { flex: 1; min-width: 0; }
+.fr-hit { background: color-mix(in srgb, var(--warn) 28%, transparent); border-radius: 2px; padding: 0 1px; font-weight: 600; color: var(--ink); }
+.fr-hit.new { background: color-mix(in srgb, var(--good) 26%, transparent); }
+.fr-replace-one { opacity: 0; font-size: 11px; font-weight: 600; color: var(--accent); flex: none; }
+.fr-match:hover .fr-replace-one { opacity: 1; }
+
+.fr-foot { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+.fr-foot .note { font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 7px; }
+
+/* --- Focus / composition mode ------------------------------------------- */
+.comp { position: absolute; inset: 0; background: var(--paper); display: flex; flex-direction: column; overflow: hidden; }
+.comp-top { position: absolute; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center;
+  gap: 10px; padding: 0 20px; opacity: 0.5; transition: opacity var(--dur); }
+.comp:hover .comp-top { opacity: 1; }
+.comp-timer { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+.comp-stage { flex: 1; display: flex; align-items: center; justify-content: center; }
+.comp-measure { width: 600px; max-width: 86%; font-family: var(--font-prose); font-size: 20px; line-height: 1.85; }
+.comp-p { color: var(--ink-4); transition: color var(--dur), opacity var(--dur); margin: 0 0 1.1em; }
+.comp-p.active { color: var(--ink); }
+.comp-p.faint { opacity: 0.45; }
+.comp-caret { display: inline-block; width: 2px; height: 1.05em; background: var(--accent); vertical-align: -0.18em; margin-left: 1px; animation: compblink 1.1s steps(1) infinite; }
+@keyframes compblink { 50% { opacity: 0; } }
+
+.comp-hud { position: absolute; bottom: 22px; right: 26px; display: flex; align-items: center; gap: 16px;
+  background: color-mix(in srgb, var(--parchment) 86%, transparent); border: 1px solid var(--line);
+  border-radius: var(--r-pill); padding: 9px 18px; box-shadow: var(--shadow-sm); opacity: 0.7; transition: opacity var(--dur); }
+.comp:hover .comp-hud { opacity: 1; }
+.comp-hud .stat { display: flex; align-items: baseline; gap: 5px; font-size: 13px; color: var(--ink-2); }
+.comp-hud .stat b { font-size: 15px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.comp-hud .sep { width: 1px; height: 18px; background: var(--line); }
+.comp-ring { width: 26px; height: 26px; position: relative; }
+.comp-ring .pct { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; font-weight: 700; color: var(--ink-2); }
+
+/* focus settings popover */
+.fs-pop { width: 280px; background: var(--paper); border: 1px solid var(--parchment-edge); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg); padding: 8px; }
+.fs-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); padding: 8px 10px 6px; }
+.fs-opt { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r-sm); }
+.fs-opt:hover { background: var(--parchment-deep); }
+.fs-opt .lbl { font-size: 13.5px; color: var(--ink); }
+.fs-opt .toggle { margin-left: auto; }
+
+/* canon focus mode: dim non-current paragraphs + a fading HUD on the editor */
+.canvas-wrap.focus-mode .prose p { transition: opacity var(--dur); }
+.canvas-wrap.focus-mode .prose p:not(:has(.caret)) { opacity: 0.32; }
+.canvas-wrap.focus-mode:hover .prose p { opacity: 1; }
+.canvas-hud { position: fixed; bottom: 46px; right: 32px; z-index: 20; display: flex; align-items: center; gap: 16px;
+  background: color-mix(in srgb, var(--parchment) 88%, transparent); border: 1px solid var(--line);
+  border-radius: var(--r-pill); padding: 9px 18px; box-shadow: var(--shadow-sm); opacity: 0.6; transition: opacity var(--dur); }
+.canvas-hud:hover { opacity: 1; }
+.canvas-hud .stat { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+.canvas-hud .stat b { font-size: 15px; font-weight: var(--w-bold); color: var(--ink); font-variant-numeric: tabular-nums; }
+.canvas-hud .sep { width: 1px; height: 18px; background: var(--line); }
+.canvas-hud .comp-ring { position: relative; display: inline-block; }

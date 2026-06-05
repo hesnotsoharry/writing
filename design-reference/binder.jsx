@@ -45,9 +45,8 @@ function SceneRow({ scene, active, renaming, onSelect, onRename, onMenu, onStatu
   return (
     <div className={"scene-row" + (active ? " active" : "")} onClick={onSelect}
       onContextMenu={onMenu} onDoubleClick={onDoubleRename}>
-      {meta.done
-        ? <Icon name="check" className="scene-check" onClick={onStatus} title="Final · click to change status" />
-        : <span className="scene-dot" style={{ background: meta.dot }} onClick={onStatus} title={meta.label + " · click to change"}></span>}
+      <StatusGlyph status={scene.status} size={13} className="scene-status"
+        onClick={onStatus} title={meta.label + " · click to change"} />
       {renaming
         ? <RenameInput value={scene.title} onCommit={onRename} onCancel={() => onRename(scene.title)} />
         : <span className="scene-title">{scene.title}</span>}

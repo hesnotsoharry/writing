@@ -118,6 +118,173 @@ const LOCATIONS = [
     notes: "Edda's greenhouse. Impossible plants. A locked inner door.", scenes: 1 },
 ];
 
+/* ----------------------------------------------------------------------------
+   New story-bible entity types (wave feature 4). One generalized model: each
+   entity carries `type` (drives fields/sections in entry.jsx) + `color` (a
+   palette token for its accent/avatar). Grouped into tiers in the Story Bible.
+   See ENTITY-TYPES-SPEC.md / FEATURE-WAVE-PLAN.md.
+   -------------------------------------------------------------------------- */
+const ITEMS = [
+  { id: "i-1", type: "item", color: "gold", initial: "L", name: "Edda's Logbook", role: "Holds the secret", notes: "Salt-warped ship's journal; the last entry breaks off mid-sentence." },
+  { id: "i-2", type: "item", color: "gold", initial: "C", name: "The Oilskin Coat", role: "Maren's inheritance", notes: "Edda's coat — hangs wrong on Maren, but she keeps it." },
+  { id: "i-3", type: "item", color: "gold", initial: "B", name: "The Brass Lamp", role: "The light itself", notes: "The lighthouse mechanism; still turns by clockwork if you wind it." },
+];
+const FACTIONS = [
+  { id: "f-1", type: "faction", color: "plum", initial: "K", name: "The Keepers", role: "Lightkeeping guild", notes: "Keep the north light the nights the law requires — and keep its older debts quiet." },
+];
+const LORE = [
+  { id: "o-1", type: "lore", color: "sea", initial: "M", name: "The Maundy Wreck", role: "Why the light exists", notes: "Forty souls lost on the north reef in 1869; the light was built two years later." },
+  { id: "o-2", type: "lore", color: "sea", initial: "K", name: "Keeping the Light", role: "The three-week law", notes: "An heir must keep the light three weeks before the estate passes." },
+];
+const THEMES = [
+  { id: "t-1", type: "theme", color: "rose", initial: "I", name: "Isolation", role: "9 scenes", notes: "The island isolates, but so does Maren — the book asks whether the two can be told apart." },
+  { id: "t-2", type: "theme", color: "rose", initial: "I", name: "Inheritance & the past", role: "7 scenes", notes: "What we keep, what we owe, what we leave." },
+  { id: "t-3", type: "theme", color: "rose", initial: "S", name: "The sea as fate", role: "5 scenes", notes: "Tide and weather as the thing no one on Thornwick can argue with." },
+];
+const ENTITY_TYPE_DEFS = {
+  character: { label: "Characters", icon: "users",  color: "clay", tier: "People & groups" },
+  location:  { label: "Locations",  icon: "mapPin", color: "moss", tier: "People & groups" },
+  item:      { label: "Items",      icon: "box",    color: "gold", tier: "People & groups" },
+  faction:   { label: "Factions",   icon: "flag",   color: "plum", tier: "People & groups" },
+  lore:      { label: "Lore",       icon: "globe",  color: "sea",  tier: "World & lore" },
+  theme:     { label: "Themes",     icon: "quote",  color: "rose", tier: "Themes" },
+};
+const ENTITY_TIERS = ["People & groups", "World & lore", "Themes"];
+// Per-theme scene-appearance tracker (mock) — drives the Themes entry treatment.
+const THEME_SURFACES = {
+  "t-1": [
+    { title: "The Causeway", ch: "I · 1", intensity: 0.9, label: "Strong" },
+    { title: "An Empty Lighthouse", ch: "I · 2", intensity: 1.0, label: "Strong" },
+    { title: "The First Night", ch: "I · 5", intensity: 0.7, label: "Present" },
+    { title: "Cut Off", ch: "II · 1", intensity: 1.0, label: "Strong" },
+    { title: "Low Water", ch: "II · 4", intensity: 0.4, label: "Faint" },
+  ],
+  "t-2": [
+    { title: "What the Logbook Said", ch: "I · 3", intensity: 0.8, label: "Strong" },
+    { title: "The Other Keeper", ch: "II · 2", intensity: 0.9, label: "Strong" },
+    { title: "Names on the Wall", ch: "III · 2", intensity: 0.6, label: "Present" },
+  ],
+  "t-3": [
+    { title: "The Causeway", ch: "I · 1", intensity: 0.6, label: "Present" },
+    { title: "Cut Off", ch: "II · 1", intensity: 0.8, label: "Strong" },
+    { title: "Low Water", ch: "II · 4", intensity: 1.0, label: "Strong" },
+  ],
+};
+
+
+/* ----------------------------------------------------------------------------
+   Goals. A goal is { id, type, ...config, ...mockProgress }. The TYPE decides
+   which measurement family it belongs to (see GOAL_META.family), which in turn
+   decides the editor's target section and the inspector visualization:
+     · "amount"   → words or minutes counted toward a target  → ring
+     · "deadline" → a finish date + a finish-line word count   → pace bar
+     · "streak"   → consistency; a qualifying bar keeps it alive → flame + dots
+   Config fields by type:
+     daily/session/project : words (target), scope ("project" | "all")
+     time                  : minutes (target), scope
+     deadline              : finalWords, date (ISO), startWords, startDate (ISO)
+     streak                : qualifies ("any"|"daily"|"time"), qualifyAmount, milestone
+   Mock progress lives on the object so the prototype reads believably; in prod
+   these come from the writing-session store.
+   -------------------------------------------------------------------------- */
+const GOAL_META = {
+  daily:    { ic: "type",     name: "Daily word count", blurb: "Words written each day",    family: "amount", unit: "words" },
+  session:  { ic: "feather",  name: "Per session",      blurb: "A target for each sitting", family: "amount", unit: "words" },
+  project:  { ic: "target",   name: "Whole project",    blurb: "Total manuscript target",   family: "amount", unit: "words" },
+  deadline: { ic: "calendar", name: "Deadline pace",    blurb: "Finish by a chosen date",   family: "deadline" },
+  time:     { ic: "clock",    name: "Time at the desk", blurb: "Minutes written, not words",family: "amount", unit: "minutes" },
+  streak:   { ic: "flame",    name: "Writing streak",   blurb: "Show up day after day",     family: "streak" },
+};
+// Order the picker grid: word amounts, then time, then deadline, then streak.
+const GOAL_ORDER = ["daily", "session", "project", "time", "deadline", "streak"];
+
+const GOALS = [
+  { id: "g-daily",    type: "daily",    words: 500,   scope: "project", current: 320 },
+  { id: "g-deadline", type: "deadline", finalWords: 80000, date: "2026-09-30", startWords: 24500, startDate: "2026-01-06", current: 41280 },
+  { id: "g-streak",   type: "streak",   qualifies: "daily", qualifyAmount: 500, milestone: 30, streakDays: 6, best: 11, week: [true, true, true, false, true, true, true] },
+];
+
+// Derived, normalized progress for any goal — single source of truth for the
+// inspector viz, the status bar, and the manager rows. Date math is guarded.
+const GOAL_PERIOD = { daily: "each day", session: "each sitting", project: "total", time: "each day" };
+function goalProgress(g) {
+  const meta = GOAL_META[g.type] || {};
+  if (meta.family === "amount") {
+    const target = g.words != null ? g.words : g.minutes;
+    const current = g.current || 0;
+    const pct = target ? Math.min(100, Math.round((current / target) * 100)) : 0;
+    return { family: "amount", unit: meta.unit, current, target, pct,
+      remaining: Math.max(0, (target || 0) - current), period: GOAL_PERIOD[g.type] || "" };
+  }
+  if (meta.family === "deadline") {
+    const DAY = 86400000;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due = new Date((g.date || "") + "T00:00:00");
+    const start = new Date((g.startDate || g.date || "") + "T00:00:00");
+    const valid = !isNaN(due) && !isNaN(start);
+    const totalDays = valid ? Math.max(1, Math.round((due - start) / DAY)) : 1;
+    const elapsed = valid ? Math.min(totalDays, Math.max(0, Math.round((today - start) / DAY))) : 0;
+    const daysLeft = valid ? Math.max(0, Math.round((due - today) / DAY)) : 0;
+    const remaining = Math.max(0, (g.finalWords || 0) - (g.current || 0));
+    const perDay = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
+    const wordPct = g.finalWords ? Math.min(100, Math.round((g.current / g.finalWords) * 100)) : 0;
+    const timePct = Math.round((elapsed / totalDays) * 100);
+    const base = g.startWords != null ? g.startWords : 0;
+    const expected = Math.round(base + ((g.finalWords || 0) - base) * (elapsed / totalDays));
+    return { family: "deadline", valid, daysLeft, perDay, wordPct, timePct,
+      delta: (g.current || 0) - expected, current: g.current || 0, finalWords: g.finalWords || 0, due };
+  }
+  return { family: "streak", days: g.streakDays || 0, best: g.best || 0,
+    week: g.week || [], milestone: g.milestone || null };
+}
+// One-line summary used by manager rows + status bar.
+function goalSummary(g) {
+  const p = goalProgress(g);
+  if (p.family === "amount") {
+    const u = p.unit === "minutes" ? "min" : "words";
+    return p.target ? (p.target.toLocaleString() + " " + u + " " + (p.period || "")) : "No target set";
+  }
+  if (p.family === "deadline") return p.perDay.toLocaleString() + " words/day · " + p.daysLeft + " days left";
+  return (p.days ? p.days + "-day streak" : "Not started yet") + (p.milestone ? " · aiming for " + p.milestone : "");
+}
+
+/* ----------------------------------------------------------------------------
+   Snapshots / version history (mock). A snapshot = a saved copy of a scene's
+   text at a moment. Keyed by sceneId. `text` is the captured plain text; in
+   production it's docToPlainText(state_base64). SCENE_CURRENT_TEXT is the live
+   draft used as the diff baseline. See FEATURE-WAVE-PLAN.md + SNAPSHOTS-SPEC.md.
+   -------------------------------------------------------------------------- */
+const SNAP_NOW = "The ferry came in low against the morning, its one good engine coughing as Maren stepped onto the causeway. Thornwick rose out of the water the way she remembered it — grey, patient, indifferent to whether she had come back at all.";
+const SNAP_OLD = "The ferry arrived in the grey morning, its engine coughing as Maren stepped onto the causeway. Thornwick rose from the water exactly as she remembered — grey and patient, careless of whether she had returned.";
+const SNAP_OLDER = "The ferry came in. Maren stepped onto the causeway and Thornwick rose from the water, grey and patient, while she told herself she had come back only to leave again.";
+const SNAPSHOTS_BY_SCENE = {
+  "s-1": [
+    { id: "snap-1", sceneId: "s-1", label: "Before the ending rewrite", when: "2 days ago",     words: 1792, kind: "manual", text: SNAP_OLD },
+    { id: "snap-2", sceneId: "s-1", label: null,                          when: "yesterday · 4:12 pm", words: 1810, kind: "auto",   text: SNAP_OLD },
+    { id: "snap-3", sceneId: "s-1", label: "First full draft",            when: "5 days ago",     words: 1610, kind: "manual", text: SNAP_OLDER },
+    { id: "snap-4", sceneId: "s-1", label: null,                          when: "today · 9:03 am", words: 1838, kind: "auto",   text: SNAP_NOW },
+  ],
+};
+const SCENE_CURRENT_TEXT = { "s-1": SNAP_NOW };
+
+/* ----------------------------------------------------------------------------
+   Color labels (corkboard/outliner). Curated, on-brand: name + a palette token
+   (see --label-* in tokens.css). Multiple per scene via SCENE_LABELS map.
+   -------------------------------------------------------------------------- */
+const LABELS = [
+  { id: "l1", name: "Maren POV", color: "clay" },
+  { id: "l2", name: "Tomas POV", color: "sea" },
+  { id: "l3", name: "The mystery", color: "plum" },
+  { id: "l4", name: "Romance", color: "rose" },
+  { id: "l5", name: "Setup", color: "gold" },
+  { id: "l6", name: "Flashback", color: "slate" },
+];
+const SCENE_LABELS = {
+  "s-1": ["l1", "l5"], "s-2": ["l1", "l3"], "s-3": ["l1", "l3"], "s-4": ["l2", "l4"],
+  "s-5": ["l1"], "s-6": ["l3"], "s-7": ["l2", "l3"], "s-8": ["l3"],
+  "s-9": ["l1"], "s-10": ["l3"], "s-11": ["l3"], "s-12": ["l2"],
+};
+
 const QUICK_NOTES = [
   { id: "qn-1", body: "Lighthouse lamp: research actual Fresnel rotation speed — Maren would know the exact number.", when: "2 days ago", status: "open" },
   { id: "qn-2", body: "What if the scratched-out name on the wall is a Vale? Earlier than Edda. Sets up Chapter III turn.", when: "yesterday", status: "open" },
@@ -126,11 +293,11 @@ const QUICK_NOTES = [
 ];
 
 const STATUS_META = {
-  blank:   { label: "To write", dot: "var(--ink-4)" },
-  outline: { label: "Outlined", dot: "var(--note)" },
-  draft:   { label: "Drafting", dot: "var(--accent)" },
-  revise:  { label: "Revising", dot: "#6a86a8" },
-  final:   { label: "Final",    dot: "var(--good)", done: true },
+  blank:   { label: "To write", dot: "var(--ink-4)", icon: "circleOpen" },
+  outline: { label: "Outlined", dot: "var(--note)", icon: "list" },
+  draft:   { label: "Drafting", dot: "var(--accent)", icon: "pencil" },
+  revise:  { label: "Revising", dot: "#6a86a8", icon: "rotate" },
+  final:   { label: "Final",    dot: "var(--good)", done: true, icon: "check" },
 };
 const STATUS_ORDER = ["blank", "outline", "draft", "revise", "final"];
 
@@ -195,5 +362,7 @@ const ENTITY_DETAILS = {
 
 Object.assign(window, {
   SCENE_PROSE, PROJECTS, TREE, FRAG_TREE, TREES, CHARACTERS, LOCATIONS, QUICK_NOTES, STATUS_META, STATUS_ORDER,
-  ENTITY_DETAILS,
+  ENTITY_DETAILS, GOAL_META, GOAL_ORDER, GOALS, goalProgress, goalSummary,
+  SNAPSHOTS_BY_SCENE, SCENE_CURRENT_TEXT, LABELS, SCENE_LABELS,
+  ITEMS, FACTIONS, LORE, THEMES, ENTITY_TYPE_DEFS, ENTITY_TIERS, THEME_SURFACES,
 });
