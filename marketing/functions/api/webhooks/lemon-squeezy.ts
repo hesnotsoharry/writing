@@ -60,12 +60,13 @@ function resolveOrderId(payload: LSPayload): string | null {
   return raw != null && raw !== "" ? raw : null;
 }
 
-async function sendLicenseEmail(env: Env, attr: LicenseKeyAttributes): Promise<void> {
+async function sendLicenseEmail(env: Env, attr: LicenseKeyAttributes, orderId: string): Promise<void> {
   await sendEmail(env, {
     to: attr.user_email,
     subject: "Your Writers Nook license key",
     html: `<p>Hi there,</p><p>Thank you for your purchase! Your Writers Nook license key is:</p><p><strong>${attr.key}</strong></p><p>Visit your <a href="https://writersnook.app/account">account page</a> to download the app.</p>`,
     text: `Thank you for your purchase!\n\nYour Writers Nook license key is: ${attr.key}\n\nVisit https://writersnook.app/account to download the app.`,
+    idempotencyKey: `license-${orderId}`,
   });
 }
 
@@ -101,7 +102,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (ledgerError) return new Response("Internal Server Error", { status: 500 });
 
   if (eventName === "license_key_created") {
-    await sendLicenseEmail(context.env, (payload as LicenseKeyPayload).data.attributes);
+    await sendLicenseEmail(context.env, (payload as LicenseKeyPayload).data.attributes, orderId);
   }
 
   return new Response(null, { status: 200 });

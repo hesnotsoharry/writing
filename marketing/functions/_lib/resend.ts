@@ -6,6 +6,7 @@ interface EmailMessage {
   html: string;
   text: string;
   replyTo?: string;
+  idempotencyKey?: string;
 }
 
 interface SendResult {
@@ -30,13 +31,16 @@ export async function sendEmail(env: Env, msg: EmailMessage): Promise<SendResult
   if (msg.replyTo) payload["reply_to"] = msg.replyTo;
   const body = JSON.stringify(payload);
 
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${key}`,
+    "Content-Type": "application/json",
+  };
+  if (msg.idempotencyKey) headers["Idempotency-Key"] = msg.idempotencyKey;
+
   try {
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body,
     });
 

@@ -58,6 +58,17 @@ describe("sendEmail (Resend helper)", () => {
     expect(res.id).toBe("email-abc-123");
   });
 
+  it("maps an optional replyTo to the Resend `reply_to` body field", async () => {
+    await sendEmail(REAL_ENV, { to: "s@x.com", subject: "s", html: "h", text: "t", replyTo: "buyer@x.com" });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.reply_to).toBe("buyer@x.com");
+  });
+
+  it("sets the Idempotency-Key header when idempotencyKey is provided (D4 defense-in-depth)", async () => {
+    await sendEmail(REAL_ENV, { to: "s@x.com", subject: "s", html: "h", text: "t", idempotencyKey: "license-9999" });
+    expect(fetchMock.mock.calls[0][1].headers["Idempotency-Key"]).toBe("license-9999");
+  });
+
   it("skips the send (no fetch) when the key is the placeholder", async () => {
     const env = {
       RESEND_API_KEY: "replace-with-resend-api-key",

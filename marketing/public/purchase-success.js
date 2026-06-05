@@ -10,6 +10,7 @@
 // The pure mapping logic lives in purchase-success-render.js (unit-tested).
 // Mirror of the account.js glue pattern.
 // ============================================================================
+/* global document, window, sessionStorage */
 
 import { renderSuccess } from "./purchase-success-render.js";
 
@@ -63,6 +64,18 @@ function applyViewToDom(v) {
 }
 
 // --------------------------------------------------------------------------
+// Wire download buttons from window.WN_DL config (set by downloads-config.js).
+// Guards: missing config or missing element leaves href="#" intact.
+// --------------------------------------------------------------------------
+function wireDownloadButtons() {
+  var cfg = window.WN_DL || {};
+  var macEl = document.getElementById("succ-dl-mac");
+  var winEl = document.getElementById("succ-dl-win");
+  if (macEl && cfg.macUrl) macEl.href = cfg.macUrl;
+  if (winEl && cfg.winUrl) winEl.href = cfg.winUrl;
+}
+
+// --------------------------------------------------------------------------
 // Main init — runs on DOMContentLoaded.
 // --------------------------------------------------------------------------
 if (typeof document !== "undefined") {
@@ -73,11 +86,12 @@ if (typeof document !== "undefined") {
       if (raw) {
         order = JSON.parse(raw);
       }
-    } catch (e) {
+    } catch {
       // sessionStorage unavailable or JSON parse failed — order stays null.
     }
 
     var v = renderSuccess(order);
     applyViewToDom(v);
+    wireDownloadButtons();
   });
 }
