@@ -144,8 +144,14 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .panel-binder {
   width: var(--binder-w); flex: none;
   background: var(--parchment); border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: hidden;
+  /* height:100% makes the inner Binder <nav> fill the AppShell .panel-binder wrapper
+     (both share the class); without it the nav sits at content height and the
+     quick-notes footer floats ~80px above the panel bottom. */
 }
+/* Tighten the empty-chapter / empty-short-pieces hint so it sits just under the
+   header instead of floating 12px below it (binder-scoped; inspector empties untouched). */
+.binder-scroll .empty-hint { margin-top: 3px; margin-bottom: 6px; }
 .panel-inspector {
   width: var(--inspector-w); flex: none;
   background: var(--parchment); border-left: 1px solid var(--line);

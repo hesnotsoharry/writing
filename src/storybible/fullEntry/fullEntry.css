@@ -155,9 +155,11 @@
 .fe-fact-v .fe-edit-input,
 .fe-fact .fe-edit-input {
   font-size: var(--text-sm); font-weight: var(--w-medium);
-  /* Reset the negative margins used in prose contexts — the fact cell already
-     provides padding; pulling the input up overlaps the label above it. */
-  margin: 0; padding: 4px 6px;
+  /* Reset the negative margins used in prose contexts, but keep a 3px top gap so
+     the edit input aligns with where the display value sits (.fe-fact-v has
+     margin-top:3px). margin:0 made the input flush against the label — on the
+     shorter default-box labels it read as the input sitting too high. */
+  margin: 3px 0 0; padding: 4px 6px;
 }
 
 /* ---- Facts grid ---------------------------------------------------------- */
