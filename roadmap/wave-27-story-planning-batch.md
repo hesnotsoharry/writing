@@ -167,7 +167,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 1 | 2026-06-05 | 2026-06-05 | a0de71d | Goals dialog verified via gate suite; runtime observation deferred (CDP smoke in a later phase) |
 | 2 | 2026-06-05 | 2026-06-05 | b6d084a | Panel FLAG addressed (initial diff load, async onCapture auto-select, interface doc); gates re-verified clean |
 | 3 | 2026-06-05 | 2026-06-05 | (commit below) | Panel FLAGs addressed: onStatus wired + cycled, updateLabel atomic COALESCE; drag-reorder deferred per spec |
-| 4 | — | — | — | — |
+| 4 | 2026-06-05 | 2026-06-05 | fe27e3b | Panel BLOCK+FLAGs addressed: cascade delete, RELATION_PRESETS map shape, EgoGraph freshness via onMutation |
 | 5 | — | — | — | — |
 | 6 | — | — | — | — |
 | 7 | — | — | — | — |
