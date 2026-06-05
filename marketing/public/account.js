@@ -13,7 +13,7 @@
 // ============================================================================
 
 import { supabase } from "./supabase-client.js";
-import { renderAccount } from "./account-render.js";
+import { formatActivation, renderAccount } from "./account-render.js";
 
 // --------------------------------------------------------------------------
 // Unconfigured-placeholder guard (same check as signin.js)
@@ -60,6 +60,42 @@ function applyViewToDom(view) {
   if (noPurchaseNote) {
     noPurchaseNote.style.display = view.hasPurchase ? "none" : "block";
   }
+}
+
+// --------------------------------------------------------------------------
+// Fetch the live activation count from the public LemonSqueezy License API
+// and write it into #activation-count.
+// POST /v1/licenses/validate requires no auth header — it's the public endpoint.
+// Any error (network, non-2xx, bad JSON) falls through to null → "—" fallback.
+// --------------------------------------------------------------------------
+async function fetchAndShowActivations(licenseKey) {
+  let result = null;
+  try {
+    const res = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ license_key: licenseKey }),
+    });
+    if (res.ok) {
+      result = await res.json();
+    }
+  } catch {
+    // Network error — leave result as null for the "—" fallback.
+  }
+  const el = document.getElementById("activation-count");
+  if (el) el.textContent = formatActivation(result);
+}
+
+// --------------------------------------------------------------------------
+// Wire the download buttons from window.WN_DL config (set by downloads-config.js).
+// Falls back to "#" if the config is absent (safe no-op in the browser).
+// --------------------------------------------------------------------------
+function wireDownloadButtons() {
+  const cfg = window.WN_DL || {};
+  const mac = document.getElementById("dl-mac");
+  const win = document.getElementById("dl-win");
+  if (mac && cfg.macUrl) mac.href = cfg.macUrl;
+  if (win && cfg.winUrl) win.href = cfg.winUrl;
 }
 
 // --------------------------------------------------------------------------
@@ -133,6 +169,10 @@ if (typeof document !== "undefined") {
       const view = renderAccount(rows?.[0] ?? null, email);
       showAccountPanel();
       applyViewToDom(view);
+      wireDownloadButtons();
+      if (view.licenseKey) {
+        fetchAndShowActivations(view.licenseKey);
+      }
     } else {
       showSigninPrompt();
     }

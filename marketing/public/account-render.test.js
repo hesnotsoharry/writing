@@ -1,13 +1,16 @@
 // ============================================================================
-// ORCHESTRATOR-OWNED ACCEPTANCE TEST — Phase 2 account-render contract.
-// The implementer MUST make this pass and MUST NOT modify it. It pins the
-// PURE renderAccount(purchaseRow, email) mapping — the testable seam that
-// account.js's SDK glue feeds (a purchases row + the signed-in email) and
-// applies to the DOM. No SDK import here (Decision 3).
+// ORCHESTRATOR-OWNED ACCEPTANCE TEST — account-render contract (m4 P2 + P3).
+// The implementer MUST make this pass and MUST NOT modify it. It pins the PURE
+// seams that account.js's SDK/network glue feeds:
+//   - renderAccount(purchaseRow, email) — purchases row + signed-in email → view (P2).
+//   - formatActivation(validateResult)  — the LS /v1/licenses/validate response
+//       (public License API, called browser-side with the row's license_key) →
+//       an "X of Y" activation-count string, with a "—" fallback (P3).
+// No SDK import here (Decision 3) — these are pure mappers.
 // ============================================================================
 import { describe, expect, it } from "vitest";
 
-import { renderAccount } from "./account-render.js";
+import { formatActivation, renderAccount } from "./account-render.js";
 
 const ROW = {
   license_key: "WNOOK-TEST-KEY-0001",
@@ -46,5 +49,31 @@ describe("renderAccount — purchase row → account view values", () => {
   it("formats whole-dollar and sub-dollar totals correctly", () => {
     expect(renderAccount({ ...ROW, total: "4900" }, "a@b.com").amount).toBe("$49.00");
     expect(renderAccount({ ...ROW, total: "0" }, "a@b.com").amount).toBe("$0.00");
+  });
+});
+
+describe("formatActivation — LS license-validate response → activation-count string", () => {
+  it("renders 'usage of limit' for a valid, finite license", () => {
+    const result = { valid: true, license_key: { activation_usage: 2, activation_limit: 3, status: "active" } };
+    expect(formatActivation(result)).toBe("2 of 3");
+  });
+
+  it("renders zero activations correctly (no falsy-zero trap)", () => {
+    expect(formatActivation({ valid: true, license_key: { activation_usage: 0, activation_limit: 1 } })).toBe("0 of 1");
+  });
+
+  it("renders an unlimited license (null limit) as 'usage of ∞'", () => {
+    const result = { valid: true, license_key: { activation_usage: 5, activation_limit: null } };
+    expect(formatActivation(result)).toBe("5 of ∞");
+  });
+
+  it("falls back to '—' when the License API is unreachable (null result)", () => {
+    expect(formatActivation(null)).toBe("—");
+  });
+
+  it("falls back to '—' for an invalid or malformed response", () => {
+    expect(formatActivation({ valid: false, error: "not found", license_key: null })).toBe("—");
+    expect(formatActivation({ valid: true })).toBe("—"); // missing license_key
+    expect(formatActivation({ valid: true, license_key: { activation_usage: "x", activation_limit: 3 } })).toBe("—"); // non-numeric usage
   });
 });

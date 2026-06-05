@@ -53,6 +53,29 @@ export function formatDate(isoString) {
 }
 
 /**
+ * Format a LemonSqueezy license-validate response to an activation-count string.
+ * Called browser-side after POST /v1/licenses/validate; kept pure for testability.
+ *
+ * Inputs and outputs:
+ *   { valid: true, license_key: { activation_usage: 2, activation_limit: 3 } } → "2 of 3"
+ *   { valid: true, license_key: { activation_usage: 5, activation_limit: null } } → "5 of ∞"
+ *   null / valid:false / missing license_key / non-numeric usage → "—"
+ *
+ * @param {object|null} validateResult — parsed JSON from the LS License API
+ * @returns {string}
+ */
+export function formatActivation(validateResult) {
+  if (!validateResult || !validateResult.valid) return "—";
+  const lk = validateResult.license_key;
+  if (!lk) return "—";
+  const usage = lk.activation_usage;
+  if (typeof usage !== "number" || !Number.isFinite(usage)) return "—";
+  const limit = lk.activation_limit;
+  const limitStr = limit === null ? "∞" : String(limit);
+  return usage + " of " + limitStr;
+}
+
+/**
  * Map a purchases row (or null) + email to display-value object.
  *
  * @param {object|null} purchaseRow  — a Supabase purchases row, or null
