@@ -88,7 +88,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | URL-builder contract proven (vitest 4/4); pay-click wiring + Setup handler in place. Full browser-overlay observation deferred — needs real LS test store/variant IDs in ls-config.js. tsc 0, vitest 10/10. |
+| 1 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | 10d0adb | URL-builder contract proven (vitest 4/4); pay-click wiring + Setup handler in place. Full browser-overlay observation deferred — needs real LS test store/variant IDs in ls-config.js. tsc 0, vitest 10/10. |
+| 2 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | _this commit_ | Founder price $29 (struck $49 anchor) across nav/hero/pricing/comparison/checkout/FAQ; "no account" claim reframed everywhere; sync presented as "coming later" + free Dropbox/OneDrive backup story. Diff read directly (single-tier review; channel broken). Known-cosmetic: account.html:96 demo receipt still shows $49 — deferred to m3 (rebuilds account data). tsc 0, vitest 10/10. |
 
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
 
