@@ -16,7 +16,14 @@ import {
   sqliteUpdateEntityFieldKey,
   sqliteUpdateLinkRelation,
 } from "./sqliteEntityDetail";
+import {
+  sqliteAddRelation,
+  sqliteDeleteRelation,
+  sqliteListRelations,
+  sqliteUpdateRelationLabel,
+} from "./sqliteRelationStore";
 import type {
+  AddRelationArgs,
   Character,
   Entity,
   EntityField,
@@ -25,6 +32,7 @@ import type {
   EntityWithPortrait,
   FieldKind,
   Location,
+  Relation,
   SceneLink,
   StoryBibleStore,
 } from "./storyBibleStore";
@@ -217,22 +225,8 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     const chars = await this.listCharacters(projectId);
     const locs = await this.listLocations(projectId);
     return [
-      ...chars.map((c) => ({
-        id: c.id,
-        projectId: c.projectId,
-        type: "character" as const,
-        name: c.name,
-        notes: c.notes,
-        aliases: c.aliases,
-      })),
-      ...locs.map((l) => ({
-        id: l.id,
-        projectId: l.projectId,
-        type: "location" as const,
-        name: l.name,
-        notes: l.notes,
-        aliases: l.aliases,
-      })),
+      ...chars.map((c) => ({ id: c.id, projectId: c.projectId, type: "character" as const, name: c.name, notes: c.notes, aliases: c.aliases })),
+      ...locs.map((l) => ({ id: l.id, projectId: l.projectId, type: "location" as const, name: l.name, notes: l.notes, aliases: l.aliases })),
     ];
   }
 
@@ -292,4 +286,10 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   async clearPortrait(type: EntityType, id: string): Promise<void> {
     return sqliteClearPortrait(await getDb(), type, id);
   }
+
+  // ── Wave 27 Phase 4 — Typed relation edges (implemented in sqliteRelationStore.ts) ──
+  async addRelation(projectId: string, args: AddRelationArgs): Promise<Relation> { return sqliteAddRelation(projectId, args); }
+  async listRelations(projectId: string, entityId?: string): Promise<Relation[]> { return sqliteListRelations(projectId, entityId); }
+  async deleteRelation(id: string): Promise<void> { return sqliteDeleteRelation(id); }
+  async updateRelationLabel(id: string, label: string): Promise<void> { return sqliteUpdateRelationLabel(id, label); }
 }

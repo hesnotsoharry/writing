@@ -3,7 +3,7 @@
 // Runs against InMemoryStoryBibleStore only — per the existing pattern (no SQLite in unit tests).
 import { describe, expect, it } from "vitest";
 
-import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
+import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 
 describe("StoryBibleStore contract", () => {
   it("createCharacter returns a Character with the given project/name/notes", async () => {

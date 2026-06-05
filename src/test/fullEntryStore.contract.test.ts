@@ -10,7 +10,7 @@
 // entity_links: from_id+to_id). See roadmap/wave-24-full-entry.md Locked Decisions 1 & 2.
 import { describe, expect, it } from "vitest";
 
-import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
+import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 
 describe("Full Entry store contract (Wave 24)", () => {
   // ── getEntity ────────────────────────────────────────────────────────────

@@ -1,29 +1,4 @@
-/** Domain types for the Story Bible data model. */
-
-import {
-  imAddEntityField,
-  imAddLink,
-  imClearPortrait,
-  imCreateCharacter,
-  imCreateLocation,
-  imDeleteEntityField,
-  type ImEntityCtx,
-  imGetEntity,
-  imGetEntityFields,
-  imListEntities,
-  imListLinksFor,
-  imListLinksTo,
-  imLoadSceneEntities,
-  imPurgeEntityDetail,
-  imRemoveLink,
-  imRenameEntity,
-  imReorderEntityFields,
-  imSetEntityField,
-  imSetPortrait,
-  imUpdateEntityFieldKey,
-  imUpdateEntityNotes,
-  imUpdateLinkRelation,
-} from "./inMemoryEntityDetail";
+/** Domain types and interface for the Story Bible data model. */
 
 export interface Character {
   id: string;
@@ -41,7 +16,12 @@ export interface Location {
   aliases: string | null;
 }
 
-export type EntityType = "character" | "location";
+/**
+ * EntityType is `string` (not a literal union) for forward-compatibility with
+ * Phase 5's custom entity types. Phase 4 only creates/reads "character" and
+ * "location" rows, but relation methods must not reject future values.
+ */
+export type EntityType = string;
 
 export interface SceneLink {
   entityType: EntityType;
@@ -83,6 +63,58 @@ export interface EntityLink {
   toId: string;
   relation: string;
 }
+
+/**
+ * A typed directed relationship edge stored in entity_relations.
+ * Distinct from EntityLink (which is the old entity_links table used by
+ * PeopleGroup for the char/location graph). Relations are the Phase 4 concept:
+ * labelled, project-scoped, with optional auto-reciprocal.
+ */
+export interface Relation {
+  id: string;
+  projectId: string;
+  fromEntity: string;
+  toEntity: string;
+  label: string;
+  reciprocalId: string | null;
+  createdAt: number;
+}
+
+/** A curated preset with a forward label and an inverse label. */
+export interface RelationPreset {
+  label: string;
+  inv: string;
+}
+
+/** Arguments for addRelation — bundles the from/to/label fields to stay under max-params. */
+export interface AddRelationArgs {
+  fromEntity: string;
+  toEntity: string;
+  label: string;
+  reciprocalLabel?: string;
+}
+
+/**
+ * Curated relation presets keyed by entity type.
+ * All types currently share the same interpersonal vocabulary;
+ * Phase 5 can extend with per-type entries.
+ */
+export const RELATION_PRESETS: RelationPreset[] = [
+  { label: "Sibling of",    inv: "Sibling of" },
+  { label: "Parent of",     inv: "Child of" },
+  { label: "Child of",      inv: "Parent of" },
+  { label: "Spouse of",     inv: "Spouse of" },
+  { label: "Friend of",     inv: "Friend of" },
+  { label: "Ally of",       inv: "Ally of" },
+  { label: "Rival of",      inv: "Rival of" },
+  { label: "Mentor of",     inv: "Apprentice of" },
+  { label: "Apprentice of", inv: "Mentor of" },
+  { label: "Grandparent of",inv: "Grandchild of" },
+  { label: "Grandchild of", inv: "Grandparent of" },
+  { label: "Confidant of",  inv: "Confidant of" },
+  { label: "Member of",     inv: "Has member" },
+  { label: "Located in",    inv: "Contains" },
+];
 
 /**
  * Entity plus its portrait path — the single-entity loader's return shape.
@@ -176,144 +208,24 @@ export interface StoryBibleStore {
   setPortrait(type: EntityType, id: string, path: string): Promise<void>;
   /** Clear the portrait_path (set null). */
   clearPortrait(type: EntityType, id: string): Promise<void>;
+
+  // ── Wave 27 Phase 4 — Typed relation edges ────────────────────────────────
+  /**
+   * Add a directed relation edge from→to with the given label.
+   * If opts.reciprocalLabel is provided, also writes the inverse edge and links
+   * both via reciprocal_id. Dedup-safe: a duplicate (project_id, from_entity,
+   * to_entity) is silently ignored and the existing row is returned.
+   */
+  addRelation(projectId: string, args: AddRelationArgs): Promise<Relation>;
+  /**
+   * List all relation edges that involve entityId (either as from_entity OR to_entity).
+   * If entityId is omitted, returns all relations for the project.
+   */
+  listRelations(projectId: string, entityId?: string): Promise<Relation[]>;
+  /** Delete a relation by id. If the row has a reciprocal_id, also deletes the inverse. */
+  deleteRelation(id: string): Promise<void>;
+  /** Update a relation's label in-place. Does NOT update the reciprocal edge's label. */
+  updateRelationLabel(id: string, label: string): Promise<void>;
 }
 
-// ---------------------------------------------------------------------------
-// In-memory fake — used in tests; mirrors InMemoryBinderStore discipline.
-// ---------------------------------------------------------------------------
-
-export class InMemoryStoryBibleStore implements StoryBibleStore {
-  private characters: Character[] = [];
-  private locations: Location[] = [];
-  private sceneLinks: (SceneLink & { sceneId: string })[] = [];
-  private entityFields: EntityField[] = [];
-  private entityLinks: EntityLink[] = [];
-  private portraits = new Map<string, string>();
-
-  async listCharacters(projectId: string): Promise<Character[]> {
-    return this.characters.filter((c) => c.projectId === projectId);
-  }
-
-  async listLocations(projectId: string): Promise<Location[]> {
-    return this.locations.filter((l) => l.projectId === projectId);
-  }
-
-  async createCharacter(projectId: string, name: string, notes: string | null): Promise<Character> {
-    return imCreateCharacter(projectId, name, notes, this.characters);
-  }
-
-  async createLocation(projectId: string, name: string, notes: string | null): Promise<Location> {
-    return imCreateLocation(projectId, name, notes, this.locations);
-  }
-
-  async renameEntity(type: EntityType, id: string, name: string): Promise<void> {
-    const r = imRenameEntity(type, id, name, { characters: this.characters, locations: this.locations });
-    this.characters = r.characters; this.locations = r.locations;
-  }
-
-  async updateEntityNotes(type: EntityType, id: string, notes: string | null): Promise<void> {
-    const r = imUpdateEntityNotes(type, id, notes, { characters: this.characters, locations: this.locations });
-    this.characters = r.characters; this.locations = r.locations;
-  }
-
-  async deleteEntity(type: EntityType, id: string): Promise<void> {
-    if (type === "character") {
-      this.characters = this.characters.filter((c) => c.id !== id);
-    } else {
-      this.locations = this.locations.filter((l) => l.id !== id);
-    }
-    this.sceneLinks = this.sceneLinks.filter(
-      (sl) => !(sl.entityType === type && sl.entityId === id)
-    );
-    const purged = imPurgeEntityDetail(id, this.entityFields, this.entityLinks, this.portraits);
-    this.entityFields = purged.entityFields;
-    this.entityLinks = purged.entityLinks;
-  }
-
-  async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {
-    this.sceneLinks = this.sceneLinks.filter((sl) => sl.sceneId !== sceneId);
-    for (const link of links) {
-      this.sceneLinks.push({ sceneId, ...link });
-    }
-  }
-
-  async loadSceneLinks(sceneId: string): Promise<SceneLink[]> {
-    return this.sceneLinks
-      .filter((sl) => sl.sceneId === sceneId)
-      .map(({ entityType, entityId }) => ({ entityType, entityId }));
-  }
-
-  async loadSceneEntities(sceneId: string): Promise<{ characters: Entity[]; locations: Entity[] }> {
-    return imLoadSceneEntities(sceneId, this.sceneLinks, this.characters, this.locations);
-  }
-
-  async findScenesForEntity(entityId: string): Promise<string[]> {
-    return this.sceneLinks
-      .filter((sl) => sl.entityId === entityId)
-      .map((sl) => sl.sceneId);
-  }
-
-  async listEntities(projectId: string): Promise<Entity[]> {
-    const chars = await this.listCharacters(projectId);
-    const locs = await this.listLocations(projectId);
-    return imListEntities(chars, locs);
-  }
-
-  // ── Wave 24 Full Entry additive surface ──────────────────────────────────
-  async getEntity(type: EntityType, id: string): Promise<EntityWithPortrait | null> {
-    const ctx: ImEntityCtx = { characters: this.characters, locations: this.locations, portraits: this.portraits };
-    return imGetEntity(type, id, ctx);
-  }
-
-  async getEntityFields(entityId: string): Promise<EntityField[]> {
-    return imGetEntityFields(entityId, this.entityFields);
-  }
-
-  async setEntityField(entityId: string, kind: FieldKind, key: string, value: string): Promise<void> {
-    imSetEntityField({ entityId, kind, key }, value, this.entityFields);
-  }
-
-  async addEntityField(entityId: string, kind: FieldKind, key: string): Promise<EntityField> {
-    return imAddEntityField(entityId, kind, key, this.entityFields);
-  }
-
-  async deleteEntityField(fieldId: string): Promise<void> {
-    this.entityFields = imDeleteEntityField(fieldId, this.entityFields);
-  }
-
-  async reorderEntityFields(updates: { id: string; sort: number }[]): Promise<void> {
-    imReorderEntityFields(updates, this.entityFields);
-  }
-
-  async listLinksFor(entityId: string): Promise<EntityLink[]> {
-    return imListLinksFor(entityId, this.entityLinks);
-  }
-
-  async listLinksTo(toId: string): Promise<EntityLink[]> {
-    return imListLinksTo(toId, this.entityLinks);
-  }
-
-  async updateEntityFieldKey(fieldId: string, newKey: string): Promise<void> {
-    imUpdateEntityFieldKey(fieldId, newKey, this.entityFields);
-  }
-
-  async addLink(fromId: string, toId: string, relation: string): Promise<EntityLink> {
-    return imAddLink(fromId, toId, relation, this.entityLinks);
-  }
-
-  async removeLink(linkId: string): Promise<void> {
-    this.entityLinks = imRemoveLink(linkId, this.entityLinks);
-  }
-
-  async updateLinkRelation(linkId: string, relation: string): Promise<void> {
-    imUpdateLinkRelation(linkId, relation, this.entityLinks);
-  }
-
-  async setPortrait(_type: EntityType, id: string, path: string): Promise<void> {
-    imSetPortrait(id, path, this.portraits);
-  }
-
-  async clearPortrait(_type: EntityType, id: string): Promise<void> {
-    imClearPortrait(id, this.portraits);
-  }
-}
+// InMemoryStoryBibleStore lives in ./inMemoryStoryBibleStore.ts (extracted to stay under 300 lines).

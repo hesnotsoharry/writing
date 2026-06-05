@@ -13,7 +13,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
+import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 import { ROLE_KEY } from "../storybible/fullEntry/defs";
 import { FeEyebrow } from "../storybible/fullEntry/FeSubcomponents";
 

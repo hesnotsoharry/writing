@@ -417,6 +417,43 @@ async function migration_011_scene_labels(db: DbHandle): Promise<void> {
   );
 }
 
+/**
+ * Create the entity_relations table for typed directed relationship edges.
+ *
+ * reciprocal_id references the inverse edge row (TEXT NULL — not every relation
+ * has an automatic reciprocal; custom labels are one-directional).
+ * project_id scopes relations to a project (NOT NULL, no FK constraint — matches
+ * the pattern of all prior project-scoped feature tables in this project).
+ * created_at is an INTEGER (Unix ms epoch).
+ *
+ * UNIQUE(project_id, from_entity, to_entity) prevents duplicate directed edges
+ * between the same pair within a project. The INSERT OR IGNORE in addRelation
+ * relies on this constraint for deduplication.
+ */
+async function migration_012_entity_relations(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS entity_relations (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      from_entity TEXT NOT NULL,
+      to_entity TEXT NOT NULL,
+      relation_label TEXT NOT NULL DEFAULT '',
+      reciprocal_id TEXT,
+      created_at INTEGER NOT NULL,
+      UNIQUE(project_id, from_entity, to_entity)
+    )`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_entity_relations_project_id ON entity_relations (project_id)`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_entity_relations_from_entity ON entity_relations (from_entity)`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_entity_relations_to_entity ON entity_relations (to_entity)`
+  );
+}
+
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 /**
@@ -437,6 +474,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 9, name: "scene-snapshots", up: migration_009_scene_snapshots },
   { version: 10, name: "labels", up: migration_010_labels },
   { version: 11, name: "scene-labels", up: migration_011_scene_labels },
+  { version: 12, name: "entity-relations", up: migration_012_entity_relations },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

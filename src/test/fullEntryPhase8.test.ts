@@ -21,7 +21,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
-import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
+import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 import { mergeFacts, ROLE_KEY } from "../storybible/fullEntry/defs";
 
 // ── (a+f) Custom field via addEntityField appears in mergeFacts with isDefault=false ──

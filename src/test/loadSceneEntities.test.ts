@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
+import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 
 /**
  * Wave 9 Phase 1 acceptance test (orchestrator-authored — loadSceneEntities contract).

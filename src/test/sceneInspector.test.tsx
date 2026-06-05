@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Scene } from "../db/binderStore";
-import { InMemoryStoryBibleStore } from "../db/storyBibleStore";
+import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 import { writeGoalConfig } from "../features/goals/goalStorage";
 import { GoalRing } from "../inspector/InspectorGoalRings";
 import { SceneInspector } from "../inspector/SceneInspector";

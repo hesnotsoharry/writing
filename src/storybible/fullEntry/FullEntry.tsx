@@ -7,30 +7,28 @@
 
 import "./fullEntry.css";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { Icon } from "../../components/Icon";
-import { RenameInput } from "../../components/menu/RenameInput";
 import type { Folder, Scene } from "../../db/binderStore";
 import type {
+  Entity,
   EntityField,
   EntityType,
   EntityWithPortrait,
   FieldKind,
+  Relation,
   StoryBibleStore,
 } from "../../db/storyBibleStore";
 import { buildAppearsIn, mergeFacts, mergeSections, ROLE_KEY } from "./defs";
+import { EgoGraph } from "./EgoGraph";
 import { FeAppearsIn } from "./FeAppearsIn";
-import {
-  AddField,
-  FeDetailsGroup,
-  FeEyebrow,
-  FeHeroAvatar,
-  FeProseSection,
-} from "./FeSubcomponents";
+import { AddField, FeDetailsGroup, FeProseSection } from "./FeSubcomponents";
+import { FeHero, FeTopbar } from "./FeTopbarHero";
+import { useEntityDetail, useRelations } from "./fullEntryHooks";
 import { PeopleGroup } from "./PeopleGroup";
 import { usePortraitFlows, usePortraitState } from "./portraitHooks";
 import { deletePortraitFile, toDisplaySrc } from "./portraitService";
+import { RelationshipGroup } from "./RelationshipGroup";
 
 // ── Prop contract ─────────────────────────────────────────────────────────────
 
@@ -56,129 +54,6 @@ export interface FullEntryProps {
   onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
 }
 
-// ── useEntityDetail ───────────────────────────────────────────────────────────
-
-interface EntityDetail {
-  fields: EntityField[];
-  sceneIds: string[];
-  refresh: () => void;
-}
-
-function useEntityDetail(
-  store: StoryBibleStore | undefined,
-  entityId: string | undefined
-): EntityDetail {
-  const [fields, setFields] = useState<EntityField[]>([]);
-  const [sceneIds, setSceneIds] = useState<string[]>([]);
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    if (!store || !entityId) return;
-    let alive = true;
-    void Promise.all([
-      store.getEntityFields(entityId),
-      store.findScenesForEntity(entityId),
-    ]).then(([f, s]) => {
-      if (!alive) return;
-      setFields(f);
-      setSceneIds(s);
-    });
-    return () => { alive = false; };
-  }, [store, entityId, version]);
-
-  function refresh() { setVersion((v) => v + 1); }
-  return { fields, sceneIds, refresh };
-}
-
-// ── FeTopbar ──────────────────────────────────────────────────────────────────
-
-interface FeTopbarProps {
-  entity: EntityWithPortrait;
-  entityType: EntityType;
-  kind: string;
-  rootLabel: string;
-  setRenaming: (v: boolean) => void;
-  onBack?: () => void;
-  onExit?: () => void;
-  onDelete?: (kind: string, id: string) => void;
-}
-
-function FeTopbar({
-  entity, entityType, kind, rootLabel, setRenaming,
-  onBack, onExit, onDelete,
-}: FeTopbarProps) {
-  const isChar = entityType === "character";
-  return (
-    <div className="fe-topbar">
-      <button className="fe-back" onClick={onBack} title="Back">
-        <Icon name="chevLeft" className="ic" />
-      </button>
-      <div className="fe-crumb">
-        <button className="fe-crumb-root" onClick={onExit}>{rootLabel}</button>
-        <span className="sep">/</span>
-        <span>{isChar ? "Characters" : "Locations"}</span>
-        <span className="sep">/</span>
-        <span className="here">{entity.name}</span>
-      </div>
-      <div className="fe-tb-actions">
-        <button className="iconbtn" title="Edit name" onClick={() => setRenaming(true)}>
-          <Icon name="edit" className="ic" />
-        </button>
-        <button
-          className="iconbtn"
-          title={`Delete ${kind.toLowerCase()}`}
-          onClick={() => onDelete?.(kind, entity.id)}
-        >
-          <Icon name="trash" className="ic" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── FeHero ────────────────────────────────────────────────────────────────────
-
-interface FeHeroProps {
-  entity: EntityWithPortrait;
-  entityType: EntityType;
-  renaming: boolean;
-  setRenaming: (v: boolean) => void;
-  kind: string;
-  role: string;
-  onCommitRole: (value: string) => void;
-  displaySrc?: string | null;
-  onPortraitAdd?: () => void;
-  onPortraitRemove?: () => void;
-  onPortraitError?: () => void;
-  onRename?: (kind: string, id: string, newName: string) => void;
-}
-
-function FeHero({
-  entity, entityType, renaming, setRenaming, kind, role, onCommitRole,
-  displaySrc, onPortraitAdd, onPortraitRemove, onPortraitError, onRename,
-}: FeHeroProps) {
-  const isChar = entityType === "character";
-  const initial = entity.name.trim()[0]?.toUpperCase() ?? "";
-  return (
-    <div className="fe-hero">
-      <FeHeroAvatar type={entityType} initial={initial} displaySrc={displaySrc}
-        onAdd={onPortraitAdd} onRemove={onPortraitRemove} onPortraitError={onPortraitError} />
-      <div className="fe-hero-body">
-        <FeEyebrow key={role} role={role} isChar={isChar} onCommit={onCommitRole} />
-        {renaming ? (
-          <div style={{ margin: "2px 0 4px" }}>
-            <RenameInput value={entity.name}
-              onCommit={(t) => { setRenaming(false); onRename?.(kind, entity.id, t); }}
-              onCancel={() => setRenaming(false)} />
-          </div>
-        ) : (
-          <h1 className="fe-name" onDoubleClick={() => setRenaming(true)}>{entity.name}</h1>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── FeRail ────────────────────────────────────────────────────────────────────
 
 interface FeRailProps {
@@ -193,6 +68,9 @@ interface FeRailProps {
   onCommitField: (kind: FieldKind, key: string, value: string) => void;
   onOpenScene?: (sceneId: string) => void;
   onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+  // Relations
+  relations: Relation[];
+  allEntities: Entity[];
 }
 
 /** Link an entity to a scene: load existing links, dedup, replace. */
@@ -207,6 +85,7 @@ async function linkEntityToScene(store: StoryBibleStore, pickedSceneId: string, 
 function FeRail({
   entity, entityType, store, folders, scenes, fields,
   sceneIds, refresh, onCommitField, onOpenScene, onPushEntry,
+  relations, allEntities,
 }: FeRailProps) {
   const mergedFacts = mergeFacts(entityType, fields);
   const appearsIn = buildAppearsIn(sceneIds, folders, scenes);
@@ -227,7 +106,16 @@ function FeRail({
       />
       <PeopleGroup
         key={entity.id} entityId={entity.id} projectId={entity.projectId}
-        entityType={entityType} store={store} onPushEntry={onPushEntry}
+        entityType={entityType as "character" | "location"} store={store} onPushEntry={onPushEntry}
+      />
+      <RelationshipGroup
+        key={`rg-${entity.id}`}
+        entityId={entity.id} projectId={entity.projectId}
+        store={store} onPushEntry={onPushEntry}
+      />
+      <EgoGraph
+        entity={entity} relations={relations} allEntities={allEntities}
+        onOpenEntry={(id, kind) => onPushEntry?.(id, kind)}
       />
     </div>
   );
@@ -300,16 +188,14 @@ function FullEntryInner({ entity, kind, origin, store, folders = [], scenes = []
   onBack, onExit, onRename, onDelete, onOpenScene, onPushEntry }: FullEntryProps & { entity: EntityWithPortrait }) {
   const [renaming, setRenaming] = useState(false);
   const { fields, sceneIds, refresh } = useEntityDetail(store, entity.id);
+  const { relations, allEntities } = useRelations(store, entity.projectId, entity.id);
   const { resolvedKind, rootLabel, storeType } = resolveEntryContext(entity, kind, origin);
   const { portraitPath, setPortraitPath } = usePortraitState(entity.portraitPath);
-  const { handlePortraitAdd, handlePortraitRemove, handlePortraitError } =
-    usePortraitFlows({ entity, storeType, store, portraitPath, setPortraitPath });
+  const portraitFlows = usePortraitFlows({ entity, storeType, store, portraitPath, setPortraitPath });
   const entityType = entity.type;
   const displaySrc = toDisplaySrc(portraitPath);
-
   async function onCommitField(fieldKind: FieldKind, key: string, value: string) {
-    await store?.setEntityField(entity.id, fieldKind, key, value);
-    refresh();
+    await store?.setEntityField(entity.id, fieldKind, key, value); refresh();
   }
   async function handleDelete(deleteKind: string, deleteId: string) {
     if (portraitPath) await deletePortraitFile(portraitPath);
@@ -325,13 +211,14 @@ function FullEntryInner({ entity, kind, origin, store, folders = [], scenes = []
           renaming={renaming} setRenaming={setRenaming} fields={fields} store={store}
           refresh={refresh} onRename={onRename} onCommitField={onCommitField}
           displaySrc={displaySrc}
-          onPortraitAdd={() => { void handlePortraitAdd(); }}
-          onPortraitRemove={() => { void handlePortraitRemove(); }}
-          onPortraitError={() => { void handlePortraitError(); }} />
+          onPortraitAdd={() => { void portraitFlows.handlePortraitAdd(); }}
+          onPortraitRemove={() => { void portraitFlows.handlePortraitRemove(); }}
+          onPortraitError={() => { void portraitFlows.handlePortraitError(); }} />
         <FeRail entity={entity} entityType={entityType} store={store}
           folders={folders} scenes={scenes} fields={fields} sceneIds={sceneIds}
           refresh={refresh} onCommitField={onCommitField}
-          onOpenScene={onOpenScene} onPushEntry={onPushEntry} />
+          onOpenScene={onOpenScene} onPushEntry={onPushEntry}
+          relations={relations} allEntities={allEntities} />
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { Icon } from "../components/Icon";
 import type { MenuDescriptor } from "../components/menu/ContextMenu";
 import { ContextMenu } from "../components/menu/ContextMenu";
 import { buildEntityMenu } from "../components/menu/sceneMenu";
-import type { Character, Location, StoryBibleStore } from "../db/storyBibleStore";
+import type { Character, Entity, Location, Relation, StoryBibleStore } from "../db/storyBibleStore";
 import {
   EntityFoot,
   EntityRoleEdit,
@@ -12,6 +12,7 @@ import {
   EntitySketch,
   useEntityRole,
 } from "./EntityCardParts";
+import { RelationshipMap } from "./RelationshipMap";
 
 // ---------------------------------------------------------------------------
 // EntityRow
@@ -232,32 +233,52 @@ async function fetchLists(store: StoryBibleStore, projectId: string) {
   return Promise.all([store.listCharacters(projectId), store.listLocations(projectId)]);
 }
 
+async function fetchMapData(store: StoryBibleStore, projectId: string): Promise<{ entities: Entity[]; relations: Relation[] }> {
+  const [entities, relations] = await Promise.all([
+    store.listEntities(projectId),
+    store.listRelations(projectId),
+  ]);
+  return { entities, relations };
+}
+
 function useStoryBibleLists(store: StoryBibleStore, projectId: string, onEntitiesChanged?: () => void) {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [mapEntities, setMapEntities] = useState<Entity[]>([]);
+  const [mapRelations, setMapRelations] = useState<Relation[]>([]);
 
   useEffect(() => {
     let alive = true;
-    fetchLists(store, projectId).then(([chars, locs]) => {
+    Promise.all([
+      fetchLists(store, projectId),
+      fetchMapData(store, projectId),
+    ]).then(([[chars, locs], { entities, relations }]) => {
       if (!alive) return;
       setCharacters(chars);
       setLocations(locs);
+      setMapEntities(entities);
+      setMapRelations(relations);
       setRefreshVersion((v) => v + 1);
     }).catch((e: unknown) => console.error("[StoryBibleView] load failed", e));
     return () => { alive = false; };
   }, [store, projectId]);
 
   function refresh() {
-    fetchLists(store, projectId).then(([chars, locs]) => {
+    Promise.all([
+      fetchLists(store, projectId),
+      fetchMapData(store, projectId),
+    ]).then(([[chars, locs], { entities, relations }]) => {
       setCharacters(chars);
       setLocations(locs);
+      setMapEntities(entities);
+      setMapRelations(relations);
       setRefreshVersion((v) => v + 1);
       onEntitiesChanged?.();
     }).catch((e: unknown) => console.error("[StoryBibleView] refresh failed", e));
   }
 
-  return { characters, locations, refreshVersion, refresh };
+  return { characters, locations, refreshVersion, refresh, mapEntities, mapRelations };
 }
 
 /** Resets any cursor style stuck on <html> by @dnd-kit (corkboard/binder drag). */
@@ -268,13 +289,26 @@ function useCursorReset() {
   }, []);
 }
 
-export function StoryBibleView({ store, projectId, onEntitiesChanged, onOpenEntry }: StoryBibleViewProps) {
-  const { characters, locations, refreshVersion, refresh } = useStoryBibleLists(store, projectId, onEntitiesChanged);
-  useCursorReset();
+type BibleSubView = "list" | "map";
+
+function BibleListView({ store, projectId, characters, locations, refreshVersion, refresh,
+  onOpenEntry, onShowMap }: {
+  store: StoryBibleStore; projectId: string;
+  characters: Character[]; locations: Location[];
+  refreshVersion: number; refresh: () => void;
+  onOpenEntry?: (id: string, kind: "Character" | "Location") => void;
+  onShowMap: () => void;
+}) {
   const shared = { store, projectId, onMutated: refresh, refreshVersion, onOpenEntry };
   return (
     <main className="corkboard">
       <div className="corkboard-inner" style={{ maxWidth: 960 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "var(--s-3)" }}>
+          <button className="btn btn-ghost" style={{ fontSize: 12, gap: 5 }} onClick={onShowMap}>
+            <Icon name="users" className="ic" style={{ width: 14, height: 14 }} />
+            {" Relationship map"}
+          </button>
+        </div>
         <div className="bible-grid">
           <EntitySection {...shared} colTitle={`Characters · ${characters.length}`}
             entities={characters} type="character"
@@ -285,5 +319,25 @@ export function StoryBibleView({ store, projectId, onEntitiesChanged, onOpenEntr
         </div>
       </div>
     </main>
+  );
+}
+
+export function StoryBibleView({ store, projectId, onEntitiesChanged, onOpenEntry }: StoryBibleViewProps) {
+  const { characters, locations, refreshVersion, refresh, mapEntities, mapRelations } =
+    useStoryBibleLists(store, projectId, onEntitiesChanged);
+  useCursorReset();
+  const [subView, setSubView] = useState<BibleSubView>("list");
+
+  if (subView === "map") {
+    return (
+      <RelationshipMap entities={mapEntities} relations={mapRelations}
+        onOpenEntry={(id, kind) => { setSubView("list"); onOpenEntry?.(id, kind as "Character" | "Location"); }}
+        onBack={() => setSubView("list")} />
+    );
+  }
+  return (
+    <BibleListView store={store} projectId={projectId} characters={characters} locations={locations}
+      refreshVersion={refreshVersion} refresh={refresh} onOpenEntry={onOpenEntry}
+      onShowMap={() => setSubView("map")} />
   );
 }
