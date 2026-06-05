@@ -4,8 +4,9 @@
 // can fire a synthetic drop without fighting jsdom's PointerSensor activation.
 // The REAL DndContext is still rendered (children intact, sortable context alive).
 // ---------------------------------------------------------------------------
-import type { DragEndEvent } from "@dnd-kit/core";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { DragEndEvent, DragOverEvent } from "@dnd-kit/core";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DragCallbacks } from "../binder/BinderDrag";
@@ -13,14 +14,18 @@ import type { BinderTree } from "../binder/buildTree";
 import type { Scene, SceneStatus } from "../db/binderStore";
 import { Corkboard, CorkGroupDnd } from "../features/corkboard/Corkboard";
 
+let capturedOnDragStart: (() => void) | undefined;
+let capturedOnDragOver: ((e: DragOverEvent) => void) | undefined;
 let capturedOnDragEnd: ((e: DragEndEvent) => void) | undefined;
 
 vi.mock("@dnd-kit/core", async () => {
   const actual = await vi.importActual<typeof import("@dnd-kit/core")>("@dnd-kit/core");
-  // Wrap DndContext to capture onDragEnd for direct invocation in tests.
-  // The real DndContext is rendered via JSX so hooks + sortable context work correctly.
+  // Wrap DndContext to capture onDragStart/onDragOver/onDragEnd for direct invocation
+  // in tests. The real DndContext is rendered via JSX so hooks + sortable context work.
   const RealDndContext = actual.DndContext;
   const CapturingDndContext = (props: Parameters<typeof RealDndContext>[0]) => {
+    capturedOnDragStart = props.onDragStart as (() => void) | undefined;
+    capturedOnDragOver = props.onDragOver as ((e: DragOverEvent) => void) | undefined;
     capturedOnDragEnd = props.onDragEnd;
     return <RealDndContext {...props} />;
   };
@@ -335,5 +340,97 @@ describe("Corkboard — DnD reorder wires to existing moveScene callback (Wave 2
     // Fix 1 guard: onAfterDrop must NOT have been called (double-reload eliminated).
     // The single post-write reload is owned by onMoveScene's own .then(doReload) chain.
     expect(onAfterDrop).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 26 Phase 4 — snap-back fix: optimistic order holds until server truth arrives
+// ---------------------------------------------------------------------------
+
+describe("Corkboard — snap-back fix: liveIds holds through async window (Wave 26 Phase 4)", () => {
+  it("holds optimistic [s2,s1] order immediately after drop and clears only when committed scenes match", () => {
+    // WHAT THIS TEST CATCHES: with the old bug, onDragEnd called setLiveIds(null)
+    // synchronously, causing the DOM to snap back to [s1,s2] before the DB write resolved.
+    // The in-window assertion below (before setScenes) goes RED if the fix is reverted.
+    //
+    // Drag cycle: onDragStart seeds liveIds=[s1,s2]; onDragOver reorders to [s2,s1];
+    // onDragEnd (successful move) leaves liveIds=[s2,s1] SET. Only when the parent
+    // delivers reloadedScenes=[s2,s1] does liveIds.join === ids.join → guard clears.
+    const onMoveScene = vi.fn();
+    const cbs: DragCallbacks = { onMoveScene, onMoveFolder: vi.fn() };
+    const initialScenes: Scene[] = [
+      scene({ id: "s1", title: "Opening", word_count: 1234, status: "draft" }),
+      scene({ id: "s2", title: "The Letter", word_count: 0, status: "blank" }),
+    ];
+    // Reloaded scenes as delivered by doReload after the DB write commits (s2 first).
+    const reloadedScenes: Scene[] = [
+      scene({ id: "s2", title: "The Letter", word_count: 0, status: "blank" }),
+      scene({ id: "s1", title: "Opening", word_count: 1234, status: "draft" }),
+    ];
+
+    let capturedSetScenes: ((s: Scene[]) => void) | undefined;
+
+    function Wrapper() {
+      const [scenes, setScenes] = useState<Scene[]>(initialScenes);
+      capturedSetScenes = setScenes;
+      return (
+        <CorkGroupDnd folderId="f1" scenes={scenes} cbs={cbs} onAfterDrop={() => {}}>
+          {(sorted) => (
+            <div data-testid="list">
+              {sorted.map((s) => <div key={s.id} data-testid={`card-${s.id}`}>{s.title}</div>)}
+            </div>
+          )}
+        </CorkGroupDnd>
+      );
+    }
+
+    render(<Wrapper />);
+
+    // Step 1: onDragStart — seeds liveIds to current ids order ["s1","s2"].
+    expect(capturedOnDragStart).toBeDefined();
+    act(() => { capturedOnDragStart!(); });
+
+    // Step 2: onDragOver s2→s1 — reorders liveIds to ["s2","s1"].
+    expect(capturedOnDragOver).toBeDefined();
+    act(() => {
+      capturedOnDragOver!({
+        active: { id: "s2", data: { current: undefined }, rect: { current: { initial: null, translated: null } } },
+        over: { id: "s1", rect: { width: 0, height: 0, top: 0, left: 0, bottom: 0, right: 0 }, data: { current: undefined }, disabled: false },
+        delta: { x: 0, y: 0 },
+        activatorEvent: new Event("pointerdown"),
+        collisions: null,
+      } as unknown as DragOverEvent);
+    });
+
+    // Step 3: onDragEnd — successful move. liveIds must stay SET (["s2","s1"]).
+    expect(capturedOnDragEnd).toBeDefined();
+    act(() => {
+      capturedOnDragEnd!({
+        active: { id: "s2", data: { current: undefined }, rect: { current: { initial: null, translated: null } } },
+        over: { id: "s1", rect: { width: 0, height: 0, top: 0, left: 0, bottom: 0, right: 0 }, data: { current: undefined }, disabled: false },
+        delta: { x: 0, y: 0 },
+        activatorEvent: new Event("pointerdown"),
+        collisions: null,
+      } as unknown as DragEndEvent);
+    });
+
+    // onMoveScene must have been called with the correct target index.
+    // liveIds = ["s2","s1"] after onDragOver; s2 is at index 0 in that array.
+    expect(onMoveScene).toHaveBeenCalledTimes(1);
+    expect(onMoveScene).toHaveBeenCalledWith("s2", "f1", 0);
+
+    // IN-WINDOW ASSERTION — this is the one that goes RED if the fix is reverted.
+    // Scenes prop is still initialScenes=[s1,s2], but liveIds=[s2,s1] must be holding.
+    // The rendered order must be [s2,s1], NOT [s1,s2] (snap-back).
+    let cards = screen.getAllByTestId(/^card-/);
+    expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual(["card-s2", "card-s1"]);
+
+    // Step 4: simulate doReload delivering committed order [s2,s1] via scenes prop.
+    // The match-based guard fires: liveIds.join("s2,s1") === ids.join("s2,s1") → clear.
+    act(() => { capturedSetScenes!(reloadedScenes); });
+
+    // DOM order must still be [s2,s1] — now driven by the committed scenes prop.
+    cards = screen.getAllByTestId(/^card-/);
+    expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual(["card-s2", "card-s1"]);
   });
 });

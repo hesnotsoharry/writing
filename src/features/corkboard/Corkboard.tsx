@@ -135,13 +135,18 @@ function useGroupDragHandlers(a: GroupDndHandlerArgs) {
   function onDragEnd(event: DragEndEvent) {
     const aid = String(event.active.id);
     const final = liveIds ?? ids;
-    setLiveIds(null);
-    if (!event.over || event.active.id === event.over.id) return;
+    // Cancel paths: clear liveIds synchronously (no async work to bridge).
+    if (!event.over || event.active.id === event.over.id) { setLiveIds(null); return; }
     const toIndex = final.indexOf(aid);
+    // Safety: if the dragged id isn't in the list, nothing to do — clear and bail.
+    if (toIndex === -1) { setLiveIds(null); return; }
+    // SUCCESS PATH: leave liveIds SET so the optimistic order holds while the async
+    // DB write resolves. The render-phase guard in CorkGroupDnd clears liveIds once
+    // the committed `ids` content changes (i.e. after doReload delivers the new order).
     // onMoveScene already calls doReload after the DB write resolves (App.handlers.ts).
     // Do NOT call onAfterDrop here — that would fire reloadTree synchronously BEFORE
     // the write settles, causing a double-reload race (pre-write flash then post-write reload).
-    if (toIndex !== -1) { cbs.onMoveScene(aid, folderId, toIndex); }
+    cbs.onMoveScene(aid, folderId, toIndex);
   }
 
   function onDragCancel() { setLiveIds(null); }
@@ -161,6 +166,17 @@ export function CorkGroupDnd({ folderId, scenes, cbs, onAfterDrop, children }: C
   const [liveIds, setLiveIds] = useState<string[] | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const ids = scenes.map((s) => s.id);
+
+  // Render-phase clear guard — retire the optimistic order once committed scenes match it.
+  // Clearing on ANY ids change would let an error-path doReload (move fails, ids unchanged
+  // or reverted) snap the order back mid-window. Instead, clear only when liveIds and ids
+  // carry the same content — that's the moment server-truth has caught up to the optimistic
+  // order. A failed persist (no reload, or reloaded-to-original) leaves liveIds set until
+  // the next drag or navigation — acceptable for a single-window local app.
+  if (liveIds !== null && liveIds.join(",") === ids.join(",")) {
+    setLiveIds(null);
+  }
+
   const { onDragStart, onDragOver, onDragEnd, onDragCancel, sortedIds } =
     useGroupDragHandlers({ ids, folderId, cbs, onAfterDrop, liveIds, setLiveIds });
   const byId = Object.fromEntries(scenes.map((s) => [s.id, s]));
