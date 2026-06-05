@@ -198,6 +198,28 @@ export function imListLinksFor(entityId: string, entityLinks: EntityLink[]): Ent
   return entityLinks.filter((l) => l.fromId === entityId);
 }
 
+/** Reverse-direction query: links where to_id === toId (e.g. location → its characters). */
+export function imListLinksTo(toId: string, entityLinks: EntityLink[]): EntityLink[] {
+  return entityLinks.filter((l) => l.toId === toId);
+}
+
+/**
+ * In-place key rename for a custom entity field.
+ * Updates the `key` column of the row identified by `fieldId` while preserving
+ * its `id`, `entityId`, `kind`, `value`, and `sort` — no delete+add needed.
+ * No-op if the field is not found.
+ */
+export function imUpdateEntityFieldKey(
+  fieldId: string,
+  newKey: string,
+  entityFields: EntityField[]
+): void {
+  const idx = entityFields.findIndex((f) => f.id === fieldId);
+  if (idx !== -1) {
+    entityFields[idx] = { ...entityFields[idx], key: newKey };
+  }
+}
+
 export function imAddLink(
   fromId: string,
   toId: string,

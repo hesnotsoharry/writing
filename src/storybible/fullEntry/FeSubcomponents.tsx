@@ -8,9 +8,10 @@ import { useEffect, useRef, useState } from "react";
 
 import type { IconName } from "../../components/Icon";
 import { Icon } from "../../components/Icon";
-import type { StoryBibleStore } from "../../db/storyBibleStore";
+import type { EntityType, StoryBibleStore } from "../../db/storyBibleStore";
 import { STATUS_META } from "../../lib/status";
-import type { AppearsInRow, MergedFact, MergedSection } from "./defs";
+import type { MergedFact, MergedSection } from "./defs";
+import { DEF_FIELDS, ROLE_KEY } from "./defs";
 import { Editable } from "./Editable";
 
 // ── FeHeroAvatar ──────────────────────────────────────────────────────────────
@@ -168,14 +169,37 @@ export function FeProseSection({ section, onCommit }: FeProseSectionProps) {
 interface FeFactProps {
   label: string;
   value: string;
+  /** True for the 4 fixed DEF_FIELDS; false for user-added custom facts. */
+  isDefault: boolean;
   /** Called with the new value; caller binds the label/kind. */
   onCommit: (value: string) => void;
+  /** Called with the new label when a custom field's title is edited. */
+  onRenameLabel?: (newLabel: string) => void;
+  /** Called when the user deletes this custom field. */
+  onDelete?: () => void;
 }
 
-export function FeFact({ label, value, onCommit }: FeFactProps) {
+export function FeFact({ label, value, isDefault, onCommit, onRenameLabel, onDelete }: FeFactProps) {
   return (
     <div className="fe-fact">
-      <div className="fe-fact-l">{label}</div>
+      {isDefault ? (
+        <div className="fe-fact-l">{label}</div>
+      ) : (
+        <div className="fe-fact-l fe-fact-l--custom">
+          <Editable
+            key={"label:" + label}
+            className="fe-fact-label-edit"
+            value={label}
+            placeholder="Field name…"
+            onCommit={(v) => { if (v && v !== label) onRenameLabel?.(v); }}
+          />
+          {onDelete && (
+            <button className="fe-fact-del" title="Remove field" onClick={onDelete}>
+              <Icon name="x" style={{ width: 11, height: 11 }} />
+            </button>
+          )}
+        </div>
+      )}
       <Editable
         key={label + ":" + value}
         className="fe-fact-v"
@@ -187,17 +211,50 @@ export function FeFact({ label, value, onCommit }: FeFactProps) {
   );
 }
 
+// ── useDetailsActions — handlers for FeDetailsGroup ──────────────────────────
+
+interface DetailsActionsCtx {
+  entityId: string;
+  entityType: EntityType;
+  facts: MergedFact[];
+  store?: StoryBibleStore;
+  refresh: () => void;
+}
+
+function useDetailsActions({ entityType, facts, store, refresh }: DetailsActionsCtx) {
+  async function handleDelete(fieldId: string) {
+    await store?.deleteEntityField(fieldId);
+    refresh();
+  }
+  async function handleRenameLabel(fieldId: string, newKey: string) {
+    const trimmed = newKey.trim();
+    if (!trimmed) return; // empty label — no-op
+    // Collision guard: reject if newKey matches a DEF_FIELD, ROLE_KEY,
+    // or another existing custom field (prevents silent data corruption).
+    const defLabels = new Set<string>(DEF_FIELDS[entityType]);
+    if (defLabels.has(trimmed) || trimmed === ROLE_KEY) return;
+    const alreadyExists = facts.some((f) => f.label === trimmed && f.fieldId !== fieldId);
+    if (alreadyExists) return;
+    // In-place rename: preserves sort order and id.
+    await store?.updateEntityFieldKey(fieldId, trimmed);
+    refresh();
+  }
+  return { handleDelete, handleRenameLabel };
+}
+
 // ── FeDetailsGroup ────────────────────────────────────────────────────────────
 
 interface FeDetailsGroupProps {
   entityId: string;
+  entityType: EntityType;
   facts: MergedFact[];
   store?: StoryBibleStore;
   refresh: () => void;
   onCommitFact: (label: string, value: string) => void;
 }
 
-export function FeDetailsGroup({ entityId, facts, store, refresh, onCommitFact }: FeDetailsGroupProps) {
+export function FeDetailsGroup({ entityId, entityType, facts, store, refresh, onCommitFact }: FeDetailsGroupProps) {
+  const { handleDelete, handleRenameLabel } = useDetailsActions({ entityId, entityType, facts, store, refresh });
   return (
     <div className="insp-group">
       <div className="insp-label">
@@ -213,34 +270,17 @@ export function FeDetailsGroup({ entityId, facts, store, refresh, onCommitFact }
       </div>
       <div className="fe-facts">
         {facts.map((f) => (
-          <FeFact key={f.label} label={f.label} value={f.value}
-            onCommit={(v) => onCommitFact(f.label, v)} />
+          <FeFact
+            key={f.isDefault ? f.label : (f.fieldId ?? f.label)}
+            label={f.label} value={f.value} isDefault={f.isDefault}
+            onCommit={(v) => onCommitFact(f.label, v)}
+            onRenameLabel={!f.isDefault && f.fieldId
+              ? (nl) => { void handleRenameLabel(f.fieldId!, nl); } : undefined}
+            onDelete={!f.isDefault && f.fieldId
+              ? () => { void handleDelete(f.fieldId!); } : undefined}
+          />
         ))}
       </div>
-    </div>
-  );
-}
-
-// ── FeAppearsIn ───────────────────────────────────────────────────────────────
-
-interface FeAppearsInProps {
-  rows: AppearsInRow[];
-  onOpen?: (sceneId: string) => void;
-}
-
-export function FeAppearsIn({ rows, onOpen }: FeAppearsInProps) {
-  return (
-    <div className="insp-group">
-      <div className="insp-label">
-        <Icon name="fileText" className="ic" /> Appears in · {rows.length}
-      </div>
-      {rows.length > 0 ? (
-        <div className="fe-list">
-          {rows.map((row) => <FeScene key={row.sceneId} {...row} onOpen={onOpen} />)}
-        </div>
-      ) : (
-        <div className="empty-hint">Not linked to any scene yet.</div>
-      )}
     </div>
   );
 }

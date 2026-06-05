@@ -20,9 +20,9 @@ import type {
   StoryBibleStore,
 } from "../../db/storyBibleStore";
 import { buildAppearsIn, mergeFacts, mergeSections, ROLE_KEY } from "./defs";
+import { FeAppearsIn } from "./FeAppearsIn";
 import {
   AddField,
-  FeAppearsIn,
   FeDetailsGroup,
   FeEyebrow,
   FeHeroAvatar,
@@ -195,26 +195,51 @@ interface FeRailProps {
   onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
 }
 
+/** Link an entity to a scene: load existing links, dedup, replace. */
+async function linkEntityToScene(
+  store: StoryBibleStore,
+  pickedSceneId: string,
+  entityType: EntityType,
+  entityId: string
+) {
+  const existing = await store.loadSceneLinks(pickedSceneId);
+  const alreadyLinked = existing.some(
+    (l) => l.entityType === entityType && l.entityId === entityId
+  );
+  if (!alreadyLinked) {
+    await store.replaceSceneLinks(pickedSceneId, [
+      ...existing,
+      { entityType, entityId },
+    ]);
+  }
+}
+
 function FeRail({
   entity, entityType, store, folders, scenes, fields,
   sceneIds, refresh, onCommitField, onOpenScene, onPushEntry,
 }: FeRailProps) {
   const mergedFacts = mergeFacts(entityType, fields);
   const appearsIn = buildAppearsIn(sceneIds, folders, scenes);
+  const onLinkScene = store
+    ? (id: string) => {
+        void linkEntityToScene(store, id, entityType, entity.id).then(refresh);
+      }
+    : undefined;
   return (
     <div className="feB-side">
       <FeDetailsGroup
-        entityId={entity.id} facts={mergedFacts} store={store} refresh={refresh}
+        entityId={entity.id} entityType={entityType} facts={mergedFacts}
+        store={store} refresh={refresh}
         onCommitFact={(label, v) => { void onCommitField("fact", label, v); }}
       />
-      <FeAppearsIn rows={appearsIn} onOpen={onOpenScene} />
+      <FeAppearsIn
+        rows={appearsIn} onOpen={onOpenScene}
+        allScenes={store ? scenes : undefined}
+        linkedSceneIds={sceneIds} onLinkScene={onLinkScene}
+      />
       <PeopleGroup
-        key={entity.id}
-        entityId={entity.id}
-        projectId={entity.projectId}
-        entityType={entityType}
-        store={store}
-        onPushEntry={onPushEntry}
+        key={entity.id} entityId={entity.id} projectId={entity.projectId}
+        entityType={entityType} store={store} onPushEntry={onPushEntry}
       />
     </div>
   );

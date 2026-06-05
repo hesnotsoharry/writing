@@ -7,11 +7,13 @@ import {
   sqliteGetEntity,
   sqliteGetEntityFields,
   sqliteListLinksFor,
+  sqliteListLinksTo,
   sqlitePurgeEntityDetail,
   sqliteRemoveLink,
   sqliteReorderEntityFields,
   sqliteSetEntityField,
   sqliteSetPortrait,
+  sqliteUpdateEntityFieldKey,
   sqliteUpdateLinkRelation,
 } from "./sqliteEntityDetail";
 import type {
@@ -261,6 +263,14 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
 
   async listLinksFor(entityId: string): Promise<EntityLink[]> {
     return sqliteListLinksFor(await getDb(), entityId);
+  }
+
+  async listLinksTo(toId: string): Promise<EntityLink[]> {
+    return sqliteListLinksTo(await getDb(), toId);
+  }
+
+  async updateEntityFieldKey(fieldId: string, newKey: string): Promise<void> {
+    return sqliteUpdateEntityFieldKey(await getDb(), fieldId, newKey);
   }
 
   async addLink(fromId: string, toId: string, relation: string): Promise<EntityLink> {

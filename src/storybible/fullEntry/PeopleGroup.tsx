@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import type { Character, EntityLink, StoryBibleStore } from "../../db/storyBibleStore";
 import { Editable } from "./Editable";
+import { LocationLinkGroup } from "./FeLocationLinks";
 
 // ── Pure helper ───────────────────────────────────────────────────────────────
 
@@ -141,7 +142,8 @@ interface PeopleGroupData {
 function usePeopleGroup(
   store: StoryBibleStore | undefined,
   entityId: string | undefined,
-  projectId: string | undefined
+  projectId: string | undefined,
+  entityType: "character" | "location"
 ): PeopleGroupData {
   const [links, setLinks] = useState<EntityLink[]>([]);
   const [allChars, setAllChars] = useState<Character[]>([]);
@@ -150,16 +152,18 @@ function usePeopleGroup(
   useEffect(() => {
     if (!store || !entityId || !projectId) return;
     let alive = true;
-    void Promise.all([
-      store.listLinksFor(entityId),
-      store.listCharacters(projectId),
-    ]).then(([l, c]) => {
+    // Characters: query by fromId (char's own outgoing links).
+    // Locations: query by toId (reverse — chars that link TO this location).
+    const linksQuery = entityType === "location"
+      ? store.listLinksTo(entityId)
+      : store.listLinksFor(entityId);
+    void Promise.all([linksQuery, store.listCharacters(projectId)]).then(([l, c]) => {
       if (!alive) return;
       setLinks(l);
       setAllChars(c);
     });
     return () => { alive = false; };
-  }, [store, entityId, projectId, version]);
+  }, [store, entityId, projectId, entityType, version]);
 
   function refresh() { setVersion((v) => v + 1); }
   return { links, allChars, refresh };
@@ -170,6 +174,7 @@ function usePeopleGroup(
 interface LinkActionsCtx {
   store: StoryBibleStore;
   entityId: string;
+  entityType: "character" | "location";
   projectId: string;
   refresh: () => void;
   setPicking: (v: boolean) => void;
@@ -177,10 +182,14 @@ interface LinkActionsCtx {
 }
 
 function useLinkActions(ctx: LinkActionsCtx) {
-  const { store, entityId, projectId, refresh, setPicking, onPushEntry } = ctx;
+  const { store, entityId, entityType, projectId, refresh, setPicking, onPushEntry } = ctx;
   async function handleAddNew() {
     const newChar = await store.createCharacter(projectId, "New character", null);
-    await store.addLink(entityId, newChar.id, "");
+    // Location mode: canonical direction is char→location (fromId=char, toId=loc).
+    const [fromId, toId] = entityType === "location"
+      ? [newChar.id, entityId]
+      : [entityId, newChar.id];
+    await store.addLink(fromId, toId, "");
     refresh();
     onPushEntry?.(newChar.id, "Character");
   }
@@ -193,15 +202,60 @@ function useLinkActions(ctx: LinkActionsCtx) {
     refresh();
   }
   async function handlePick(characterId: string) {
-    await store.addLink(entityId, characterId, "");
+    // Location mode: canonical direction is char→location (fromId=char, toId=loc).
+    const [fromId, toId] = entityType === "location"
+      ? [characterId, entityId]
+      : [entityId, characterId];
+    await store.addLink(fromId, toId, "");
     setPicking(false);
     refresh();
   }
   return { handleAddNew, handleUnlink, handleRelabel, handlePick };
 }
 
+// ── CharLinksGroup ────────────────────────────────────────────────────────────
+// The char→char (or location→char) relationships group.
+
+interface CharLinksGroupProps {
+  label: string;
+  charLinks: EntityLink[];
+  charMap: Map<string, Character>;
+  candidates: PickerCandidate[];
+  act: ReturnType<typeof useLinkActions>;
+  onPushEntry?: (entityId: string, kind: "Character" | "Location") => void;
+}
+
+function CharLinksGroup({ label, charLinks, charMap, candidates, act, onPushEntry }: CharLinksGroupProps) {
+  const [picking, setPicking] = useState(false);
+  return (
+    <div className="insp-group">
+      <div className="insp-label">
+        <Icon name="users" className="ic" /> {label}
+        <button className="add" title="Add a new character"
+          onClick={() => { void act.handleAddNew(); }}>
+          <Icon name="plus" style={{ width: 14, height: 14 }} />
+        </button>
+      </div>
+      {charLinks.map((link) => (
+        <FePersonCard key={link.id} link={link} target={charMap.get(link.toId)}
+          onPushEntry={onPushEntry}
+          onUnlink={(id) => { void act.handleUnlink(id); }}
+          onRelabel={(id, v) => { void act.handleRelabel(id, v); }}
+        />
+      ))}
+      {picking
+        ? <LivePicker candidates={candidates}
+            onPick={(id) => { void act.handlePick(id); setPicking(false); }}
+            onClose={() => setPicking(false)} />
+        : <button className="fe-add" onClick={() => setPicking(true)}>
+            <Icon name="plus" className="ic" /> Link a character
+          </button>
+      }
+    </div>
+  );
+}
+
 // ── PeopleGroupInner ──────────────────────────────────────────────────────────
-// Inner component receives fully-resolved (non-optional) props after the guard.
 
 interface PeopleGroupInnerProps {
   entityId: string;
@@ -212,43 +266,36 @@ interface PeopleGroupInnerProps {
 }
 
 function PeopleGroupInner({ entityId, projectId, entityType, store, onPushEntry }: PeopleGroupInnerProps) {
-  const [picking, setPicking] = useState(false);
-  const { links, allChars, refresh } = usePeopleGroup(store, entityId, projectId);
-  const act = useLinkActions({ store, entityId, projectId, refresh, setPicking, onPushEntry });
-
+  const { links: allLinks, allChars, refresh } = usePeopleGroup(store, entityId, projectId, entityType);
+  // useLinkActions uses fromId-based addLink — remains correct for character entries.
+  const act = useLinkActions({ store, entityId, entityType, projectId, refresh, setPicking: () => {}, onPushEntry });
   const label = entityType === "location" ? "Characters here" : "Relationships";
   const charMap = new Map(allChars.map((c) => [c.id, c]));
-  const candidates = pickerCandidates(allChars, entityId, links.map((l) => l.toId));
-
+  // For character entries: link.toId is the related character.
+  // For location entries (reverse links): link.fromId is the character linked to this location.
+  const linkedCharIds = entityType === "location"
+    ? allLinks.map((l) => l.fromId)
+    : allLinks.filter((lk) => charMap.has(lk.toId)).map((l) => l.toId);
+  const charLinks = entityType === "location"
+    ? allLinks.filter((lk) => charMap.has(lk.fromId))
+    : allLinks.filter((lk) => charMap.has(lk.toId));
+  // For the CharLinksGroup, we need links with a consistent "target id" concept.
+  // Wrap location-mode links so target = fromId (the character).
+  const normalizedLinks: EntityLink[] = entityType === "location"
+    ? charLinks.map((lk) => ({ ...lk, toId: lk.fromId })) // swap so card reads lk.toId
+    : charLinks;
+  const candidates = pickerCandidates(allChars, entityId, linkedCharIds);
   return (
-    <div className="insp-group">
-      <div className="insp-label">
-        <Icon name="users" className="ic" /> {label}
-        <button className="add" title="Add a new character"
-          onClick={() => { void act.handleAddNew(); }}>
-          <Icon name="plus" style={{ width: 14, height: 14 }} />
-        </button>
-      </div>
-      {links.map((link) => (
-        <FePersonCard
-          key={link.id} link={link} target={charMap.get(link.toId)}
-          onPushEntry={onPushEntry}
-          onUnlink={(id) => { void act.handleUnlink(id); }}
-          onRelabel={(id, v) => { void act.handleRelabel(id, v); }}
-        />
-      ))}
-      {picking ? (
-        <LivePicker
-          candidates={candidates}
-          onPick={(id) => { void act.handlePick(id); }}
-          onClose={() => setPicking(false)}
-        />
-      ) : (
-        <button className="fe-add" onClick={() => setPicking(true)}>
-          <Icon name="plus" className="ic" /> Link a character
-        </button>
+    <>
+      <CharLinksGroup
+        label={label} charLinks={normalizedLinks} charMap={charMap}
+        candidates={candidates} act={act} onPushEntry={onPushEntry}
+      />
+      {entityType === "character" && (
+        <LocationLinkGroup entityId={entityId} projectId={projectId}
+          store={store} onPushEntry={onPushEntry} />
       )}
-    </div>
+    </>
   );
 }
 

@@ -12,6 +12,7 @@ import {
   imGetEntityFields,
   imListEntities,
   imListLinksFor,
+  imListLinksTo,
   imLoadSceneEntities,
   imPurgeEntityDetail,
   imRemoveLink,
@@ -19,6 +20,7 @@ import {
   imReorderEntityFields,
   imSetEntityField,
   imSetPortrait,
+  imUpdateEntityFieldKey,
   imUpdateEntityNotes,
   imUpdateLinkRelation,
 } from "./inMemoryEntityDetail";
@@ -153,6 +155,17 @@ export interface StoryBibleStore {
   reorderEntityFields(updates: { id: string; sort: number }[]): Promise<void>;
   /** All directional links where from_id = entityId. */
   listLinksFor(entityId: string): Promise<EntityLink[]>;
+  /**
+   * All directional links where to_id = toId.
+   * Used by location entries to find the characters linked TO them
+   * (char→location links are stored as fromId=char, toId=loc).
+   */
+  listLinksTo(toId: string): Promise<EntityLink[]>;
+  /**
+   * Rename a custom field's key in-place, preserving its id/value/sort.
+   * No-op if the field is not found. Used by detail-box label editing.
+   */
+  updateEntityFieldKey(fieldId: string, newKey: string): Promise<void>;
   /** Add a directional link from→to; dedup-safe on (from_id, to_id). */
   addLink(fromId: string, toId: string, relation: string): Promise<EntityLink>;
   /** Remove a link by id. */
@@ -274,6 +287,14 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
 
   async listLinksFor(entityId: string): Promise<EntityLink[]> {
     return imListLinksFor(entityId, this.entityLinks);
+  }
+
+  async listLinksTo(toId: string): Promise<EntityLink[]> {
+    return imListLinksTo(toId, this.entityLinks);
+  }
+
+  async updateEntityFieldKey(fieldId: string, newKey: string): Promise<void> {
+    imUpdateEntityFieldKey(fieldId, newKey, this.entityFields);
   }
 
   async addLink(fromId: string, toId: string, relation: string): Promise<EntityLink> {

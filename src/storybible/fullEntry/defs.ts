@@ -51,8 +51,12 @@ export const ROLE_KEY = "role";
 // ── Pure output types ───────────────────────────────────────────────────────
 
 export interface MergedFact {
+  /** Row id from entity_fields (undefined for default fields with no stored row). */
+  fieldId?: string;
   label: string;
   value: string;
+  /** True for the 4 DEF_FIELDS labels; false for user-added custom facts. */
+  isDefault: boolean;
 }
 
 export interface MergedSection extends SectionDef {
@@ -72,17 +76,30 @@ export interface AppearsInRow {
 /**
  * Merge default fact labels with stored entity_fields of kind "fact".
  * Default labels always appear; stored values override the empty default.
+ * User-added custom fields (non-DEF keys, key != ROLE_KEY) are appended
+ * at the end in sort order with isDefault=false so they can be rendered
+ * with editable titles.
  */
 export function mergeFacts(
   type: EntityType,
   stored: EntityField[]
 ): MergedFact[] {
   const facts = stored.filter((f) => f.kind === "fact");
-  const factMap = new Map(facts.map((f) => [f.key, f.value]));
-  return DEF_FIELDS[type].map((label) => ({
-    label,
-    value: factMap.get(label) ?? "",
-  }));
+  const defLabels = new Set(DEF_FIELDS[type]);
+  // Build map for default fields: label → stored row (for id/value).
+  const defRowMap = new Map(
+    facts.filter((f) => defLabels.has(f.key)).map((f) => [f.key, f])
+  );
+  const defaultFacts: MergedFact[] = DEF_FIELDS[type].map((label) => {
+    const row = defRowMap.get(label);
+    return { fieldId: row?.id, label, value: row?.value ?? "", isDefault: true };
+  });
+  // Append user-added fields: key not in DEF_FIELDS and not ROLE_KEY.
+  const customFacts: MergedFact[] = facts
+    .filter((f) => !defLabels.has(f.key) && f.key !== ROLE_KEY)
+    .sort((a, b) => a.sort - b.sort)
+    .map((f) => ({ fieldId: f.id, label: f.key, value: f.value, isDefault: false }));
+  return [...defaultFacts, ...customFacts];
 }
 
 /**

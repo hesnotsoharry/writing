@@ -136,6 +136,29 @@ export async function sqliteListLinksFor(
   return rows.map((r) => ({ id: r.id, fromId: r.from_id, toId: r.to_id, relation: r.relation }));
 }
 
+/** Reverse-direction query: links where to_id = toId (e.g. characters linked to a location). */
+export async function sqliteListLinksTo(
+  db: DbHandle,
+  toId: string
+): Promise<EntityLink[]> {
+  const rows = await db.select<
+    { id: string; from_id: string; to_id: string; relation: string }[]
+  >(
+    "SELECT id, from_id, to_id, relation FROM entity_links WHERE to_id = $1",
+    [toId]
+  );
+  return rows.map((r) => ({ id: r.id, fromId: r.from_id, toId: r.to_id, relation: r.relation }));
+}
+
+/** In-place key rename: UPDATE field_key WHERE id = fieldId. No migration needed. */
+export async function sqliteUpdateEntityFieldKey(
+  db: DbHandle,
+  fieldId: string,
+  newKey: string
+): Promise<void> {
+  await db.execute("UPDATE entity_fields SET field_key = $1 WHERE id = $2", [newKey, fieldId]);
+}
+
 export async function sqliteAddLink(
   db: DbHandle,
   fromId: string,

@@ -153,7 +153,12 @@
   resize: none; overflow: hidden; display: block;
 }
 .fe-fact-v .fe-edit-input,
-.fe-fact .fe-edit-input { font-size: var(--text-sm); font-weight: var(--w-medium); }
+.fe-fact .fe-edit-input {
+  font-size: var(--text-sm); font-weight: var(--w-medium);
+  /* Reset the negative margins used in prose contexts — the fact cell already
+     provides padding; pulling the input up overlaps the label above it. */
+  margin: 0; padding: 4px 6px;
+}
 
 /* ---- Facts grid ---------------------------------------------------------- */
 .fe-facts {
@@ -170,6 +175,36 @@
   font-size: var(--text-sm); font-weight: var(--w-medium);
   color: var(--ink); margin-top: 3px; overflow-wrap: anywhere;
 }
+
+/* ---- Custom fact label (editable title for user-added fields) ----------- */
+.fe-fact-l--custom {
+  display: flex; align-items: center; gap: 4px;
+}
+/* Editable wrapper inside the label cell — matches the static label visual */
+.fe-fact-label-edit {
+  font-size: var(--text-2xs); font-weight: var(--w-bold);
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3);
+  flex: 1; min-width: 0;
+}
+/* The editable span itself (display from Editable.tsx — fe-editable) */
+.fe-fact-label-edit.fe-editable {
+  margin: 0; padding: 2px 4px; border-radius: var(--r-xs);
+}
+/* Input that appears when editing the label */
+.fe-fact-label-edit .fe-edit-input {
+  font-size: var(--text-2xs); font-weight: var(--w-bold);
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3);
+  margin: 0; padding: 2px 4px;
+}
+/* Small × delete button beside custom label */
+.fe-fact-del {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: var(--r-xs); flex: none;
+  color: var(--ink-4); opacity: 0;
+  transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+}
+.fe-fact:hover .fe-fact-del { opacity: 1; }
+.fe-fact-del:hover { background: rgba(168, 68, 47, 0.12); color: var(--danger); }
 
 /* ---- Appears-in list ----------------------------------------------------- */
 .fe-list {
