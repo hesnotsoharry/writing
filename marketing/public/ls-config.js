@@ -8,6 +8,8 @@
 // secret and lives in the gitignored .dev.vars file — NOT here.
 // ============================================================================
 window.WN_LS = {
-  store: "REPLACE_WITH_LS_STORE_SUBDOMAIN",  // e.g. "writers-nook"
-  variantApp: "REPLACE_WITH_LS_APP_VARIANT_ID", // e.g. "12345"
+  store: "writersnookapp", // writersnookapp.lemonsqueezy.com
+  variantApp: "1748920", // one-time app purchase (founder $29)
+  // Phase 2 — NOT wired yet: the $5/mo Cloud Backup & Sync subscription variant.
+  // variantSync: "1748967",
 };
