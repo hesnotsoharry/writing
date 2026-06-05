@@ -1,5 +1,6 @@
 import { PostgrestError } from "@supabase/supabase-js";
 
+import { sendEmail } from "../../_lib/resend";
 import { Env, makeServiceClient } from "../../_lib/supabase";
 import { verifySignature } from "../../_lib/verify-signature";
 
@@ -59,6 +60,15 @@ function resolveOrderId(payload: LSPayload): string | null {
   return raw != null && raw !== "" ? raw : null;
 }
 
+async function sendLicenseEmail(env: Env, attr: LicenseKeyAttributes): Promise<void> {
+  await sendEmail(env, {
+    to: attr.user_email,
+    subject: "Your Writers Nook license key",
+    html: `<p>Hi there,</p><p>Thank you for your purchase! Your Writers Nook license key is:</p><p><strong>${attr.key}</strong></p><p>Visit your <a href="https://writersnook.app/account">account page</a> to download the app.</p>`,
+    text: `Thank you for your purchase!\n\nYour Writers Nook license key is: ${attr.key}\n\nVisit https://writersnook.app/account to download the app.`,
+  });
+}
+
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const raw = await context.request.text();
   const valid = await verifySignature(
@@ -89,5 +99,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const ledgerCode = (ledgerError as PostgrestError | null)?.code;
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerError) return new Response("Internal Server Error", { status: 500 });
+
+  if (eventName === "license_key_created") {
+    await sendLicenseEmail(context.env, (payload as LicenseKeyPayload).data.attributes);
+  }
+
   return new Response(null, { status: 200 });
 };

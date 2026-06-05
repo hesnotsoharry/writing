@@ -5,6 +5,8 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string;
   SUPABASE_ANON_KEY: string;
   LEMON_SQUEEZY_SIGNING_SECRET: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM?: string;
 }
 
 /**
