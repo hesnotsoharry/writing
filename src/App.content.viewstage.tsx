@@ -14,6 +14,7 @@ import { Icon } from "./components/Icon";
 import type { Scene } from "./db/binderStore";
 import type { Label, LabelStore } from "./db/labelStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
+import type { EditorFocusProps } from "./editor/Editor";
 import { Corkboard } from "./features/corkboard/Corkboard";
 import { type OtlSort, Outliner } from "./features/outliner/Outliner";
 import { STATUS_ORDER } from "./lib/status";
@@ -53,6 +54,8 @@ export interface ViewStageCtx {
   setOutlinerRenaming: (id: string | null) => void;
   onOpenLabelManager: () => void;
   onLabelsChanged: () => void;
+  /** Focus-mode props forwarded to EditorPane → Editor (all optional). */
+  editorFocus?: EditorFocusProps;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,5 +195,6 @@ export function buildViewStage(
       onRenameEntity={ctx.onRenameEntity} onDeleteEntity={ctx.onDeleteEntity} />;
   }
   return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
-    storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion} />;
+    storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion}
+    {...(ctx.editorFocus ?? {})} />;
 }

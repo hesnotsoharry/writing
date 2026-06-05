@@ -36,6 +36,16 @@ export interface AppShellProps {
   /** When true, stamps data-focus on the root .win div (CSS extension point). */
   focusMode?: boolean;
   /**
+   * When true, stamps data-dim on the root .win div so the CSS paragraph-dimming
+   * rule fires only when both focus mode AND dim-paragraphs are enabled.
+   */
+  dimOn?: boolean;
+  /**
+   * When true, stamps data-typewriter on the root .win div so the CSS
+   * scroll-padding rule fires only when both focus mode AND typewriter are on.
+   */
+  typewriterOn?: boolean;
+  /**
    * When true, adds the `.anim` class to the root `.win` element, enabling the
    * canon motion animations (view-in fade-up, bar-in selected indicator, etc.).
    * Gated on the motion tweak; `.anim`-gated CSS rules also require
@@ -52,11 +62,12 @@ export interface AppShellProps {
 }
 
 export function AppShell({
-  titleBar, binder, viewStage, inspector, statusBar, focusMode, anim, viewKey,
+  titleBar, binder, viewStage, inspector, statusBar, focusMode, dimOn, typewriterOn, anim, viewKey,
 }: AppShellProps): ReactElement {
   const winClass = ["win", anim ? "anim" : ""].filter(Boolean).join(" ");
   return (
-    <div className={winClass} data-focus={focusMode || undefined}>
+    <div className={winClass} data-focus={focusMode || undefined}
+      data-dim={dimOn || undefined} data-typewriter={typewriterOn || undefined}>
       {titleBar}
       <div className="body">
         {binder != null && <div className="panel-binder">{binder}</div>}

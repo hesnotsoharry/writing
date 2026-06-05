@@ -3,7 +3,7 @@ import "./proofread.css";
 import Collaboration from "@tiptap/extension-collaboration";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { type MutableRefObject,useCallback, useEffect } from "react";
+import { type MutableRefObject, useCallback, useEffect, useRef } from "react";
 import * as Y from "yjs";
 
 import type { BinderTree } from "../binder/buildTree";
@@ -114,6 +114,61 @@ function useEditorCore(
 }
 
 // ---------------------------------------------------------------------------
+// useFocusEditorEffects — typewriter scroll + paragraph dimming (decoration only)
+// ---------------------------------------------------------------------------
+
+function resolveAnchorEl(sel: Selection): Element | null {
+  const anchor = sel.anchorNode;
+  if (!anchor) return null;
+  return anchor.nodeType === Node.TEXT_NODE
+    ? anchor.parentElement
+    : (anchor as Element);
+}
+
+function applyDimFocus(el: Element, prevRef: React.MutableRefObject<Element | null>) {
+  const para = el.closest ? el.closest(".prose p") : null;
+  if (para === prevRef.current) return;
+  if (prevRef.current) prevRef.current.removeAttribute("data-focused");
+  if (para) (para as HTMLElement).setAttribute("data-focused", "");
+  prevRef.current = para;
+}
+
+/**
+ * Attaches a `selectionchange` listener when focus mode is active.
+ * Typewriter scroll: respects `prefers-reduced-motion`.
+ * Paragraph dimming: adds `data-focused` to the cursor paragraph.
+ * Neither effect mutates the Yjs doc or TipTap schema.
+ */
+function useFocusEditorEffects(focusMode: boolean, typewriterOn: boolean, dimOn: boolean) {
+  const prevFocusedParaRef = useRef<Element | null>(null);
+
+  useEffect(() => {
+    if (!focusMode || (!typewriterOn && !dimOn)) return;
+    const prefersReduced = (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) ?? false;
+
+    function handleSelection() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const el = resolveAnchorEl(sel);
+      if (!el) return;
+      if (typewriterOn) {
+        el.scrollIntoView({ block: "center", behavior: prefersReduced ? "auto" : "smooth" });
+      }
+      if (dimOn) applyDimFocus(el, prevFocusedParaRef);
+    }
+
+    document.addEventListener("selectionchange", handleSelection);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelection);
+      if (prevFocusedParaRef.current) {
+        prevFocusedParaRef.current.removeAttribute("data-focused");
+        prevFocusedParaRef.current = null;
+      }
+    };
+  }, [focusMode, typewriterOn, dimOn]);
+}
+
+// ---------------------------------------------------------------------------
 // CanvasWrap — inner .canvas-wrap content (extracted to keep Editor ≤40 lines)
 // ---------------------------------------------------------------------------
 
@@ -157,16 +212,16 @@ function CanvasWrap({
 // Component
 // ---------------------------------------------------------------------------
 
-export function Editor({
-  doc,
-  tree,
-  selectedSceneId,
-  storyBibleStore,
-  linksVersion,
-  flip,
-  onAnimationEnd,
-  captureProseRef,
-}: {
+export interface EditorFocusProps {
+  /** Whether focus mode is active — enables typewriter scroll + paragraph dimming. */
+  focusMode?: boolean;
+  /** Typewriter scroll on (only relevant when focusMode is true). */
+  typewriterOn?: boolean;
+  /** Paragraph dimming on (only relevant when focusMode is true). */
+  dimParagraphsOn?: boolean;
+}
+
+interface EditorProps extends EditorFocusProps {
   doc: Y.Doc;
   tree: BinderTree;
   selectedSceneId: string | null;
@@ -175,23 +230,22 @@ export function Editor({
   flip: FlipState | null;
   onAnimationEnd: (key: number) => void;
   captureProseRef: MutableRefObject<() => string>;
-}) {
-  const { editor, visible, popoverProps } =
-    useEditorCore(doc, captureProseRef);
+}
+
+export function Editor({
+  doc, tree, selectedSceneId, storyBibleStore, linksVersion,
+  flip, onAnimationEnd, captureProseRef,
+  focusMode = false, typewriterOn = true, dimParagraphsOn = true,
+}: EditorProps) {
+  const { editor, visible, popoverProps } = useEditorCore(doc, captureProseRef);
   const liveWords = useLiveWordCount(doc);
   const { characters, locations } = useSceneLinkCounts(storyBibleStore, selectedSceneId, linksVersion);
   const activeScene = findSceneWithChapter(tree, selectedSceneId);
+  useFocusEditorEffects(focusMode, typewriterOn, dimParagraphsOn);
   return (
     <div className="canvas-scroll">
-      <CanvasWrap
-        editor={editor}
-        activeScene={activeScene}
-        liveWords={liveWords}
-        characters={characters}
-        locations={locations}
-        visible={visible}
-        popoverProps={popoverProps}
-      />
+      <CanvasWrap editor={editor} activeScene={activeScene} liveWords={liveWords}
+        characters={characters} locations={locations} visible={visible} popoverProps={popoverProps} />
       {flip && <PageFlipLeaf key={flip.key} flip={flip} onAnimationEnd={onAnimationEnd} />}
     </div>
   );

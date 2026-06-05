@@ -8,17 +8,20 @@ import type * as Y from "yjs";
 import type { AppView } from "./App.state";
 import type { BinderTree } from "./binder/buildTree";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
+import type { EditorFocusProps } from "./editor/Editor";
 import { Editor } from "./editor/Editor";
 import { usePageFlip } from "./editor/usePageFlip";
 
-export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion }: {
+export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion,
+  focusMode, typewriterOn, dimParagraphsOn,
+}: {
   doc: Y.Doc | null;
   view: AppView;
   tree: BinderTree;
   selectedSceneId: string | null;
   storyBibleStore: SqliteStoryBibleStore;
   linksVersion: number;
-}) {
+} & EditorFocusProps) {
   // captureProseRef: Editor writes its captureProse fn here; usePageFlip reads it.
   const captureProseRef = useRef<() => string>(() => "");
   const { flip, onAnimationEnd } = usePageFlip({
@@ -29,7 +32,8 @@ export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, 
       {doc
         ? <Editor doc={doc} tree={tree} selectedSceneId={selectedSceneId}
             storyBibleStore={storyBibleStore} linksVersion={linksVersion}
-            flip={flip} onAnimationEnd={onAnimationEnd} captureProseRef={captureProseRef} />
+            flip={flip} onAnimationEnd={onAnimationEnd} captureProseRef={captureProseRef}
+            focusMode={focusMode} typewriterOn={typewriterOn} dimParagraphsOn={dimParagraphsOn} />
         : <div className="canvas-empty">Select a scene to start writing.</div>}
     </main>
   );

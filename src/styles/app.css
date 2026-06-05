@@ -813,6 +813,67 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 }
 .center:hover .focus-exit { opacity: 1; }
 
+/* ---- Focus mode — paragraph dimming ------------------------------------- */
+/* Dimming only fires when both [data-focus] AND [data-dim] are present.
+   The paragraph containing the cursor gets [data-focused] and restores to full. */
+[data-focus][data-dim] .canvas-scroll .prose p {
+  opacity: 0.35;
+  transition: opacity var(--dur);
+}
+[data-focus][data-dim] .canvas-scroll .prose p[data-focused] {
+  opacity: 1;
+}
+/* Restore all paragraphs when hover over the prose column (dim mode only) */
+[data-focus][data-dim] .canvas-scroll .prose:hover p { opacity: 1; }
+
+/* Typewriter scroll — only fires when [data-typewriter] is also present */
+[data-focus][data-typewriter] .canvas-scroll {
+  scroll-padding-top: 45vh;
+  scroll-padding-bottom: 45vh;
+}
+
+/* ---- Focus HUD ----------------------------------------------------------- */
+.focus-hud {
+  position: fixed; bottom: 28px; right: 28px; z-index: 40;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  background: rgba(var(--paper-raw, 250, 247, 242), 0.82);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--parchment-edge);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-ui); font-size: var(--text-xs); color: var(--ink-2);
+  opacity: 1;
+  transition: opacity 600ms ease;
+  pointer-events: auto;
+}
+[data-theme="dark"] .focus-hud {
+  background: rgba(30, 28, 24, 0.85);
+}
+.focus-hud.faded { opacity: 0.15; pointer-events: none; }
+.focus-hud:hover { opacity: 1; pointer-events: auto; }
+
+.hud-stat { display: flex; align-items: center; gap: 3px; }
+.hud-sep { width: 1px; height: 14px; background: var(--line); flex: none; }
+.hud-gear { width: 24px; height: 24px; flex: none; }
+.hud-ring { display: flex; align-items: center; }
+
+/* ---- Focus HUD settings popover ----------------------------------------- */
+.hud-set-backdrop { position: fixed; inset: 0; z-index: 41; }
+.hud-set-pop {
+  position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 42;
+  background: var(--paper); border: 1px solid var(--parchment-edge);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+  padding: 8px; min-width: 200px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.hud-set-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 8px; border-radius: var(--r-sm);
+  font-size: var(--text-sm); color: var(--ink-2);
+}
+.hud-set-label { white-space: nowrap; }
+
 /* ---- Misc ---------------------------------------------------------------- */
 .divider { height: 1px; background: var(--line); margin: var(--s-4) 0; }
 
