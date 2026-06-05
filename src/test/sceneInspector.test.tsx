@@ -326,6 +326,52 @@ describe("SceneInspector", () => {
     expect(screen.getByText(/500 words/)).toBeTruthy();
   });
 
+  it("clicking an existing linked-entity card calls onOpenEntry with the entity id and type", async () => {
+    const store = await seed();
+    const openEntry = vi.fn();
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s1"
+        scene={makeScene()}
+        refreshKey={0}
+        liveWordCount={0}
+        onOpenEntry={openEntry}
+      />
+    );
+
+    // Wait for the linked entities to resolve and render.
+    const sarahCard = await screen.findByText("Sarah");
+
+    // Click the card — should call onOpenEntry with Sarah's entity id and type.
+    fireEvent.click(sarahCard.closest(".entity-card")!);
+
+    expect(openEntry).toHaveBeenCalledTimes(1);
+    const links = await store.loadSceneLinks("s1");
+    const sarahLink = links.find((l) => l.entityType === "character");
+    expect(openEntry).toHaveBeenCalledWith(sarahLink!.entityId, "character");
+  });
+
+  it("existing linked-entity card has no onClick when onOpenEntry is not supplied", async () => {
+    const store = await seed();
+    render(
+      <SceneInspector
+        store={store}
+        projectId="p1"
+        sceneId="s1"
+        scene={makeScene()}
+        refreshKey={0}
+        liveWordCount={0}
+        // no onOpenEntry prop
+      />
+    );
+    await screen.findByText("Sarah");
+    // The card should render without errors and without a cursor:pointer style.
+    const card = screen.getByText("Sarah").closest(".entity-card") as HTMLElement;
+    expect(card.style.cursor).toBe("");
+  });
+
   it("saved synopsis renders with the same CSS class as the edit-state textarea (synopsis parity)", async () => {
     const store = new InMemoryStoryBibleStore();
     render(

@@ -42,7 +42,8 @@ function SynopsisEditField({ sceneId, localSynopsis, onCommit, onCancel }: Synop
       onBlur={commit}
       onKeyDown={onKeyDown}
       style={{ width: "100%", resize: "vertical", overflowWrap: "anywhere",
-               wordBreak: "break-word", boxSizing: "border-box" }}
+               wordBreak: "break-word", boxSizing: "border-box",
+               background: "var(--parchment-deep)" }}
     />
   );
 }

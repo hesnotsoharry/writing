@@ -13,12 +13,12 @@ import { SynopsisGroup } from "./InspectorSynopsis";
 const binderStore = new SqliteBinderStore();
 
 // -- EntityCard — single character or location row --------------------------
-function EntityCard({ entity }: { entity: Entity }) {
+function EntityCard({ entity, onClick }: { entity: Entity; onClick?: () => void }) {
   const firstSentence = entity.notes ? entity.notes.split(".")[0].trim() : "";
   const role =
     firstSentence.length > 60 ? firstSentence.slice(0, 60).trimEnd() + "…" : firstSentence;
   return (
-    <div className="entity-card">
+    <div className="entity-card" onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
       <div className={"avatar " + entity.type}>{entity.name.charAt(0).toUpperCase() || "?"}</div>
       <div className="entity-meta">
         <div className="entity-name">{entity.name}</div>
@@ -106,14 +106,38 @@ function useEntityPicker(args: PickerArgs): PickerState {
   return { menu, openPicker, closeMenu: () => setMenu(null) };
 }
 
+// -- useEntityCreate — create + link + open-entry for the header '+' button --
+interface CreateArgs {
+  entityType: EntityType; projectId: string; sceneId: string | null;
+  store: StoryBibleStore; onLinked: () => void;
+  onOpenEntry?: (entityId: string, type: EntityType) => void;
+}
+function useEntityCreate(args: CreateArgs): () => void {
+  const { entityType, projectId, sceneId, store, onLinked, onOpenEntry } = args;
+  return () => {
+    if (!sceneId) return;
+    const defaultName = entityType === "character" ? "New Character" : "New Location";
+    const createFn = entityType === "character"
+      ? () => store.createCharacter(projectId, defaultName, null)
+      : () => store.createLocation(projectId, defaultName, null);
+    createFn()
+      .then(async (created) => {
+        const existingLinks = await store.loadSceneLinks(sceneId);
+        await store.replaceSceneLinks(sceneId, [...existingLinks, { entityType, entityId: created.id }]);
+        onLinked();
+        onOpenEntry?.(created.id, entityType);
+      })
+      .catch((err: unknown) => { console.error("[SceneInspector] createEntity failed", err); });
+  };
+}
+
 // -- EntityGroup — one labelled group of entity cards with create + link ----
 interface EntityGroupProps {
   iconName: "users" | "mapPin"; label: string; entities: Entity[];
   ready: boolean; emptyHint: string; linkLabel: string;
   entityType: EntityType; projectId: string; sceneId: string | null;
   store: StoryBibleStore; onLinked: () => void;
-  /** Called after a new entity is created and linked. Lane 24 will wire full-entry
-   *  navigation here; for now it is a deferred no-op (Decision 3 — Wave 25). */
+  /** Called after a new entity is created and linked, or when an existing card is clicked. */
   onOpenEntry?: (entityId: string, type: EntityType) => void;
 }
 
@@ -122,38 +146,21 @@ function EntityGroup({
   entityType, projectId, sceneId, store, onLinked, onOpenEntry,
 }: EntityGroupProps) {
   const { menu, openPicker, closeMenu } = useEntityPicker({ entityType, projectId, sceneId, store, onLinked });
-
-  const handleCreate = async () => {
-    if (!sceneId) return;
-    try {
-      const defaultName = entityType === "character" ? "New Character" : "New Location";
-      const created = entityType === "character"
-        ? await store.createCharacter(projectId, defaultName, null)
-        : await store.createLocation(projectId, defaultName, null);
-      const existingLinks = await store.loadSceneLinks(sceneId);
-      await store.replaceSceneLinks(sceneId, [...existingLinks, { entityType, entityId: created.id }]);
-      onLinked();
-      // Deferred: open the entity's full-entry view for inline rename.
-      // Lane 24 integration will replace this no-op with openEntry(created, entityType).
-      onOpenEntry?.(created.id, entityType);
-    } catch (err: unknown) {
-      console.error("[SceneInspector] createEntity failed", err);
-    }
-  };
-
+  const handleCreate = useEntityCreate({ entityType, projectId, sceneId, store, onLinked, onOpenEntry });
   return (
     <div className="insp-group">
       <div className="insp-label">
         <Icon name={iconName} className="ic" /> {label}
-        {/* header + = ADD NEW entity (create + link + deferred open-entry) */}
-        <button className="add" title={`Add new ${entityType}`} onClick={() => { void handleCreate(); }}>
+        <button className="add" title={`Add new ${entityType}`} onClick={handleCreate}>
           <Icon name="plus" style={{ width: 14, height: 14 }} />
         </button>
       </div>
       {ready && entities.length > 0
-        ? entities.map((e) => <EntityCard key={e.id} entity={e} />)
+        ? entities.map((e) => (
+            <EntityCard key={e.id} entity={e}
+              onClick={onOpenEntry ? () => onOpenEntry(e.id, entityType) : undefined} />
+          ))
         : ready && <div className="empty-hint">{emptyHint}</div>}
-      {/* footer "Link a …" = LINK EXISTING entity (picker) */}
       <button className="add-entity" onClick={openPicker}>
         <Icon name="plus" style={{ width: 13, height: 13 }} /> {linkLabel}
       </button>
