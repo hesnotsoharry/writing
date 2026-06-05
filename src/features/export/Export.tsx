@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { useRef, useState } from "react";
 
 import type { BinderTree } from "../../binder/buildTree";
+import { Icon, type IconName } from "../../components/Icon";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import { blobDownloadSave } from "./blobDownloadSave";
 import { collectBlocks } from "./exportCollect";
@@ -26,10 +27,10 @@ const SCOPE_LABEL: Record<ExportScope, string> = {
   manuscript: "Whole manuscript",
 };
 
-const FORMAT_OPTIONS: { value: ExportFormat; label: string }[] = [
-  { value: "markdown", label: "Markdown (.md)" },
-  { value: "docx", label: "Word (.docx)" },
-  { value: "pdf", label: "PDF" },
+const FORMAT_OPTIONS: { value: ExportFormat; label: string; icon: IconName; name: string; desc: string }[] = [
+  { value: "markdown", label: "Markdown (.md)", icon: "hash",     name: "Markdown", desc: ".md"   },
+  { value: "docx",     label: "Word (.docx)",   icon: "fileText", name: "Word",     desc: ".docx" },
+  { value: "pdf",      label: "PDF",            icon: "fileText", name: "PDF",      desc: "print-ready" },
 ];
 
 interface FormatResult { data: ExportData; mime: string; ext: string }
@@ -62,18 +63,42 @@ async function execExport({ format, scope, targetId, projectId, tree, store, sav
 // ---------------------------------------------------------------------------
 
 function FormatPicker({ format, onChange }: { format: ExportFormat; onChange: (f: ExportFormat) => void }): ReactElement {
+  function handleKeyDown(e: React.KeyboardEvent, idx: number): void {
+    let next = -1;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") next = (idx + 1) % FORMAT_OPTIONS.length;
+    if (e.key === "ArrowUp" || e.key === "ArrowLeft") next = (idx - 1 + FORMAT_OPTIONS.length) % FORMAT_OPTIONS.length;
+    if (next !== -1) {
+      e.preventDefault();
+      onChange(FORMAT_OPTIONS[next].value);
+    }
+  }
+
   return (
-    <fieldset style={{ border: "none", padding: 0, margin: 0 }} aria-label="Export format">
-      <legend style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--ink-2)", marginBottom: 10 }}>
-        Format
-      </legend>
-      {FORMAT_OPTIONS.map(({ value, label }) => (
-        <label key={value} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 14, color: "var(--ink)", cursor: "pointer" }}>
-          <input type="radio" name="export-format" value={value} checked={format === value} onChange={() => onChange(value)} />
-          {label}
-        </label>
-      ))}
-    </fieldset>
+    <div role="radiogroup" aria-label="Export format">
+      <label className="field-label">Format</label>
+      <div className="fmt-grid">
+        {FORMAT_OPTIONS.map(({ value, label, icon, name, desc }, idx) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={format === value}
+            aria-label={label}
+            className={"fmt" + (format === value ? " on" : "")}
+            onClick={() => onChange(value)}
+            onKeyDown={(e) => handleKeyDown(e, idx)}
+          >
+            <span className="fmt-ic">
+              <Icon name={icon} style={{ width: 16, height: 16 }} />
+            </span>
+            <span>
+              <div className="fmt-name">{name}</div>
+              <div className="fmt-desc">{desc}</div>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -97,10 +122,10 @@ function ExportSheet({ scope, format, onFormatChange, busy, errorMsg, onClose, o
       <div className="sheet" style={{ width: 420 }} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head">
           <div>
-            <div className="sheet-title">Export</div>
+            <div className="sheet-title"><Icon name="download" className="ic" />Export</div>
             <div className="sheet-sub">{SCOPE_LABEL[scope]}</div>
           </div>
-          <button className="iconbtn sheet-x" type="button" aria-label="Close" onClick={onClose}>✕</button>
+          <button className="iconbtn sheet-x" type="button" aria-label="Close" onClick={onClose}><Icon name="x" className="ic" /></button>
         </div>
         <div className="sheet-body">
           <FormatPicker format={format} onChange={onFormatChange} />

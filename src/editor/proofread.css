@@ -9,38 +9,5 @@
 }
 
 /* ---- Spelling suggestion popover ---------------------------------------- */
-.spell-popover {
-  position: fixed;
-  z-index: 50;
-  min-width: 160px;
-  background: var(--paper);
-  border: 1px solid var(--parchment-edge);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-  padding: var(--s-1) 0;
-}
-
-.spell-popover-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  padding: var(--s-2) var(--s-4);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  color: var(--ink);
-  cursor: pointer;
-  line-height: 1.4;
-}
-
-.spell-popover-item:hover:not(:disabled) {
-  background: var(--parchment-deep);
-  color: var(--ink);
-}
-
-.spell-popover-item:disabled {
-  color: var(--ink-4);
-  cursor: default;
-}
+/* Popover uses the app's canon .cm / .cm-item classes from app.css.
+   No local overrides needed; the .cm class provides positioning + chrome. */

@@ -102,20 +102,20 @@ export function SpellCheckPopover({
   return (
     <div
       ref={ref}
-      className="spell-popover"
+      className="cm"
       style={{ left: x, top: y }}
       role="listbox"
       aria-label="Spelling suggestions"
     >
       {empty ? (
-        <button className="spell-popover-item" disabled>
+        <button className="cm-item" disabled>
           No suggestions
         </button>
       ) : (
         suggestions.map((s, i) => (
           <button
             key={i}
-            className="spell-popover-item"
+            className="cm-item"
             role="option"
             aria-selected={false}
             onClick={() => onSelect(s)}
