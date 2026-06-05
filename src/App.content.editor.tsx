@@ -13,7 +13,7 @@ import { Editor } from "./editor/Editor";
 import { usePageFlip } from "./editor/usePageFlip";
 
 export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion,
-  focusMode, typewriterOn, dimParagraphsOn,
+  focusMode, typewriterOn, dimParagraphsOn, onOpenEntry, activeProjectId,
 }: {
   doc: Y.Doc | null;
   view: AppView;
@@ -21,6 +21,8 @@ export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, 
   selectedSceneId: string | null;
   storyBibleStore: SqliteStoryBibleStore;
   linksVersion: number;
+  onOpenEntry?: (id: string, kind: string) => void;
+  activeProjectId?: string | null;
 } & EditorFocusProps) {
   // captureProseRef: Editor writes its captureProse fn here; usePageFlip reads it.
   const captureProseRef = useRef<() => string>(() => "");
@@ -33,7 +35,8 @@ export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, 
         ? <Editor doc={doc} tree={tree} selectedSceneId={selectedSceneId}
             storyBibleStore={storyBibleStore} linksVersion={linksVersion}
             flip={flip} onAnimationEnd={onAnimationEnd} captureProseRef={captureProseRef}
-            focusMode={focusMode} typewriterOn={typewriterOn} dimParagraphsOn={dimParagraphsOn} />
+            focusMode={focusMode} typewriterOn={typewriterOn} dimParagraphsOn={dimParagraphsOn}
+            onOpenEntry={onOpenEntry} activeProjectId={activeProjectId ?? null} />
         : <div className="canvas-empty">Select a scene to start writing.</div>}
     </main>
   );

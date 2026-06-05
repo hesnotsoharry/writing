@@ -196,5 +196,6 @@ export function buildViewStage(
   }
   return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
     storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion}
+    onOpenEntry={ctx.onOpenEntry} activeProjectId={activeProjectId}
     {...(ctx.editorFocus ?? {})} />;
 }
