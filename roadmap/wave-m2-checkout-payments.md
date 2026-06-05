@@ -92,6 +92,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 2 | 2026-06-04 (sonnet-implementer) | 2026-06-04 | 5437858 | Founder price $29 (struck $49 anchor) across nav/hero/pricing/comparison/checkout/FAQ; "no account" claim reframed everywhere; sync presented as "coming later" + free Dropbox/OneDrive backup story. Diff read directly (single-tier review; channel broken). Known-cosmetic: account.html:96 demo receipt still shows $49 — deferred to m3 (rebuilds account data). tsc 0, vitest 10/10. |
 | 3 | 2026-06-04 (orchestrator) | 2026-06-04 | _this commit_ | Internal — no observation point. Docs: `marketing/CHECKOUT-SETUP.md` runbook (placeholder→live, founder-window rollback, CSP, test→live) + `HANDOFF.md` §5 marks WN_TODO_PAYMENT/COUPONS wired. |
 
+**Browser smoke (2026-06-04, chrome-devtools):** pricing/checkout/index render correctly with founder $29 + struck-$49 + sync reframe + brand-honesty copy. Caught + fixed a bug — stale `#discRow` + `#subNote` ("then $5.00/mo") rendered despite the `hidden` attr because `.co-trow{display:flex}` overrides it (the old mock toggled them via JS, removed in P1). Both dead rows deleted from checkout.html.
+
 **Wave m2 feature-complete locally** (all 3 phases green). NOT yet shipped: full wave-wrap (review cell + telemetry + stub-collapse) deferred until the wave is actually deployable — real LS test store/variant IDs in `ls-config.js` (Cole) unlock the live checkout-overlay observation, and deploy is GitHub/CF-gated.
 
 <!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->

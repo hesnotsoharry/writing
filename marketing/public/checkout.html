@@ -114,11 +114,10 @@
 
         <div class="co-totals">
           <div class="co-trow"><span>Writers Nook</span><span>$29.00 <span class="price-was" style="font-size:11px">$49</span></span></div>
-          <div class="co-trow co-discount" id="discRow" hidden><span id="discLabel">Discount</span><span id="discAmt"></span></div>
-          <!-- WN_PHASE2: re-enable sync line when subscription is live -->
+          <!-- Discounts/coupons are applied on the Lemon Squeezy checkout (checkout[discount_code]) — the pre-checkout summary doesn't compute them. -->
+          <!-- WN_PHASE2: re-enable the sync line + a "then $5/mo" sub-note here when the subscription product ships. -->
           <!-- <div class="co-trow"><span>Cloud Backup &amp; Sync</span><span id="monthly">$0.00/mo</span></div> -->
           <div class="co-trow co-grand"><span>Total today</span><span id="grand">$29.00 USD</span></div>
-          <div class="co-trow co-sub" id="subNote" hidden><span></span><span id="subText">then $5.00/mo</span></div>
         </div>
 
         <ul class="co-assure">
