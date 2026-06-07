@@ -26,6 +26,20 @@ acceptance-test pass (implementation only). Adjudication modes: `TAKE-CLAUDE` ·
 this is the cheap-recon tier by design). The Yjs/TipTap research dispatch (P1 grounding) ran on Claude
 `haiku-research-extractor` SOLO before this directive — logged below as Claude-only, no Codex counterpart.
 
+**⚠️ MAJOR CONFOUND — context asymmetry (verified 2026-06-07 via subagent introspection probe).** Claude
+subagents are AUTO-INJECTED with the full `~/.claude/rules/` corpus + project `CLAUDE.md` + global
+`CLAUDE.md` + project memory (they lack only the parent conversation). Codex agents get ONLY
+`~/.codex/AGENTS.md` + the brief (they can read project CLAUDE.md from disk but it is not auto-injected;
+they get none of the rules/memory). So this is NOT apples-to-apples on institutional/project knowledge —
+the Claude side carries the project's discipline for free (e.g. the `marketing-no-lint-gate-dont-edit-root-eslint`
+memory, the no-setState-in-effect convention, "lint is a gate"), while Codex only knows what the brief says.
+This PARTLY EXPLAINS Codex's config-hack pattern (P1 eslint, P2 `vite.config isolate:false`) — it lacked the
+injected "don't weaken shared gates" discipline. Interpret the Implementation-seat "discipline" deltas with
+this in mind: we are partly measuring Claude-with-full-rules vs Codex-with-AGENTS.md-only, not raw model.
+**Mitigation (P3+):** brief Codex with a condensed project-conventions + gate-discipline block (no `any`,
+key-remount not setState-in-effect, base64 TEXT, editor frozen, NEVER modify shared config to pass a gate,
+surgical fixes only) to level the field. P1–P2 results predate this leveling and carry the confound.
+
 ---
 
 ## Dispatch log

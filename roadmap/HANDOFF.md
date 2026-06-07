@@ -39,6 +39,13 @@ updated: 2026-06-07
   missed a P2 data-corruption bug). Explorer ≈ tie. **Meta-finding: both models ship plausible code that
   passes a reasonable acceptance test; the executing reviewer is what catches the real bugs — strengthen
   acceptance tests + lean on the adversarial layer.**
+- **⚠️ Context-asymmetry confound (verified 2026-06-07):** Claude subagents auto-receive the full
+  `~/.claude/rules/` corpus + project/global CLAUDE.md + project memory; Codex agents get only `~/.codex/AGENTS.md`
+  + the brief. So P1–P2 partly measure Claude-with-full-rules vs Codex-with-AGENTS.md-only (explains Codex's
+  config-hacks — it lacked the injected "don't weaken shared gates" discipline). **DECISION FOR P3+ (ask Cole):**
+  level the field by adding a condensed project-conventions + gate-discipline preamble to every Codex brief
+  (no `any`, key-remount not setState-in-effect, base64 TEXT, editor frozen, NEVER touch shared config to pass
+  a gate, surgical fixes) — OR keep "native configs" and just annotate. Recommend: level it. See MODEL-BAKEOFF.md confound note.
 - **Codex profiles** (`~/.codex/*.config.toml`): stock `implementer`/`reviewer` = gpt-5.4 medium; `architect-54`/
   `adversarial-54`/`diagnostician-54` = 5.4 high; `explorer-54` = 5.4 medium; `*-mini-54` = gpt-5.4-mini (Haiku tier).
   Invoke: `codex exec --profile <name> --skip-git-repo-check --output-last-message <file> "$(cat brief)" </dev/null`.
