@@ -252,12 +252,17 @@ ring is the newer canon-correct viz; one implementation prevents drift. **Conseq
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| P1 Find & Replace | 2026-06-07 | 2026-06-07 | `7741080` | **SMOKE PASS** (live CDP): replaced "scene"→"chapter" ×9 across scenes with preview/confirm; re-search → 0 matches = persists, **no self-undo**; title-bar button + toggles + preview all work; zero console errors. Minor: open scene's editor doesn't live-refresh (DB correct, reopen fixes) — see follow-up. |
 
 ## Follow-up candidates
 
 <!-- DEFAULT: empty. Stage here only if it clears the Tier-3 triple gate (VALUE w/ present-harm pointer +
 STRUCTURAL + CLEARABILITY). Format: - [item]: [why not in-wave] | present-harm: [K1/K2/K3 + pointer]. -->
+
+- Find & Replace offset mapping vs embedded non-text objects: `manuscriptSearchStore.ts` `replaceInXmlText` uses Yjs positions for `node.delete` while `collectOffsets` works in plaintext-skip-non-string space; they diverge if a block ever contains an embedded object (image/mention node). | present-harm: latent — NOT triggered by any current content type (no embed nodes in the schema yet); activates only if embeds are added. Surfaced by the P1 fix-forward (2026-06-07). [wrap auditor: weak present-harm — likely defer/note, not a wave-blocker]
+- Find & Replace: the currently-OPEN scene's editor does not live-refresh after a replace-all touches it — the DB/source is correctly updated (re-search returns 0 matches) but the open scene shows stale text until reopened. Forward replace doesn't patch the open scene's live Y.Doc, whereas `snapUndoReplace` does patch it on undo (asymmetry). | present-harm: K3 — observed live in CDP smoke 2026-06-07 (replaced "scene"→"chapter" ×9; open "test 2" scene still showed "scene" until reopened). User-facing confusion ("did it work?"), not data loss. Single-file fix likely (App.tsx replace wiring patches the open doc like the undo path does).
 
 ## Result
 
