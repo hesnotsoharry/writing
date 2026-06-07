@@ -206,16 +206,14 @@ hard contract. **Consequences:** any future `view === "map"` check won't exist; 
 
 ### Decision 4 (Q-LABELCAP): curated/capped labels vs unlimited
 
-**REQUIRES USER LOCK:** `FEATURE-WAVE-PLAN.md` says "curated count, not infinite labels"; `OUTLINER-SPEC.md`
-says "adds labels" (open-ended). The two canon docs disagree.
-- **Recommendation:** curated/capped to the 8-hue palette (one label per hue, renamable, recolorable) —
-  matches the "stay cohesive, no free picker" design philosophy and the 8-token palette. Cap = 8.
-- **Alternative:** unlimited labels reusing palette colors (more flexible, less cohesive).
-**Enforcement:** P5 LabelManager enforces the cap (or not) per your call.
+**LOCKED 2026-06-07 (Cole): curated, capped at 8 hues.** One label per hue from the 8-color palette
+(renamable + recolorable), hard cap = 8. Matches the "stay cohesive, no free color picker" design
+philosophy and the existing 8-token palette. **Enforcement:** P5 LabelManager enforces the cap (the
+"add label" affordance is disabled / hidden at 8); P5 acceptance asserts the cap.
 
 ### Decision 5 (Q-STATUSDOT): outliner status-dot click behavior
 
-**PROPOSED — decide-and-explain (lock at P5):** Spec says the status dot opens the status menu; Sonnet made
+**LOCKED 2026-06-07 (decide-and-explain):** Spec says the status dot opens the status menu; Sonnet made
 single-click *cycle* status (menu still on right-click). **Pick:** keep cycle-on-left-click + menu-on-right-click
 (best of both). **Rationale:** cycling is a faster triage gesture and the menu is still reachable; matches the
 corkboard's quick-status pattern. **Consequences:** minor divergence from the literal spec sentence.
