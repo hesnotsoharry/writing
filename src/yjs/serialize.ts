@@ -37,12 +37,23 @@ export function extractPlainText(doc: Y.Doc): string {
   return blockTexts.join("\n");
 }
 
+/**
+ * Extract plain text from a Y.XmlText node via its delta.
+ * Y.XmlText.toString() returns XML markup for attributed text (e.g.,
+ * "The <bold>hero</bold> fought bravely") — this helper uses toDelta()
+ * so only the raw character content is returned.
+ */
+export function xmlTextToPlain(node: Y.XmlText): string {
+  return (node.toDelta() as { insert?: unknown }[])
+    .reduce((s, op) => s + (typeof op.insert === "string" ? op.insert : ""), "");
+}
+
 function collectText(node: Y.XmlElement): string {
   let result = "";
   for (let i = 0; i < node.length; i++) {
     const child = node.get(i);
     if (child instanceof Y.XmlText) {
-      result += child.toString();
+      result += xmlTextToPlain(child);
     } else if (child instanceof Y.XmlElement) {
       result += collectText(child);
     }

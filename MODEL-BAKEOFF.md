@@ -34,6 +34,8 @@ this is the cheap-recon tier by design). The Yjs/TipTap research dispatch (P1 gr
 |---|---|---|---|---|---|---|---|---|
 | 0 | research | P1 (pre) | Yjs/TipTap format-preserving replace API | (haiku-research-extractor, solo) | — | n/a | — | Pre-directive; no Codex counterpart. (Note: research later corrected by explorer seat — `@tiptap/y-tiptap`, not `y-prosemirror`.) |
 | 1 | Explorer (Sonnet) | P1 | Map Find&Replace seam for acceptance test | Strong: full map + found test seam (`vi.mock("../db/schema")` + vitest config in `vite.config.ts`) + concrete `makeDocWithMark` delta recipe + fix-location + schema-match caveat | Strong: full map, equally correct on core, caught `@tiptap/y-tiptap` correction, +read `sqliteSceneDocStore.save` sig; MISSED vitest config (said "none found") | **Claude (narrow)** | GRAFT | Both nailed the `@tiptap/y-tiptap` finding (corrects the research sidecar). Claude's test-seam findings were decisive for authoring the acceptance test; grafted Codex's `save` signature. |
+| 2 | Implementation | P1 | Fix Find&Replace: format-preserving replace + kill self-undo | Sound architecture: text-space surgical delete/insert in XmlText leaves, atomic `doc.transact()`, no paragraph flattening, clean constraints (no setState-in-effect, no lint weakening), +191/−118 across 5 files. Bugs: `replaceInDoc` not recursive → bullet-lists/blockquotes found-by-search but silently skipped; ASCII `\b` whole-word (fails on "café"); toast 5s timer resets on every re-render. **44 min.** | Fast (~10 min); Unicode-property whole-word; clean toast-gated undo wiring; +424/−99 across 9 files. Bugs: synthetic projection coordinate-space mismatches plaintext offsets → latent wrong-target on multi-paragraph / after-styled-text; flattens each touched paragraph to one `Y.XmlText` (drops non-text inline structure); **setState-in-useEffect violation**; unjustified `max-depth:off` lint weakening. | **Claude (foundation)** | GRAFT | Both pass the (too-weak) acceptance test; **neither landable**. Claude's bugs are additive fixes; Codex's is an architectural coordinate-model flaw + data-flattening. Plan: Claude base + graft Codex's Unicode whole-word + undo-toast wiring; orchestrator adds recursion + strengthens the test. Codex wins **speed (4.4×)**. |
+| 3 | Adversarial review | P1 | Attack both impls (4 reviews: each reviewer × each impl) | On Claude-impl: **FLAG** — found the core recursion bug via static analysis, uniquely named the real trigger (lists/blockquotes), caught a Unicode case-folding length bug + did the deepest data-loss/transaction analysis. On Codex-impl: **BLOCK but FALSE-POSITIVE headline** — hand-traced the projection math and claimed acceptance T1 fails; T1 empirically passes 3/3. Read-only (no execution). | On Claude-impl: **BLOCK** — *reproduced* bugs by executing (sibling-node non-replace; "café" whole-word). On Codex-impl: **BLOCK**, accurate, no overclaim. Full sandbox execution. | **Codex (narrow, tool-aided)** | — | Bug-FINDING ≈ tie (high convergence on the real bugs). Decisive: the executing Codex reviewer avoided the false-positive the read-only Claude reviewer fell into. The edge is substantially the TOOL (sandbox exec), not pure model reasoning — Claude's static review was otherwise equal/better on precision (real-world trigger, case-folding, data-loss). |
 
 _(rows appended as dispatches complete)_
 
@@ -43,9 +45,9 @@ _(rows appended as dispatches complete)_
 
 | Seat | Claude wins | Codex wins | Graft | Tie | Dispatches |
 |---|---|---|---|---|---|
-| Implementation | 0 | 0 | 0 | 0 | 0 |
+| Implementation | 0 | 0 | 1 | 0 | 1 |  (Graft: Claude base, Codex bits; Claude won architecture, Codex won speed) |
 | Architect | 0 | 0 | 0 | 0 | 0 |
-| Adversarial review | 0 | 0 | 0 | 0 | 0 |
+| Adversarial review | 0 | 1 | 0 | 0 | 1 |  (Codex narrow/tool-aided; bug-finding was ≈tie; Claude reviewer made 1 false-positive verdict) |
 | Diagnostician | 0 | 0 | 0 | 0 | 0 |
 | Reviewer (mechanical) | 0 | 0 | 0 | 0 | 0 |
 | Explorer (Sonnet tier) | 0 | 0 | 1 | 0 | 1 |

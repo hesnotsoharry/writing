@@ -27,6 +27,8 @@ export interface TitleBarProps {
   onOpenSettings?: () => void;
   /** Handler for the Export button. */
   onOpenExport?: () => void;
+  /** Handler for the Find & Replace button in the title bar. */
+  onOpenFind?: () => void;
 }
 
 /** Segmented Write / Corkboard / Story Bible view switch. */
@@ -66,10 +68,13 @@ function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onView
 
 /** Right-hand action icon buttons + Export pill. */
 function TitleBarActions({
-  goalsOn, hasQuickItems, onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport,
-}: Required<Pick<TitleBarProps, "goalsOn" | "hasQuickItems" | "onToggleGoals" | "onOpenQuick" | "onEnterFocus" | "onOpenSettings" | "onOpenExport">>): ReactElement {
+  goalsOn, hasQuickItems, onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport, onOpenFind,
+}: Required<Pick<TitleBarProps, "goalsOn" | "hasQuickItems" | "onToggleGoals" | "onOpenQuick" | "onEnterFocus" | "onOpenSettings" | "onOpenExport" | "onOpenFind">>): ReactElement {
   return (
     <div className="tb-actions">
+      <button className="iconbtn" title="Find &amp; replace  ⌘F" aria-label="Find and replace" onClick={onOpenFind}>
+        <Icon name="search" className="ic" />
+      </button>
       <button className="iconbtn" title="Goals" aria-label="Goals" onClick={onToggleGoals}>
         <Icon name="target" className="ic" style={goalsOn ? { color: "var(--accent)" } : undefined} />
       </button>
@@ -104,7 +109,7 @@ function TitleBarActions({
 export function TitleBar({
   view, onViewChange, docName,
   goalsOn = false, hasQuickItems = false,
-  onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport,
+  onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport, onOpenFind,
 }: TitleBarProps): ReactElement {
   return (
     <div className="titlebar" data-tauri-drag-region>
@@ -130,6 +135,7 @@ export function TitleBar({
         onEnterFocus={onEnterFocus ?? (() => {})}
         onOpenSettings={onOpenSettings ?? (() => {})}
         onOpenExport={onOpenExport ?? (() => {})}
+        onOpenFind={onOpenFind ?? (() => {})}
       />
       <div className="tb-divider" />
       <div className="wbtns">
