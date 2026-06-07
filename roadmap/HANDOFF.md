@@ -42,10 +42,13 @@ updated: 2026-06-07
 - **⚠️ Context-asymmetry confound (verified 2026-06-07):** Claude subagents auto-receive the full
   `~/.claude/rules/` corpus + project/global CLAUDE.md + project memory; Codex agents get only `~/.codex/AGENTS.md`
   + the brief. So P1–P2 partly measure Claude-with-full-rules vs Codex-with-AGENTS.md-only (explains Codex's
-  config-hacks — it lacked the injected "don't weaken shared gates" discipline). **DECISION FOR P3+ (ask Cole):**
-  level the field by adding a condensed project-conventions + gate-discipline preamble to every Codex brief
-  (no `any`, key-remount not setState-in-effect, base64 TEXT, editor frozen, NEVER touch shared config to pass
-  a gate, surgical fixes) — OR keep "native configs" and just annotate. Recommend: level it. See MODEL-BAKEOFF.md confound note.
+  config-hacks — it lacked the injected "don't weaken shared gates" discipline). **LEVELED for P3+ (DONE 2026-06-07,
+  commit `a72f13d`):** created project-root `AGENTS.md` mirroring project conventions + memory gotchas +
+  explicit gate-discipline ("NEVER weaken a shared config to pass a gate"). Codex auto-loads it (verified via
+  introspection probe). P3+ measure closer to pure model capability; P1–P2 carry the confound. **Hooks** stay
+  Codex-unavailable (harness shell is MSYS/git-bash, not WSL2 — Cole would have to drive codex-in-WSL2 for hooks;
+  the `fix_cycle_detector` discipline is covered behaviorally in AGENTS.md). Optional belt-and-suspenders: Codex
+  briefs may add "read ./AGENTS.md first," but it's auto-loaded.
 - **Codex profiles** (`~/.codex/*.config.toml`): stock `implementer`/`reviewer` = gpt-5.4 medium; `architect-54`/
   `adversarial-54`/`diagnostician-54` = 5.4 high; `explorer-54` = 5.4 medium; `*-mini-54` = gpt-5.4-mini (Haiku tier).
   Invoke: `codex exec --profile <name> --skip-git-repo-check --output-last-message <file> "$(cat brief)" </dev/null`.

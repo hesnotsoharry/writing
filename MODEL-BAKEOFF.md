@@ -36,9 +36,15 @@ memory, the no-setState-in-effect convention, "lint is a gate"), while Codex onl
 This PARTLY EXPLAINS Codex's config-hack pattern (P1 eslint, P2 `vite.config isolate:false`) — it lacked the
 injected "don't weaken shared gates" discipline. Interpret the Implementation-seat "discipline" deltas with
 this in mind: we are partly measuring Claude-with-full-rules vs Codex-with-AGENTS.md-only, not raw model.
-**Mitigation (P3+):** brief Codex with a condensed project-conventions + gate-discipline block (no `any`,
-key-remount not setState-in-effect, base64 TEXT, editor frozen, NEVER modify shared config to pass a gate,
-surgical fixes only) to level the field. P1–P2 results predate this leveling and carry the confound.
+**Mitigation — DONE (2026-06-07, commit `a72f13d`):** created a project-root `AGENTS.md` mirroring the
+project conventions + memory gotchas + an explicit gate-discipline rule (no `any`, key-remount not
+setState-in-effect, base64 TEXT, editor frozen, **NEVER weaken a shared config — eslint/vite.config — to
+pass a gate**, surgical fixes only). Verified Codex AUTO-LOADS it (introspection probe quoted it back). So
+**P3+ are leveled on project knowledge; P1–P2 predate the leveling and carry the confound.** Residual
+(minor): Claude still gets the verbatim full rules corpus + memory + its agent-definition prompt, while
+Codex gets distilled AGENTS.md equivalents — closer-to-fair, not identical. Hooks (e.g. `fix_cycle_detector`)
+remain Codex-unavailable: the harness shell is MSYS/git-bash, not WSL2; the discipline is covered behaviorally
+in AGENTS.md instead.
 
 ---
 
