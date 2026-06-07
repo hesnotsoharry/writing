@@ -279,4 +279,8 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     const row = this.relations.find((r) => r.id === id);
     if (row) row.label = label;
   }
+
+  async allRelations(projectId: string): Promise<Relation[]> {
+    return this.listRelations(projectId);
+  }
 }

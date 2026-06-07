@@ -35,7 +35,7 @@ export async function fetchMapData(
   store: StoryBibleStore, projectId: string,
 ): Promise<{ entities: Entity[]; relations: Relation[] }> {
   const [entities, relations] = await Promise.all([
-    store.listEntities(projectId), store.listRelations(projectId),
+    store.listEntities(projectId), store.allRelations(projectId),
   ]);
   return { entities, relations };
 }

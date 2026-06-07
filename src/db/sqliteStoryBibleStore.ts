@@ -322,4 +322,5 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   async listRelations(projectId: string, entityId?: string): Promise<Relation[]> { return sqliteListRelations(projectId, entityId); }
   async deleteRelation(id: string): Promise<void> { return sqliteDeleteRelation(id); }
   async updateRelationLabel(id: string, label: string): Promise<void> { return sqliteUpdateRelationLabel(id, label); }
+  async allRelations(projectId: string): Promise<Relation[]> { return this.listRelations(projectId); }
 }

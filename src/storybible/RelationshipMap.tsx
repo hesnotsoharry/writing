@@ -181,8 +181,9 @@ function MapNodeItem({ entity, p, r, hover, onHover, onOpenEntry }: {
 // ── RelationshipMap ───────────────────────────────────────────────────────────
 
 function useMapDerivedData(entities: Entity[], relations: Relation[], filter: string) {
+  const relKey = relations.map((r) => `${r.id}:${r.label}`).join(",");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const { edges, degree, involvedIds } = useMemo(() => buildGraphData(entities, relations), [entities.length, relations.length]);
+  const { edges, degree, involvedIds } = useMemo(() => buildGraphData(entities, relations), [entities.length, relKey]);
   const nodes = entities.filter((e) => involvedIds.has(e.id));
   const N = nodes.length;
   const W = Math.round(Math.max(760, Math.min(1500, 250 * Math.sqrt(Math.max(1, N)))));

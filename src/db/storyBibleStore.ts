@@ -126,21 +126,35 @@ export interface CreateCustomTypeArgs {
  * Consumers: call getPresetsForType(entityType) to resolve the right list.
  */
 export const RELATION_PRESETS: Record<string, RelationPreset[]> = {
+  character: [
+    { label: "Parent of",      inv: "Child of" },
+    { label: "Child of",       inv: "Parent of" },
+    { label: "Sibling of",     inv: "Sibling of" },
+    { label: "Spouse of",      inv: "Spouse of" },
+    { label: "Grandparent of", inv: "Grandchild of" },
+    { label: "Grandchild of",  inv: "Grandparent of" },
+    { label: "Friend of",      inv: "Friend of" },
+    { label: "Ally of",        inv: "Ally of" },
+    { label: "Rival of",       inv: "Rival of" },
+    { label: "Mentor of",      inv: "Apprentice of" },
+    { label: "Apprentice of",  inv: "Mentor of" },
+    { label: "Confidant of",   inv: "Confidant of" },
+  ],
+  faction: [
+    { label: "Member of",  inv: "Has member" },
+    { label: "Ally of",    inv: "Ally of" },
+    { label: "Rival of",   inv: "Rival of" },
+  ],
+  location: [
+    { label: "Located in", inv: "Contains" },
+    { label: "Contains",   inv: "Located in" },
+  ],
   '*': [
-    { label: "Sibling of",    inv: "Sibling of" },
-    { label: "Parent of",     inv: "Child of" },
-    { label: "Child of",      inv: "Parent of" },
-    { label: "Spouse of",     inv: "Spouse of" },
-    { label: "Friend of",     inv: "Friend of" },
-    { label: "Ally of",       inv: "Ally of" },
-    { label: "Rival of",      inv: "Rival of" },
-    { label: "Mentor of",     inv: "Apprentice of" },
-    { label: "Apprentice of", inv: "Mentor of" },
-    { label: "Grandparent of",inv: "Grandchild of" },
-    { label: "Grandchild of", inv: "Grandparent of" },
-    { label: "Confidant of",  inv: "Confidant of" },
-    { label: "Member of",     inv: "Has member" },
-    { label: "Located in",    inv: "Contains" },
+    { label: "Ally of",    inv: "Ally of" },
+    { label: "Rival of",   inv: "Rival of" },
+    { label: "Member of",  inv: "Has member" },
+    { label: "Located in", inv: "Contains" },
+    { label: "Friend of",  inv: "Friend of" },
   ],
 };
 
@@ -286,6 +300,12 @@ export interface StoryBibleStore {
   deleteRelation(id: string): Promise<void>;
   /** Update a relation's label in-place. Does NOT update the reciprocal edge's label. */
   updateRelationLabel(id: string, label: string): Promise<void>;
+  /**
+   * Return all relations for a project (no entity filter).
+   * Alias for listRelations(projectId) without an entityId; exposed as the
+   * spec-surface name used by map views.
+   */
+  allRelations(projectId: string): Promise<Relation[]>;
 }
 
 // InMemoryStoryBibleStore lives in ./inMemoryStoryBibleStore.ts (extracted to stay under 300 lines).

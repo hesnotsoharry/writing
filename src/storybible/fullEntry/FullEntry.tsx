@@ -25,7 +25,6 @@ import { FeAppearsIn } from "./FeAppearsIn";
 import { AddField, FeDetailsGroup, FeProseSection } from "./FeSubcomponents";
 import { FeHero, FeTopbar } from "./FeTopbarHero";
 import { useEntityDetail, useRelations } from "./fullEntryHooks";
-import { PeopleGroup } from "./PeopleGroup";
 import { usePortraitFlows, usePortraitState } from "./portraitHooks";
 import { deletePortraitFile, toDisplaySrc } from "./portraitService";
 import { RelationshipGroup } from "./RelationshipGroup";
@@ -105,10 +104,6 @@ function FeRail({
         allScenes={store ? scenes : undefined}
         linkedSceneIds={sceneIds} onLinkScene={onLinkScene}
       />
-      {(entityType === "character" || entityType === "location") && (
-        <PeopleGroup key={entity.id} entityId={entity.id} projectId={entity.projectId}
-          entityType={entityType} store={store} onPushEntry={onPushEntry} />
-      )}
       <RelationshipGroup
         key={`rg-${entity.id}`}
         entityId={entity.id} projectId={entity.projectId}
