@@ -11,6 +11,7 @@ import { ContextMenu, type MenuDescriptor } from "../../components/menu/ContextM
 import { buildSceneMenu } from "../../components/menu/sceneMenu";
 import { Toast, type ToastDescriptor } from "../../components/menu/Toast";
 import type { Scene, SceneStatus } from "../../db/binderStore";
+import type { Label } from "../../db/labelStore";
 import type { SetStatus } from "./CorkCard";
 import { ChapterGroup, defaultBinderStore, ShortPiecesGroup, useCorkStatus } from "./CorkCard";
 
@@ -210,6 +211,8 @@ interface SharedGroupProps {
   renamingSceneId: string | null;
   onRenameEnd: () => void;
   sortable: boolean;
+  labels?: Label[];
+  sceneLabels?: Record<string, string[]>;
 }
 
 interface CorkboardContentProps {
@@ -274,6 +277,10 @@ interface CorkboardProps {
   onArchiveScene?: (sceneId: string) => void;
   /** Opens the Export overlay pre-scoped to a scene. Optional — falls back to toast. */
   onExport?: (scope: "scene", targetId: string) => void;
+  /** All project labels — for label badge display on cards. Optional. */
+  labels?: Label[];
+  /** sceneId → labelId[] — for label badge display on cards. Optional. */
+  sceneLabels?: Record<string, string[]>;
 }
 
 export function Corkboard({
@@ -286,6 +293,8 @@ export function Corkboard({
   onAddGoal,
   onArchiveScene,
   onExport,
+  labels,
+  sceneLabels,
 }: CorkboardProps) {
   const { overrides, statusOf, cycleStatus, setOverride } = useCorkStatus(setSceneStatus, reloadTree);
   const { localTree, reload } = useLocalTree(tree);
@@ -294,7 +303,7 @@ export function Corkboard({
   const shared: SharedGroupProps = {
     onSelectScene, onViewChange, onCycleStatus: cycleStatus, onContextMenu: handleContextMenu,
     onReload: reload, renamingSceneId, onRenameEnd: () => setRenamingSceneId(null),
-    sortable: !!dragCallbacks,
+    sortable: !!dragCallbacks, labels, sceneLabels,
   };
   return (
     <div className="corkboard">

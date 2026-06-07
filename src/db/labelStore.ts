@@ -70,4 +70,10 @@ export interface LabelStore {
    * Used to hydrate the Outliner in a single query rather than N per-scene calls.
    */
   getAllSceneLabels(): Promise<Record<string, Label[]>>;
+
+  /**
+   * Reorder labels by assigning sort = index for each id in the given order.
+   * After this call, listLabels returns them in exactly the given order.
+   */
+  reorderLabels(ids: string[]): Promise<void>;
 }

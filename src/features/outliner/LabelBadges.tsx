@@ -8,11 +8,6 @@
  */
 import type { Label } from "../../db/labelStore";
 
-/** Returns a CSS `color-mix` tint at 16% opacity over transparent. */
-function tintVar(color: string): string {
-  return `color-mix(in srgb, var(--label-${color}) 16%, transparent)`;
-}
-
 function solidVar(color: string): string {
   return `var(--label-${color})`;
 }
@@ -26,7 +21,7 @@ function LabelPill({ label }: LabelPillProps) {
     <span
       className="lbl-pill"
       style={{
-        background: tintVar(label.color),
+        background: `var(--label-${label.color}-tint)`,
         color: solidVar(label.color),
       }}
     >

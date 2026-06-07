@@ -131,7 +131,8 @@ function PlanContent(p: CorkOutlinerProps & { isOutline: boolean }) {
   }
   return <Corkboard tree={p.tree} onSelectScene={p.onSelectScene} onViewChange={p.onViewChange}
     reloadTree={p.reloadTree} dragCallbacks={p.dragCallbacks}
-    onAddGoal={p.onAddGoal} onArchiveScene={p.onArchiveScene} onExport={p.onExport} />;
+    onAddGoal={p.onAddGoal} onArchiveScene={p.onArchiveScene} onExport={p.onExport}
+    labels={p.labels} sceneLabels={p.sceneLabels} />;
 }
 
 /** Planning area with Corkboard ⇄ Outliner toggle. "cork"/"outline" both activate the TitleBar segment. */

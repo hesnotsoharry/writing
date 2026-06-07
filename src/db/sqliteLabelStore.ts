@@ -33,8 +33,12 @@ export class SqliteLabelStore implements LabelStore {
     color: LabelColor = "clay"
   ): Promise<Label> {
     const db = await getDb();
+    const countRows = await db.select<{ cnt: number }[]>(
+      `SELECT COUNT(*) as cnt FROM labels WHERE project_id = $1`,
+      [projectId]
+    );
+    if ((countRows[0]?.cnt ?? 0) >= 8) throw new Error("Label cap reached (8)");
     const id = crypto.randomUUID();
-    // Assign sort as max(sort) + 1, scoped to the project.
     const rows = await db.select<{ maxSort: number | null }[]>(
       `SELECT MAX(sort) as maxSort FROM labels WHERE project_id = $1`,
       [projectId]
@@ -104,6 +108,13 @@ export class SqliteLabelStore implements LabelStore {
       [sceneId]
     );
     return rows.map(mapRow);
+  }
+
+  async reorderLabels(ids: string[]): Promise<void> {
+    const db = await getDb();
+    for (let idx = 0; idx < ids.length; idx++) {
+      await db.execute(`UPDATE labels SET sort = $1 WHERE id = $2`, [idx, ids[idx]]);
+    }
   }
 
   async getAllSceneLabels(): Promise<Record<string, Label[]>> {

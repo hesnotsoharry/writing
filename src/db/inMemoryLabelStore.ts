@@ -14,10 +14,10 @@ export class InMemoryLabelStore implements LabelStore {
     name = "Label",
     color: LabelColor = "clay"
   ): Promise<Label> {
+    const existing = [...this.labels.values()].filter((l) => l.projectId === projectId);
+    if (existing.length >= 8) throw new Error("Label cap reached (8)");
     const id = crypto.randomUUID();
-    const maxSort = Math.max(-1, ...[...this.labels.values()]
-      .filter((l) => l.projectId === projectId)
-      .map((l) => l.sort));
+    const maxSort = Math.max(-1, ...existing.map((l) => l.sort));
     const sort = maxSort + 1;
     const label: Label = { id, projectId, name, color, sort };
     this.labels.set(id, label);
@@ -67,6 +67,13 @@ export class InMemoryLabelStore implements LabelStore {
       .filter((l): l is Label => l !== undefined)
       .sort((a, b) => a.sort - b.sort)
       .map((l) => ({ ...l }));
+  }
+
+  async reorderLabels(ids: string[]): Promise<void> {
+    ids.forEach((id, idx) => {
+      const label = this.labels.get(id);
+      if (label) label.sort = idx;
+    });
   }
 
   async getAllSceneLabels(): Promise<Record<string, Label[]>> {

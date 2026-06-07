@@ -73,6 +73,16 @@
   --label-rose:  #a8567a;
   --label-ink:   #7a6f5d;
 
+  /* ---- Color-label tints (16% solid + 84% paper — light washes for badge bg) -- */
+  --label-clay-tint:  #f0e0d7;
+  --label-sea-tint:   #dee4e7;
+  --label-moss-tint:  #e0e6df;
+  --label-plum-tint:  #e7e1e5;
+  --label-gold-tint:  #f0e6d5;
+  --label-slate-tint: #e3e3e0;
+  --label-rose-tint:  #efe0e1;
+  --label-ink-tint:   #e7e4dd;
+
   /* ---- Semantic ---------------------------------------------------------- */
   --good: #4e7c6b;
   --warn: #b07d2e;
@@ -160,6 +170,16 @@
   --label-slate: #8b97a0;
   --label-rose:  #c98aa6;
   --label-ink:   #a99e8a;
+
+  /* ---- Color-label tints — dark (12% solid + 88% dark parchment #1b1b18) -- */
+  --label-clay-tint:  #31261f;
+  --label-sea-tint:   #252a2d;
+  --label-moss-tint:  #252c26;
+  --label-plum-tint:  #2c292c;
+  --label-gold-tint:  #302a1e;
+  --label-slate-tint: #282a28;
+  --label-rose-tint:  #302829;
+  --label-ink-tint:   #2c2b26;
 
   --good: #6fa890;
   --warn: #c69a4a;

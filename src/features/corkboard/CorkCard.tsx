@@ -6,14 +6,14 @@ import type { AppView } from "../../App.state";
 import type { Chapter } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import type { Scene, SceneStatus } from "../../db/binderStore";
+import type { Label } from "../../db/labelStore";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
 import { SqliteStoryBibleStore } from "../../db/sqliteStoryBibleStore";
 import { STATUS_META, STATUS_ORDER } from "../../lib/status";
+import { LabelBadges } from "../outliner/LabelBadges";
 import { shortLabel } from "./shortLabel";
 
-// ---------------------------------------------------------------------------
 // Status cycle — advances through STATUS_ORDER on each click.
-// ---------------------------------------------------------------------------
 
 function nextStatus(s: SceneStatus): SceneStatus {
   const idx = STATUS_ORDER.indexOf(s);
@@ -48,11 +48,7 @@ export function useCorkStatus(setSceneStatus: SetStatus, onAfterWrite?: () => vo
   return { overrides, statusOf, cycleStatus, setOverride };
 }
 
-// ---------------------------------------------------------------------------
-// useSortableCard — @dnd-kit sortable binding for a corkboard card.
-// Uses a 5px pointer sensor (set on the DndContext level); this hook just
-// wires the transform/ref so the card lifts and slides on drag.
-// ---------------------------------------------------------------------------
+// useSortableCard — @dnd-kit sortable binding (transform/ref so the card lifts and slides on drag).
 
 export function useSortableCard(id: string) {
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } =
@@ -67,14 +63,11 @@ export function useSortableCard(id: string) {
   return { ref: setNodeRef, style, attributes, listeners };
 }
 
-// ---------------------------------------------------------------------------
-// useCardChips — loads entity chips for a scene (fails gracefully in tests)
-// ---------------------------------------------------------------------------
+// useCardChips — loads entity chips for a scene (fails gracefully in tests).
 
-interface Chip { type: "character" | "location"; name: string; }
 
-function useCardChips(sceneId: string): Chip[] {
-  const [chips, setChips] = useState<Chip[]>([]);
+function useCardChips(sceneId: string) {
+  const [chips, setChips] = useState<{ type: "character" | "location"; name: string }[]>([]);
   useEffect(() => {
     let active = true;
     defaultStoryBibleStore.loadSceneEntities(sceneId).then(({ characters, locations }) => {
@@ -90,30 +83,15 @@ function useCardChips(sceneId: string): Chip[] {
   return chips;
 }
 
-// ---------------------------------------------------------------------------
-// useSynopsisEdit — inline synopsis editing
-// ---------------------------------------------------------------------------
+// useSynopsisEdit — inline synopsis editing.
 
-interface SynopsisEditHook {
-  editing: boolean;
-  draft: string;
-  setDraft: (v: string) => void;
-  shown: string | null;
-  startEdit: (e: React.MouseEvent) => void;
-  commit: () => void;
-}
-
-function useSynopsisEdit(scene: Scene): SynopsisEditHook {
+function useSynopsisEdit(scene: Scene) {
   const [editing, setEditing] = useState(false);
   const [shown, setShown] = useState<string | null>(scene.synopsis);
   const [draft, setDraft] = useState(scene.synopsis ?? "");
   const committingRef = useRef(false);
 
-  const startEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    committingRef.current = false;
-    setEditing(true);
-  };
+  const startEdit = (e: React.MouseEvent) => { e.stopPropagation(); committingRef.current = false; setEditing(true); };
 
   const commit = () => {
     if (committingRef.current) return;
@@ -129,9 +107,7 @@ function useSynopsisEdit(scene: Scene): SynopsisEditHook {
   return { editing, draft, setDraft, shown, startEdit, commit };
 }
 
-// ---------------------------------------------------------------------------
 // useCardRename — inline title rename (activated by renamingSceneId from parent)
-// ---------------------------------------------------------------------------
 
 interface RenameHook {
   renameDraft: string;
@@ -161,9 +137,7 @@ function useCardRename(scene: Scene): RenameHook {
   return { renameDraft, setRenameDraft, commitRename };
 }
 
-// ---------------------------------------------------------------------------
 // CardFoot — chip row
-// ---------------------------------------------------------------------------
 
 function CardFoot({ sceneId }: { sceneId: string }) {
   const chips = useCardChips(sceneId);
@@ -180,9 +154,7 @@ function CardFoot({ sceneId }: { sceneId: string }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// SynopsisCell — synopsis with inline edit
-// ---------------------------------------------------------------------------
+// SynopsisCell — synopsis with inline edit.
 
 // Auto-grow helper — called onInput; harmless when field-sizing:content handles it.
 function growTextarea(e: React.FormEvent<HTMLTextAreaElement>) {
@@ -212,9 +184,7 @@ function SynopsisCell({ scene }: { scene: Scene }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// TitleCell — inline rename input or static title
-// ---------------------------------------------------------------------------
+// TitleCell — inline rename input or static title.
 
 interface TitleCellProps {
   scene: Scene;
@@ -259,9 +229,10 @@ export interface CorkCardProps {
   onRenameEnd: () => void;
   /** When true the card participates in @dnd-kit sortable drag-reorder. */
   sortable?: boolean;
+  labels?: Label[]; /* assigned labels — optional; lane-boundary call sites default to [] */
 }
 
-export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renaming, onRenameEnd, sortable = false }: CorkCardProps) {
+export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renaming, onRenameEnd, sortable = false, labels = [] }: CorkCardProps) {
   const meta = STATUS_META[effectiveStatus];
   const wordLabel = scene.word_count ? scene.word_count.toLocaleString() + "w" : "—";
   const delay = Math.min(index, 9) * 45;
@@ -288,6 +259,7 @@ export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewC
       </div>
       <TitleCell scene={scene} renaming={renaming} onReload={onReload} onRenameEnd={onRenameEnd} />
       <SynopsisCell scene={scene} />
+      <LabelBadges labels={labels} />
       <CardFoot sceneId={scene.id} />
     </div>
   );
@@ -308,9 +280,14 @@ export interface ChapterGroupProps {
   renamingSceneId: string | null;
   onRenameEnd: () => void;
   sortable?: boolean;
+  labels?: Label[];             /* all project labels — badge resolution */
+  sceneLabels?: Record<string, string[]>; /* sceneId → labelId[] */
 }
 
-export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false }: ChapterGroupProps) {
+const resolveSceneLabels = (sid: string, lbs: Label[], sl: Record<string, string[]>): Label[] =>
+  (sl[sid] ?? []).map((id) => lbs.find((l) => l.id === id)).filter((l): l is Label => l !== undefined);
+
+export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false, labels = [], sceneLabels = {} }: ChapterGroupProps) {
   const { folder, scenes } = chapter;
   return (
     <div className="cork-chgroup">
@@ -332,6 +309,7 @@ export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, 
                 renaming={renamingSceneId === s.id}
                 onRenameEnd={onRenameEnd}
                 sortable={sortable}
+                labels={resolveSceneLabels(s.id, labels, sceneLabels)}
               />
             ))}
       </div>
@@ -354,9 +332,11 @@ export interface ShortPiecesGroupProps {
   renamingSceneId: string | null;
   onRenameEnd: () => void;
   sortable?: boolean;
+  labels?: Label[];             /* all project labels — badge resolution */
+  sceneLabels?: Record<string, string[]>; /* sceneId → labelId[] */
 }
 
-export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false }: ShortPiecesGroupProps) {
+export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false, labels = [], sceneLabels = {} }: ShortPiecesGroupProps) {
   return (
     <div className="cork-chgroup">
       <div className="cork-chtitle">{`Short pieces · ${scenes.length}`}</div>
@@ -375,6 +355,7 @@ export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange
             renaming={renamingSceneId === s.id}
             onRenameEnd={onRenameEnd}
             sortable={sortable}
+            labels={resolveSceneLabels(s.id, labels, sceneLabels)}
           />
         ))}
       </div>

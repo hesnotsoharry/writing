@@ -117,6 +117,16 @@ function useLabelState(activeProjectId: string | null, labelStore: LabelStore) {
 
 // ── Label manager overlay ────────────────────────────────────────────────────
 
+function moveLabel(labels: Label[], id: string, dir: "up" | "down"): string[] | null {
+  const idx = labels.findIndex((l) => l.id === id);
+  if (idx === -1) return null;
+  const next = dir === "up" ? idx - 1 : idx + 1;
+  if (next < 0 || next >= labels.length) return null;
+  const ids = labels.map((l) => l.id);
+  [ids[idx], ids[next]] = [ids[next], ids[idx]];
+  return ids;
+}
+
 interface LabelManagerOverlayProps {
   show: boolean; activeProjectId: string | null; labels: Label[];
   labelStore: LabelStore; onClose: () => void; onChanged: () => void;
@@ -131,6 +141,10 @@ function LabelManagerOverlay({ show, activeProjectId, labels, labelStore, onClos
       onColor={(id, color: LabelColor) => labelStore.updateLabel(id, { color }).then(onChanged).catch(e("updateLabel color"))}
       onAdd={() => labelStore.createLabel(activeProjectId).then(onChanged).catch(e("createLabel"))}
       onDelete={(id) => labelStore.deleteLabel(id).then(onChanged).catch(e("deleteLabel"))}
+      onReorder={(id, dir) => {
+        const ids = moveLabel(labels, id, dir);
+        if (ids) labelStore.reorderLabels(ids).then(onChanged).catch(e("reorderLabels"));
+      }}
     />
   );
 }

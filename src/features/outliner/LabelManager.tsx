@@ -29,6 +29,7 @@ export interface LabelManagerProps {
   onColor: (id: string, color: LabelColor) => void;
   onAdd: () => void;
   onDelete?: (id: string) => void;
+  onReorder: (id: string, direction: "up" | "down") => void;
 }
 
 interface LabelRowProps {
@@ -36,12 +37,19 @@ interface LabelRowProps {
   onRename: (id: string, name: string) => void;
   onColor: (id: string, color: LabelColor) => void;
   onDelete?: (id: string) => void;
+  isFirst: boolean;
+  isLast: boolean;
+  onReorder: (id: string, direction: "up" | "down") => void;
 }
 
-function LabelRow({ label: l, onRename, onColor, onDelete }: LabelRowProps) {
+function LabelRow({ label: l, onRename, onColor, onDelete, isFirst, isLast, onReorder }: LabelRowProps) {
   return (
     <div className="lblmgr-row" key={l.id}>
       <span className="lbl-dot" style={{ background: solidVar(l.color), width: 11, height: 11 }} />
+      <div className="lblmgr-reorder">
+        <button className="iconbtn" title="Move up" disabled={isFirst} onClick={() => onReorder(l.id, "up")}><Icon name="chevUp" style={{ width: 12, height: 12 }} /></button>
+        <button className="iconbtn" title="Move down" disabled={isLast} onClick={() => onReorder(l.id, "down")}><Icon name="chevDown" style={{ width: 12, height: 12 }} /></button>
+      </div>
       {/* contentEditable rename — commits on blur, no setState in effect */}
       <div
         className="lblmgr-name"
@@ -56,22 +64,11 @@ function LabelRow({ label: l, onRename, onColor, onDelete }: LabelRowProps) {
       </div>
       <div className="lblmgr-swatches">
         {OTL_PALETTE.map((c) => (
-          <button
-            key={c}
-            className={"sw-btn" + (l.color === c ? " on" : "")}
-            title={c}
-            style={{ background: solidVar(c) }}
-            onClick={() => onColor(l.id, c)}
-          />
+          <button key={c} className={"sw-btn" + (l.color === c ? " on" : "")} title={c} style={{ background: solidVar(c) }} onClick={() => onColor(l.id, c)} />
         ))}
       </div>
       {onDelete && (
-        <button
-          className="iconbtn"
-          title="Delete label"
-          style={{ color: "var(--danger)", flexShrink: 0 }}
-          onClick={() => onDelete(l.id)}
-        >
+        <button className="iconbtn" title="Delete label" style={{ color: "var(--danger)", flexShrink: 0 }} onClick={() => onDelete(l.id)}>
           <Icon name="trash" style={{ width: 14, height: 14 }} />
         </button>
       )}
@@ -93,7 +90,8 @@ function LabelManagerFoot({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function LabelManager({ labels, onClose, onRename, onColor, onAdd, onDelete }: LabelManagerProps) {
+export function LabelManager({ labels, onClose, onRename, onColor, onAdd, onDelete, onReorder }: LabelManagerProps) {
+  const atCap = labels.length >= 8;
   return createPortal(
     <div className="scrim" onClick={onClose}>
       <div className="sheet" style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
@@ -111,13 +109,16 @@ export function LabelManager({ labels, onClose, onRename, onColor, onAdd, onDele
           </button>
         </div>
         <div className="sheet-body">
-          {labels.map((l) => (
-            <LabelRow key={l.id} label={l} onRename={onRename} onColor={onColor} onDelete={onDelete} />
+          {labels.map((l, idx) => (
+            <LabelRow key={l.id} label={l} onRename={onRename} onColor={onColor} onDelete={onDelete}
+              isFirst={idx === 0} isLast={idx === labels.length - 1} onReorder={onReorder} />
           ))}
           <button
             className="add-entity"
             style={{ justifyContent: "center", border: "1px dashed var(--parchment-edge)", padding: 10, marginTop: 8 }}
             onClick={onAdd}
+            disabled={atCap}
+            title={atCap ? "8 label maximum" : undefined}
           >
             <Icon name="plus" style={{ width: 13, height: 13 }} /> New label
           </button>

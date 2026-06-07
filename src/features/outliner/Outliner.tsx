@@ -151,7 +151,15 @@ function RowLabelCell({ scene, labels, assignedLabelIds, onOpenLabelMenu }: {
   );
 }
 
-// ── OutlinerRow ───────────────────────────────────────────────────────────────
+/** contentEditable synopsis — omits children while focused to block React clobbering in-progress edits. */
+function OtlSynopsisCell({ scene, onSetSynopsis }: { scene: Scene; onSetSynopsis?: (id: string, text: string) => void }) {
+  const [focused, setFocused] = useState(false);
+  return (<div className="otl-cell otl-syn" contentEditable suppressContentEditableWarning
+    onFocus={() => setFocused(true)}
+    onBlur={(e) => { setFocused(false); onSetSynopsis?.(scene.id, e.currentTarget.textContent?.trim() ?? ""); }}>
+    {focused ? undefined : (scene.synopsis ?? "")}
+  </div>);
+}
 
 interface OutlinerRowProps {
   scene: Scene;
@@ -176,14 +184,7 @@ function OutlinerRow({ scene, chapterId, labels, assignedLabelIds, renaming, h, 
       <div className="otl-cell">
         <RowTitleCell scene={scene} renaming={renaming} h={h} />
       </div>
-      <div
-        className="otl-cell otl-syn"
-        contentEditable
-        suppressContentEditableWarning
-        onBlur={(e) => h.onSetSynopsis?.(scene.id, e.currentTarget.textContent?.trim() ?? "")}
-      >
-        {scene.synopsis ?? ""}
-      </div>
+      <OtlSynopsisCell scene={scene} onSetSynopsis={h.onSetSynopsis} />
       <div className="otl-cell otl-words">
         {scene.word_count ? scene.word_count.toLocaleString() : "—"}
       </div>
@@ -273,6 +274,7 @@ function OutlinerBody({ displayGroups, labels, sceneLabels, renaming, h, onOpenL
   onOpenLabelMenu: (sceneId: string, x: number, y: number) => void;
   handleRowMenu: (e: React.MouseEvent, sceneId: string) => void;
 }) {
+  if (displayGroups.length === 0) return <div className="empty-hint" style={{ padding: "24px 16px" }}>No scenes yet</div>;
   return (
     <>
       {displayGroups.map((g, gi) => (
