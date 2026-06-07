@@ -281,7 +281,8 @@ export function AppContent(props: AppContentProps) {
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}
           onEnterFocus={() => setFocusMode(true)} onOpenSettings={() => setShowSettings(true)}
           onOpenExport={() => { setExportTarget("manuscript", activeProjectId ?? ""); setShowExport(true); }}
-          onOpenFind={() => overlays.setShowFindReplace(true)} />}
+          onOpenFind={() => overlays.setShowFindReplace(true)}
+          onOpenHistory={props.onOpenHistory} />}
         binder={binderSlot}
         viewStage={<>{focusMode && <FocusExitButton onExit={() => setFocusMode(false)} />}{viewStageContent}</>}
         inspector={inspectorSlot}

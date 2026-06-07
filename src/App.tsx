@@ -6,7 +6,7 @@ import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
 import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
 import type { SnapCtx } from "./App.snapshots";
-import { fetchSnapshotText, snapCapture, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace } from "./App.snapshots";
+import { fetchSnapshotText, snapCapture, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace, useActiveSceneSnapshots } from "./App.snapshots";
 import { useAppState, useProjectActions } from "./App.state";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { BinderTree } from "./binder/buildTree";
@@ -237,9 +237,6 @@ function useSnapshotState(
   showHistory: boolean, historySceneId: string | null,
 ) {
   const [historySnapshots, setHistorySnapshots] = useState<Snapshot[]>([]);
-  const historyCurrentText = doc && selectedSceneId ? extractPlainText(doc) : "";
-  const historyCurrentWords = historyCurrentText.trim()
-    ? historyCurrentText.trim().split(/\s+/).filter(Boolean).length : 0;
   useEffect(() => {
     if (!historySceneId || !showHistory) return;
     let alive = true;
@@ -248,6 +245,13 @@ function useSnapshotState(
       .catch((e: unknown) => console.error("[snapshots] listSnapshots failed", e));
     return () => { alive = false; };
   }, [historySceneId, showHistory]);
+  // Derive baseline text inline. Only use the in-memory doc when it's for the overlay scene.
+  // For cross-scene overlay (context-menu on a different scene), show empty — better than wrong.
+  const historyCurrentText = historySceneId === selectedSceneId
+    ? (doc && selectedSceneId ? extractPlainText(doc) : "")
+    : "";
+  const historyCurrentWords = historyCurrentText.trim()
+    ? historyCurrentText.trim().split(/\s+/).filter(Boolean).length : 0;
   return { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords };
 }
 
@@ -257,16 +261,21 @@ function useAppCore() {
   const wiring = useAppWiring(state);
   const { doc, selectedSceneId, showHistory, historySceneId } = state;
   const snap = useSnapshotState(doc, selectedSceneId, showHistory, historySceneId);
-  return { state, wiring, snap, setTheme, setAccent };
+  // Rail snapshots: always track the active scene, independent of the overlay.
+  const [railRefreshKey, setRailRefreshKey] = useState(0);
+  const bumpRailKey = useCallback(() => setRailRefreshKey((k) => k + 1), []);
+  const railSnapshots = useActiveSceneSnapshots(snapshotStore, selectedSceneId, railRefreshKey);
+  return { state, wiring, snap, railSnapshots, bumpRailKey, setTheme, setAccent };
 }
 interface OverlaysInput {
   state: ReturnType<typeof useAppState>; wiring: AppWiring;
   snap: ReturnType<typeof useSnapshotState>; ctx: SnapCtx;
   sceneTitle: (id: string | null) => string; tree: BinderTree;
   setTheme: ReturnType<typeof useTheme>["setTheme"]; setAccent: ReturnType<typeof useTheme>["setAccent"];
+  bumpRailKey: () => void;
 }
 
-function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent }: OverlaysInput) {
+function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey }: OverlaysInput) {
   const { showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
     showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
     showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
@@ -286,10 +295,10 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     onArchiveChanged: () => { bumpArchivedVersion(); wiring.reloadTree(); },
     showHistory, setShowHistory, historySceneId, historySceneTitle: histTitle,
     historySnapshots, historyCurrentText, historyCurrentWords,
-    onHistoryCapture: () => snapCapture(ctx),
-    onHistoryRename: (id: string, label: string) => snapRename(id, label, historySceneId, setHistorySnapshots),
-    onHistoryRestore: (id: string) => snapRestore(ctx, id),
-    onHistoryDelete: (id: string) => snapDelete(id, historySceneId, setHistorySnapshots),
+    onHistoryCapture: () => snapCapture(ctx).then((id) => { bumpRailKey(); return id; }),
+    onHistoryRename: (id: string, label: string) => { void snapRename(id, label, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
+    onHistoryRestore: (id: string) => snapRestore(ctx, id).then(() => bumpRailKey()),
+    onHistoryDelete: (id: string) => { void snapDelete(id, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
     onHistoryGetText: fetchSnapshotText,
     showFindReplace, setShowFindReplace,
     findReplaceProjectId: activeProjectId,
@@ -300,12 +309,12 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
 }
 
 export default function App() {
-  const { state, wiring, snap, setTheme, setAccent } = useAppCore();
+  const { state, wiring, snap, railSnapshots, bumpRailKey, setTheme, setAccent } = useAppCore();
   const { tree, loading, selectedSceneId, doc, projects, activeProjectId,
     view, setView, linksVersion, archivedVersion,
     setShowHistory, setHistorySceneId,
     entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
-  const { historySnapshots, setHistorySnapshots, historyCurrentWords } = snap;
+  const { setHistorySnapshots, historyCurrentWords } = snap;
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
@@ -325,10 +334,10 @@ export default function App() {
       storyBibleStore={storyBibleStore} reloadTree={wiring.reloadTree} archivedVersion={archivedVersion}
       entryStack={entryStack} entryOrigin={entryOrigin}
       onOpenEntry={openEntry} onPushEntry={pushEntry} onEntryBack={entryBack} onExitEntry={exitEntry}
-      historySnapshots={historySnapshots}
+      historySnapshots={railSnapshots}
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
       onTakeSnapshot={selectedSceneId ? () => snapTakeFromMenu(ctx, selectedSceneId) : undefined}
-      overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent })}
+      overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
       labelStore={labelStore}
     />
   );

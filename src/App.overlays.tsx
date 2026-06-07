@@ -65,7 +65,7 @@ export interface OverlayStackProps {
   historyCurrentWords: number;
   onHistoryCapture?: () => Promise<string | null>;
   onHistoryRename?: (snapshotId: string, label: string) => void;
-  onHistoryRestore?: (snapshotId: string) => void;
+  onHistoryRestore?: (snapshotId: string) => Promise<void>;
   onHistoryDelete?: (snapshotId: string) => void;
   onHistoryGetText?: (snapshotId: string) => Promise<string>;
   // ── Find & Replace ──────────────────────────────────────────────────────────

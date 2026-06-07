@@ -37,5 +37,8 @@ export default defineConfig(async () => ({
     environment: "node",
     include: ["src/test/**/*.test.{ts,tsx}"],
     setupFiles: ["src/test/setup.ts"],
+    // Exit 0 when a filter matches no files (e.g. `npm run test -- HistoryRail`)
+    // rather than failing with "No test files found". Useful for pattern-scoped gates.
+    passWithNoTests: true,
   },
 }));

@@ -2,9 +2,10 @@
  * Snapshot wiring helpers — extracted from App.tsx to satisfy the 300-line file limit.
  * Pure functions that operate on the snapshotStore; no React state.
  */
+import { useEffect, useState } from "react";
 import * as Y from "yjs";
 
-import type { Snapshot } from "./db/snapshotStore";
+import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
 import { applyEncoded, encodeDoc, extractPlainText } from "./yjs/serialize";
 
@@ -39,16 +40,16 @@ export function snapCapture({ sceneId, doc, currentWords, set }: SnapCtx): Promi
     .catch((e: unknown) => { console.error("[snapshots] takeSnapshot failed", e); return null; });
 }
 
-export function snapRename(snapshotId: string, label: string, sceneId: string | null, set: SetSnapshots) {
-  snapshotStore.renameSnapshot(snapshotId, label)
+export function snapRename(snapshotId: string, label: string, sceneId: string | null, set: SetSnapshots): Promise<void> {
+  return snapshotStore.renameSnapshot(snapshotId, label)
     .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })
-    .catch((e: unknown) => console.error("[snapshots] rename failed", e));
+    .catch((e: unknown) => { console.error("[snapshots] rename failed", e); });
 }
 
-export function snapRestore({ sceneId, doc, currentWords, set }: SnapCtx, snapshotId: string) {
-  if (!sceneId || !doc) return;
+export function snapRestore({ sceneId, doc, currentWords, set }: SnapCtx, snapshotId: string): Promise<void> {
+  if (!sceneId || !doc) return Promise.resolve();
   const currentBase64 = encodeDoc(doc);
-  snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: currentBase64, wordCount: currentWords, kind: "auto" })
+  return snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: currentBase64, wordCount: currentWords, kind: "auto" })
     .then(() => snapshotStore.getSnapshot(snapshotId))
     .then((record) => { if (record) applyEncoded(doc, record.stateBase64); })
     .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })
@@ -80,10 +81,10 @@ export function snapUndoReplace(
   }
 }
 
-export function snapDelete(snapshotId: string, sceneId: string | null, set: SetSnapshots) {
-  snapshotStore.deleteSnapshot(snapshotId)
+export function snapDelete(snapshotId: string, sceneId: string | null, set: SetSnapshots): Promise<void> {
+  return snapshotStore.deleteSnapshot(snapshotId)
     .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })
-    .catch((e: unknown) => console.error("[snapshots] delete failed", e));
+    .catch((e: unknown) => { console.error("[snapshots] delete failed", e); });
 }
 
 export function snapTakeFromMenu({ doc, currentWords, set, setShowHistory }: SnapCtx, sceneId: string) {
@@ -92,4 +93,30 @@ export function snapTakeFromMenu({ doc, currentWords, set, setShowHistory }: Sna
   snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" })
     .then(() => { setShowHistory(true); reloadSnapshotList(sceneId, set); })
     .catch((e: unknown) => console.error("[snapshots] takeSnapshot (menu) failed", e));
+}
+
+/**
+ * Hook: returns the snapshots for the currently active scene, and refetches
+ * automatically when `activeSceneId` changes. Used by the History rail so it
+ * always tracks the editor's selected scene without the overlay being opened.
+ *
+ * Returns [] immediately when `activeSceneId` is null or while the async load
+ * is in-flight for a newly-selected scene (avoids showing stale data).
+ */
+export function useActiveSceneSnapshots(
+  store: SnapshotStore,
+  activeSceneId: string | null,
+  refreshKey?: number,
+): Snapshot[] {
+  const [loaded, setLoaded] = useState<{ sceneId: string; snapshots: Snapshot[] } | null>(null);
+  useEffect(() => {
+    if (!activeSceneId) return;
+    let alive = true;
+    store.listSnapshots(activeSceneId)
+      .then((list) => { if (alive) setLoaded({ sceneId: activeSceneId, snapshots: list }); })
+      .catch((e: unknown) => console.error("[snapshots] useActiveSceneSnapshots failed", e));
+    return () => { alive = false; };
+  }, [store, activeSceneId, refreshKey]);
+  if (!activeSceneId || loaded?.sceneId !== activeSceneId) return [];
+  return loaded.snapshots;
 }

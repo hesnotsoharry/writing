@@ -105,7 +105,7 @@ function SnapRow({ snapshot, active, currentWords, onClick, onContextMenu, renam
 
 interface ViewerFooterProps {
   confirming: boolean; mode: "diff" | "clean"; sel: Snapshot;
-  onConfirm: () => void; onCancel: () => void; onRestore?: (id: string) => void;
+  onConfirm: () => void; onCancel: () => void; onRestore?: (id: string) => Promise<void>;
 }
 
 function DiffLegend() {
@@ -118,17 +118,24 @@ function DiffLegend() {
 }
 
 function ViewerFooter({ confirming, mode, sel, onConfirm, onCancel, onRestore }: ViewerFooterProps) {
+  const [busy, setBusy] = useState(false);
+  // keep confirming=true while busy so the "Restoring…" UI stays mounted; dismiss only after the op settles
+  const handleRestore = () => {
+    if (busy) return;
+    setBusy(true);
+    void (onRestore?.(sel.id) ?? Promise.resolve()).finally(() => { setBusy(false); onCancel(); });
+  };
   if (confirming) {
     return (
       <>
         <div className="note">
           <Icon name="rotate" className="ic" style={{ width: 14, height: 14, color: "var(--accent)" }} />{" "}
-          Restore this version? Your current draft is saved to history first.
+          {busy ? "Restoring…" : "Restore this version? Your current draft is saved to history first."}
         </div>
         <div className="vh-restore" style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => { onRestore?.(sel.id); onCancel(); }}>
-            <Icon name="rotate" className="ic" /> Restore
+          <button className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy} onClick={handleRestore}>
+            <Icon name="rotate" className="ic" /> {busy ? "Restoring…" : "Restore"}
           </button>
         </div>
       </>
@@ -154,7 +161,7 @@ function ViewerFooter({ confirming, mode, sel, onConfirm, onCancel, onRestore }:
 interface SnapshotViewerProps {
   sel: Snapshot; sceneTitle: string; snapshotText: string; currentText: string;
   mode: "diff" | "clean"; setMode: (m: "diff" | "clean") => void;
-  confirming: boolean; setConfirming: (v: boolean) => void; onRestore?: (id: string) => void;
+  confirming: boolean; setConfirming: (v: boolean) => void; onRestore?: (id: string) => Promise<void>;
 }
 
 function SnapshotViewer({ sel, sceneTitle, snapshotText, currentText, mode, setMode, confirming, setConfirming, onRestore }: SnapshotViewerProps) {
@@ -195,7 +202,7 @@ export interface VersionHistoryProps {
   currentText: string; currentWords: number; loading?: boolean; error?: string | null;
   onCapture?: (label?: string) => Promise<string | null>;
   onRename?: (snapshotId: string, label: string) => void;
-  onRestore?: (snapshotId: string) => void;
+  onRestore?: (snapshotId: string) => Promise<void>;
   onDelete?: (snapshotId: string) => void;
   onClose?: () => void;
   getSnapshotText?: (snapshotId: string) => Promise<string>;
@@ -236,7 +243,7 @@ interface VHBodyProps {
   onRename: (id: string, t: string) => void; onCancelRename: () => void;
   sceneTitle: string; snapshotText: string; currentText: string;
   mode: "diff" | "clean"; setMode: (m: "diff" | "clean") => void;
-  confirming: boolean; setConfirming: (v: boolean) => void; onRestore?: (id: string) => void;
+  confirming: boolean; setConfirming: (v: boolean) => void; onRestore?: (id: string) => Promise<void>;
   onClose?: () => void; error?: string | null; loading?: boolean; menu: MenuDescriptor | null; onCloseMenu: () => void;
 }
 

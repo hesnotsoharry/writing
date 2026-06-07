@@ -29,6 +29,8 @@ export interface TitleBarProps {
   onOpenExport?: () => void;
   /** Handler for the Find & Replace button in the title bar. */
   onOpenFind?: () => void;
+  /** Handler for the Version History button. Omit when no scene is selected. */
+  onOpenHistory?: () => void;
 }
 
 /** Segmented Write / Corkboard / Story Bible view switch. */
@@ -68,13 +70,18 @@ function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onView
 
 /** Right-hand action icon buttons + Export pill. */
 function TitleBarActions({
-  goalsOn, hasQuickItems, onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport, onOpenFind,
-}: Required<Pick<TitleBarProps, "goalsOn" | "hasQuickItems" | "onToggleGoals" | "onOpenQuick" | "onEnterFocus" | "onOpenSettings" | "onOpenExport" | "onOpenFind">>): ReactElement {
+  goalsOn, hasQuickItems, onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport, onOpenFind, onOpenHistory,
+}: Required<Pick<TitleBarProps, "goalsOn" | "hasQuickItems" | "onToggleGoals" | "onOpenQuick" | "onEnterFocus" | "onOpenSettings" | "onOpenExport" | "onOpenFind">> & Pick<TitleBarProps, "onOpenHistory">): ReactElement {
   return (
     <div className="tb-actions">
       <button className="iconbtn" title="Find &amp; replace  ⌘F" aria-label="Find and replace" onClick={onOpenFind}>
         <Icon name="search" className="ic" />
       </button>
+      {onOpenHistory && (
+        <button className="iconbtn" title="Version history" aria-label="Version history" onClick={onOpenHistory}>
+          <Icon name="rotate" className="ic" />
+        </button>
+      )}
       <button className="iconbtn" title="Goals" aria-label="Goals" onClick={onToggleGoals}>
         <Icon name="target" className="ic" style={goalsOn ? { color: "var(--accent)" } : undefined} />
       </button>
@@ -109,7 +116,7 @@ function TitleBarActions({
 export function TitleBar({
   view, onViewChange, docName,
   goalsOn = false, hasQuickItems = false,
-  onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport, onOpenFind,
+  onToggleGoals, onOpenQuick, onEnterFocus, onOpenSettings, onOpenExport, onOpenFind, onOpenHistory,
 }: TitleBarProps): ReactElement {
   return (
     <div className="titlebar" data-tauri-drag-region>
@@ -136,6 +143,7 @@ export function TitleBar({
         onOpenSettings={onOpenSettings ?? (() => {})}
         onOpenExport={onOpenExport ?? (() => {})}
         onOpenFind={onOpenFind ?? (() => {})}
+        onOpenHistory={onOpenHistory}
       />
       <div className="tb-divider" />
       <div className="wbtns">
