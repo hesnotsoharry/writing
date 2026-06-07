@@ -17,7 +17,7 @@ import { Editable } from "./Editable";
 // ── FeHeroAvatar ──────────────────────────────────────────────────────────────
 
 interface FeHeroAvatarProps {
-  type: "character" | "location";
+  type: "character" | "location" | "generic";
   initial: string;
   /** asset:// URL for the portrait image, or null when no portrait is set. */
   displaySrc?: string | null;
@@ -53,7 +53,7 @@ export function FeHeroAvatar({
   // No portrait — render monogram + "Add portrait" button.
   return (
     <div className="fe-avatar-col">
-      <div className={`fe-av-lg ${type}`}>{initial}</div>
+      <div className={`fe-av-lg ${type === "generic" ? "generic-entity" : type}`}>{initial}</div>
       <button className="fe-portrait-add" onClick={onAdd}>
         <Icon name="plus" className="ic" /> Portrait
       </button>
@@ -313,11 +313,11 @@ export function FeDetailsGroup({ entityId, entityType, facts, store, refresh, on
 
 export interface FeEyebrowProps {
   role: string;
-  isChar: boolean;
+  kind: "character" | "location" | "generic";
   onCommit: (v: string) => void;
 }
 
-export function FeEyebrow({ role, isChar, onCommit }: FeEyebrowProps) {
+export function FeEyebrow({ role, kind, onCommit }: FeEyebrowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(role);
 
@@ -327,20 +327,24 @@ export function FeEyebrow({ role, isChar, onCommit }: FeEyebrowProps) {
     if (val !== role) onCommit(val);
   }
 
+  const placeholder = kind === "character" ? "Character role…" : kind === "location" ? "Location role…" : "Role…";
+  const fallback = kind === "character" ? "Character" : kind === "location" ? "Setting" : "";
+  const eyebrowCls = `fe-eyebrow${kind === "location" ? " location" : kind === "generic" ? " generic-entity" : ""}`;
+
   if (editing) {
     return (
       <input className="fe-eyebrow-input" value={draft} autoFocus
-        placeholder={isChar ? "Character role…" : "Location role…"}
+        placeholder={placeholder}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") commit(); else if (e.key === "Escape") setEditing(false); }} />
     );
   }
   return (
-    <div className={`fe-eyebrow${isChar ? "" : " location"}`}
+    <div className={eyebrowCls}
       title="Click to edit role"
       onClick={() => { setDraft(role); setEditing(true); }}>
-      {role || (isChar ? "Character" : "Setting")}
+      {role || fallback}
     </div>
   );
 }

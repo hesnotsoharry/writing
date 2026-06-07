@@ -23,11 +23,11 @@ export interface EntityTypeDef {
 
 export const BUILT_IN_TYPES: EntityTypeDef[] = [
   { type: "character", label: "Characters", icon: "users",   color: "character",  tier: "People & Groups" },
-  { type: "faction",   label: "Factions",   icon: "pin",     color: "label-plum", tier: "People & Groups" },
-  { type: "location",  label: "Locations",  icon: "mapPin",  color: "location",   tier: "World & Lore"   },
-  { type: "item",      label: "Items",      icon: "archive", color: "label-clay", tier: "World & Lore"   },
-  { type: "lore",      label: "Lore",       icon: "book",    color: "label-sea",  tier: "World & Lore"   },
-  { type: "theme",     label: "Themes",     icon: "sparkle", color: "label-gold", tier: "Themes"         },
+  { type: "location",  label: "Locations",  icon: "mapPin",  color: "location",   tier: "People & Groups" },
+  { type: "item",      label: "Items",      icon: "feather", color: "label-gold", tier: "People & Groups" },
+  { type: "faction",   label: "Factions",   icon: "users",   color: "label-plum", tier: "People & Groups" },
+  { type: "lore",      label: "Lore",       icon: "sparkle", color: "label-sea",  tier: "World & Lore"   },
+  { type: "theme",     label: "Themes",     icon: "quote",   color: "label-rose", tier: "Themes"         },
 ];
 
 export const TIER_ORDER = ["People & Groups", "World & Lore", "Themes", "Custom"] as const;

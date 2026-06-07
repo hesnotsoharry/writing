@@ -22,23 +22,23 @@ afterEach(cleanup);
 describe("FeEyebrow — role eyebrow edit", () => {
   it("renders the role text when not editing", () => {
     const onCommit = vi.fn();
-    render(<FeEyebrow role="Protagonist" isChar onCommit={onCommit} />);
+    render(<FeEyebrow role="Protagonist" kind="character" onCommit={onCommit} />);
     expect(screen.getByText("Protagonist")).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("falls back to 'Character' when role is empty and isChar=true", () => {
-    render(<FeEyebrow role="" isChar onCommit={vi.fn()} />);
+  it("falls back to 'Character' when role is empty and kind=character", () => {
+    render(<FeEyebrow role="" kind="character" onCommit={vi.fn()} />);
     expect(screen.getByText("Character")).toBeTruthy();
   });
 
-  it("falls back to 'Setting' when role is empty and isChar=false", () => {
-    render(<FeEyebrow role="" isChar={false} onCommit={vi.fn()} />);
+  it("falls back to 'Setting' when role is empty and kind=location", () => {
+    render(<FeEyebrow role="" kind="location" onCommit={vi.fn()} />);
     expect(screen.getByText("Setting")).toBeTruthy();
   });
 
   it("clicking the eyebrow opens an input pre-filled with the current role", async () => {
-    render(<FeEyebrow role="Antagonist" isChar onCommit={vi.fn()} />);
+    render(<FeEyebrow role="Antagonist" kind="character" onCommit={vi.fn()} />);
     fireEvent.click(screen.getByText("Antagonist"));
     const input = await screen.findByDisplayValue("Antagonist");
     expect(input.tagName).toBe("INPUT");
@@ -46,7 +46,7 @@ describe("FeEyebrow — role eyebrow edit", () => {
 
   it("committing a new value calls onCommit with the trimmed value", async () => {
     const onCommit = vi.fn();
-    render(<FeEyebrow role="Antagonist" isChar onCommit={onCommit} />);
+    render(<FeEyebrow role="Antagonist" kind="character" onCommit={onCommit} />);
     fireEvent.click(screen.getByText("Antagonist"));
     const input = await screen.findByDisplayValue("Antagonist");
     fireEvent.change(input, { target: { value: "  Mentor  " } });
@@ -56,7 +56,7 @@ describe("FeEyebrow — role eyebrow edit", () => {
 
   it("does NOT call onCommit when the value is unchanged", async () => {
     const onCommit = vi.fn();
-    render(<FeEyebrow role="Guide" isChar onCommit={onCommit} />);
+    render(<FeEyebrow role="Guide" kind="character" onCommit={onCommit} />);
     fireEvent.click(screen.getByText("Guide"));
     const input = await screen.findByDisplayValue("Guide");
     fireEvent.keyDown(input, { key: "Enter" });
@@ -65,7 +65,7 @@ describe("FeEyebrow — role eyebrow edit", () => {
 
   it("Escape key closes the input without calling onCommit", async () => {
     const onCommit = vi.fn();
-    render(<FeEyebrow role="Guide" isChar onCommit={onCommit} />);
+    render(<FeEyebrow role="Guide" kind="character" onCommit={onCommit} />);
     fireEvent.click(screen.getByText("Guide"));
     const input = await screen.findByDisplayValue("Guide");
     fireEvent.keyDown(input, { key: "Escape" });
@@ -79,9 +79,9 @@ describe("FeEyebrow — stale-draft guard (key remount)", () => {
     // Simulate the parent re-rendering with a new role after a concurrent edit.
     // The key={role} at the FeHero call site remounts FeEyebrow, so draft re-inits.
     const onCommit = vi.fn();
-    const { rerender } = render(<FeEyebrow key="role-A" role="Guide" isChar onCommit={onCommit} />);
+    const { rerender } = render(<FeEyebrow key="role-A" role="Guide" kind="character" onCommit={onCommit} />);
     // Simulate prop change → key changes → FeEyebrow remounts with new role.
-    rerender(<FeEyebrow key="role-B" role="Mentor" isChar onCommit={onCommit} />);
+    rerender(<FeEyebrow key="role-B" role="Mentor" kind="character" onCommit={onCommit} />);
     expect(screen.getByText("Mentor")).toBeTruthy();
     // Clicking now opens an input pre-seeded with "Mentor", NOT the stale "Guide".
     fireEvent.click(screen.getByText("Mentor"));
@@ -100,7 +100,7 @@ describe("Eyebrow→store round-trip (onCommit wiring)", () => {
       await store.setEntityField(char.id, "fact", ROLE_KEY, v);
     };
 
-    render(<FeEyebrow role="" isChar onCommit={(v) => { void onCommit(v); }} />);
+    render(<FeEyebrow role="" kind="character" onCommit={(v) => { void onCommit(v); }} />);
     fireEvent.click(screen.getByText("Character"));
     const input = await screen.findByPlaceholderText("Character role…");
     fireEvent.change(input, { target: { value: "Protagonist" } });

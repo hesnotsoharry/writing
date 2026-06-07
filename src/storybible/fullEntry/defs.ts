@@ -18,10 +18,10 @@ import type { EntityField, EntityType } from "../../db/storyBibleStore";
 export const DEF_FIELDS: Record<string, string[]> = {
   character: ["Age", "Occupation", "Status", "First appears"],
   location: ["Region", "Type", "Established", "First appears"],
-  item: ["Name", "Category", "Description", "First appears"],
-  faction: ["Name", "Alignment", "Goals", "Founded"],
-  lore: ["Name", "Type", "Content", "When"],
-  theme: ["Name", "Significance", "Examples", "Status"],
+  item: ["Kind", "Owner", "Status", "First appears"],
+  faction: ["Type", "Seat", "Members", "Founded"],
+  lore: ["Domain", "When", "Status"],
+  theme: ["Motif", "Status"],
 };
 
 /** Used for any entity type whose type key is absent from DEF_FIELDS. */
@@ -70,7 +70,7 @@ export const DEF_SECTIONS: Record<string, SectionDef[]> = {
 
 /** Fallback sections for custom types. */
 export const FALLBACK_SECTIONS: SectionDef[] = [
-  { key: "description", icon: "box", label: "Description" },
+  { key: "description", icon: "archive", label: "Description" },
   { key: "notes", icon: "fileText", label: "Notes" },
 ];
 

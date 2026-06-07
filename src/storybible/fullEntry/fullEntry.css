@@ -66,6 +66,10 @@
   background: var(--location-tint); color: var(--location);
   border-radius: var(--r-lg);
 }
+.fe-av-lg.generic-entity {
+  background: var(--parchment-deep); color: var(--label-slate);
+  border-radius: var(--r-lg);
+}
 .fe-portrait {
   width: 76px; height: 76px; flex: none;
   border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden;
@@ -95,6 +99,7 @@
   cursor: text;
 }
 .fe-eyebrow.location { color: var(--location); }
+.fe-eyebrow.generic-entity { color: var(--ink-3); }
 /* inline role editor in the full-entry hero — matches the eyebrow visual rhythm */
 .fe-eyebrow-input {
   display: block; width: 100%;

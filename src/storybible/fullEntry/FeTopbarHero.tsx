@@ -51,6 +51,14 @@ export function FeTopbar({
   );
 }
 
+// ── FeHero helpers ────────────────────────────────────────────────────────────
+
+function toEyebrowKind(type: EntityType): "character" | "location" | "generic" {
+  if (type === "character") return "character";
+  if (type === "location") return "location";
+  return "generic";
+}
+
 // ── FeHero ────────────────────────────────────────────────────────────────────
 
 export interface FeHeroProps {
@@ -72,13 +80,13 @@ export function FeHero({
   entity, entityType, renaming, setRenaming, kind, role, onCommitRole,
   displaySrc, onPortraitAdd, onPortraitRemove, onPortraitError, onRename,
 }: FeHeroProps) {
-  const isChar = entityType === "character";
+  const eyebrowKind = toEyebrowKind(entityType);
   const isPortraitType = entityType === "character" || entityType === "location";
   const initial = entity.name.trim()[0]?.toUpperCase() ?? "";
   return (
     <div className="fe-hero">
       <FeHeroAvatar
-        type={isPortraitType ? (entityType as "character" | "location") : "location"}
+        type={isPortraitType ? (entityType as "character" | "location") : "generic"}
         initial={initial}
         displaySrc={isPortraitType ? displaySrc : null}
         onAdd={isPortraitType ? onPortraitAdd : undefined}
@@ -86,7 +94,7 @@ export function FeHero({
         onPortraitError={isPortraitType ? onPortraitError : undefined}
       />
       <div className="fe-hero-body">
-        <FeEyebrow key={role} role={role} isChar={isChar} onCommit={onCommitRole} />
+        <FeEyebrow key={role} role={role} kind={eyebrowKind} onCommit={onCommitRole} />
         {renaming ? (
           <div style={{ margin: "2px 0 4px" }}>
             <RenameInput value={entity.name}

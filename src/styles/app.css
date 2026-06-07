@@ -406,6 +406,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .avatar.character { background: var(--character-tint); color: var(--character); }
 .avatar.location { background: var(--location-tint); color: var(--location);
   border-radius: var(--r-sm); }
+.avatar.generic-entity { background: var(--parchment-deep); color: var(--label-slate);
+  border-radius: var(--r-sm); }
 .entity-meta { min-width: 0; flex: 1; }
 .entity-name { font-size: var(--text-sm); font-weight: var(--w-semi); color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
