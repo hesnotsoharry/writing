@@ -176,27 +176,25 @@ for runtime observation. Tests passing at the unit boundary is necessary but not
 
 ### Decision 1 (Q-PEOPLEGROUP): disposition of the old PeopleGroup / `entity_links`
 
-**REQUIRES USER LOCK:** The Full Entry currently renders BOTH the old `PeopleGroup` (reads `entity_links`)
-and the new `RelationshipGroup` (reads `entity_relations`) → two relationship blocks. Canon says *upgrade*
-the existing group to one.
-- **Industry-standard (recommended):** migrate existing `entity_links` rows into `entity_relations` (one
-  forward edge each, generic label like "related"), then remove `PeopleGroup` so there's a single typed
-  relationships section. Preserves user data; one source of truth.
-- **Emerging:** keep both temporarily behind a flag, migrate later. (More code, defers the cleanup.)
-- **Cutting-edge / cheapest:** drop `PeopleGroup` and abandon `entity_links` data. (Data loss — only OK if
-  `entity_links` was never populated in real use.)
-**Recommendation:** migrate-then-remove, unless you confirm `entity_links` has no real user data, in which
-case the cheap drop is fine. **Enforcement:** P4 acceptance test asserts single section; migration tested.
+**LOCKED 2026-06-07 (Cole): drop `PeopleGroup`, abandon `entity_links`; no migration.** Cole's call:
+"do whatever is proper — data loss is fine, app is in testing state." With data-preservation off the
+table, the proper end-state is a single relationships section backed by `entity_relations`
+(`RelationshipGroup` is canon); remove the legacy `PeopleGroup` block entirely. No migration is written —
+adding migration code + tests for throwaway test data is waste given the testing-state framing.
+**Pre-removal check (P4 recon):** confirm no OTHER live consumer of `entity_links` exists beyond
+`PeopleGroup` (a writer/reader elsewhere) before deleting — if one is found, surface it; otherwise drop
+clean. The `entity_links` table may remain in the schema unused (harmless); only the UI block + its
+read path are removed. **Enforcement:** P4 acceptance test asserts exactly one relationships section
+(PeopleGroup not co-rendered).
 
 ### Decision 2 (Q-PRESETS): RELATION_PRESETS per-type vocabulary
 
-**REQUIRES USER LOCK:** Presets currently have only a `'*'` catch-all (no per-type vocab). Canon shows
-per-type lists (characters: sibling/parent/child/ally/rival; factions: member-of/has-member).
-- **Recommendation (industry-standard):** build the per-type `RELATION_PRESETS: Record<EntityType,{label,inverse}[]>`
-  now — it's small, it's the spec intent, and relationships are a headline feature. Accept the `'*'` list as a
-  fallback for custom types.
-- **Alternative:** ship `'*'` only this wave, defer per-type to a follow-up (faster, less canon-faithful).
-**Enforcement:** P4 acceptance check on preset shape per type. Defer-fallback acceptable if you want P4 lean.
+**LOCKED 2026-06-07 (Cole): build per-type presets now.** Implement
+`RELATION_PRESETS: Record<EntityType,{label,inverse}[]>` matching the spec vocabulary (characters:
+sibling/parent/child/ally/rival; factions: member-of/has-member; etc.), with the `'*'` list as the
+fallback for custom types. Small, canon-faithful, relationships are a headline feature.
+**Enforcement:** P4 acceptance check asserts per-type preset shape (each built-in type resolves a
+non-empty preset list; custom types fall back to `'*'`).
 
 ### Decision 3 (Q-MAPVIEW): RelationshipMap as Bible sub-view vs new AppView
 
