@@ -5,7 +5,7 @@
  * Editor sub-components and helpers live in goalsEditorParts.tsx.
  */
 import type { Dispatch, ReactElement, SetStateAction } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "../../components/Icon";
 import type { GoalsStore } from "../../db/sqliteGoalsStore";
@@ -14,6 +14,7 @@ import type { GoalRecord, GoalScope, ScopedGoalKey } from "./goalModel";
 import { goalProgress, goalSummary, readMonthlyMetDays } from "./goalModel";
 import { GoalEditor, isoOf } from "./goalsEditorParts";
 import { readGoalConfig, writeGoalConfig, writeGoalsOn, writeGoalTarget } from "./goalStorage";
+import type { GoalTypeId } from "./goalTypes";
 import { GOAL_META } from "./goalTypes";
 import { readStreak } from "./streak";
 
@@ -235,26 +236,45 @@ function finishGoal(goals: GoalRecord[], ctx: GoalCtx, onClose: () => void): voi
   } else { onClose(); }
 }
 
-export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = defaultGoalsStore, initialScope }: {
+type GoalsProps = {
   onClose: () => void; goalsOn: boolean; setGoalsOn: Dispatch<SetStateAction<boolean>>;
   activeProjectId: string | null; store?: GoalsStore; initialScope?: GoalsInitialScope;
-}): ReactElement {
-  const [mode, setMode] = useState<"list" | "edit">("list");
-  const [editing, setEditing] = useState<GoalRecord | null>(null);
+  editGoalId?: string; manuscriptTotal?: number;
+};
+
+function useGoalsFromDb(projectId: string | null, store: GoalsStore) {
   const [goals, setGoals] = useState<GoalRecord[]>([]);
+  useEffect(() => {
+    if (!projectId) return;
+    let alive = true;
+    store.getGoals(projectId)
+      .then((dbGoals) => {
+        if (!alive) return;
+        setGoals(dbGoals.map((g) => ({ id: g.id, type: g.goal_type as GoalTypeId, words: g.target })));
+      })
+      .catch((e: unknown) => { console.error("[goals] getGoals failed", e); });
+    return () => { alive = false; };
+  }, [projectId, store]);
+  return { goals, setGoals };
+}
+
+export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = defaultGoalsStore, initialScope, editGoalId, manuscriptTotal = 0 }: GoalsProps): ReactElement {
+  const [_mode, setMode] = useState<"list" | "edit">("list");
+  const [_editing, setEditing] = useState<GoalRecord | null>(null);
+  const { goals, setGoals } = useGoalsFromDb(activeProjectId, store);
   const scope = initialScope?.scope ?? "manuscript";
   const [target] = useState(() => initialTarget(activeProjectId, scope));
   const streakCount = readStreak().count;
   const ctx: GoalCtx = { projectId: activeProjectId, scope, goalsOn, target, store };
-
+  const editFromId = editGoalId ? (goals.find((g) => g.id === editGoalId) ?? null) : null;
+  const mode = editFromId ? "edit" : _mode; const editing = editFromId ?? _editing;
   const handleToggle = () => { const next = !goalsOn; setGoalsOn(next); writeGoalsOn(next); };
   const handleSave = (g: GoalRecord) => {
     setGoals((prev) => { const idx = prev.findIndex((x) => x.id === g.id);
       return idx >= 0 ? [...prev.slice(0, idx), g, ...prev.slice(idx + 1)] : [...prev, g]; });
     saveGoal(g, ctx); setMode("list"); setEditing(null);
   };
-  const handleDone = () => finishGoal(goals, ctx, onClose);
-  const goBack = () => { setMode("list"); setEditing(null); };
+  const handleDone = () => finishGoal(goals, ctx, onClose); const goBack = () => { setMode("list"); setEditing(null); };
   return (
     <div className="scrim" onClick={onClose}>
       <div className="sheet" style={{ width: 600 }} onClick={(e) => e.stopPropagation()}>
@@ -266,7 +286,7 @@ export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = d
               onEditGoal={(g) => { setEditing(g); setMode("edit"); }}
               onDeleteGoal={(id) => setGoals((prev) => prev.filter((g) => g.id !== id))}
               streakCount={streakCount} />
-          : <GoalEditor goal={editing} goals={goals} projectWords={0}
+          : <GoalEditor goal={editing} goals={goals} projectWords={manuscriptTotal}
               onSave={handleSave} onCancel={goBack} />
         }
       </div>

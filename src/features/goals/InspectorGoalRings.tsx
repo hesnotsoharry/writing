@@ -1,15 +1,156 @@
 /**
- * InspectorGoalRings — family-aware goal visualization components (Wave 27).
+ * InspectorGoalRings — goal visualization components (consolidated Wave 28 P6).
  *
- * PaceBar      — deadline pace track with notch + status chip
- * StreakViz    — flame + count + 7-day dots
- * FamilyGoalCard — dispatches to correct viz per family
+ * Exports:
+ *   GoalRing       — SVG progress ring (raw pct 0-100)
+ *   GoalGroup      — multi-scope section (Today's goal) with optional right-click
+ *   GoalGroupProps — prop type for GoalGroup
+ *   anyGoalOn      — pure check: at least one scope enabled
+ *   PaceBar        — deadline pace track
+ *   StreakViz      — flame + dots for streak goals
+ *   FamilyGoalCard — dispatches to correct viz per goal family
  */
 import type { ReactElement } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "../../components/Icon";
-import type { GoalProgress, GoalRecord } from "./goalModel";
+import type { GoalsStore } from "../../db/sqliteGoalsStore";
+import { SqliteGoalsStore } from "../../db/sqliteGoalsStore";
+import type { GoalProgress, GoalRecord, GoalScope } from "./goalModel";
 import { goalProgress } from "./goalModel";
+import { readGoalConfig } from "./goalStorage";
+import type { GoalTypeId } from "./goalTypes";
+import { useDailyGoalProgress } from "./useDailyGoalProgress";
+
+// ── Module-level store (lazy getDb — no side-effects at import time) ──────────
+
+const inspectorGoalsStore: GoalsStore = new SqliteGoalsStore();
+
+// ── GoalRing — SVG ring showing daily-progress percentage ─────────────────────
+
+export function GoalRing({ pct }: { pct: number }): ReactElement {
+  const r = 27;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - pct / 100);
+  return (
+    <div className="goal-ring">
+      <svg width="64" height="64" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--parchment-deep)" strokeWidth="6" />
+        <circle
+          cx="32" cy="32" r={r}
+          fill="none" stroke="var(--accent)" strokeWidth="6"
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
+          transform="rotate(-90 32 32)"
+        />
+      </svg>
+      <span className="pct">{Math.round(pct) + "%"}</span>
+    </div>
+  );
+}
+
+// ── GoalCard (internal) ────────────────────────────────────────────────────────
+
+interface GoalCardProps {
+  pct: number; words: number; target: number; label: string;
+  onContextMenu?: (e: React.MouseEvent) => void;
+}
+function GoalCard({ pct, words, target, label, onContextMenu }: GoalCardProps): ReactElement {
+  const toGo = Math.max(0, target - words);
+  return (
+    <div className="goal-card" style={{ marginBottom: 8 }}
+      onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(e); } : undefined}>
+      <GoalRing pct={pct * 100} />
+      <div className="goal-info">
+        <div className="goal-num">{words}<span> / {target} words</span></div>
+        <div className="goal-desc">{label} · {toGo} to go</div>
+      </div>
+    </div>
+  );
+}
+
+// ── useInspectorGoals — load DB goals for the inspector (silent fail) ─────────
+
+function useInspectorGoals(projectId: string): GoalRecord[] {
+  const [goals, setGoals] = useState<GoalRecord[]>([]);
+  useEffect(() => {
+    let alive = true;
+    inspectorGoalsStore.getGoals(projectId)
+      .then((dbGoals) => {
+        if (!alive) return;
+        setGoals(dbGoals.map((g) => ({ id: g.id, type: g.goal_type as GoalTypeId, words: g.target })));
+      })
+      .catch((e: unknown) => { console.error("[goals] inspector load failed", e); });
+    return () => { alive = false; };
+  }, [projectId]);
+  return goals;
+}
+
+// ── ScopedGoalRing — drives one ring via useDailyGoalProgress ─────────────────
+
+interface ScopedGoalRingProps {
+  projectId: string; scope: GoalScope;
+  targetId: string | null; scopeTotal: number; label: string;
+  dbGoal?: GoalRecord;
+  onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
+}
+
+function ScopedGoalRing({ projectId, scope, targetId, scopeTotal, label, dbGoal, onGoalMenu }: ScopedGoalRingProps): ReactElement | null {
+  const { words, target, pct, on } = useDailyGoalProgress({
+    projectId, scope, targetId, currentScopeTotal: scopeTotal,
+  });
+  if (!on) return null;
+  const handleContextMenu = onGoalMenu
+    ? (e: React.MouseEvent) => {
+        const goalForMenu: GoalRecord = dbGoal ?? { id: `${scope}:${projectId}`, type: "daily" };
+        onGoalMenu(e, goalForMenu);
+      }
+    : undefined;
+  return <GoalCard pct={pct} words={words} target={target} label={label} onContextMenu={handleContextMenu} />;
+}
+
+// ── GoalGroup — multi-ring section (up to 3 scopes) ──────────────────────────
+
+export interface GoalGroupProps {
+  projectId: string; sceneId: string | null;
+  manuscriptTotal: number;
+  chapterId: string | null; chapterTotal: number | null;
+  sceneWordCount: number;
+  /** When provided, each ring shows a right-click menu for editing/deleting. */
+  onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
+}
+
+export function GoalGroup({
+  projectId, sceneId, manuscriptTotal, chapterId, chapterTotal, sceneWordCount, onGoalMenu,
+}: GoalGroupProps): ReactElement {
+  const dbGoals = useInspectorGoals(projectId);
+  const dbGoal = dbGoals.length > 0 ? dbGoals[0] : undefined;
+  return (
+    <div className="insp-group">
+      <div className="insp-label"><Icon name="target" className="ic" /> Today&#39;s goal</div>
+      <ScopedGoalRing projectId={projectId} scope="manuscript" targetId={null}
+        scopeTotal={manuscriptTotal} label="Manuscript" dbGoal={dbGoal} onGoalMenu={onGoalMenu} />
+      {chapterId !== null && chapterTotal !== null && (
+        <ScopedGoalRing projectId={projectId} scope="chapter" targetId={chapterId}
+          scopeTotal={chapterTotal} label="Chapter" dbGoal={dbGoal} onGoalMenu={onGoalMenu} />
+      )}
+      {sceneId !== null && (
+        <ScopedGoalRing projectId={projectId} scope="scene" targetId={sceneId}
+          scopeTotal={sceneWordCount} label="Scene" dbGoal={dbGoal} onGoalMenu={onGoalMenu} />
+      )}
+    </div>
+  );
+}
+
+// ── anyGoalOn — pure check: is at least one scope enabled? ────────────────────
+
+export function anyGoalOn(
+  projectId: string, sceneId: string | null, chapterId: string | null,
+): boolean {
+  const { on: mOn } = readGoalConfig(projectId, "manuscript");
+  const cOn = chapterId !== null ? readGoalConfig(projectId, "chapter").on : false;
+  const sOn = sceneId !== null ? readGoalConfig(projectId, "scene").on : false;
+  return mOn || cOn || sOn;
+}
 
 // ── PaceBar ────────────────────────────────────────────────────────────────────
 

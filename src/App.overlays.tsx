@@ -34,6 +34,11 @@ export interface OverlayStackProps {
   /** When set, the Goals overlay opens pre-scoped to this scope+target. */
   goalsInitialScope?: GoalsInitialScope;
   setGoalsInitialScope: (s: GoalsInitialScope | undefined) => void;
+  /** When set, the Goals overlay opens in edit mode for the matching goal id. */
+  editGoalId?: string;
+  setEditGoalId?: (id: string | undefined) => void;
+  /** Real manuscript total from useManuscriptWordCount; forwarded to GoalEditor. */
+  manuscriptTotal?: number;
   showExport: boolean;
   setShowExport: (v: boolean) => void;
   /** Scope and target for the ExportOverlay — set by each trigger before opening. */
@@ -80,7 +85,11 @@ export interface OverlayStackProps {
 type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
 
 function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
-  const closeGoals = () => { p.setShowGoals(false); p.setGoalsInitialScope(undefined); };
+  const closeGoals = () => {
+    p.setShowGoals(false);
+    p.setGoalsInitialScope(undefined);
+    p.setEditGoalId?.(undefined);
+  };
   return (
     <>
       {p.showQuickCapture && (
@@ -97,7 +106,8 @@ function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
       )}
       {p.showGoals && (
         <Goals onClose={closeGoals} goalsOn={p.goalsOn} setGoalsOn={p.setGoalsOn}
-          activeProjectId={p.activeProjectId} initialScope={p.goalsInitialScope} />
+          activeProjectId={p.activeProjectId} initialScope={p.goalsInitialScope}
+          editGoalId={p.editGoalId} manuscriptTotal={p.manuscriptTotal} />
       )}
       {p.showExport && p.activeProjectId && (
         <ExportOverlay projectId={p.activeProjectId} scope={p.exportScope}

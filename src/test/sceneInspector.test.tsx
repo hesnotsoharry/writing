@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Scene } from "../db/binderStore";
 import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 import { writeGoalConfig } from "../features/goals/goalStorage";
-import { GoalRing } from "../inspector/InspectorGoalRings";
+import { GoalGroup, GoalRing } from "../features/goals/InspectorGoalRings";
 import { SceneInspector } from "../inspector/SceneInspector";
 
 /**
@@ -370,6 +370,35 @@ describe("SceneInspector", () => {
     // The card should render without errors and without a cursor:pointer style.
     const card = screen.getByText("Sarah").closest(".entity-card") as HTMLElement;
     expect(card.style.cursor).toBe("");
+  });
+
+  it("right-clicking a goal card calls onGoalMenu with the goal's id when goals are on", async () => {
+    const onGoalMenu = vi.fn();
+    writeGoalConfig("p1", "manuscript", { on: true, target: 1000 });
+
+    render(
+      <GoalGroup
+        projectId="p1"
+        sceneId={null}
+        manuscriptTotal={200}
+        chapterId={null}
+        chapterTotal={null}
+        sceneWordCount={0}
+        onGoalMenu={onGoalMenu}
+      />
+    );
+
+    // Wait for the manuscript ring to appear (goal is on via localStorage).
+    await screen.findByText(/manuscript/i);
+
+    // Right-click the goal card root element.
+    const card = screen.getByText(/manuscript/i).closest(".goal-card") as HTMLElement;
+    fireEvent.contextMenu(card);
+
+    // Wiring lock: the callback must fire with a goal object carrying a non-empty id.
+    expect(onGoalMenu).toHaveBeenCalledTimes(1);
+    const [, goal] = onGoalMenu.mock.calls[0] as [React.MouseEvent, { id: string }];
+    expect(goal.id).toBe("manuscript:p1");
   });
 
   it("saved synopsis renders with the same CSS class as the edit-state textarea (synopsis parity)", async () => {

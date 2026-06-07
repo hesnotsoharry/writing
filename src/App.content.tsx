@@ -20,13 +20,17 @@ import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
 import { Icon } from "./components/Icon";
+import type { MenuDescriptor } from "./components/menu/ContextMenu";
+import { ContextMenu } from "./components/menu/ContextMenu";
 import type { Project, Scene } from "./db/binderStore";
 import type { Label, LabelColor, LabelStore } from "./db/labelStore";
 import type { Snapshot } from "./db/snapshotStore";
+import { SqliteGoalsStore } from "./db/sqliteGoalsStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
 import { useArchivedCount } from "./features/archive/useArchivedCount";
 import { AppFocusLayer, useFocusSettings } from "./features/focus/AppFocusLayer";
+import type { GoalRecord } from "./features/goals/goalModel";
 import { GOAL_META } from "./features/goals/goalTypes";
 import { useDailyGoalProgress } from "./features/goals/useDailyGoalProgress";
 import { LabelManager } from "./features/outliner/LabelManager";
@@ -40,6 +44,27 @@ import { StatusBar } from "./shell/StatusBar";
 import { TitleBar } from "./shell/TitleBar";
 import { useEditorStyle } from "./theme/useEditorStyle";
 import { useMotion } from "./theme/useMotion";
+
+// ── Goal context menu ────────────────────────────────────────────────────────
+
+const appGoalsStore = new SqliteGoalsStore();
+
+function useGoalMenu(setShowGoals: (v: boolean) => void) {
+  const [menu, setMenu] = useState<MenuDescriptor | null>(null);
+  const [editGoalId, setEditGoalId] = useState<string | undefined>(undefined);
+  const openGoalMenu = (e: React.MouseEvent, goal: GoalRecord) => setMenu({
+    x: e.clientX, y: e.clientY,
+    items: [
+      { label: "Edit goal", icon: "edit",
+        onClick: () => { setEditGoalId(goal.id); setShowGoals(true); } },
+      { label: "Manage all", icon: "target", onClick: () => setShowGoals(true) },
+      { type: "sep" },
+      { label: "Delete goal", icon: "trash", danger: true,
+        onClick: () => { void appGoalsStore.deleteGoal(goal.id).catch(console.error); } },
+    ],
+  });
+  return { menu, openGoalMenu, closeGoalMenu: () => setMenu(null), editGoalId, setEditGoalId };
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,6 +186,7 @@ interface SideSlotsProps {
   linksVersion: number; liveWordCount: number; chapterId: string | null; chapterTotal: number | null;
   onAddGoal: (s: "scene" | "chapter", id: string) => void;
   onExport: (s: "scene" | "chapter", id: string) => void;
+  onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
   showSidePanels: boolean; view: AppView;
   onOpenEntry: (id: string, kind: string) => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
@@ -182,7 +208,7 @@ function buildSideSlots(p: SideSlotsProps) {
         liveWordCount={p.liveWordCount} manuscriptTotal={p.manuscriptTotal}
         chapterId={p.chapterId} chapterTotal={p.chapterTotal}
         historySnapshots={p.historySnapshots} onOpenHistory={p.onOpenHistory}
-        onTakeSnapshot={p.onTakeSnapshot}
+        onTakeSnapshot={p.onTakeSnapshot} onGoalMenu={p.onGoalMenu}
         onOpenEntry={(entityId, type) => {
           const kind = type === "character" ? "Character" : type === "location" ? "Location" : type.charAt(0).toUpperCase() + type.slice(1);
           p.onOpenEntry(entityId, kind);
@@ -252,12 +278,14 @@ function useAppContentSlots(props: AppContentProps) {
   const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
   const focusSettingsHook = useFocusSettings();
   const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };  const onExport = (scope: "scene" | "chapter", id: string) => { setExportTarget(scope, id); setShowExport(true); };
+  const { menu: goalMenu, openGoalMenu, closeGoalMenu, editGoalId, setEditGoalId } = useGoalMenu(setShowGoals);
   const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";
   const { binderSlot, inspectorSlot } = buildSideSlots({
     tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
-    chapterId, chapterTotal, onAddGoal, onExport, showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
+    chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
+    showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
   });
   const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };
@@ -270,7 +298,8 @@ function useAppContentSlots(props: AppContentProps) {
   return {
     focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,
     setShowExport, setExportTarget, liveWordCount, manuscriptTotal, goalProgress, docName,
-    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn, labelState: ls, labelStore, focusSettingsHook,
+    binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn,
+    labelState: ls, labelStore, focusSettingsHook, goalMenu, closeGoalMenu, editGoalId, setEditGoalId,
   };
 }
 
@@ -280,7 +309,7 @@ export function AppContent(props: AppContentProps) {
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
     setShowSettings, setShowExport, setExportTarget, liveWordCount, manuscriptTotal, goalProgress,
     docName, binderSlot, inspectorSlot, viewStageContent, overlays, motionOn,
-    labelState, labelStore, focusSettingsHook,
+    labelState, labelStore, focusSettingsHook, goalMenu, closeGoalMenu, editGoalId, setEditGoalId,
   } = useAppContentSlots(props);
   const { view, onViewChange, activeProjectId } = props;
   const hudGoal = { current: goalProgress.words, target: goalProgress.target,
@@ -305,7 +334,9 @@ export function AppContent(props: AppContentProps) {
       />
       <AppFocusLayer focusMode={focusMode} wordCount={liveWordCount} goal={hudGoal}
         goalOn={goalsOn} settingsHook={focusSettingsHook} />
-      <OverlayStack {...overlays} activeProjectId={activeProjectId} />
+      <OverlayStack {...overlays} activeProjectId={activeProjectId}
+        editGoalId={editGoalId} setEditGoalId={setEditGoalId} manuscriptTotal={manuscriptTotal} />
+      <ContextMenu menu={goalMenu} onClose={closeGoalMenu} />
       <LabelManagerOverlay show={labelState.showLabelManager} activeProjectId={activeProjectId}
         labels={labelState.labels} labelStore={labelStore}
         onClose={() => labelState.setShowLabelManager(false)}

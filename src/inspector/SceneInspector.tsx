@@ -7,8 +7,9 @@ import type { Scene } from "../db/binderStore";
 import type { Snapshot } from "../db/snapshotStore";
 import { SqliteBinderStore } from "../db/sqliteBinderStore";
 import type { Entity, EntityType, SceneLink, StoryBibleStore } from "../db/storyBibleStore";
+import type { GoalRecord } from "../features/goals/goalModel";
+import { anyGoalOn, GoalGroup } from "../features/goals/InspectorGoalRings";
 import { HistoryRail } from "./HistoryRail";
-import { anyGoalOn, GoalGroup } from "./InspectorGoalRings";
 import { SynopsisGroup } from "./InspectorSynopsis";
 
 // Module-level singleton for useManuscriptTotal (lazy getDb — no side-effects at import time).
@@ -214,6 +215,8 @@ export interface SceneInspectorProps {
   manuscriptTotal?: number;
   chapterTotal?: number | null;
   chapterId?: string | null;
+  /** Called when the user right-clicks an inspector goal ring. Optional — no menu if absent. */
+  onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
   // ── History rail ──────────────────────────────────────────────────────────
   /** Last 3 snapshots for the active scene (pre-loaded by App). */
   historySnapshots?: Snapshot[];
@@ -245,7 +248,7 @@ function EntityGroups({ store, projectId, sceneId, characters, locations, ready,
 export function SceneInspector({
   store, projectId, sceneId, scene, refreshKey, liveWordCount, onOpenEntry,
   manuscriptTotal: manuscriptTotalProp, chapterTotal, chapterId,
-  historySnapshots, onOpenHistory, onTakeSnapshot,
+  onGoalMenu, historySnapshots, onOpenHistory, onTakeSnapshot,
 }: SceneInspectorProps) {
   const [localRev, setLocalRev] = useState(0);
   const effectiveDep = (refreshKey ?? 0) + localRev;
@@ -263,7 +266,8 @@ export function SceneInspector({
         {goalVisible && (
           <GoalGroup projectId={projectId} sceneId={sceneId}
             manuscriptTotal={resolvedManuscriptTotal} chapterId={resolvedChapterId}
-            chapterTotal={resolvedChapterTotal} sceneWordCount={liveWordCount} />
+            chapterTotal={resolvedChapterTotal} sceneWordCount={liveWordCount}
+            onGoalMenu={onGoalMenu} />
         )}
         <EntityGroups store={store} projectId={projectId} sceneId={sceneId}
           characters={characters} locations={locations} ready={ready}

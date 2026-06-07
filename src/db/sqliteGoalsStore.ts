@@ -20,6 +20,8 @@ export interface GoalsStore {
     target: number;
     enabled: boolean;
   }): Promise<Goal>;
+  /** Delete a goal by id. No-op (does not throw) if the id does not exist. */
+  deleteGoal(id: string): Promise<void>;
 }
 
 /** Raw row shape returned by tauri-plugin-sql before boolean mapping. */
@@ -96,5 +98,10 @@ export class SqliteGoalsStore implements GoalsStore {
       enabled: input.enabled,
       created_at,
     };
+  }
+
+  async deleteGoal(id: string): Promise<void> {
+    const db = await getDb();
+    await db.execute("DELETE FROM goals WHERE id = $1", [id]);
   }
 }
