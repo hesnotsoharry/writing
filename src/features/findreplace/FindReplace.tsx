@@ -40,6 +40,8 @@ export interface FindReplaceProps {
   onJump?: (sceneId: string) => void;
   onClose?: () => void;
   onUndoReplace?: (sceneIds: string[]) => void;
+  /** Called for each replaced scene after the DB write resolves. Lets callers reload the live editor. */
+  onAfterReplace?: (sceneId: string) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -62,14 +64,15 @@ interface ExecReplaceArgs {
   replace: string;
   snap: SnapshotStore;
   opts: FindOpts;
+  onAfterReplace?: (sceneId: string) => void;
 }
 
-async function execReplaceAll({ results, find, replace, snap, opts }: ExecReplaceArgs): Promise<string[]> {
+async function execReplaceAll({ results, find, replace, snap, opts, onAfterReplace }: ExecReplaceArgs): Promise<string[]> {
   const ids: string[] = [];
   for (const m of results) {
     try {
       const { replacedCount } = await replaceInScene(m.sceneId, find, replace, snap, opts);
-      if (replacedCount > 0) ids.push(m.sceneId);
+      if (replacedCount > 0) { ids.push(m.sceneId); onAfterReplace?.(m.sceneId); }
     } catch (e: unknown) { console.error("[find-replace] replaceInScene failed", e); }
   }
   return ids;
@@ -179,7 +182,7 @@ interface FRState {
   handleToastClose: () => void;
 }
 
-function useFindReplaceState({ projectId, snapshotStore, onClose, onUndoReplace }: FindReplaceProps): FRState {
+function useFindReplaceState({ projectId, snapshotStore, onClose, onUndoReplace, onAfterReplace }: FindReplaceProps): FRState {
   const [query, setQuery] = useState(""); const [repl, setRepl] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false); const [wholeWord, setWholeWord] = useState(false);
   const [rawResults, setRawResults] = useState<SearchMatch[]>([]);
@@ -205,11 +208,11 @@ function useFindReplaceState({ projectId, snapshotStore, onClose, onUndoReplace 
   const handleReplaceAll = useCallback(async () => {
     setBusy(true); setConfirming(false);
     const opts = { caseSensitive, wholeWord };
-    const ids = await execReplaceAll({ results: rawResults, find: query, replace: repl, snap: snapshotStore, opts });
+    const ids = await execReplaceAll({ results: rawResults, find: query, replace: repl, snap: snapshotStore, opts, onAfterReplace });
     setBusy(false);
     if (ids.length === 0) { onClose?.(); return; }
     pendingUndo.current = ids; setToast({ label: `Replaced in ${ids.length} scene${ids.length !== 1 ? "s" : ""}.`, undo: true });
-  }, [rawResults, query, repl, snapshotStore, onClose, caseSensitive, wholeWord]);
+  }, [rawResults, query, repl, snapshotStore, onClose, caseSensitive, wholeWord, onAfterReplace]);
   const handleToastUndo = useCallback(() => { onUndoReplace?.(pendingUndo.current); setToast(null); pendingUndo.current = []; onClose?.(); }, [onUndoReplace, onClose]);
   const handleToastClose = useCallback(() => { setToast(null); pendingUndo.current = []; onClose?.(); }, [onClose]);
   return {

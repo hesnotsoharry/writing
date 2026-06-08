@@ -301,10 +301,10 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     onHistoryDelete: (id: string) => { void snapDelete(id, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
     onHistoryGetText: fetchSnapshotText,
     showFindReplace, setShowFindReplace,
-    findReplaceProjectId: activeProjectId,
-    findReplaceSnapshotStore: snapshotStore,
+    findReplaceProjectId: activeProjectId, findReplaceSnapshotStore: snapshotStore,
     onFindReplaceJump: wiring.handleSelectScene,
-    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null)),
+    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null), (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }),
+    onAfterReplace: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); },
   };
 }
 
@@ -324,7 +324,7 @@ export default function App() {
   return (
     <AppContent tree={tree} selectedSceneId={selectedSceneId} doc={doc}
       onSelectScene={wiring.handleSelectScene} callbacks={{ ...wiring.callbacks,
-        onTakeSnapshot: (id) => snapTakeFromMenu({ ...ctx, sceneId: id }, id),
+        onTakeSnapshot: (id) => { void snapTakeFromMenu({ ...ctx, sceneId: id }, id).then(() => bumpRailKey()); },
         onOpenHistory: (id) => { setHistorySceneId(id); setShowHistory(true); },
       }}
       projects={projects} activeProjectId={activeProjectId}
@@ -336,7 +336,7 @@ export default function App() {
       onOpenEntry={openEntry} onPushEntry={pushEntry} onEntryBack={entryBack} onExitEntry={exitEntry}
       historySnapshots={railSnapshots}
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
-      onTakeSnapshot={selectedSceneId ? () => snapTakeFromMenu(ctx, selectedSceneId) : undefined}
+      onTakeSnapshot={selectedSceneId ? () => { void snapTakeFromMenu(ctx, selectedSceneId).then(() => bumpRailKey()); } : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
       labelStore={labelStore}
     />

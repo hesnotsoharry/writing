@@ -80,6 +80,7 @@ export interface OverlayStackProps {
   findReplaceSnapshotStore: SnapshotStore;
   onFindReplaceJump?: (sceneId: string) => void;
   onUndoReplace?: (sceneIds: string[]) => void;
+  onAfterReplace?: (sceneId: string) => void;
 }
 
 type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
@@ -141,6 +142,7 @@ export function OverlayStack(p: OverlayStackAllProps): ReactElement {
           onJump={p.onFindReplaceJump}
           onClose={() => p.setShowFindReplace(false)}
           onUndoReplace={p.onUndoReplace}
+          onAfterReplace={p.onAfterReplace}
         />
       )}
     </>

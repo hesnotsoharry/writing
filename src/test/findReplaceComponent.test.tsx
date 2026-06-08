@@ -118,3 +118,84 @@ describe("FindReplace component — onUndoReplace is only triggered by explicit 
     expect(onUndoReplace).toHaveBeenCalledWith(["s-1"]);
   });
 });
+
+describe("FindReplace component — onAfterReplace triggers scene reload after replace-all", () => {
+  const SCENE_TWO: SearchMatch = {
+    sceneId: "s-2", sceneTitle: "Scene Two",
+    chapterTitle: "Chapter One", chapterId: "c-1",
+    offsets: [4], plaintext: "The hero stood firm.",
+  };
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("calls onAfterReplace with the scene ID after replace-all completes", async () => {
+    vi.mocked(searchManuscript).mockResolvedValue([SCENE_MATCH]);
+    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1 });
+    const user = userEvent.setup({ delay: null });
+    const onAfterReplace = vi.fn();
+
+    render(
+      <FindReplace projectId="p-1" snapshotStore={makeSnapStore()} onAfterReplace={onAfterReplace} />,
+    );
+
+    await driveToToast(user);
+
+    expect(onAfterReplace).toHaveBeenCalledTimes(1);
+    expect(onAfterReplace).toHaveBeenCalledWith("s-1");
+  });
+
+  it("does NOT call onAfterReplace when replacedCount is zero", async () => {
+    vi.mocked(searchManuscript).mockResolvedValue([SCENE_MATCH]);
+    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 0 });
+    const user = userEvent.setup({ delay: null });
+    const onAfterReplace = vi.fn();
+
+    render(
+      <FindReplace projectId="p-1" snapshotStore={makeSnapStore()} onAfterReplace={onAfterReplace} />,
+    );
+
+    await user.type(screen.getByPlaceholderText("Find…"), "hero");
+    await waitFor(() => expect(vi.mocked(searchManuscript)).toHaveBeenCalled());
+    await user.type(screen.getByPlaceholderText("Replace with…"), "champion");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Replace all (1)" })).not.toBeDisabled());
+    await user.click(screen.getByRole("button", { name: "Replace all (1)" }));
+    await user.click(await screen.findByRole("button", { name: "Replace all" }));
+    // When ids.length === 0 the component calls onClose (no toast). Wait for the
+    // replace store call to confirm the async path ran before asserting the negative.
+    await waitFor(() => expect(vi.mocked(replaceInScene)).toHaveBeenCalledWith(
+      "s-1", "hero", "champion", expect.any(Object), expect.any(Object),
+    ));
+
+    expect(onAfterReplace).not.toHaveBeenCalled();
+  });
+
+  it("calls onAfterReplace per-scene — only the open scene is reloaded by the callback guard", async () => {
+    vi.mocked(searchManuscript).mockResolvedValue([SCENE_MATCH, SCENE_TWO]);
+    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1 });
+    const user = userEvent.setup({ delay: null });
+    const openSceneId = "s-1";
+    const handleSelectScene = vi.fn();
+    // Simulate the App.tsx onAfterReplace guard: only reload if sceneId === openSceneId
+    const onAfterReplace = (sceneId: string) => { if (sceneId === openSceneId) handleSelectScene(sceneId); };
+
+    render(
+      <FindReplace projectId="p-1" snapshotStore={makeSnapStore()} onAfterReplace={onAfterReplace} />,
+    );
+
+    await user.type(screen.getByPlaceholderText("Find…"), "hero");
+    await waitFor(() => expect(vi.mocked(searchManuscript)).toHaveBeenCalled());
+    await user.type(screen.getByPlaceholderText("Replace with…"), "champion");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Replace all (2)" })).not.toBeDisabled());
+    await user.click(screen.getByRole("button", { name: "Replace all (2)" }));
+    await user.click(await screen.findByRole("button", { name: "Replace all" }));
+    await screen.findByText(/Replaced in 2 scenes/);
+
+    // handleSelectScene fires only for the open scene, not for "s-2"
+    expect(handleSelectScene).toHaveBeenCalledTimes(1);
+    expect(handleSelectScene).toHaveBeenCalledWith("s-1");
+    expect(handleSelectScene).not.toHaveBeenCalledWith("s-2");
+  });
+});

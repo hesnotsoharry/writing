@@ -64,18 +64,19 @@ export function snapUndoReplace(
   sceneIds: string[],
   save: (sceneId: string, base64: string, plaintext: string | null) => Promise<void>,
   getDoc: (sceneId: string) => Y.Doc | null = () => null,
+  reloadScene?: (sceneId: string) => void,
 ): void {
   for (const sid of sceneIds) {
     snapshotStore.listSnapshots(sid)
       .then((list) => list.find((s) => s.kind === "auto") ?? null)
       .then((snap) => snap ? snapshotStore.getSnapshot(snap.id) : null)
       .then((record) => {
-        if (record) {
-          const savePromise = save(sid, record.stateBase64, null);
+        if (!record) return;
+        return save(sid, record.stateBase64, null).then(() => {
+          if (reloadScene) { reloadScene(sid); return; }
           const doc = getDoc(sid);
           if (doc) applyEncoded(doc, record.stateBase64);
-          return savePromise;
-        }
+        });
       })
       .catch((e: unknown) => console.error("[undo-replace] restore failed", e));
   }
@@ -87,12 +88,12 @@ export function snapDelete(snapshotId: string, sceneId: string | null, set: SetS
     .catch((e: unknown) => { console.error("[snapshots] delete failed", e); });
 }
 
-export function snapTakeFromMenu({ doc, currentWords, set, setShowHistory }: SnapCtx, sceneId: string) {
-  if (!doc) return;
+export function snapTakeFromMenu({ doc, currentWords, set, setShowHistory }: SnapCtx, sceneId: string): Promise<void> {
+  if (!doc) return Promise.resolve();
   const base64 = encodeDoc(doc);
-  snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" })
+  return snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" })
     .then(() => { setShowHistory(true); reloadSnapshotList(sceneId, set); })
-    .catch((e: unknown) => console.error("[snapshots] takeSnapshot (menu) failed", e));
+    .catch((e: unknown) => { console.error("[snapshots] takeSnapshot (menu) failed", e); });
 }
 
 /**
