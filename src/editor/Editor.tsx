@@ -17,6 +17,7 @@ import { normalizeStatus, STATUS_META } from "../lib/status";
 import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
 import { EditorHeader } from "./EditorHeader";
 import AutoLinkExtension, { type AutoLinkConfig, autolinkKey } from "./extensions/AutoLink";
+import DropCapGate from "./extensions/DropCapGate";
 import FocusModeExtension, { type FocusFlags,focusModeKey } from "./extensions/FocusModeExtension";
 import ProofreadExtension from "./extensions/ProofreadExtension";
 import { FormatBubble } from "./FormatBubble";
@@ -102,6 +103,7 @@ function buildExtensions(doc: Y.Doc, alCfg: AutoLinkConfig, flags: FocusFlags) {
     // FIX (review angle 4): pass current flag values so the initial plugin state
     // reflects reality on first render — no cold-start flash when focus is already on.
     FocusModeExtension.configure(flags),
+    DropCapGate,
   ];
 }
 
