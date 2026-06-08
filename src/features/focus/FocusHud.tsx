@@ -25,6 +25,7 @@ interface FocusHudProps {
   goal: HudGoalInfo;
   goalOn: boolean;
   settingsHook: FocusSettingsHook;
+  onExit?: () => void;
 }
 
 // ── GoalRing ──────────────────────────────────────────────────────────────────
@@ -164,7 +165,7 @@ function HudStats({ wordCount, goal, goalOn, settings, timerKey }: {
 
 // ── FocusHud ──────────────────────────────────────────────────────────────────
 
-export function FocusHud({ wordCount, goal, goalOn, settingsHook }: FocusHudProps) {
+export function FocusHud({ wordCount, goal, goalOn, settingsHook, onExit }: FocusHudProps) {
   const { settings, toggle } = settingsHook;
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [timerKey, setTimerKey] = useState(0);
@@ -186,6 +187,14 @@ export function FocusHud({ wordCount, goal, goalOn, settingsHook }: FocusHudProp
         onClick={() => setPopoverOpen((o) => !o)}>
         <Icon name="cog" className="ic" style={{ width: 14, height: 14 }} />
       </button>
+      {onExit && (
+        <>
+          <span className="kbd" style={{ fontSize: "var(--text-2xs)" }}>⌘.</span>
+          <button className="btn btn-ghost" onClick={onExit}>
+            <Icon name="focus" className="ic" /> Exit focus
+          </button>
+        </>
+      )}
       {settings.hud && <HudStats wordCount={wordCount} goal={goal} goalOn={goalOn}
         settings={settings} timerKey={timerKey} />}
       {popoverOpen && <SettingsPopover settings={settings} onToggle={handleToggle}

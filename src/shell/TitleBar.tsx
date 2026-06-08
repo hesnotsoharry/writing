@@ -91,7 +91,7 @@ function TitleBarActions({
       >
         <Icon name="zap" className="ic" />
       </button>
-      <button className="iconbtn" title="Focus mode  ⌘." aria-label="Focus mode" onClick={onEnterFocus}>
+      <button className="iconbtn" title="Focus mode  ⌘." aria-label="Focus mode" onMouseDown={(e) => { e.preventDefault(); }} onClick={onEnterFocus}>
         <Icon name="focus" className="ic" />
       </button>
       <button className="iconbtn" title="Settings  ⌘," aria-label="Settings" onClick={onOpenSettings}>

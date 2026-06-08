@@ -808,21 +808,14 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 
 .field-label { font-size: var(--text-xs); font-weight: var(--w-semi); color: var(--ink-2); margin-bottom: 7px; display: block; }
 
-/* ---- Focus mode hint ----------------------------------------------------- */
-.focus-exit {
-  position: absolute; top: 14px; right: 16px; z-index: 30;
-  display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity var(--dur);
-}
-.center:hover .focus-exit { opacity: 1; }
-
 /* ---- Focus mode — paragraph dimming ------------------------------------- */
 /* Dimming only fires when both [data-focus] AND [data-dim] are present.
-   The paragraph containing the cursor gets [data-focused] and restores to full. */
+   The paragraph with the caret gets .pm-focused (from FocusModeExtension) and restores to full. */
 [data-focus][data-dim] .canvas-scroll .prose p {
   opacity: 0.35;
   transition: opacity var(--dur);
 }
-[data-focus][data-dim] .canvas-scroll .prose p[data-focused] {
+[data-focus][data-dim] .canvas-scroll .prose p.pm-focused {
   opacity: 1;
 }
 /* Restore all paragraphs when hover over the prose column (dim mode only) */
@@ -852,7 +845,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 [data-theme="dark"] .focus-hud {
   background: rgba(30, 28, 24, 0.85);
 }
-.focus-hud.faded { opacity: 0.15; pointer-events: none; }
+.focus-hud.faded { opacity: 0.6; pointer-events: none; }
 .focus-hud:hover { opacity: 1; pointer-events: auto; }
 
 .hud-stat { display: flex; align-items: center; gap: 3px; }

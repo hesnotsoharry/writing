@@ -18,11 +18,12 @@ interface AppFocusLayerProps {
   goal: HudGoalInfo;
   goalOn: boolean;
   settingsHook: FocusSettingsHook;
+  onExit?: () => void;
 }
 
-export function AppFocusLayer({ focusMode, wordCount, goal, goalOn, settingsHook }: AppFocusLayerProps) {
+export function AppFocusLayer({ focusMode, wordCount, goal, goalOn, settingsHook, onExit }: AppFocusLayerProps) {
   if (!focusMode) return null;
-  return <FocusHud wordCount={wordCount} goal={goal} goalOn={goalOn} settingsHook={settingsHook} />;
+  return <FocusHud wordCount={wordCount} goal={goal} goalOn={goalOn} settingsHook={settingsHook} onExit={onExit} />;
 }
 
 export { useFocusSettings };

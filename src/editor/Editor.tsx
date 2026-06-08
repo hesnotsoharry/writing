@@ -15,6 +15,7 @@ import { normalizeStatus, STATUS_META } from "../lib/status";
 import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
 import { EditorHeader } from "./EditorHeader";
 import AutoLinkExtension, { autolinkKey } from "./extensions/AutoLink";
+import FocusModeExtension, { type FocusFlags,focusModeKey } from "./extensions/FocusModeExtension";
 import ProofreadExtension from "./extensions/ProofreadExtension";
 import { FormatBubble } from "./FormatBubble";
 import { SpellCheckPopover, useSpellCheckPopover } from "./SpellCheckPopover";
@@ -90,6 +91,24 @@ interface EditorCoreState {
 const AUTOLINK_SETTING = "writing.autolinkOn";
 const DEFAULT_AUTOLINK_TYPES = ["character", "location", "item", "faction", "lore"];
 
+// Build the extensions array outside useEditorCore to stay within the 40-line limit.
+function buildExtensions(
+  doc: Y.Doc,
+  alIndex: AlIndex | null,
+  autolinkOn: boolean,
+  flags: FocusFlags,
+) {
+  return [
+    StarterKit.configure({ undoRedo: false }),
+    Collaboration.configure({ document: doc, field: "content" }),
+    ProofreadExtension,
+    AutoLinkExtension.configure({ alIndex, autolinkOn, autolinkTypes: DEFAULT_AUTOLINK_TYPES }),
+    // FIX (review angle 4): pass current flag values so the initial plugin state
+    // reflects reality on first render — no cold-start flash when focus is already on.
+    FocusModeExtension.configure(flags),
+  ];
+}
+
 /**
  * useEditorCore — sets up TipTap, spell-check popover, and registers
  * `captureProse` into the ref provided by the parent (EditorPane) so the
@@ -99,22 +118,13 @@ function useEditorCore(
   doc: Y.Doc,
   captureProseRef: MutableRefObject<() => string>,
   alIndex: AlIndex | null,
+  { focusMode, dimOn, typewriterOn }: FocusFlags,
 ): EditorCoreState {
   const autolinkOn = readBoolSetting(AUTOLINK_SETTING, true);
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ undoRedo: false }),
-      Collaboration.configure({ document: doc, field: "content" }),
-      ProofreadExtension,
-      AutoLinkExtension.configure({
-        alIndex,
-        autolinkOn,
-        autolinkTypes: DEFAULT_AUTOLINK_TYPES,
-      }),
-    ],
+    extensions: buildExtensions(doc, alIndex, autolinkOn, { focusMode, dimOn, typewriterOn }),
     editorProps: { attributes: { class: "prose" } },
   });
-
   // When alIndex changes (linksVersion bump), dispatch a meta transaction so
   // the autolink plugin rebuilds its DecorationSet without tearing down the editor.
   useEffect(() => {
@@ -125,74 +135,17 @@ function useEditorCore(
   // when linksVersion bumps. editor identity only changes on doc swap.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, alIndex]);
-
+  // Dispatch focus-mode flag changes into the ProseMirror plugin via meta transaction.
+  useEffect(() => {
+    if (!editor) return;
+    editor.view.dispatch(editor.state.tr.setMeta(focusModeKey, { focusMode, dimOn, typewriterOn }));
+  }, [editor, focusMode, dimOn, typewriterOn]);
   const { visible, popoverProps } = useSpellCheckPopover(editor);
-  const captureProse = useCallback(
-    () => editor?.view?.dom?.innerHTML ?? "",
-    [editor],
-  );
+  const captureProse = useCallback(() => editor?.view?.dom?.innerHTML ?? "", [editor]);
   // Keep the shared ref in sync with the latest captureProse callback so
   // EditorPane's usePageFlip always snapshots the current editor DOM.
-  // useEffect (not inline) to avoid writing to a ref during render.
-  useEffect(() => {
-    captureProseRef.current = captureProse;
-  }, [captureProse, captureProseRef]);
+  useEffect(() => { captureProseRef.current = captureProse; }, [captureProse, captureProseRef]);
   return { editor, visible, popoverProps };
-}
-
-// ---------------------------------------------------------------------------
-// useFocusEditorEffects — typewriter scroll + paragraph dimming (decoration only)
-// ---------------------------------------------------------------------------
-
-function resolveAnchorEl(sel: Selection): Element | null {
-  const anchor = sel.anchorNode;
-  if (!anchor) return null;
-  return anchor.nodeType === Node.TEXT_NODE
-    ? anchor.parentElement
-    : (anchor as Element);
-}
-
-function applyDimFocus(el: Element, prevRef: React.MutableRefObject<Element | null>) {
-  const para = el.closest ? el.closest(".prose p") : null;
-  if (para === prevRef.current) return;
-  if (prevRef.current) prevRef.current.removeAttribute("data-focused");
-  if (para) (para as HTMLElement).setAttribute("data-focused", "");
-  prevRef.current = para;
-}
-
-/**
- * Attaches a `selectionchange` listener when focus mode is active.
- * Typewriter scroll: respects `prefers-reduced-motion`.
- * Paragraph dimming: adds `data-focused` to the cursor paragraph.
- * Neither effect mutates the Yjs doc or TipTap schema.
- */
-function useFocusEditorEffects(focusMode: boolean, typewriterOn: boolean, dimOn: boolean) {
-  const prevFocusedParaRef = useRef<Element | null>(null);
-
-  useEffect(() => {
-    if (!focusMode || (!typewriterOn && !dimOn)) return;
-    const prefersReduced = (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) ?? false;
-
-    function handleSelection() {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const el = resolveAnchorEl(sel);
-      if (!el) return;
-      if (typewriterOn) {
-        el.scrollIntoView({ block: "center", behavior: prefersReduced ? "auto" : "smooth" });
-      }
-      if (dimOn) applyDimFocus(el, prevFocusedParaRef);
-    }
-
-    document.addEventListener("selectionchange", handleSelection);
-    return () => {
-      document.removeEventListener("selectionchange", handleSelection);
-      if (prevFocusedParaRef.current) {
-        prevFocusedParaRef.current.removeAttribute("data-focused");
-        prevFocusedParaRef.current = null;
-      }
-    };
-  }, [focusMode, typewriterOn, dimOn]);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,11 +304,13 @@ export function Editor({
   onOpenEntry, activeProjectId = null,
 }: EditorProps) {
   const alIndex = useAutoLinkIndex(storyBibleStore, activeProjectId, linksVersion);
-  const { editor, visible, popoverProps } = useEditorCore(doc, captureProseRef, alIndex);
+  const { editor, visible, popoverProps } = useEditorCore(
+    doc, captureProseRef, alIndex,
+    { focusMode, dimOn: dimParagraphsOn, typewriterOn },
+  );
   const liveWords = useLiveWordCount(doc);
   const { characters, locations } = useSceneLinkCounts(storyBibleStore, selectedSceneId, linksVersion);
   const activeScene = findSceneWithChapter(tree, selectedSceneId);
-  useFocusEditorEffects(focusMode, typewriterOn, dimParagraphsOn);
   const handleOpenEntry = onOpenEntry ?? (() => undefined);
   return (
     <div className="canvas-scroll">

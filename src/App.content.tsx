@@ -19,7 +19,6 @@ import { Binder } from "./binder/Binder";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
-import { Icon } from "./components/Icon";
 import type { MenuDescriptor } from "./components/menu/ContextMenu";
 import { ContextMenu } from "./components/menu/ContextMenu";
 import type { Project, Scene } from "./db/binderStore";
@@ -92,14 +91,6 @@ export interface AppContentProps {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function FocusExitButton({ onExit }: { onExit: () => void }) {
-  return (
-    <div className="focus-exit">
-      <span className="kbd">⌘.</span>
-      <button className="btn btn-ghost" style={{ background: "var(--parchment)" }} onClick={onExit}><Icon name="focus" className="ic" /> Exit focus</button>
-    </div>
-  );
-}
 
 function useActiveScene(tree: BinderTree, selectedSceneId: string | null): Scene | null {
   const all: Scene[] = [...tree.chapters.flatMap((ch) => ch.scenes), ...tree.shortPieces];
@@ -327,13 +318,13 @@ export function AppContent(props: AppContentProps) {
           onOpenFind={() => overlays.setShowFindReplace(true)}
           onOpenHistory={props.onOpenHistory} />}
         binder={binderSlot}
-        viewStage={<>{focusMode && <FocusExitButton onExit={() => setFocusMode(false)} />}{viewStageContent}</>}
+        viewStage={viewStageContent}
         inspector={inspectorSlot}
         statusBar={<StatusBar sceneWordCount={liveWordCount} goalsOn={goalsOn}
           manuscriptTotal={manuscriptTotal} goal={goalProgress} />}
       />
       <AppFocusLayer focusMode={focusMode} wordCount={liveWordCount} goal={hudGoal}
-        goalOn={goalsOn} settingsHook={focusSettingsHook} />
+        goalOn={goalsOn} settingsHook={focusSettingsHook} onExit={() => setFocusMode(false)} />
       <OverlayStack {...overlays} activeProjectId={activeProjectId}
         editGoalId={editGoalId} setEditGoalId={setEditGoalId} manuscriptTotal={manuscriptTotal} />
       <ContextMenu menu={goalMenu} onClose={closeGoalMenu} />

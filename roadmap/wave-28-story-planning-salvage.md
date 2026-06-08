@@ -221,22 +221,24 @@ corkboard's quick-status pattern. **Consequences:** minor divergence from the li
 
 ### Decision 6 (Q-HUDOPACITY): focus HUD faded opacity
 
-**PROPOSED — decide-and-explain (lock at P7):** Impl is `0.15`; spec says `0.6`. **Pick:** `0.6` per spec.
+**LOCKED 2026-06-07 (P7):** Impl was `0.15`; spec says `0.6`. **Pick:** `0.6` per spec — applied.
 **Rationale:** 15% is near-invisible and reads as "HUD disappeared"; the spec value keeps it glanceable while
-faded. Almost certainly a `0.15` vs `0.6` transcription error. **Enforcement:** P7 acceptance criterion.
+faded. Almost certainly a `0.15` vs `0.6` transcription error. **Enforcement:** P7 acceptance test asserts
+`.focus-hud.faded` resolves to `0.6` (green); CDP smoke confirmed the faded HUD is glanceable.
 
 ### Decision 7 (Q-FROZEN): "editor frozen — additive only" ruling
 
-**REQUIRES USER LOCK:** This is Cole's constraint, so the ruling is his. Two features touched
-`src/editor/Editor.tsx` (focus effects; autolink added a *required* `linksVersion` prop).
-- **Recommendation:** treat "frozen — additive only" as *no change to editor-core behavior*, NOT literally
-  zero new lines in `src/editor/`. So: additive hooks/decorations that don't alter editing behavior are
-  COMPLIANT and may stay in `Editor.tsx`. BUT the **required `linksVersion` prop IS a violation** (it breaks
-  isolated callers/tests) — make it optional+guarded, and type the store prop as the `StoryBibleStore`
-  interface, not the concrete class. That restores the lane-boundary contract without an extraction churn.
-- **Stricter alternative:** extract `useFocusEditorEffects` + autolink wiring into `src/features/*` wrappers
-  so `src/editor/` is byte-frozen. (More churn, marginal functional gain.)
-**Enforcement:** P7/P8 review checks prop optionality + no editor-core behavior change.
+**LOCKED 2026-06-07 (orchestrator, delegated by Cole): behavioral freeze.** Cole clarified the "frozen"
+constraint was agent-imposed (not his), and delegated the call: "do whichever is better." Pick: treat
+"frozen — additive only" as *no change to editor-core editing behavior*, NOT literally zero new lines in
+`src/editor/`. Additive hooks/decorations that don't alter editing behavior are COMPLIANT and may stay in
+`Editor.tsx`. BUT the **required `linksVersion` prop IS a violation** (it breaks isolated callers/tests) —
+make it optional+guarded, and type the store prop as the `StoryBibleStore` interface, not the concrete
+class. That restores the lane-boundary contract without extraction churn.
+**Rationale:** identical runtime to the byte-freeze alternative; Option B (extract `useFocusEditorEffects`
++ autolink wiring into `src/features/*` wrappers so `src/editor/` is byte-frozen) is pure churn for no
+functional gain — moving working code to satisfy a structural rule with an identical end result.
+**Enforcement:** P7/P8 acceptance + adversarial review check prop optionality + no editor-core behavior change.
 
 ### Decision 8 (Q-GOALRING): duplicate GoalRing implementations
 
@@ -245,6 +247,35 @@ faded. Almost certainly a `0.15` vs `0.6` transcription error. **Enforcement:** 
 ring, delete the old `inspector/` one, migrate its tests to the survivor. **Rationale:** the family-scoped
 ring is the newer canon-correct viz; one implementation prevents drift. **Consequences:** test imports move.
 **Enforcement:** P6 acceptance criterion (one ring remains).
+
+### Decision 9 (Q-FOCUSPM): P7 focus effects move INSIDE ProseMirror (decoration plugin)
+
+**LOCKED 2026-06-07 (architect + attack-decision review; BLOCK→resolved).** The pure-DOM
+`focusEffects.ts` / `useFocusEditorEffects` hook is categorically broken — **CDP-proven**: ProseMirror's
+MutationObserver reverts external `data-focused` mutations on `.prose p` (node detached + attr stripped
+within 800ms, even with caret OUTSIDE the editor, no scroll); and `scrollIntoView` on a PM node →
+redraw → new `<p>` object → the identity gate `para===prevRef` never matches → 480k+ call/sec self-
+sustaining loop. This is why P7 passed jsdom tests but looped live (twice).
+**Pick:** Replace with a TipTap v3 extension `src/editor/extensions/FocusModeExtension.ts` (precedent:
+`AutoLink.ts`). Dim = `Decoration.node(from,to,{class:'pm-focused'})` from `selection.$anchor`
+(PM renders it → cannot revert); typewriter = plugin `view().update()` scrolling the `.canvas-scroll`
+**container** via `coordsAtPos` (never `scrollIntoView` on a PM node → no redraw → no loop); flags via
+`configure()` + `setMeta(focusModeKey)` useEffect. CSS selector `[data-focused]` → `.pm-focused`.
+**DELETE `focusEffects.ts`** + its `Editor.tsx` import/call (NOT retained as a dead module — the
+adversarial review BLOCKed "keep dead code so a jsdom test stays green" as gate-gaming + the exact
+confusion vector that burned this session). **UPDATE `focusModeP7.acceptance.test.tsx`** ("DO NOT MODIFY"
+binds implementers, not an orchestrator architecture change): keep structural/HUD-opacity checks, drop the
+`data-focused` dead-path assertions; ProseMirror-dependent behavior is verified by **CDP smoke** (the only
+valid oracle — jsdom has no layout, no MutationObserver, `scrollIntoView` is a no-op).
+**FLAG fixes (from review):** (a) pass live flag values into `useEditorCore`→`configure()` so initial
+state is correct (no cold-start flash); (b) guard `$anchor.depth < 1` and build the dim decoration only for
+`TextSelection` (NodeSelection/GapCursor mis-target `before(depth)`).
+**Consequences:** editor-core gains one read-only decoration extension (Decision 7-compliant); `focusEffects.ts`
+deleted; CSS targets a class not an attribute; the acceptance test no longer certifies the focus *behavior*
+(CDP smoke does). Fully reversible.
+**Enforcement:** CDP smoke (loop dead + `.pm-focused` persists on caret paragraph + scroll centers) is the
+behavioral gate; updated P7 acceptance covers structure/HUD-opacity; adversarial review confirmed no
+editing-behavior change.
 
 ## Status
 
@@ -259,6 +290,8 @@ ring is the newer canon-correct viz; one implementation prevents drift. **Conseq
 
 | P6 Goals | 2026-06-07 | 2026-06-07 | `73c2c86` | **SMOKE PASS** (live CDP): right-clicking an inspector goal card opens the **Edit goal / Manage all / Delete goal** menu ("Manage all" verified to open the Goals overlay); creating a **Deadline** goal shows "Already written" defaulting to **108** (real manuscript count, not 0). `deleteGoal` added to GoalsStore + impl; Q-GOALRING consolidated (GoalRing/GoalGroup/anyGoalOn moved to `features/goals/InspectorGoalRings.tsx`, `inspector/InspectorGoalRings.tsx` deleted, imports repointed); `editGoalId` jump-to-edit; manuscriptTotal threaded App→OverlayStack→Goals→GoalEditor. 3/3 acceptance + goal/sceneInspector suites (incl. new right-click test) + 87 tests green; tsc + lint clean. **Two review/smoke catches fixed mid-phase:** (1) live smoke caught the right-click menu not firing — the `onGoalMenu` callback died at GoalGroup (old GoalCard had no `onContextMenu`); (2) adversarial review then caught that switching to FamilyGoalCard rendered garbage for deadline/streak goals (inspector's dbGoal lacks type-specific fields). **Final fix (Route B):** keep the type-agnostic `GoalCard` for the inspector display + wire `onContextMenu` onto it; `FamilyGoalCard` stays only in the Goals overlay (where full GoalRecords exist). Added a unit test (`fireEvent.contextMenu` → onGoalMenu called) to lock the wiring. |
 
+| P7 Focus mode | 2026-06-07 | 2026-06-07 | _pending_ | **SMOKE PASS** (live CDP — the oracle that caught this phase failing TWICE). The pure-DOM `focusEffects.ts` was categorically broken: ProseMirror's MutationObserver reverts external `data-focused` mutations on `.prose p` (node detached + attr stripped <800ms, **proven with caret OUTSIDE the editor, no scroll**), and `scrollIntoView` on a PM node → redraw → new `<p>` object → identity gate `para===prevRef` never matches → **480k+ call/sec self-sustaining loop**. That's why P7 passed jsdom but looped live twice. **Fix (Decision 9, Q-FOCUSPM):** rewrote as a TipTap v3 extension `src/editor/extensions/FocusModeExtension.ts` (precedent: AutoLink) — dim via `Decoration.node({class:'pm-focused'})` (PM renders → cannot revert), typewriter via plugin `view().update()` scrolling the `.canvas-scroll` **container** through `coordsAtPos` (no PM-node scroll → no loop), flags via `configure()` + `setMeta(focusModeKey)` useEffect. **DELETED** `focusEffects.ts`; **rewrote** the acceptance test (jsdom = structure only; behavior = CDP smoke). CSS `[data-focused]`→`.pm-focused`. **Live smoke:** loop dead (0 scrollIntoView, 0 selectionchange while idle); active-paragraph dim **works for the first time** (caret para full-contrast, others dimmed — screenshot); exactly 1 mark, follows caret (para2→para3); decoration persists; typewriter scroll fires on para change (scrollTop 8→50); exit clears the decoration (reactive flag); console clean. 22/22 focus+editor tests + tsc + lint green. **Decision-review cell:** sonnet-architect blueprint → attack-decision review **BLOCKed** "retain focusEffects.ts as dead module to keep a jsdom test green" (gate-gaming + the exact confusion vector that burned this session) → resolved by deleting it + rewriting the test. **Attack-diff review FLAG_UNCERTAIN** (all functional angles PASS; lone flag = jsdom tests are structural-only + CDP smoke not in CI → future-regression surface, see follow-up). Also in P7 (prior session): HUD faded-opacity `0.15`→`0.6` (Decision 6), cog adjacent to Exit-focus, Q-FROZEN prop-optionality (Decision 7), dead-CSS cleanup. |
+
 ## Follow-up candidates
 
 <!-- DEFAULT: empty. Stage here only if it clears the Tier-3 triple gate (VALUE w/ present-harm pointer +
@@ -268,6 +301,7 @@ STRUCTURAL + CLEARABILITY). Format: - [item]: [why not in-wave] | present-harm: 
 - Find & Replace: the currently-OPEN scene's editor does not live-refresh after a replace-all touches it — the DB/source is correctly updated (re-search returns 0 matches) but the open scene shows stale text until reopened. Forward replace doesn't patch the open scene's live Y.Doc, whereas `snapUndoReplace` does patch it on undo (asymmetry). | present-harm: K3 — observed live in CDP smoke 2026-06-07 (replaced "scene"→"chapter" ×9; open "test 2" scene still showed "scene" until reopened). User-facing confusion ("did it work?"), not data loss. Single-file fix likely (App.tsx replace wiring patches the open doc like the undo path does).
 - Snapshots cross-scene restore corruption: restore is bound to the ACTIVE scene's `ctx`/`doc`, so restoring a snapshot for a scene opened via the binder context-menu (when a DIFFERENT scene is the active editor) auto-snapshots and writes the restored content into the WRONG (active) scene. | present-harm: K3 — found by adversarial review (Codex `adversarial-54`) on both P2 impls 2026-06-07; data-corruption on the binder-context-menu open-history-on-non-active-scene path. PRE-EXISTING (Sonnet wave-27 wiring; not introduced by P2). Normal flow (title-bar / inspector "open version history" → active scene) is SAFE. Multi-file fix (load the historySceneId's doc for restore + baseline). High priority despite edge path (data loss).
 - Snapshots: binder context-menu "Take snapshot" (`snapTakeFromMenu`) doesn't call `bumpRailKey`, so a snapshot taken via binder right-click won't refresh the History rail until the next scene switch. | present-harm: K3 — noted by P2 fix-forward 2026-06-07; minor staleness (other mutation paths now refresh via bumpRailKey; this one path was missed). Single-line fix (wire bumpRailKey into the menu-snapshot handler).
+- Focus mode (`FocusModeExtension`) has NO automated behavioral coverage in CI — jsdom can't validly test ProseMirror decorations (no layout, no MutationObserver, `scrollIntoView` is a no-op), so the P7 acceptance test is structural-only and behavior is verified by manual CDP smoke. A future commit that regresses the decoration logic (wrong depth, inverted flag, stale `apply` short-circuit, broken scroll-on-para-change) would pass all jsdom tests. Needs a ProseMirror-level integration test (real editor + setSelection → assert `.pm-focused` on the caret block + no scroll loop) once a jsdom-compatible PM test harness exists. | present-harm: latent — no current regression; flagged by P7 attack-diff review 2026-06-07 as a future-regression surface (this phase already shipped broken twice precisely because jsdom green ≠ working). [wrap auditor: judge value — infra-dependent (needs PM test harness); may defer until harness exists]
 
 ## Result
 
