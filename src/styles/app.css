@@ -1163,9 +1163,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .plan-toggle-bar .spacer { flex: 1; }
 
 /* ---- Outliner outer wrap ------------------------------------------------- */
-.otl-wrap { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+.otl-wrap { padding: 24px 28px; max-width: 1100px; margin: 0 auto; }
 .otl-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.otl-top .ttl { font-size: var(--text-2xs); font-weight: var(--w-bold); letter-spacing: 0.05em;
+.otl-top .ttl { font-size: var(--text-sm); font-weight: var(--w-bold); letter-spacing: 0.05em;
   text-transform: uppercase; color: var(--ink-3); }
 .otl-top .spacer { flex: 1; }
 

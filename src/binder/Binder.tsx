@@ -188,7 +188,7 @@ function ShortPiecesSection({ scenes, selectedSceneId, onSelectScene, callbacks 
   const isEmpty = scenes.length === 0;
   return (
     <section>
-      <div className="bsection-head">
+      <div className="bsection-head" style={{ marginTop: 14 }}>
         <span>Short pieces</span>
         <span className="count">{scenes.length}</span>
         <button title="Add short piece" onClick={() => callbacks.onCreateScene(null)}
