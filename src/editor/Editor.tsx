@@ -1,6 +1,7 @@
 import "./proofread.css";
 
 import Collaboration from "@tiptap/extension-collaboration";
+import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { type MutableRefObject, useCallback, useEffect, useRef, useState } from "react";
@@ -98,6 +99,11 @@ function buildExtensions(
   return [
     StarterKit.configure({ undoRedo: false }),
     Collaboration.configure({ document: doc, field: "content" }),
+    // Placeholder applies the `is-editor-empty` class when the doc is empty; the
+    // typing-cue itself is styled in app.css (.is-editor-empty::before). StarterKit v3
+    // does NOT bundle Placeholder, so without this extension that class never lands
+    // and the cue never shows. emptyEditorClass matches the existing (frozen) CSS rule.
+    Placeholder.configure({ emptyEditorClass: "is-editor-empty" }),
     ProofreadExtension,
     AutoLinkExtension.configure(alCfg),
     // FIX (review angle 4): pass current flag values so the initial plugin state
