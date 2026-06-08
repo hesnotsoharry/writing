@@ -77,6 +77,7 @@ export interface OverlayFlags extends OverlayStackProps {
   setFocusMode: Dispatch<SetStateAction<boolean>>;
   goalsOn: boolean;
   hasQuickItems: boolean;
+  setFindReplaceSeed?: (seed: string) => void;
 }
 
 export interface AppContentProps {
@@ -238,6 +239,7 @@ interface ViewStageArgs {
   onRenameEntity: (kind: string, id: string, name: string) => void; onDeleteEntity: (kind: string, id: string) => void;
   labelStore: LabelStore; ls: ReturnType<typeof useLabelState>;
   editorFocus?: { focusMode?: boolean; typewriterOn?: boolean; dimParagraphsOn?: boolean };
+  onFindMentions?: (entityName: string) => void;
 }
 
 function makeViewStage(a: ViewStageArgs) {
@@ -252,7 +254,7 @@ function makeViewStage(a: ViewStageArgs) {
     labelStore: a.labelStore, labels: a.ls.labels, sceneLabels: a.ls.sceneLabels,
     outlinerSort: a.ls.outlinerSort, setOutlinerSort: a.ls.setOutlinerSort,
     outlinerRenaming: a.ls.outlinerRenaming, setOutlinerRenaming: a.ls.setOutlinerRenaming,
-    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, editorFocus: a.editorFocus,
+    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, editorFocus: a.editorFocus, onFindMentions: a.onFindMentions,
   });
 }
 
@@ -263,7 +265,7 @@ function useAppContentSlots(props: AppContentProps) {
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree, entryStack,
     entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry, historySnapshots, onOpenHistory, onTakeSnapshot, labelStore } = props;
-  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget, setShowFindReplace } = overlays;
+  const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget, setShowFindReplace, setFindReplaceSeed } = overlays;
   useGlobalKeybindings({ ...overlays, setShowFindReplace }); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle(); const motionOn = useMotion();
   const liveWordCount = useLiveWordCount(doc);
@@ -284,12 +286,12 @@ function useAppContentSlots(props: AppContentProps) {
     showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
   });
   const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
-  const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };
+  const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };
   const viewStageContent = makeViewStage({
     view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene,
     onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
     onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
-    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls, editorFocus,
+    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls, editorFocus, onFindMentions,
   });
   return {
     focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,
@@ -320,7 +322,7 @@ export function AppContent(props: AppContentProps) {
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}
           onEnterFocus={() => setFocusMode(true)} onOpenSettings={() => setShowSettings(true)}
           onOpenExport={() => { setExportTarget("manuscript", activeProjectId ?? ""); setShowExport(true); }}
-          onOpenFind={() => overlays.setShowFindReplace(true)}
+          onOpenFind={() => { overlays.setFindReplaceSeed?.(""); overlays.setShowFindReplace(true); }}
           onOpenHistory={props.onOpenHistory} />}
         binder={binderSlot}
         viewStage={viewStageContent}

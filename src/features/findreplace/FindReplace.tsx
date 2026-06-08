@@ -42,6 +42,8 @@ export interface FindReplaceProps {
   onUndoReplace?: (sceneIds: string[]) => void;
   /** Called for each replaced scene after the DB write resolves. Lets callers reload the live editor. */
   onAfterReplace?: (sceneId: string) => void;
+  /** Prefills the search input when the overlay opens (e.g. "Find mentions" on an entity). */
+  initialQuery?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -182,8 +184,8 @@ interface FRState {
   handleToastClose: () => void;
 }
 
-function useFindReplaceState({ projectId, snapshotStore, onClose, onUndoReplace, onAfterReplace }: FindReplaceProps): FRState {
-  const [query, setQuery] = useState(""); const [repl, setRepl] = useState("");
+function useFindReplaceState({ projectId, snapshotStore, onClose, onUndoReplace, onAfterReplace, initialQuery }: FindReplaceProps): FRState {
+  const [query, setQuery] = useState(initialQuery ?? ""); const [repl, setRepl] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false); const [wholeWord, setWholeWord] = useState(false);
   const [rawResults, setRawResults] = useState<SearchMatch[]>([]);
   const [confirming, setConfirming] = useState(false); const [busy, setBusy] = useState(false);

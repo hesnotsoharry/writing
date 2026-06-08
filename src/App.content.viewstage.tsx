@@ -56,6 +56,8 @@ export interface ViewStageCtx {
   onLabelsChanged: () => void;
   /** Focus-mode props forwarded to EditorPane → Editor (all optional). */
   editorFocus?: EditorFocusProps;
+  /** Opens Find & Replace with the given entity name prefilled. */
+  onFindMentions?: (entityName: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,5 +200,5 @@ export function buildViewStage(
   return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
     storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion}
     onOpenEntry={ctx.onOpenEntry} activeProjectId={activeProjectId}
-    {...(ctx.editorFocus ?? {})} />;
+    onFindMentions={ctx.onFindMentions} {...(ctx.editorFocus ?? {})} />;
 }

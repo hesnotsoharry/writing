@@ -281,7 +281,7 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
     showHistory, setShowHistory, historySceneId, bumpArchivedVersion,
-    showFindReplace, setShowFindReplace, activeProjectId } = state;
+    showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed, activeProjectId } = state;
   const { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords } = snap;
   const histTitle = historySceneId ? (sceneTitle(historySceneId) || sceneTitle(state.selectedSceneId)) : sceneTitle(state.selectedSceneId);
   return {
@@ -300,7 +300,7 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     onHistoryRestore: (id: string) => historySceneId ? snapRestore({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, currentWords: historyCurrentWords, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.handleSelectScene }, id).then(() => bumpRailKey()) : Promise.resolve(),
     onHistoryDelete: (id: string) => { void snapDelete(id, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
     onHistoryGetText: fetchSnapshotText,
-    showFindReplace, setShowFindReplace,
+    showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed,
     findReplaceProjectId: activeProjectId, findReplaceSnapshotStore: snapshotStore,
     onFindReplaceJump: wiring.handleSelectScene,
     onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null), (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }),

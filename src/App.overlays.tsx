@@ -81,6 +81,8 @@ export interface OverlayStackProps {
   onFindReplaceJump?: (sceneId: string) => void;
   onUndoReplace?: (sceneIds: string[]) => void;
   onAfterReplace?: (sceneId: string) => void;
+  /** Prefill seed passed to FindReplace on open from "Find mentions". Empty string = normal open. */
+  findReplaceSeed?: string;
 }
 
 type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
@@ -139,6 +141,7 @@ export function OverlayStack(p: OverlayStackAllProps): ReactElement {
         <FindReplace
           projectId={p.findReplaceProjectId}
           snapshotStore={p.findReplaceSnapshotStore}
+          initialQuery={p.findReplaceSeed}
           onJump={p.onFindReplaceJump}
           onClose={() => p.setShowFindReplace(false)}
           onUndoReplace={p.onUndoReplace}
