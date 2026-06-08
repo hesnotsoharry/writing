@@ -95,7 +95,7 @@ function SnapRow({ snapshot, active, currentWords, onClick, onContextMenu, renam
         <span>{formatWhen(snapshot.createdAt)}</span>
         <span>·</span>
         <span>{snapshot.wordCount.toLocaleString()}w</span>
-        <SnapDelta delta={currentWords - snapshot.wordCount} />
+        <SnapDelta delta={snapshot.wordCount - currentWords} />
       </div>
     </button>
   );
@@ -111,8 +111,8 @@ interface ViewerFooterProps {
 function DiffLegend() {
   return (
     <div className="vh-legend">
-      <span className="k"><span className="sw" style={{ background: "color-mix(in srgb, var(--good) 35%, transparent)" }} />{" "}added since</span>
-      <span className="k"><span className="sw" style={{ background: "color-mix(in srgb, var(--danger) 30%, transparent)" }} />{" "}removed since</span>
+      <span className="k"><span className="sw" style={{ background: "color-mix(in srgb, var(--good) 35%, transparent)" }} />{" "}in this version</span>
+      <span className="k"><span className="sw" style={{ background: "color-mix(in srgb, var(--danger) 30%, transparent)" }} />{" "}in current draft</span>
     </div>
   );
 }
@@ -165,7 +165,7 @@ interface SnapshotViewerProps {
 }
 
 function SnapshotViewer({ sel, sceneTitle, snapshotText, currentText, mode, setMode, confirming, setConfirming, onRestore }: SnapshotViewerProps) {
-  const counts = diffCounts(snapshotText, currentText);
+  const counts = diffCounts(currentText, snapshotText);
   return (
     <div className="vh-viewer">
       <div className="vh-vhead">
@@ -184,7 +184,7 @@ function SnapshotViewer({ sel, sceneTitle, snapshotText, currentText, mode, setM
       </div>
       <div className="vh-doc">
         <h2>{sceneTitle}</h2>
-        {mode === "diff" ? <DiffText from={snapshotText} to={currentText} /> : <p>{snapshotText}</p>}
+        {mode === "diff" ? <DiffText from={currentText} to={snapshotText} /> : <p>{snapshotText}</p>}
       </div>
       <div className="vh-foot">
         <ViewerFooter confirming={confirming} mode={mode} sel={sel}

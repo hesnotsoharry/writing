@@ -31,7 +31,7 @@ function formatWhen(createdAt: number): string {
 interface RailSnapRowProps { snapshot: Snapshot; currentWords: number; onClick: () => void; }
 
 function RailSnapRow({ snapshot, currentWords, onClick }: RailSnapRowProps) {
-  const delta = currentWords - snapshot.wordCount;
+  const delta = snapshot.wordCount - currentWords;
   return (
     <button className="snap-row" onClick={onClick}>
       <div className="snap-top">
