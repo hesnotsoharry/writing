@@ -295,9 +295,9 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     onArchiveChanged: () => { bumpArchivedVersion(); wiring.reloadTree(); },
     showHistory, setShowHistory, historySceneId, historySceneTitle: histTitle,
     historySnapshots, historyCurrentText, historyCurrentWords,
-    onHistoryCapture: () => snapCapture(ctx).then((id) => { bumpRailKey(); return id; }),
+    onHistoryCapture: () => historySceneId ? snapCapture({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, currentWords: historyCurrentWords, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then((id) => { bumpRailKey(); return id; }) : Promise.resolve(null),
     onHistoryRename: (id: string, label: string) => { void snapRename(id, label, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
-    onHistoryRestore: (id: string) => snapRestore(ctx, id).then(() => bumpRailKey()),
+    onHistoryRestore: (id: string) => historySceneId ? snapRestore({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, currentWords: historyCurrentWords, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.handleSelectScene }, id).then(() => bumpRailKey()) : Promise.resolve(),
     onHistoryDelete: (id: string) => { void snapDelete(id, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
     onHistoryGetText: fetchSnapshotText,
     showFindReplace, setShowFindReplace,
@@ -324,7 +324,7 @@ export default function App() {
   return (
     <AppContent tree={tree} selectedSceneId={selectedSceneId} doc={doc}
       onSelectScene={wiring.handleSelectScene} callbacks={{ ...wiring.callbacks,
-        onTakeSnapshot: (id) => { void snapTakeFromMenu({ ...ctx, sceneId: id }, id).then(() => bumpRailKey()); },
+        onTakeSnapshot: (id) => { void snapTakeFromMenu({ targetSceneId: id, isActive: id === selectedSceneId, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); },
         onOpenHistory: (id) => { setHistorySceneId(id); setShowHistory(true); },
       }}
       projects={projects} activeProjectId={activeProjectId}
@@ -336,7 +336,7 @@ export default function App() {
       onOpenEntry={openEntry} onPushEntry={pushEntry} onEntryBack={entryBack} onExitEntry={exitEntry}
       historySnapshots={railSnapshots}
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
-      onTakeSnapshot={selectedSceneId ? () => { void snapTakeFromMenu(ctx, selectedSceneId).then(() => bumpRailKey()); } : undefined}
+      onTakeSnapshot={selectedSceneId ? () => { void snapTakeFromMenu({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
       labelStore={labelStore}
     />

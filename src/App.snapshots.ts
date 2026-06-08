@@ -13,9 +13,29 @@ export const snapshotStore = new SqliteSnapshotStore();
 
 export type SetSnapshots = (updater: Snapshot[] | ((prev: Snapshot[]) => Snapshot[])) => void;
 
+/** Legacy context shape used by snapRename/snapDelete and as a named bag for ctx in App.tsx. */
 export interface SnapCtx {
   sceneId: string | null; doc: Y.Doc | null;
   currentWords: number; set: SetSnapshots; setShowHistory: (v: boolean) => void;
+}
+
+/** Options for snapshot operations that address a specific target scene (which may differ from the active scene). */
+export interface SnapTargetOpts {
+  targetSceneId: string;
+  /** True when targetSceneId === the scene currently loaded in the live editor. */
+  isActive: boolean;
+  activeDoc: Y.Doc | null;
+  /** Word count for auto-backup metadata. Meaningful for the active scene only; pass 0 for
+   *  non-active targets — historyCurrentWords is 0 for non-active scenes by design in App.tsx. */
+  currentWords: number;
+  set: SetSnapshots;
+  load: (sceneId: string) => Promise<string | null>;
+}
+
+/** Extended opts for snapRestore — also needs to persist bytes + optionally reload the live editor. */
+export interface SnapRestoreOpts extends SnapTargetOpts {
+  save: (sceneId: string, base64: string, plaintext: string | null) => Promise<void>;
+  reloadScene: (sceneId: string) => void;
 }
 
 export function reloadSnapshotList(sceneId: string, set: SetSnapshots) {
@@ -32,10 +52,28 @@ export async function fetchSnapshotText(snapshotId: string): Promise<string> {
   return extractPlainText(tempDoc);
 }
 
-export function snapCapture({ sceneId, doc, currentWords, set }: SnapCtx): Promise<string | null> {
-  if (!sceneId || !doc) return Promise.resolve(null);
-  const base64 = encodeDoc(doc);
-  return snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" })
+/**
+ * Resolve serialized bytes for the target scene:
+ * - active scene  → encode the live in-memory doc (current editor state, no DB round-trip);
+ * - non-active    → load from persistent storage (live doc belongs to a different editor).
+ */
+async function resolveTargetBytes(
+  targetSceneId: string,
+  isActive: boolean,
+  activeDoc: Y.Doc | null,
+  load: (sceneId: string) => Promise<string | null>,
+): Promise<string> {
+  if (isActive && activeDoc) return encodeDoc(activeDoc);
+  return (await load(targetSceneId)) ?? "";
+}
+
+export function snapCapture(
+  { targetSceneId, isActive, activeDoc, currentWords, set, load }: SnapTargetOpts,
+): Promise<string | null> {
+  return resolveTargetBytes(targetSceneId, isActive, activeDoc, load)
+    .then((base64) =>
+      snapshotStore.takeSnapshot({ sceneId: targetSceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" }),
+    )
     .then((snap) => { set((prev) => [snap, ...(prev as Snapshot[])]); return snap.id; })
     .catch((e: unknown) => { console.error("[snapshots] takeSnapshot failed", e); return null; });
 }
@@ -46,14 +84,32 @@ export function snapRename(snapshotId: string, label: string, sceneId: string | 
     .catch((e: unknown) => { console.error("[snapshots] rename failed", e); });
 }
 
-export function snapRestore({ sceneId, doc, currentWords, set }: SnapCtx, snapshotId: string): Promise<void> {
-  if (!sceneId || !doc) return Promise.resolve();
-  const currentBase64 = encodeDoc(doc);
-  return snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: currentBase64, wordCount: currentWords, kind: "auto" })
-    .then(() => snapshotStore.getSnapshot(snapshotId))
-    .then((record) => { if (record) applyEncoded(doc, record.stateBase64); })
-    .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })
-    .catch((e: unknown) => console.error("[snapshots] restore failed", e));
+export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Promise<void> {
+  const { targetSceneId, isActive, activeDoc, currentWords, set, load, save, reloadScene } = opts;
+  try {
+    const record = await snapshotStore.getSnapshot(snapshotId);
+    if (!record) return;
+    // Pre-restore auto-backup of the TARGET scene's current content.
+    // When non-active: bytes come from persistent storage — we must not read or touch the active editor's doc.
+    const currentBytes = await resolveTargetBytes(targetSceneId, isActive, activeDoc, load);
+    await snapshotStore.takeSnapshot({
+      sceneId: targetSceneId, label: null, stateBase64: currentBytes,
+      // wordCount is only meaningful for the active scene; 0 for non-active is a known metadata-only
+      // limitation (historyCurrentWords is 0 for non-active by design in App.tsx snapState hook).
+      wordCount: isActive ? currentWords : 0, kind: "auto",
+    });
+    // Persist restored bytes to the TARGET scene's store FIRST.
+    // The scene reload reads from storage, so saving after the reload would silently no-op.
+    // This is the same save-then-reloadScene idiom used by snapUndoReplace (App.snapshots.ts:75–76).
+    await save(targetSceneId, record.stateBase64, null);
+    // Reload the live editor only when target === active scene.
+    // Yjs is append-only — applyEncoded cannot rewind a live doc; a full scene reload is required.
+    // For non-active target: bytes are now in storage; the next open picks them up automatically.
+    if (isActive) reloadScene(targetSceneId);
+    reloadSnapshotList(targetSceneId, set);
+  } catch (e: unknown) {
+    console.error("[snapshots] restore failed", e);
+  }
 }
 
 /**
@@ -88,11 +144,15 @@ export function snapDelete(snapshotId: string, sceneId: string | null, set: SetS
     .catch((e: unknown) => { console.error("[snapshots] delete failed", e); });
 }
 
-export function snapTakeFromMenu({ doc, currentWords, set, setShowHistory }: SnapCtx, sceneId: string): Promise<void> {
-  if (!doc) return Promise.resolve();
-  const base64 = encodeDoc(doc);
-  return snapshotStore.takeSnapshot({ sceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" })
-    .then(() => { setShowHistory(true); reloadSnapshotList(sceneId, set); })
+export function snapTakeFromMenu(
+  { targetSceneId, isActive, activeDoc, currentWords, set, setShowHistory, load }:
+  SnapTargetOpts & { setShowHistory: (v: boolean) => void },
+): Promise<void> {
+  return resolveTargetBytes(targetSceneId, isActive, activeDoc, load)
+    .then((base64) =>
+      snapshotStore.takeSnapshot({ sceneId: targetSceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" }),
+    )
+    .then(() => { setShowHistory(true); reloadSnapshotList(targetSceneId, set); })
     .catch((e: unknown) => { console.error("[snapshots] takeSnapshot (menu) failed", e); });
 }
 
