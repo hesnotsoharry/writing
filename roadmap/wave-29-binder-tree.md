@@ -103,4 +103,42 @@ _(empty — mid-wave friction is fixed inline per the scope-creep tiers; lead-ow
 
 ## Result
 
-_(filled at lane handoff / lead merge.)_
+### Wave 29 Binder & tree ops — handoff for merge
+
+- **Branch:** `wave-29-binder-tree` · **Plan:** `roadmap/wave-29-binder-tree.md` · forked from `d0339f3`
+- **Gates:** lint **PASS** · tsc **PASS** · full suite **1002/1002 PASS** (111 files) — no regressions
+- **Reviewer verdict:** **PASS** — 4 phases, one `sonnet-adversarial-reviewer` (attack-diff, single) each. Every phase returned PASS on all behavioral/correctness angles; each carried a test-adequacy FLAG which was addressed before commit (behavioral tests now cover stopPropagation isolation, both status persist contracts, keyboard focus paths, and the drag-end `onMoveScene` contract incl. null folderId + gate assertions).
+
+**What shipped (one commit per item):**
+- **Phase 1 (`bb69f1b`)** — chapter collapse now persists across reloads (localStorage, single key `writing.binder.openChapters`, default-open, corruption-safe). Toggle + chevron CSS already worked; only persistence was added.
+- **Phase 2 (`313ae80`)** — keyboard nav on the project-switcher dropdown (roving focus: ArrowUp/Down clamped, Enter switches, Esc closes + refocuses trigger). The custom `.proj-menu` dropdown was already built; only keyboard nav was missing.
+- **Phase 3 (`5903717`)** — click a scene status dot → 5-status picker → persists, in BOTH binder and outliner. Binder persists via existing `onSetSceneStatus`; outliner via existing `h.onStatus({...scene,status})`. Dot-click stops propagation (row not selected).
+- **Phase 4 (`df2c35f`)** — handle-only drag-reorder in the outliner, mirroring corkboard `CorkGroupDnd`; gated to manual sort; delegates to a new optional `onMoveScene` prop.
+
+**Files touched (all within owned dirs + tests + this plan — confirmed via `git diff --stat`):**
+`src/binder/{Binder.tsx, BinderCrud.tsx, ProjectSwitcher.tsx, chapterOpenState.ts (new), statusPicker.ts (new)}` · `src/features/outliner/{Outliner.tsx, OutlinerMenu.tsx, OutlinerDrag.tsx (new), OtlLabelMenu.tsx (new)}` · 7 test files under `src/test/`. **No `App.*`, `app.css`, store, migrations, or shell touched.**
+
+**NEW store methods added (additive):** none. No `LabelStore` extension was needed.
+
+**COMPONENT PROP CONTRACT (what the lead must supply on integration):**
+- **Phase 1 & 2:** nothing — fully self-contained, no new App wiring.
+- **Phase 3 binder:** nothing new — persists via the already-wired `BinderCallbacks.onSetSceneStatus`.
+- **Phase 3 outliner:** persists via the existing `OutlinerRowHandlers.h.onStatus(e, sceneWithNewStatus)` — the SAME path the outliner context-menu "Set status" already uses. ⚠ If App does not already wire `h.onStatus` to persist (call `setSceneStatus` + reload), wire it; the binder is independent of this.
+- **Phase 4 outliner (the one genuine integration touchpoint):** new **optional** prop on `OutlinerProps`:
+  `onMoveScene?: (sceneId: string, toFolderId: string | null, toIndex: number) => void`
+  Wire it to `BinderStore.moveScene` (App owns the store call + `reloadTree`, exactly as the corkboard's `dragCallbacks.onMoveScene` is wired). Drag stays inert until this prop is supplied AND `sort.col === "manual"`. `toFolderId` is the chapter's folder id, or `null` for the Short-pieces group.
+
+**⚠ Needs lead's eyes post-merge (CDP — these are all live-UI behaviors a lane session structurally cannot confirm):**
+1. **Chapter collapse:** collapse a chapter, reload the app → it stays collapsed; an untouched chapter defaults open.
+2. **Project switcher:** open dropdown, ArrowUp/Down moves the highlight (native focus ring — confirm it reads as a visible highlight, since no CSS was added); Enter switches project; Esc closes AND returns focus to the trigger.
+3. **Status dot (binder + outliner):** click a dot → picker opens at the cursor; pick a status → dot color/check updates and persists; the row is NOT selected (editor does not open) on a dot-click.
+4. **Outliner drag:** in manual sort, grab a row's grid handle → it reorders within its chapter and persists; title-click still opens the scene; clicking into the synopsis cell and typing still works (handle-only); the handle is inert when sorted by Title/Status/Words/Labels or when `onMoveScene` is unwired.
+
+**Follow-ups resolved / obsolete found:**
+- **Project-switcher custom dropdown** — already fully built (no native `<select>` remained); the burndown item is resolved by adding the missing keyboard nav.
+- **Scene status dots** — binder dot RENDER was already correct (5 statuses, final→check), but **click→picker was missing** on the binder dot (the brief flagged this as "verify & close"; it was NOT complete). Added click→picker to the binder to match canon `binder.jsx:48-49`. Outliner dot already rendered + emitted `h.onStatus`; added the local picker for a complete affordance.
+
+**Flags / deviations the lead should know before merging:**
+- `package-lock.json` shows modified in the working tree (a side effect of `npm install` in the fresh worktree). Intentionally **NOT committed** — it is not part of this branch (Rule 5: lead owns deps).
+- `OtlLabelMenu` was extracted from `Outliner.tsx` into its own file (`src/features/outliner/OtlLabelMenu.tsx`) during Phase 3 — forced by the 300-line file-limit gate after threading the status-click handler. Reviewer confirmed the extraction is behavior-preserving (identical JSX/props/cleanup).
+- Per Decision 3, the outliner's status persistence depends on App-supplied `h.onStatus`; the binder's status persistence is fully self-contained.
