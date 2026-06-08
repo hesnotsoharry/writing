@@ -311,9 +311,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   line-height: var(--prose-leading); color: var(--ink); }
 .prose p { margin: 0 0 var(--prose-leading)em; }
 .prose p { margin-bottom: 1.25em; }
-.prose.dropcap-ready p:first-of-type::first-letter {
-  initial-letter: 3; -webkit-initial-letter: 3;
-  font-weight: var(--w-bold); color: var(--accent); margin-right: 10px;
+.drop-cap-letter {
+  float: left; font-size: calc(var(--prose-size, 1.125rem) * 3.4); line-height: 0.78;
+  font-weight: var(--w-bold); color: var(--accent); margin-right: 10px; padding-top: 0.04em;
 }
 .prose .entity { color: var(--ink); border-bottom: 1.5px solid var(--accent-ring);
   cursor: pointer; transition: background var(--dur-fast); padding: 0 1px; border-radius: 2px; }
