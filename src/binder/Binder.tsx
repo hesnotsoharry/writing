@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { Icon } from "../components/Icon";
 import type { Project, Scene } from "../db/binderStore";
 import type { BinderCallbacks } from "./BinderCrud";
@@ -18,6 +16,7 @@ import {
 import { BinderFooter } from "./BinderFooter";
 import { BinderToastProvider } from "./binderToast";
 import type { BinderTree } from "./buildTree";
+import { useChapterOpen } from "./chapterOpenState";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
 /** Props shared by the inner tree components (no switcher props). */
@@ -134,7 +133,7 @@ function ChapterEmptyHint({ folderId, onAddScene }: { folderId: string; onAddSce
 function DraggableChapterSection({
   chapter, selectedSceneId, onSelectScene, callbacks,
 }: DraggableChapterSectionProps) {
-  const [open, setOpen] = useState(true);
+  const [open, toggleOpen] = useChapterOpen(chapter.folder.id);
   const { ref, style, attributes, listeners } = useSortableChapter(chapter.folder.id);
   const { isLive } = useDragActive();
   const isEmpty = chapter.scenes.length === 0;
@@ -142,7 +141,7 @@ function DraggableChapterSection({
     <section ref={ref} style={style}>
       <div {...attributes} {...listeners}>
         <ChapterHeader chapter={chapter} callbacks={callbacks}
-          open={open} onToggle={() => setOpen((o) => !o)} />
+          open={open} onToggle={toggleOpen} />
       </div>
       {open && (
         <>

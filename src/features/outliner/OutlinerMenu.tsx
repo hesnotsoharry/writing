@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 
+import { buildStatusItems } from "../../binder/statusPicker";
 import type { MenuDescriptor } from "../../components/menu/ContextMenu";
 import { buildSceneMenu } from "../../components/menu/sceneMenu";
 import { Toast, type ToastDescriptor } from "../../components/menu/Toast";
@@ -49,7 +50,17 @@ export function useOutlinerMenu({ h, labels, sceneLabels, sceneIndex }: UseOutli
     setMenu({ x: e.clientX, y: e.clientY, items });
   }
 
-  return { menu, setMenu, toast, setToast, handleRowMenu };
+  function handleStatusClick(e: React.MouseEvent, scene: Scene) {
+    setMenu({
+      x: e.clientX, y: e.clientY,
+      items: buildStatusItems(scene.status, (s) => {
+        setMenu(null);
+        h.onStatus?.({ clientX: e.clientX, clientY: e.clientY } as React.MouseEvent, { ...scene, status: s });
+      }),
+    });
+  }
+
+  return { menu, setMenu, toast, setToast, handleRowMenu, handleStatusClick };
 }
 
 export { Toast };

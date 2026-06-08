@@ -16,6 +16,7 @@ import type { SceneStatus } from "../lib/status";
 import { normalizeStatus,STATUS_META } from "../lib/status";
 import { useBinderToast } from "./binderToast";
 import type { BinderTree } from "./buildTree";
+import { buildStatusItems } from "./statusPicker";
 
 // ── Public types ──────────────────────────────────────────────────────────
 
@@ -114,10 +115,28 @@ export function confirmDeleteChapter(
 
 // ── SceneStatusIndicator ──────────────────────────────────────────────────
 
-interface SceneStatusIndicatorProps { status: SceneStatus; }
+interface SceneStatusIndicatorProps {
+  status: SceneStatus;
+  /** When provided, wraps the dot/check in a clickable element (cursor: pointer). */
+  onClick?: (e: React.MouseEvent) => void;
+}
 
-function SceneStatusIndicator({ status }: SceneStatusIndicatorProps) {
+function SceneStatusIndicator({ status, onClick }: SceneStatusIndicatorProps) {
   const meta = STATUS_META[normalizeStatus(status)];
+  if (onClick) {
+    return (
+      <span
+        style={{ cursor: "pointer" }}
+        title={meta.label + " · click to change"}
+        role="button"
+        onClick={onClick}
+      >
+        {meta.isFinal
+          ? <span className="scene-check"><Icon name="check" /></span>
+          : <span className="scene-dot" style={{ background: meta.dot }} />}
+      </span>
+    );
+  }
   if (meta.isFinal) {
     return <span className="scene-check" title="Final"><Icon name="check" /></span>;
   }
@@ -177,6 +196,18 @@ export function SceneRow({ scene, isSelected, onSelect, callbacks }: SceneRowPro
   const [editing, setEditing] = useState(false);
   const { menu, setMenu, openMenu } = useSceneMenu(scene, callbacks, () => setEditing(true));
 
+  function handleStatusClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: buildStatusItems(normalizeStatus(scene.status), (s) => {
+        callbacks.onSetSceneStatus(scene.id, s);
+        setMenu(null);
+      }),
+    });
+  }
+
   const wordCount = scene.word_count != null ? scene.word_count.toLocaleString() : "—";
   const titleEl = editing
     ? <InlineRename current={scene.title}
@@ -189,7 +220,7 @@ export function SceneRow({ scene, isSelected, onSelect, callbacks }: SceneRowPro
       <li className={"scene-row" + (isSelected ? " active" : "")}
         onClick={onSelect} onContextMenu={openMenu}
         onDoubleClick={() => setEditing(true)}>
-        <SceneStatusIndicator status={scene.status} />
+        <SceneStatusIndicator status={scene.status} onClick={handleStatusClick} />
         {titleEl}
         <span className="scene-words">{wordCount}</span>
       </li>
