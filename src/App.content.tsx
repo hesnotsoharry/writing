@@ -38,6 +38,7 @@ import { useQuickCount } from "./features/quickcapture/useQuickCount";
 import { useQuickItemsBadge } from "./features/quickcapture/useQuickItemsBadge";
 import { SceneInspector } from "./inspector/SceneInspector";
 import { useManuscriptWordCount } from "./lib/manuscriptWords";
+import { GOALS_CHANGED_EVENT } from "./lib/settings";
 import { AppShell } from "./shell/AppShell";
 import { StatusBar } from "./shell/StatusBar";
 import { TitleBar } from "./shell/TitleBar";
@@ -59,7 +60,11 @@ function useGoalMenu(setShowGoals: (v: boolean) => void) {
       { label: "Manage all", icon: "target", onClick: () => setShowGoals(true) },
       { type: "sep" },
       { label: "Delete goal", icon: "trash", danger: true,
-        onClick: () => { void appGoalsStore.deleteGoal(goal.id).catch(console.error); } },
+        onClick: () => {
+          void appGoalsStore.deleteGoal(goal.id)
+            .then(() => window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)))
+            .catch(console.error);
+        } },
     ],
   });
   return { menu, openGoalMenu, closeGoalMenu: () => setMenu(null), editGoalId, setEditGoalId };

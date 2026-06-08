@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../../components/Icon";
 import type { GoalsStore } from "../../db/sqliteGoalsStore";
 import { SqliteGoalsStore } from "../../db/sqliteGoalsStore";
+import { GOALS_CHANGED_EVENT } from "../../lib/settings";
 import type { GoalProgress, GoalRecord, GoalScope } from "./goalModel";
 import { goalProgress } from "./goalModel";
 import { readGoalConfig } from "./goalStorage";
@@ -70,19 +71,30 @@ function GoalCard({ pct, words, target, label, onContextMenu }: GoalCardProps): 
 
 // ── useInspectorGoals — load DB goals for the inspector (silent fail) ─────────
 
-function useInspectorGoals(projectId: string): GoalRecord[] {
+function useInspectorGoals(projectId: string): { goals: GoalRecord[]; loaded: boolean } {
   const [goals, setGoals] = useState<GoalRecord[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [version, setVersion] = useState(0);
+  // Re-fetch whenever GOALS_CHANGED_EVENT fires (create / edit / delete mutations).
+  useEffect(() => {
+    const h = () => { setVersion((v) => v + 1); };
+    window.addEventListener(GOALS_CHANGED_EVENT, h);
+    return () => { window.removeEventListener(GOALS_CHANGED_EVENT, h); };
+  }, []);
   useEffect(() => {
     let alive = true;
     inspectorGoalsStore.getGoals(projectId)
       .then((dbGoals) => {
         if (!alive) return;
         setGoals(dbGoals.map((g) => ({ id: g.id, type: g.goal_type as GoalTypeId, words: g.target })));
+        setLoaded(true);
       })
+      // Do NOT set loaded=true on failure — a load error is not evidence of
+      // an empty list; suppressing the ring on network/db failure would be wrong.
       .catch((e: unknown) => { console.error("[goals] inspector load failed", e); });
     return () => { alive = false; };
-  }, [projectId]);
-  return goals;
+  }, [projectId, version]);
+  return { goals, loaded };
 }
 
 // ── ScopedGoalRing — drives one ring via useDailyGoalProgress ─────────────────
@@ -121,8 +133,11 @@ export interface GoalGroupProps {
 
 export function GoalGroup({
   projectId, sceneId, manuscriptTotal, chapterId, chapterTotal, sceneWordCount, onGoalMenu,
-}: GoalGroupProps): ReactElement {
-  const dbGoals = useInspectorGoals(projectId);
+}: GoalGroupProps): ReactElement | null {
+  const { goals: dbGoals, loaded } = useInspectorGoals(projectId);
+  // Once the DB load has resolved, hide the section if no goals remain.
+  // Guards against the stale-ring defect after inspector context-menu delete.
+  if (loaded && dbGoals.length === 0) return null;
   const dbGoal = dbGoals.length > 0 ? dbGoals[0] : undefined;
   return (
     <div className="insp-group">

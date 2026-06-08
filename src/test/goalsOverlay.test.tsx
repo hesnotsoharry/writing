@@ -26,11 +26,17 @@ afterEach(() => {
   localStorage.clear();
 });
 
-function fakeStore(): GoalsStore & { upsertGoal: ReturnType<typeof vi.fn> } {
+type FakeStore = GoalsStore & {
+  upsertGoal: ReturnType<typeof vi.fn>;
+  deleteGoal: ReturnType<typeof vi.fn>;
+};
+
+function fakeStore(): FakeStore {
   return {
     getGoals: vi.fn().mockResolvedValue([]),
     upsertGoal: vi.fn().mockResolvedValue({} as never),
-  } as unknown as GoalsStore & { upsertGoal: ReturnType<typeof vi.fn> };
+    deleteGoal: vi.fn().mockResolvedValue(undefined),
+  } as unknown as FakeStore;
 }
 
 describe("Goals overlay — list mode (Wave 27)", () => {
@@ -252,5 +258,52 @@ describe("Goals overlay — scope config (Wave 25 back-compat)", () => {
     writeGoalConfig("proj-scope", "chapter", { on: true, target: 300 });
     const cfg = readGoalConfig("proj-scope", "chapter");
     expect(cfg).toEqual({ on: true, target: 300 });
+  });
+});
+
+describe("Goals overlay — delete goal calls store and removes row (Finding 2 fix)", () => {
+  /**
+   * Regression: onDeleteGoal previously only did setGoals(filter) — no DB write.
+   * The goal row disappeared from the list but the DB record survived, so the
+   * goal reappeared on the next session.  Fixed handler calls store.deleteGoal
+   * first, then updates local state inside .then().
+   *
+   * Fails BEFORE fix (local-state-only handler): store.deleteGoal never called →
+   *   assertion (a) fails.
+   * Passes AFTER fix: store.deleteGoal called with goal id AND row removed from DOM.
+   */
+  it("delete button calls store.deleteGoal with the goal id (a) and removes the row from the list (b)", async () => {
+    const user = userEvent.setup();
+    const store: FakeStore = {
+      getGoals: vi.fn().mockResolvedValue([
+        { id: "goal-1", project_id: "p1", goal_type: "daily", target: 500, enabled: 1, created_at: 0 },
+      ]),
+      upsertGoal: vi.fn().mockResolvedValue({} as never),
+      deleteGoal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FakeStore;
+
+    render(
+      <Goals
+        onClose={() => {}}
+        goalsOn
+        setGoalsOn={vi.fn()}
+        activeProjectId="p1"
+        store={store}
+      />,
+    );
+
+    // Wait for the goal list to load from the mock store.
+    await screen.findByText("Daily word count");
+
+    // Click the delete button for this goal row.
+    await user.click(screen.getByTitle("Delete goal"));
+
+    // (a) store.deleteGoal must have been called with the goal's id.
+    expect(store.deleteGoal).toHaveBeenCalledWith("goal-1");
+
+    // (b) The row must be removed from the UI after the DB delete resolves.
+    await waitFor(() => {
+      expect(screen.queryByText("Daily word count")).toBeNull();
+    });
   });
 });

@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../../components/Icon";
 import type { GoalsStore } from "../../db/sqliteGoalsStore";
 import { SqliteGoalsStore } from "../../db/sqliteGoalsStore";
+import { GOALS_CHANGED_EVENT } from "../../lib/settings";
 import type { GoalRecord, GoalScope, ScopedGoalKey } from "./goalModel";
 import { goalProgress, goalSummary, readMonthlyMetDays } from "./goalModel";
 import { GoalEditor, isoOf } from "./goalsEditorParts";
@@ -222,6 +223,7 @@ function saveGoal(g: GoalRecord, ctx: GoalCtx): void {
     writeGoalConfig(ctx.projectId, ctx.scope, { on: ctx.goalsOn, target: t });
     writeGoalTarget(t);
     void ctx.store.upsertGoal({ projectId: ctx.projectId, goalType: g.type, target: t, enabled: ctx.goalsOn })
+      .then(() => window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)))
       .catch((err) => console.error("[goals] upsertGoal failed", err));
   }
 }
@@ -232,6 +234,7 @@ function finishGoal(goals: GoalRecord[], ctx: GoalCtx, onClose: () => void): voi
   if (ctx.projectId && goals.length > 0) {
     const p = goals[0]; const t = p.words ?? p.minutes ?? ctx.target;
     void ctx.store.upsertGoal({ projectId: ctx.projectId, goalType: p.type, target: t, enabled: ctx.goalsOn })
+      .then(() => window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)))
       .catch((err) => console.error("[goals] upsertGoal failed", err)).finally(onClose);
   } else { onClose(); }
 }
@@ -275,6 +278,11 @@ export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = d
     saveGoal(g, ctx); setMode("list"); setEditing(null);
   };
   const handleDone = () => finishGoal(goals, ctx, onClose); const goBack = () => { setMode("list"); setEditing(null); };
+  const handleDeleteGoal = (id: string) => {
+    void store.deleteGoal(id)
+      .then(() => { setGoals((p) => p.filter((g) => g.id !== id)); window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)); })
+      .catch(console.error);
+  };
   return (
     <div className="scrim" onClick={onClose}>
       <div className="sheet" style={{ width: 600 }} onClick={(e) => e.stopPropagation()}>
@@ -284,7 +292,7 @@ export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = d
               goals={goals} projectId={activeProjectId}
               onNewGoal={() => { setEditing(null); setMode("edit"); }}
               onEditGoal={(g) => { setEditing(g); setMode("edit"); }}
-              onDeleteGoal={(id) => setGoals((prev) => prev.filter((g) => g.id !== id))}
+              onDeleteGoal={handleDeleteGoal}
               streakCount={streakCount} />
           : <GoalEditor goal={editing} goals={goals} projectWords={manuscriptTotal}
               onSave={handleSave} onCancel={goBack} />

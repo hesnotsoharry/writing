@@ -14,6 +14,12 @@ export const SETTINGS_KEYS = {
 export const SETTINGS_CHANGED_EVENT = "writing:settings-changed";
 
 /**
+ * Dispatched after any goal mutation (create, edit, delete) so components
+ * that read from the goals DB (e.g. useInspectorGoals) can re-fetch.
+ */
+export const GOALS_CHANGED_EVENT = "writing:goals-changed";
+
+/**
  * Read a boolean setting from localStorage.
  * Returns `defaultValue` when the key is absent;
  * returns `true` only when the stored string is exactly `"true"`;
