@@ -129,6 +129,7 @@ function PlanContent(p: CorkOutlinerProps & { isOutline: boolean }) {
     return <Outliner tree={p.tree} labels={p.labels} sceneLabels={p.sceneLabels}
       sort={p.outlinerSort} setSort={p.setOutlinerSort}
       renaming={p.outlinerRenaming} onManageLabels={p.onOpenLabelManager}
+      onMoveScene={p.dragCallbacks.onMoveScene}
       h={makeOutlinerHandlers(p)} />;
   }
   return <Corkboard tree={p.tree} onSelectScene={p.onSelectScene} onViewChange={p.onViewChange}
