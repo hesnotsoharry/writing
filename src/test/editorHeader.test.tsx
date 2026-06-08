@@ -105,7 +105,7 @@ describe("EditorHeader — status display", () => {
     expect(dotSpan).toBeNull();
   });
 
-  it("renders a dot span (no svg) for a non-final status", () => {
+  it("renders an svg glyph (no bare dot span) for a non-final status", () => {
     const { container } = render(
       <EditorHeader
         chapterTitle="Ch"
@@ -116,12 +116,12 @@ describe("EditorHeader — status display", () => {
         locations={0}
       />,
     );
+    // All statuses now render a symbol svg — no bare dot span.
+    const svgEl = container.querySelector("svg");
+    expect(svgEl).not.toBeNull();
     const dotSpan = container.querySelector(
       'span[style*="border-radius: 50%"]',
     );
-    expect(dotSpan).toBeTruthy();
-    // No SVG icon for non-final
-    const svgEl = container.querySelector("svg");
-    expect(svgEl).toBeNull();
+    expect(dotSpan).toBeNull();
   });
 });

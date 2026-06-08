@@ -74,17 +74,18 @@ function renderChapter(chapter: BinderTree["chapters"][0], callbacks: BinderCall
 // ── Scene status indicator ────────────────────────────────────────────────
 
 describe("SceneRow — status indicator", () => {
-  it("renders .scene-dot with a background style for non-final status", () => {
+  it("renders an svg glyph (no bare dot span) for non-final status", () => {
     const { container } = renderScene(makeScene({ status: "draft" }), makeCallbacks());
-    const dot = container.querySelector(".scene-dot") as HTMLElement;
-    expect(dot).not.toBeNull();
-    expect(dot.style.background).toBeTruthy();
-    expect(container.querySelector(".scene-check")).toBeNull();
+    // StatusGlyph renders an svg symbol for every status — no bare colored dot span.
+    const glyph = container.querySelector('[role="button"] svg') as SVGElement;
+    expect(glyph).not.toBeNull();
+    expect(container.querySelector(".scene-dot")).toBeNull();
   });
 
-  it("renders .scene-check icon (no dot) for final status", () => {
+  it("renders an svg glyph (no bare dot span) for final status", () => {
     const { container } = renderScene(makeScene({ status: "final" }), makeCallbacks());
-    expect(container.querySelector(".scene-check")).not.toBeNull();
+    const glyph = container.querySelector('[role="button"] svg') as SVGElement;
+    expect(glyph).not.toBeNull();
     expect(container.querySelector(".scene-dot")).toBeNull();
   });
 });

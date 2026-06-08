@@ -11,9 +11,10 @@ import { Icon } from "../components/Icon";
 import type { MenuDescriptor } from "../components/menu/ContextMenu";
 import { ContextMenu } from "../components/menu/ContextMenu";
 import { buildChapterMenu, buildSceneMenu } from "../components/menu/sceneMenu";
+import { StatusGlyph } from "../components/StatusGlyph";
 import type { Scene } from "../db/binderStore";
 import type { SceneStatus } from "../lib/status";
-import { normalizeStatus,STATUS_META } from "../lib/status";
+import { normalizeStatus } from "../lib/status";
 import { useBinderToast } from "./binderToast";
 import type { BinderTree } from "./buildTree";
 import { buildStatusItems } from "./statusPicker";
@@ -122,25 +123,13 @@ interface SceneStatusIndicatorProps {
 }
 
 function SceneStatusIndicator({ status, onClick }: SceneStatusIndicatorProps) {
-  const meta = STATUS_META[normalizeStatus(status)];
-  if (onClick) {
-    return (
-      <span
-        style={{ cursor: "pointer" }}
-        title={meta.label + " · click to change"}
-        role="button"
-        onClick={onClick}
-      >
-        {meta.isFinal
-          ? <span className="scene-check"><Icon name="check" /></span>
-          : <span className="scene-dot" style={{ background: meta.dot }} />}
-      </span>
-    );
-  }
-  if (meta.isFinal) {
-    return <span className="scene-check" title="Final"><Icon name="check" /></span>;
-  }
-  return <span className="scene-dot" style={{ background: meta.dot }} title={meta.label} />;
+  return (
+    <StatusGlyph
+      status={normalizeStatus(status)}
+      size={13}
+      onClick={onClick}
+    />
+  );
 }
 
 // ── SceneRow ──────────────────────────────────────────────────────────────

@@ -114,14 +114,13 @@ describe("Corkboard — render contract (Wave 12 Phase 2)", () => {
     expect(screen.getAllByText("—").length).toBe(2);
   });
 
-  it("shows the status label and a colored dot per status; 'final' renders a check", () => {
+  it("shows the status label and a glyph svg per status", () => {
     const { container } = renderBoard();
     expect(screen.getByText("Drafting")).toBeTruthy(); // s1 draft
     expect(screen.getByText("To write")).toBeTruthy(); // s2 blank
     expect(screen.getByText("Final")).toBeTruthy(); // sp1 final
-    // The final scene renders a check; non-final scenes render dots.
-    expect(container.querySelector(".scene-check")).toBeTruthy();
-    expect(container.querySelectorAll(".card-status .dot").length).toBe(2); // s1, s2
+    // All 3 cards render an svg symbol via StatusGlyph (no bare dot spans).
+    expect(container.querySelectorAll(".card-status svg").length).toBe(3);
   });
 
   it("renders an empty hint for a chapter with no scenes", () => {
@@ -172,7 +171,7 @@ describe("Corkboard — status cycle (Wave 12 Phase 3)", () => {
     const { opened } = renderWithStatus((id, s) => calls.push([id, s]));
 
     const card = screen.getByText("The Letter").closest(".card") as HTMLElement; // s2, blank
-    fireEvent.click(card.querySelector(".dot") as Element);
+    fireEvent.click(card.querySelector('[role="button"]') as Element);
 
     expect(calls).toEqual([["s2", "outline"]]); // next step in STATUS_ORDER
     expect(opened).toEqual([]); // stopPropagation — card did not open
@@ -184,7 +183,7 @@ describe("Corkboard — status cycle (Wave 12 Phase 3)", () => {
     renderWithStatus((id, s) => calls.push([id, s]));
 
     const card = screen.getByText("Opening").closest(".card") as HTMLElement; // s1, draft
-    fireEvent.click(card.querySelector(".dot") as Element);
+    fireEvent.click(card.querySelector('[role="button"]') as Element);
 
     expect(calls).toEqual([["s1", "revise"]]);
     expect(within(card).getByText("Revising")).toBeTruthy();
@@ -195,7 +194,7 @@ describe("Corkboard — status cycle (Wave 12 Phase 3)", () => {
     const { opened } = renderWithStatus((id, s) => calls.push([id, s]));
 
     const card = screen.getByText("Stray Idea").closest(".card") as HTMLElement; // sp1, final
-    fireEvent.click(card.querySelector(".scene-check") as Element);
+    fireEvent.click(card.querySelector('[role="button"]') as Element);
 
     expect(calls).toEqual([["sp1", "blank"]]); // wraps back to blank
     expect(opened).toEqual([]);
@@ -223,7 +222,7 @@ describe("Corkboard — status write triggers reloadTree (Wave 25 Phase 5 Item 1
       />,
     );
     const card = screen.getByText("The Letter").closest(".card") as HTMLElement; // s2, blank
-    fireEvent.click(card.querySelector(".dot") as Element);
+    fireEvent.click(card.querySelector('[role="button"]') as Element);
 
     expect(statusWrites).toEqual([["s2", "outline"]]); // status was written
     // reloadTree is called asynchronously (after the promise resolves) but the cycle

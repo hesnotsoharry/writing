@@ -22,6 +22,7 @@ import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import { ContextMenu } from "../../components/menu/ContextMenu";
 import { RenameInput } from "../../components/menu/RenameInput";
+import { StatusGlyph } from "../../components/StatusGlyph";
 import type { Scene } from "../../db/binderStore";
 import type { Label } from "../../db/labelStore";
 import { STATUS_META, STATUS_ORDER } from "../../lib/status";
@@ -86,9 +87,7 @@ function RowStatusCell({
   const meta = STATUS_META[scene.status];
   return (
     <button className="otl-cell otl-statusbtn" title={meta.label} onClick={(e) => onStatusClick(e, scene)}>
-      {meta.isFinal
-        ? <Icon name="check" style={{ width: 12, height: 12, color: "var(--good)" }} />
-        : <span className="dot" style={{ background: meta.dot, width: 9, height: 9, borderRadius: "50%", display: "block" }} />}
+      <StatusGlyph status={scene.status} size={12} />
     </button>
   );
 }

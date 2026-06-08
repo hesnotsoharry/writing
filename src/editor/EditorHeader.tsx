@@ -1,4 +1,4 @@
-import { Icon } from "../components/Icon";
+import { StatusGlyph } from "../components/StatusGlyph";
 import type { SceneStatus } from "../lib/status";
 import { STATUS_META } from "../lib/status";
 
@@ -8,12 +8,9 @@ import { STATUS_META } from "../lib/status";
 
 function StatusDisplay({ status }: { status: SceneStatus }) {
   const meta = STATUS_META[status];
-  const color = meta.dot === "var(--ink-4)" ? "var(--ink-3)" : meta.dot;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color }}>
-      {meta.isFinal
-        ? <Icon name="check" style={{ width: 13, height: 13 }} />
-        : <span style={{ width: 7, height: 7, borderRadius: "50%", background: meta.dot }} />}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: meta.dot }}>
+      <StatusGlyph status={status} size={13} />
       {meta.label}
     </span>
   );

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AppView } from "../../App.state";
 import type { Chapter } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
+import { StatusGlyph } from "../../components/StatusGlyph";
 import type { Scene, SceneStatus } from "../../db/binderStore";
 import type { Label } from "../../db/labelStore";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
@@ -251,9 +252,7 @@ export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewC
     >
       <div className="pin" />
       <div className="card-status">
-        {meta.isFinal
-          ? <span className="scene-check" onClick={cycleClick}><Icon name="check" style={{ width: 12, height: 12 }} /></span>
-          : <span className="dot" style={{ background: meta.dot }} onClick={cycleClick} />}
+        <StatusGlyph status={effectiveStatus} size={12} onClick={cycleClick} />
         <span className="lbl">{meta.label}</span>
         <span className="w">{wordLabel}</span>
       </div>

@@ -249,7 +249,6 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   content: ""; position: absolute; left: 3px; top: 6px; bottom: 6px; width: 3px;
   border-radius: 3px; background: var(--accent);
 }
-.scene-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .scene-title { font-size: var(--text-sm); color: var(--ink-2); flex: 1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scene-row.active .scene-title { color: var(--ink); font-weight: var(--w-medium); }
@@ -523,7 +522,6 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: radial-gradient(circle at 35% 30%, #d98c6a, var(--accent));
   box-shadow: 0 2px 3px rgba(0,0,0,0.25); }
 .card .card-status { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-.card .card-status .dot { width: 7px; height: 7px; border-radius: 50%; }
 .card .card-status .lbl { font-size: 10px; font-weight: var(--w-semi); letter-spacing: 0.05em;
   text-transform: uppercase; color: var(--ink-3); }
 .card .card-status .w { margin-left: auto; font-size: 10px; color: var(--ink-4); font-variant-numeric: tabular-nums; }
@@ -957,11 +955,6 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .proj-new:hover { background: var(--parchment-deep); color: var(--ink); }
 .proj-new .ic { width: 15px; height: 15px; color: var(--ink-3); }
 
-/* ---- Final / done status accent ------------------------------------------ */
-.scene-check { width: 13px; height: 13px; color: var(--good); flex: none; }
-
-/* status dot is clickable to change status */
-.scene-dot, .card .card-status .dot { cursor: pointer; }
 
 /* ============================================================================
    Page-flip leaf — a turning paper page on scene switch (JS-mounted in .center).
@@ -1196,7 +1189,6 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   opacity: 0; transition: opacity var(--dur-fast); }
 .otl-row:hover .otl-handle { opacity: 1; }
 .otl-statusbtn { display: grid; place-items: center; }
-.otl-statusbtn .dot { width: 9px; height: 9px; border-radius: 50%; }
 .otl-title { font-weight: var(--w-semi); outline: none; border-radius: var(--r-xs);
   padding: 2px 4px; margin: -2px -4px; }
 .otl-title:focus { background: var(--accent-wash); box-shadow: 0 0 0 2px var(--accent-ring); }
