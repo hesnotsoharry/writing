@@ -86,7 +86,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   display: flex; align-items: center; gap: var(--s-2);
   padding: 0 var(--s-3) 0 var(--s-4);
   border-bottom: 1px solid var(--line);
-  background: var(--paper);
+  background: var(--parchment);
   z-index: 5;
 }
 .topbar .spacer { flex: 1; }
@@ -1159,7 +1159,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
    ========================================================================== */
 
 /* ---- Plan view wrapper (corkboard ⇄ outliner toggle) --------------------- */
-.plan-toggle-bar { display: flex; align-items: center; gap: 10px; padding: 12px 20px 0; }
+.plan-toggle-bar { display: flex; align-items: center; gap: 10px; padding: 12px 20px 0; background: var(--parchment); }
 .plan-toggle-bar .spacer { flex: 1; }
 
 /* ---- Outliner outer wrap ------------------------------------------------- */

@@ -159,7 +159,7 @@ export function CorkOutlinerView(p: CorkOutlinerProps) {
           </button>
         )}
       </div>
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflowY: "auto", backgroundColor: "var(--parchment-deep)" }}>
         <PlanContent {...p} isOutline={isOutline} />
       </div>
     </div>
