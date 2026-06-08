@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1] — 2026-06-08 · Wave 28: story-planning salvage
+
+Fix-sweep bringing the eight Wave 27 story-planning features to spec, each verified live in a CDP smoke.
+
+### Fixed
+- **Find & Replace** — format-preserving replacement (keeps bold/italic marks of both the surrounding prose and the replaced span); removed the replace-all self-undo; the currently-open scene's editor now live-refreshes after a replace-all and on undo.
+- **Snapshots** — version-history overlay renders fully styled (word-diff + legend); HistoryRail tracks the active scene; binder context-menu "Take snapshot" now refreshes the rail.
+- **Entity types** — correct field labels, icons, accents, and tiers; neutral generic-entity avatar for new/custom types.
+- **Relationships** — exactly one relationships section per Full Entry (dropped the duplicate PeopleGroup block); per-type relation presets; Relationship Map reflects edited edge labels.
+- **Outliner & color labels** — corkboard cards show tinted label pills (static tint tokens); label reorder; per-project label cap.
+- **Goals** — inspector goal right-click menu (edit / manage all / delete); real manuscript word count; single consolidated goal-ring; goal create / edit / delete now persist and refresh the inspector.
+- **Focus mode** — rewritten as a ProseMirror extension, fixing a runtime scroll loop and enabling active-paragraph dimming.
+- **Auto-link** — live settings toggle (scope + per-type), 1.5px underline, right-click context menu, and a "Find mentions" peek.
+
 ## [0.2.0] — 2026-06-05 · Wave 27: story-planning-batch
 
 ### Added
