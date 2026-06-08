@@ -1,0 +1,64 @@
+/* InspPicker — inline search-and-link panel for the inspector.
+   Uses CSS custom properties defined globally in app.css. */
+
+.picker {
+  border: 1px solid var(--parchment-edge);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--parchment-edge);
+}
+
+.searchIcon {
+  color: var(--ink-4);
+  flex: none;
+}
+
+.input {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  outline: none;
+  min-width: 0;
+}
+
+.input::placeholder {
+  color: var(--ink-4);
+}
+
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  text-align: left;
+  transition: background var(--dur-fast);
+}
+
+.row:hover {
+  background: var(--parchment-deep);
+}
+
+.name {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plus {
+  color: var(--ink-4);
+  flex: none;
+}
