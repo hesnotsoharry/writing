@@ -266,7 +266,7 @@ function useAppContentSlots(props: AppContentProps) {
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree, entryStack,
     entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry, historySnapshots, onOpenHistory, onTakeSnapshot, labelStore } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget, setShowFindReplace, setFindReplaceSeed } = overlays;
-  useGlobalKeybindings({ ...overlays, setShowFindReplace }); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
+  useGlobalKeybindings({ ...overlays, setShowFindReplace, view }); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle(); const motionOn = useMotion();
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
@@ -321,7 +321,7 @@ export function AppContent(props: AppContentProps) {
           goalsOn={goalsOn} hasQuickItems={hasQuickItems}
           showFindReplace={overlays.showFindReplace} showHistory={overlays.showHistory} showQuickCapture={overlays.showQuickCapture} focusMode={focusMode} showSettings={overlays.showSettings}
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}
-          onEnterFocus={() => setFocusMode(true)} onOpenSettings={() => setShowSettings(true)}
+          onEnterFocus={() => { if (view === "editor") setFocusMode(true); }} onOpenSettings={() => setShowSettings(true)}
           onOpenExport={() => { setExportTarget("manuscript", activeProjectId ?? ""); setShowExport(true); }}
           onOpenFind={() => { overlays.setFindReplaceSeed?.(""); overlays.setShowFindReplace(true); }}
           onOpenHistory={props.onOpenHistory} />}

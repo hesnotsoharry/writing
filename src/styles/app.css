@@ -827,7 +827,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 
 /* ---- Focus HUD ----------------------------------------------------------- */
 .focus-hud {
-  position: fixed; bottom: 28px; right: 28px; z-index: 40;
+  position: fixed; bottom: calc(var(--statusbar-h) + 14px); right: 28px; z-index: 40;
   display: flex; align-items: center; gap: 8px;
   padding: 7px 12px;
   background: rgba(var(--paper-raw, 250, 247, 242), 0.82);

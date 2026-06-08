@@ -19,6 +19,8 @@
  */
 import { type Dispatch, type SetStateAction, useEffect } from "react";
 
+import type { AppView } from "./App.state";
+
 type BoolSetter = (v: boolean) => void;
 type ToggleSetter = Dispatch<SetStateAction<boolean>>;
 
@@ -31,6 +33,7 @@ export interface KeybindingSetters {
   setShowSettings: BoolSetter;
   setFocusMode: ToggleSetter;
   setShowFindReplace: BoolSetter;
+  view: AppView;
 }
 
 interface ModSets {
@@ -39,11 +42,12 @@ interface ModSets {
   setShowExport: BoolSetter;
   setShowSettings: BoolSetter;
   setShowFindReplace: BoolSetter;
+  view: AppView;
 }
 
 function handleModKey(key: string, shifted: boolean, sets: ModSets, e: KeyboardEvent) {
   if (key === "k") { e.preventDefault(); sets.setShowQuickCapture((v) => !v); }
-  else if (key === ".") { e.preventDefault(); sets.setFocusMode((v) => !v); }
+  else if (key === ".") { e.preventDefault(); if (sets.view === "editor") sets.setFocusMode((v) => !v); }
   else if (key === "e") { e.preventDefault(); sets.setShowExport(true); }
   else if (key === ",") { e.preventDefault(); sets.setShowSettings(true); }
   else if (key === "h" && shifted) { e.preventDefault(); sets.setShowFindReplace(true); }
@@ -51,10 +55,10 @@ function handleModKey(key: string, shifted: boolean, sets: ModSets, e: KeyboardE
 
 export function useGlobalKeybindings({
   setShowQuickCapture, setShowInbox, setShowArchive,
-  setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace,
+  setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace, view,
 }: KeybindingSetters): void {
   useEffect(() => {
-    const sets = { setShowQuickCapture, setFocusMode, setShowExport, setShowSettings, setShowFindReplace };
+    const sets = { setShowQuickCapture, setFocusMode, setShowExport, setShowSettings, setShowFindReplace, view };
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape") {
@@ -69,6 +73,6 @@ export function useGlobalKeybindings({
     return () => window.removeEventListener("keydown", onKey);
   }, [
     setShowQuickCapture, setShowInbox, setShowArchive,
-    setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace,
+    setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace, view,
   ]);
 }

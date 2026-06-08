@@ -18,7 +18,7 @@ import { type KeybindingSetters, useGlobalKeybindings } from "../App.keybindings
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeSetters(): KeybindingSetters {
+function makeSetters(view: KeybindingSetters["view"] = "editor"): KeybindingSetters {
   return {
     setShowQuickCapture: vi.fn(),
     setShowInbox: vi.fn(),
@@ -28,6 +28,7 @@ function makeSetters(): KeybindingSetters {
     setShowSettings: vi.fn(),
     setFocusMode: vi.fn(),
     setShowFindReplace: vi.fn(),
+    view,
   };
 }
 
@@ -61,8 +62,8 @@ describe("useGlobalKeybindings", () => {
     expect(arg(true)).toBe(false);
   });
 
-  it("⌘. calls setFocusMode with a functional updater that toggles false→true", () => {
-    const setters = makeSetters();
+  it("⌘. calls setFocusMode with a functional updater that toggles false→true when view === 'editor'", () => {
+    const setters = makeSetters("editor");
     renderHook(() => useGlobalKeybindings(setters));
 
     fireKey(".", { metaKey: true });
@@ -72,6 +73,15 @@ describe("useGlobalKeybindings", () => {
     expect(typeof arg).toBe("function");
     expect(arg(false)).toBe(true);
     expect(arg(true)).toBe(false);
+  });
+
+  it("⌘. does NOT call setFocusMode when view is not 'editor'", () => {
+    const setters = makeSetters("cork");
+    renderHook(() => useGlobalKeybindings(setters));
+
+    fireKey(".", { metaKey: true });
+
+    expect(setters.setFocusMode).not.toHaveBeenCalled();
   });
 
   // --- Non-toggle open shortcuts ---
