@@ -95,7 +95,7 @@ You CANNOT see the rendered app (Rule 3 — Tauri runtime + CDP held by the lead
 | 1 | 2026-06-08 | 2026-06-08 | (this commit) | Pending lead CDP — reload persistence (unit: 5/5 PASS) |
 | 2 | 2026-06-08 | 2026-06-08 | (this commit) | Pending lead CDP — arrow highlight / Enter-switch / Esc-refocus (unit: 25/25 PASS) |
 | 3 | 2026-06-08 | 2026-06-08 | (this commit) | Pending lead CDP — dot-click opens picker + persists, row not selected (unit: 35/35 PASS incl. stopPropagation + persist contracts) |
-| 4 | — | — | — | — |
+| 4 | 2026-06-08 | 2026-06-08 | (this commit) | Pending lead CDP — handle-drag reorders within chapter; title-click + synopsis-edit intact; inert when sorted (unit: drag-end contract + gate assertions PASS) |
 
 ## Follow-up candidates
 

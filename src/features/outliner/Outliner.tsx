@@ -27,6 +27,7 @@ import type { Label } from "../../db/labelStore";
 import { STATUS_META, STATUS_ORDER } from "../../lib/status";
 import { LabelBadges } from "./LabelBadges";
 import { type LabelMenuAt,OtlLabelMenu } from "./OtlLabelMenu";
+import { type HandleProps,OutlinerGroupDnd, useSortableOutlinerRow } from "./OutlinerDrag";
 import { Toast,useOutlinerMenu } from "./OutlinerMenu";
 
 // ── Sort model ────────────────────────────────────────────────────────────────
@@ -132,15 +133,24 @@ interface OutlinerRowProps {
   h: OutlinerRowHandlers;
   onOpenLabelMenu: (sceneId: string, x: number, y: number) => void;
   onStatusClick: (e: React.MouseEvent, scene: Scene) => void;
+  dragRef?: (el: HTMLElement | null) => void;
+  dragStyle?: React.CSSProperties;
+  handleProps?: HandleProps;
 }
 
-function OutlinerRow({ scene, chapterId, labels, assignedLabelIds, renaming, h, onOpenLabelMenu, onStatusClick }: OutlinerRowProps) {
+function OutlinerRow({ scene, chapterId, labels, assignedLabelIds, renaming, h, onOpenLabelMenu, onStatusClick, dragRef, dragStyle, handleProps }: OutlinerRowProps) {
   return (
     <div
+      ref={dragRef}
+      style={dragStyle}
       className="otl-row otl-grid"
       onContextMenu={(e) => { e.preventDefault(); h.onMenu?.(e, scene.id, chapterId); }}
     >
-      <div className="otl-cell otl-handle">
+      <div
+        className="otl-cell otl-handle"
+        {...handleProps?.handleAttributes}
+        {...handleProps?.handleListeners}
+      >
         <Icon name="grid" style={{ width: 12, height: 12 }} />
       </div>
       <RowStatusCell scene={scene} onStatusClick={onStatusClick} />
@@ -154,6 +164,12 @@ function OutlinerRow({ scene, chapterId, labels, assignedLabelIds, renaming, h, 
       <RowLabelCell scene={scene} labels={labels} assignedLabelIds={assignedLabelIds} onOpenLabelMenu={onOpenLabelMenu} />
     </div>
   );
+}
+
+/** Thin sortable wrapper — calls useSortableOutlinerRow and threads wiring into OutlinerRow. */
+function SortableOutlinerRow(props: OutlinerRowProps) {
+  const { setNodeRef, style, handleProps } = useSortableOutlinerRow(props.scene.id);
+  return <OutlinerRow {...props} dragRef={setNodeRef} dragStyle={style} handleProps={handleProps} />;
 }
 
 // ── Sort + display group helpers ──────────────────────────────────────────────
@@ -231,12 +247,14 @@ function OutlinerHead({ sort, onSortCol }: { sort: OtlSort; onSortCol: (col: Otl
 
 // ── OutlinerBody ──────────────────────────────────────────────────────────────
 
-function OutlinerBody({ displayGroups, labels, sceneLabels, renaming, h, onOpenLabelMenu, handleRowMenu, onStatusClick }: {
+function OutlinerBody({ displayGroups, labels, sceneLabels, renaming, h, onOpenLabelMenu, handleRowMenu, onStatusClick, onMoveScene, isManual }: {
   displayGroups: ChapterGroup[]; labels: Label[]; sceneLabels: Record<string, string[]>;
   renaming: string | null; h: OutlinerRowHandlers;
   onOpenLabelMenu: (sceneId: string, x: number, y: number) => void;
   handleRowMenu: (e: React.MouseEvent, sceneId: string) => void;
   onStatusClick: (e: React.MouseEvent, scene: Scene) => void;
+  onMoveScene?: (id: string, folderId: string | null, toIndex: number) => void;
+  isManual: boolean;
 }) {
   if (displayGroups.length === 0) return <div className="empty-hint" style={{ padding: "24px 16px" }}>No scenes yet</div>;
   return (
@@ -244,19 +262,24 @@ function OutlinerBody({ displayGroups, labels, sceneLabels, renaming, h, onOpenL
       {displayGroups.map((g, gi) => (
         <div key={gi}>
           {g.chapter !== null && <div className="otl-chrow">{g.chapter}</div>}
-          {g.rows.map((scene) => (
-            <OutlinerRow
-              key={scene.id}
-              scene={scene}
-              chapterId={g.chapterId}
-              labels={labels}
-              assignedLabelIds={sceneLabels[scene.id] ?? []}
-              renaming={renaming}
-              h={{ ...h, onMenu: (e, sid) => handleRowMenu(e, sid) }}
-              onOpenLabelMenu={onOpenLabelMenu}
-              onStatusClick={onStatusClick}
-            />
-          ))}
+          {onMoveScene && isManual
+            ? (
+              <OutlinerGroupDnd folderId={g.chapterId} scenes={g.rows} onMoveScene={onMoveScene}>
+                {(sorted) => sorted.map((s) => (
+                  <SortableOutlinerRow key={s.id} scene={s} chapterId={g.chapterId} labels={labels}
+                    assignedLabelIds={sceneLabels[s.id] ?? []} renaming={renaming}
+                    h={{ ...h, onMenu: (e, sid) => handleRowMenu(e, sid) }}
+                    onOpenLabelMenu={onOpenLabelMenu} onStatusClick={onStatusClick} />
+                ))}
+              </OutlinerGroupDnd>
+            )
+            : g.rows.map((s) => (
+              <OutlinerRow key={s.id} scene={s} chapterId={g.chapterId} labels={labels}
+                assignedLabelIds={sceneLabels[s.id] ?? []} renaming={renaming}
+                h={{ ...h, onMenu: (e, sid) => handleRowMenu(e, sid) }}
+                onOpenLabelMenu={onOpenLabelMenu} onStatusClick={onStatusClick} />
+            ))
+          }
         </div>
       ))}
     </>
@@ -275,6 +298,8 @@ export interface OutlinerProps {
   renaming?: string | null;
   onManageLabels?: () => void;
   h: OutlinerRowHandlers;
+  /** When provided AND sort.col === "manual", rows become draggable within their group. */
+  onMoveScene?: (sceneId: string, toFolderId: string | null, toIndex: number) => void;
 }
 
 function setSortColFactory(setSort: (u: (s: OtlSort) => OtlSort) => void) {
@@ -287,7 +312,7 @@ function setSortColFactory(setSort: (u: (s: OtlSort) => OtlSort) => void) {
   };
 }
 
-export function Outliner({ tree, labels, sceneLabels, sort, setSort, renaming = null, onManageLabels, h }: OutlinerProps) {
+export function Outliner({ tree, labels, sceneLabels, sort, setSort, renaming = null, onManageLabels, h, onMoveScene }: OutlinerProps) {
   const [labelMenu, setLabelMenu] = useState<LabelMenuAt | null>(null);
   const setSortCol = setSortColFactory(setSort);
 
@@ -307,7 +332,7 @@ export function Outliner({ tree, labels, sceneLabels, sort, setSort, renaming = 
         <OutlinerBody
           displayGroups={displayGroups} labels={labels} sceneLabels={sceneLabels}
           renaming={renaming} h={h} onOpenLabelMenu={openLabelMenu} handleRowMenu={handleRowMenu}
-          onStatusClick={handleStatusClick}
+          onStatusClick={handleStatusClick} onMoveScene={onMoveScene} isManual={sort.col === "manual"}
         />
       </div>
       {labelMenu && (
