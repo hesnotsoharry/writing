@@ -319,6 +319,7 @@ export function AppContent(props: AppContentProps) {
         typewriterOn={focusMode && focusSettingsHook.settings.typewriter} anim={motionOn} viewKey={view}
         titleBar={<TitleBar view={view} onViewChange={onViewChange} docName={docName}
           goalsOn={goalsOn} hasQuickItems={hasQuickItems}
+          showFindReplace={overlays.showFindReplace} showHistory={overlays.showHistory} showQuickCapture={overlays.showQuickCapture} focusMode={focusMode} showSettings={overlays.showSettings}
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}
           onEnterFocus={() => setFocusMode(true)} onOpenSettings={() => setShowSettings(true)}
           onOpenExport={() => { setExportTarget("manuscript", activeProjectId ?? ""); setShowExport(true); }}
