@@ -281,6 +281,51 @@ describe("ChapterHeader — double-click rename", () => {
   });
 });
 
+// ── Dot click → status picker ────────────────────────────────────────────
+
+describe("SceneRow — dot click opens status picker", () => {
+  it("clicking the status dot does NOT call onSelect (stopPropagation isolation)", () => {
+    const onSelect = vi.fn();
+    const callbacks = makeCallbacks();
+    const { container } = render(
+      <BinderToastProvider>
+        <ul>
+          <SceneRow
+            scene={makeScene({ status: "draft" })}
+            isSelected={false}
+            onSelect={onSelect}
+            callbacks={callbacks}
+          />
+        </ul>
+      </BinderToastProvider>
+    );
+    const dot = container.querySelector('span[role="button"]') as HTMLElement;
+    fireEvent.click(dot);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("clicking the status dot renders a picker with exactly 5 status items", () => {
+    const callbacks = makeCallbacks();
+    const { container } = renderScene(makeScene({ status: "draft" }), callbacks);
+    const dot = container.querySelector('span[role="button"]') as HTMLElement;
+    fireEvent.click(dot);
+    const items = document.body.querySelectorAll(".cm-item");
+    expect(items).toHaveLength(5);
+  });
+
+  it("selecting 'Final' from the picker calls onSetSceneStatus(scene.id, 'final')", () => {
+    const callbacks = makeCallbacks();
+    const { container } = renderScene(makeScene({ status: "draft" }), callbacks);
+    const dot = container.querySelector('span[role="button"]') as HTMLElement;
+    fireEvent.click(dot);
+    const finalItem = Array.from(document.body.querySelectorAll(".cm-item")).find(
+      (el) => el.textContent?.includes("Final")
+    ) as HTMLElement;
+    fireEvent.click(finalItem);
+    expect(callbacks.onSetSceneStatus).toHaveBeenCalledWith("s1", "final");
+  });
+});
+
 // ── Toast ─────────────────────────────────────────────────────────────────
 
 describe("SceneRow — Duplicate fires toast", () => {

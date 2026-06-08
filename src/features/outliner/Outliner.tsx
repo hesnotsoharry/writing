@@ -15,7 +15,7 @@
  *
  * See OUTLINER-SPEC.md and design-reference/outliner.jsx for the canon.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { AppView } from "../../App.state";
 import type { BinderTree } from "../../binder/buildTree";
@@ -26,6 +26,7 @@ import type { Scene } from "../../db/binderStore";
 import type { Label } from "../../db/labelStore";
 import { STATUS_META, STATUS_ORDER } from "../../lib/status";
 import { LabelBadges } from "./LabelBadges";
+import { type LabelMenuAt,OtlLabelMenu } from "./OtlLabelMenu";
 import { Toast,useOutlinerMenu } from "./OutlinerMenu";
 
 // ── Sort model ────────────────────────────────────────────────────────────────
@@ -33,51 +34,6 @@ import { Toast,useOutlinerMenu } from "./OutlinerMenu";
 export type OtlSortCol = "manual" | "title" | "status" | "words" | "label";
 export type OtlSortDir = "asc" | "desc";
 export interface OtlSort { col: OtlSortCol; dir: OtlSortDir; }
-
-// ── Label assignment popover ──────────────────────────────────────────────────
-
-interface LabelMenuAt { sceneId: string; x: number; y: number; }
-
-interface OtlLabelMenuProps {
-  labels: Label[];
-  active: string[];
-  at: LabelMenuAt;
-  onToggle: (labelId: string) => void;
-  onClose: () => void;
-  onManage: () => void;
-}
-
-function OtlLabelMenu({ labels, active, at, onToggle, onClose, onManage }: OtlLabelMenuProps) {
-  useEffect(() => {
-    const h = () => onClose();
-    window.addEventListener("mousedown", h);
-    return () => window.removeEventListener("mousedown", h);
-  }, [onClose]);
-
-  return (
-    <div
-      className="lbl-menu"
-      style={{ left: at.x, top: at.y }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {labels.map((l) => (
-        <button
-          key={l.id}
-          className={"lbl-menu-opt" + (active.includes(l.id) ? " on" : "")}
-          onClick={() => onToggle(l.id)}
-        >
-          <span className="lbl-dot" style={{ background: `var(--label-${l.color})`, width: 9, height: 9 }} />
-          {l.name}
-          <Icon name="check" className="check" style={{ width: 15, height: 15 }} />
-        </button>
-      ))}
-      <div className="lbl-menu-sep" />
-      <button className="lbl-menu-manage" onClick={onManage}>
-        <Icon name="cog" style={{ width: 14, height: 14 }} /> Manage labels…
-      </button>
-    </div>
-  );
-}
 
 // ── OutlinerRowHandlers ───────────────────────────────────────────────────────
 
@@ -119,10 +75,16 @@ function RowTitleCell({
   );
 }
 
-function RowStatusCell({ scene, h }: { scene: Scene; h: OutlinerRowHandlers }) {
+function RowStatusCell({
+  scene,
+  onStatusClick,
+}: {
+  scene: Scene;
+  onStatusClick: (e: React.MouseEvent, scene: Scene) => void;
+}) {
   const meta = STATUS_META[scene.status];
   return (
-    <button className="otl-cell otl-statusbtn" title={meta.label} onClick={(e) => h.onStatus?.(e, scene)}>
+    <button className="otl-cell otl-statusbtn" title={meta.label} onClick={(e) => onStatusClick(e, scene)}>
       {meta.isFinal
         ? <Icon name="check" style={{ width: 12, height: 12, color: "var(--good)" }} />
         : <span className="dot" style={{ background: meta.dot, width: 9, height: 9, borderRadius: "50%", display: "block" }} />}
@@ -169,9 +131,10 @@ interface OutlinerRowProps {
   renaming: string | null;
   h: OutlinerRowHandlers;
   onOpenLabelMenu: (sceneId: string, x: number, y: number) => void;
+  onStatusClick: (e: React.MouseEvent, scene: Scene) => void;
 }
 
-function OutlinerRow({ scene, chapterId, labels, assignedLabelIds, renaming, h, onOpenLabelMenu }: OutlinerRowProps) {
+function OutlinerRow({ scene, chapterId, labels, assignedLabelIds, renaming, h, onOpenLabelMenu, onStatusClick }: OutlinerRowProps) {
   return (
     <div
       className="otl-row otl-grid"
@@ -180,7 +143,7 @@ function OutlinerRow({ scene, chapterId, labels, assignedLabelIds, renaming, h, 
       <div className="otl-cell otl-handle">
         <Icon name="grid" style={{ width: 12, height: 12 }} />
       </div>
-      <RowStatusCell scene={scene} h={h} />
+      <RowStatusCell scene={scene} onStatusClick={onStatusClick} />
       <div className="otl-cell">
         <RowTitleCell scene={scene} renaming={renaming} h={h} />
       </div>
@@ -268,11 +231,12 @@ function OutlinerHead({ sort, onSortCol }: { sort: OtlSort; onSortCol: (col: Otl
 
 // ── OutlinerBody ──────────────────────────────────────────────────────────────
 
-function OutlinerBody({ displayGroups, labels, sceneLabels, renaming, h, onOpenLabelMenu, handleRowMenu }: {
+function OutlinerBody({ displayGroups, labels, sceneLabels, renaming, h, onOpenLabelMenu, handleRowMenu, onStatusClick }: {
   displayGroups: ChapterGroup[]; labels: Label[]; sceneLabels: Record<string, string[]>;
   renaming: string | null; h: OutlinerRowHandlers;
   onOpenLabelMenu: (sceneId: string, x: number, y: number) => void;
   handleRowMenu: (e: React.MouseEvent, sceneId: string) => void;
+  onStatusClick: (e: React.MouseEvent, scene: Scene) => void;
 }) {
   if (displayGroups.length === 0) return <div className="empty-hint" style={{ padding: "24px 16px" }}>No scenes yet</div>;
   return (
@@ -290,6 +254,7 @@ function OutlinerBody({ displayGroups, labels, sceneLabels, renaming, h, onOpenL
               renaming={renaming}
               h={{ ...h, onMenu: (e, sid) => handleRowMenu(e, sid) }}
               onOpenLabelMenu={onOpenLabelMenu}
+              onStatusClick={onStatusClick}
             />
           ))}
         </div>
@@ -331,7 +296,7 @@ export function Outliner({ tree, labels, sceneLabels, sort, setSort, renaming = 
     return new Map(all.map((s) => [s.id, s]));
   }, [tree]);
 
-  const { menu, setMenu, toast, setToast, handleRowMenu } = useOutlinerMenu({ h, labels, sceneLabels, sceneIndex });
+  const { menu, setMenu, toast, setToast, handleRowMenu, handleStatusClick } = useOutlinerMenu({ h, labels, sceneLabels, sceneIndex });
   const displayGroups = buildDisplayGroups(tree, sort, sceneLabels, labels);
   const openLabelMenu = (sid: string, x: number, y: number) => setLabelMenu({ sceneId: sid, x, y });
 
@@ -342,6 +307,7 @@ export function Outliner({ tree, labels, sceneLabels, sort, setSort, renaming = 
         <OutlinerBody
           displayGroups={displayGroups} labels={labels} sceneLabels={sceneLabels}
           renaming={renaming} h={h} onOpenLabelMenu={openLabelMenu} handleRowMenu={handleRowMenu}
+          onStatusClick={handleStatusClick}
         />
       </div>
       {labelMenu && (
