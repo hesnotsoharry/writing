@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
 
-import { Icon } from "../components/Icon";
+import { Icon, type IconName } from "../components/Icon";
 
 /** Daily goal progress bundle — wave-17 mount point; Lane 21 renders the markup. */
 export interface GoalProgress {
@@ -9,6 +9,12 @@ export interface GoalProgress {
   target: number;
   pct: number;
   streak: number;
+}
+
+export interface BackupStatus {
+  state: "local-only" | "backed-up" | "syncing" | "error";
+  /** Human-readable label the LEAD supplies, e.g. "Backed up · 2m ago" or "Syncing…". */
+  label: string;
 }
 
 export interface StatusBarProps {
@@ -29,10 +35,50 @@ export interface StatusBarProps {
    * Only present when goalsOn is true and a project is active.
    */
   goal?: GoalProgress;
+  /**
+   * Backup status. The LEAD supplies this with a human-readable label.
+   * When absent, renders the honest "Local only · {clock}" fallback.
+   */
+  backupStatus?: BackupStatus;
 }
 
 function clockNow(): string {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function renderBackup(backupStatus: BackupStatus | undefined, clock: string): ReactElement {
+  if (backupStatus) {
+    let iconName: IconName;
+    let color = "var(--ink-4)";
+
+    if (backupStatus.state === "backed-up") {
+      iconName = "cloud";
+      color = "var(--good)";
+    } else if (backupStatus.state === "syncing") {
+      iconName = "rotate";
+      color = "var(--ink-4)";
+    } else if (backupStatus.state === "error") {
+      iconName = "fileText";
+      color = "var(--warn)";
+    } else {
+      iconName = "fileText";
+      color = "var(--ink-4)";
+    }
+
+    return (
+      <div className="sb">
+        <Icon name={iconName} className="ic" style={{ color }} />
+        {backupStatus.label}
+      </div>
+    );
+  }
+
+  return (
+    <div className="sb">
+      <Icon name="fileText" className="ic" style={{ color: "var(--ink-4)" }} />
+      Local only · {clock}
+    </div>
+  );
 }
 
 /**
@@ -42,7 +88,7 @@ function clockNow(): string {
  * fabricated relative timestamps.
  */
 export function StatusBar(props: StatusBarProps): ReactElement {
-  const { sceneWordCount, goalsOn = false, manuscriptTotal, goal } = props;
+  const { sceneWordCount, goalsOn = false, manuscriptTotal, goal, backupStatus } = props;
   const sceneDisplay = sceneWordCount !== null ? sceneWordCount.toLocaleString() : "—";
   const [clock, setClock] = useState(clockNow);
 
@@ -75,7 +121,7 @@ export function StatusBar(props: StatusBarProps): ReactElement {
             <div className="goal-track"><div className="goal-fill" style={{ width: formatPct(goal.pct) }}></div></div>
           </div>
         )}
-        <div className="sb"><Icon name="fileText" className="ic" style={{ color: "var(--ink-4)" }} /> Local only · {clock}</div>
+        {renderBackup(backupStatus, clock)}
       </div>
     </div>
   );

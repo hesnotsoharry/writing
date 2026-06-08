@@ -181,10 +181,10 @@ describe("SceneInspector", () => {
     const linkBtn = screen.getByRole("button", { name: /link a character/i });
     fireEvent.click(linkBtn);
 
-    // The picker builds a ContextMenu with items; wait for Rex to appear.
+    // The inline InspPicker renders candidate rows; wait for Rex to appear.
     await screen.findByText("Rex");
 
-    // Clicking Rex in the menu triggers the link.
+    // Clicking Rex's picker row triggers the link.
     fireEvent.click(screen.getByText("Rex"));
 
     // After the async link + bump, Rex should appear as an entity card.

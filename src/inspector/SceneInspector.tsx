@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 
 import { Icon } from "../components/Icon";
-import type { MenuDescriptor } from "../components/menu/ContextMenu";
-import { ContextMenu } from "../components/menu/ContextMenu";
 import type { Scene } from "../db/binderStore";
 import type { Snapshot } from "../db/snapshotStore";
 import { SqliteBinderStore } from "../db/sqliteBinderStore";
-import type { Entity, EntityType, SceneLink, StoryBibleStore } from "../db/storyBibleStore";
+import type { Entity, EntityType, StoryBibleStore } from "../db/storyBibleStore";
 import type { GoalRecord } from "../features/goals/goalModel";
 import { anyGoalOn, GoalGroup } from "../features/goals/InspectorGoalRings";
 import { HistoryRail } from "./HistoryRail";
 import { SynopsisGroup } from "./InspectorSynopsis";
+import { InspPicker } from "./InspPicker";
 
 // Module-level singleton for useManuscriptTotal (lazy getDb — no side-effects at import time).
 const binderStore = new SqliteBinderStore();
@@ -62,51 +61,54 @@ function useSceneEntities(
   return groups;
 }
 
-// -- useEntityPicker — async picker logic for linking existing entities -----
-interface PickerState { menu: MenuDescriptor | null; openPicker: (e: React.MouseEvent<HTMLButtonElement>) => void; closeMenu: () => void; }
-
+// -- useEntityPickerInline — picker state + async load/commit for InspPicker --
 interface PickerArgs {
   entityType: EntityType; projectId: string;
   sceneId: string | null; store: StoryBibleStore; onLinked: () => void;
 }
 
-function useEntityPicker(args: PickerArgs): PickerState {
+interface PickerInlineState {
+  picking: boolean; candidates: Entity[];
+  beginPick: () => Promise<void>;
+  handlePick: (en: Entity) => Promise<void>;
+  closePicker: () => void;
+}
+
+function useEntityPickerInline(args: PickerArgs): PickerInlineState {
   const { entityType, projectId, sceneId, store, onLinked } = args;
-  const [menu, setMenu] = useState<MenuDescriptor | null>(null);
-  const openPicker = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  const [picking, setPicking] = useState(false);
+  const [candidates, setCandidates] = useState<Entity[]>([]);
+
+  const beginPick = async () => {
     if (!sceneId) return;
-    // Capture the button element synchronously before any await — React clears
-    // e.currentTarget after the event handler yields to the microtask queue.
-    const triggerEl = e.currentTarget as HTMLElement;
     try {
-      const listFn = entityType === "character"
-        ? () => store.listCharacters(projectId)
-        : () => store.listLocations(projectId);
-      const [allEntities, currentLinks] = await Promise.all([listFn(), store.loadSceneLinks(sceneId)]);
+      const [allEntities, currentLinks] = await Promise.all([
+        store.listEntities(projectId),
+        store.loadSceneLinks(sceneId),
+      ]);
       const linkedIds = new Set(
-        currentLinks.filter((l: SceneLink) => l.entityType === entityType).map((l: SceneLink) => l.entityId),
+        currentLinks.filter((l) => l.entityType === entityType).map((l) => l.entityId),
       );
-      const unlinked = allEntities.filter((en) => !linkedIds.has(en.id));
-      if (unlinked.length === 0) return;
-      const rect = triggerEl.getBoundingClientRect();
-      const items = unlinked.map((en) => ({
-        label: en.name,
-        onClick: async () => {
-          try {
-            const links = await store.loadSceneLinks(sceneId!);
-            await store.replaceSceneLinks(sceneId!, [...links, { entityType, entityId: en.id }]);
-            onLinked();
-          } catch (err: unknown) {
-            console.error("[SceneInspector] link entity failed", err);
-          }
-        },
-      }));
-      setMenu({ x: rect.left, y: rect.bottom + 4, items });
+      setCandidates(allEntities.filter((en) => en.type === entityType && !linkedIds.has(en.id)));
+      setPicking(true);
     } catch (err: unknown) {
-      console.error("[SceneInspector] openPicker failed", err);
+      console.error("[SceneInspector] beginPick failed", err);
     }
   };
-  return { menu, openPicker, closeMenu: () => setMenu(null) };
+
+  const handlePick = async (en: Entity) => {
+    if (!sceneId) return;
+    try {
+      const links = await store.loadSceneLinks(sceneId);
+      await store.replaceSceneLinks(sceneId, [...links, { entityType, entityId: en.id }]);
+      onLinked();
+      setPicking(false);
+    } catch (err: unknown) {
+      console.error("[SceneInspector] link entity failed", err);
+    }
+  };
+
+  return { picking, candidates, beginPick, handlePick, closePicker: () => setPicking(false) };
 }
 
 // -- useEntityCreate — create + link + open-entry for the header '+' button --
@@ -148,7 +150,8 @@ function EntityGroup({
   iconName, label, entities, ready, emptyHint, linkLabel,
   entityType, projectId, sceneId, store, onLinked, onOpenEntry,
 }: EntityGroupProps) {
-  const { menu, openPicker, closeMenu } = useEntityPicker({ entityType, projectId, sceneId, store, onLinked });
+  const { picking, candidates, beginPick, handlePick, closePicker } =
+    useEntityPickerInline({ entityType, projectId, sceneId, store, onLinked });
   const handleCreate = useEntityCreate({ entityType, projectId, sceneId, store, onLinked, onOpenEntry });
   return (
     <div className="insp-group">
@@ -164,10 +167,14 @@ function EntityGroup({
               onClick={onOpenEntry ? () => onOpenEntry(e.id, entityType) : undefined} />
           ))
         : ready && <div className="empty-hint">{emptyHint}</div>}
-      <button className="add-entity" onClick={openPicker}>
-        <Icon name="plus" style={{ width: 13, height: 13 }} /> {linkLabel}
-      </button>
-      <ContextMenu menu={menu} onClose={closeMenu} />
+      {picking ? (
+        <InspPicker candidates={candidates} placeholder={`Search ${entityType}s…`}
+          onPick={handlePick} onClose={closePicker} />
+      ) : (
+        <button className="add-entity" onClick={beginPick}>
+          <Icon name="plus" style={{ width: 13, height: 13 }} /> {linkLabel}
+        </button>
+      )}
     </div>
   );
 }
