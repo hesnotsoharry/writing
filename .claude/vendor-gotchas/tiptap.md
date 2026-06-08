@@ -2,7 +2,7 @@
 vendor: "tiptap + yjs"
 sdkVersion: "TipTap v3 + Yjs"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-05
+lastVerified: 2026-06-08
 relatedPaths:
   - src/yjs/serialize.ts
   - src/yjs/bindPersistence.ts
@@ -47,4 +47,41 @@ useEffect(() => {
 ```
 
 **Why:** React/ProseMirror lifecycle is not guaranteed to outlive async operations. The `aliveRef` pattern is the standard React approach to prevent state updates on unmounted components. In a plugin context, the component's unmount, the plugin's destroy callback, and the async resolve can race; the alive flag ensures only updates to living instances are committed. Do NOT use conditional setState (e.g., `if (isMounted)`) because that variable is stale; useRef is required because it persists across renders.
+
+## 2026-06-08 — ProseMirror reverts external DOM mutations on rendered nodes; scrollIntoView on PM nodes causes 480k+/sec loops
+
+Source: wave-28, commit 77e2f08
+
+**Gotcha:** ProseMirror's MutationObserver automatically reverts external `data-*` attribute mutations on `.prose p` and other PM-rendered elements within ~800ms, **even when the caret is outside the editor**. Calling `scrollIntoView` on a PM node (e.g., `para.scrollIntoView()`) triggers a redraw, creates a new `<p>` object with a different identity, and breaks identity-based reference tracking (e.g., `para === prevRef` never matches again), causing a self-sustaining infinite loop of selection-change → scroll → redraw → new object → selection-change. Live reproduction: 480k+ `scrollIntoView` calls/sec, CPU maxed, loop never breaks without intervention.
+
+**Workaround:** Implement visual state (focus dim, highlights, scroll behavior) as **TipTap v3 ProseMirror extensions**, not external DOM mutation. Use `Decoration.node({class: 'pm-focused'})` for styling — PM renders the class, cannot revert it. For scroll effects, scroll the scroll-CONTAINER (e.g., `.canvas-scroll`) via `view.dispatch(tr)` + `coordsAtPos()`, **never** `scrollIntoView()` on a PM node. Use `PluginKey` per effect + `setMeta()` in `useEffect` to update extension flags reactively. Precedent: `src/editor/extensions/AutoLink.ts` (decoration) and `src/editor/extensions/FocusModeExtension.ts` (decoration + container scroll).
+
+**Why:** ProseMirror owns the rendered DOM as its source-of-truth and treats external mutations as corruption to be cleaned up. PM node identity is ephemeral — nodes are detached/reattached on every redraw, so holding a reference across a redraw is unreliable. Decoration is ProseMirror's intended API for transient visual state; it's stable across redraws. Extensions provide the correct abstraction boundary: configuration + reactive updates via `setMeta()` + update hooks that run on every change, ensuring state stays synchronized with the document.
+
+## 2026-06-08 — jsdom cannot validly test ProseMirror editor behavior; green vitest does NOT mean working
+
+Source: wave-28, commit 77e2f08
+
+**Gotcha:** jsdom (the DOM polyfill used by Vitest/Jest) lacks layout, MutationObserver, and real scroll behavior—`scrollIntoView()` is a no-op, `getBoundingClientRect()` returns zeros, and mutations are not observed. Tests for editor-behavior assertions (decorations persisting, scroll firing, focus effects working) pass green in jsdom but fail at runtime. Live example: P7 focus mode passed jsdom tests structurally (decoration elements created in the DOM tree) but looped infinitely live (MutationObserver + scroll loop never triggered in jsdom, so the broken loop was invisible).
+
+**Workaround:** Use **CDP smoke testing** (real Tauri app running via `npm run tauri dev` + `tauri-devtools` MCP for screenshot + `evaluate_script`) as the behavioral oracle for any editor effect or ProseMirror-specific behavior. Reserve jsdom tests for structure-only assertions (element exists, attributes correct, imports resolved). Behavioral coverage requires live-runtime smoke. Acceptance tests for editor features should be annotated as "structure verified; behavior verified by CDP smoke on [date]" to flag the gap.
+
+**Why:** ProseMirror's advanced features (DOM-mutation handling, scroll tracking, decoration lifecycle, layout-dependent positioning) require a real browser environment. jsdom is too minimal to execute these correctly. Relying on jsdom green ✓ as a gate for editor behavior is the exact failure mode that surfaced this wave (P7 shipped broken twice, passing jsdom both times). The cost of false negatives (behavior broken, tests green) outweighs the cost of running a live browser smoke.
+
+## 2026-06-08 — Multiple TipTap v3 extensions must use distinct PluginKeys with isolated decoration sets
+
+Source: wave-28, commit 50b9622
+
+**Gotcha:** TipTap v3 / ProseMirror plugins share a global plugin registry. When two extensions (e.g., focus dim + auto-link, both using `Decoration.node()`) update the same `PluginKey` or share a decoration state pool, their decorations interfere: one extension's update clears or corrupts the other's decorations, causing visual glitches (highlights vanish, dim disappears, underlines blink).
+
+**Workaround:** Each extension gets its own `PluginKey` and manages its own decoration set independently. In extensions that export a `useEffect`-style hook to update flags reactively, use `setMeta(pluginKey)` in separate transactions for each extension:
+```typescript
+// Focus dim effect
+editor.view.dispatch(tr.setMeta(focusModeKey, { focused: true, paraIndex: n }));
+// Separate transaction for autolink (auto-dispatched inside Editor.tsx deps array)
+// Never in the same transaction
+```
+Never nest one extension's state update inside another's plugin apply method.
+
+**Why:** ProseMirror's plugin architecture assumes each plugin owns its decoration set independently. Shared state or overlapping decoration updates violate this contract. Extensions using the same PluginKey or trying to coordinate decorations at the state pool level will have their updates race, causing one to overwrite the other. Isolation via distinct keys guarantees each extension's visual state is stable across document changes and other extensions' updates.
 
