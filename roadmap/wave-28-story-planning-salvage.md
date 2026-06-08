@@ -1,7 +1,9 @@
 ---
-status: COMPLETE
+status: SHIPPED
 created: 2026-06-07
 completed: 2026-06-08
+shipped: 2026-06-08
+version: v0.2.1
 ---
 
 # Wave 28 — Story-planning salvage (wave-27 feature fix-sweep)
@@ -10,7 +12,7 @@ completed: 2026-06-08
 
 ### Status
 
-COMPLETE · P1–P8 shipped on-branch `orchestrator-test-fixes` + CDP-smoke-verified · Stage-5 review PASS (mechanical + wave-end adversarial, all flags addressed) · target v0.2.1 (fix-sweep, patch) · **merge to `master` pending Cole approval** · drafted 2026-06-07, completed 2026-06-08.
+**SHIPPED as v0.2.1** (2026-06-08) · P1–P8 + 2 K3 wrap-fixes, all CDP-smoke-verified · Stage-5 review PASS (mechanical + wave-end adversarial, all flags addressed) · merged to `master` (fast-forward) + tagged `v0.2.1` + pushed to origin · drafted 2026-06-07, completed/shipped 2026-06-08.
 
 ### Goal
 
