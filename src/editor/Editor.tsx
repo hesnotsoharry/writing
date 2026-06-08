@@ -1,6 +1,7 @@
 import "./proofread.css";
 
 import Collaboration from "@tiptap/extension-collaboration";
+import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { type MutableRefObject, useCallback, useEffect, useRef, useState } from "react";
@@ -62,10 +63,7 @@ function PageFlipLeaf({
 }) {
   if (!flip) return null;
   return (
-    <div
-      className={"page-turn-layer " + flip.dir}
-      onAnimationEnd={() => onAnimationEnd(flip.key)}
-    >
+    <div className={"page-turn-layer " + flip.dir} onAnimationEnd={() => onAnimationEnd(flip.key)}>
       <div className="page-turn-cast" />
       <div className="page-leaf">
         <div className="face front">
@@ -90,14 +88,15 @@ interface EditorCoreState {
 }
 
 // Build the extensions array outside useEditorCore to stay within the 40-line limit.
-function buildExtensions(
-  doc: Y.Doc,
-  alCfg: AutoLinkConfig,
-  flags: FocusFlags,
-) {
+function buildExtensions(doc: Y.Doc, alCfg: AutoLinkConfig, flags: FocusFlags) {
   return [
     StarterKit.configure({ undoRedo: false }),
     Collaboration.configure({ document: doc, field: "content" }),
+    // Placeholder applies the `is-editor-empty` class when the doc is empty; the
+    // typing-cue itself is styled in app.css (.is-editor-empty::before). StarterKit v3
+    // does NOT bundle Placeholder, so without this extension that class never lands
+    // and the cue never shows. emptyEditorClass matches the existing (frozen) CSS rule.
+    Placeholder.configure({ emptyEditorClass: "is-editor-empty" }),
     ProofreadExtension,
     AutoLinkExtension.configure(alCfg),
     // FIX (review angle 4): pass current flag values so the initial plugin state
@@ -152,6 +151,7 @@ function useEditorCore(
 interface AlPeekState {
   entityId: string;
   entityType: string;
+  entityName: string;
   anchorEl: HTMLElement;
 }
 
@@ -174,11 +174,12 @@ function useAutoLinkHover() {
     const entityId = target.getAttribute("data-entity-id");
     const entityType = target.getAttribute("data-entity-type");
     if (!entityId || !entityType) return;
+    const entityName = target.getAttribute("data-entity-name") ?? "";
     clearLeaveTimer();
     // 230ms intent delay (mirrors autolink.jsx).
     leaveTimerRef.current = setTimeout(() => {
       leaveTimerRef.current = null;
-      setPeek({ entityId, entityType, anchorEl: target });
+      setPeek({ entityId, entityType, entityName, anchorEl: target });
     }, 230);
   }
 
@@ -213,9 +214,10 @@ interface AlLinkMenuArgs {
   y: number;
   onOpenEntry: (id: string, kind: string) => void;
   onNotice: (msg: string) => void;
+  onFindMentions: (entityName: string) => void;
 }
 
-function buildAlLinkMenu({ el, x, y, onOpenEntry, onNotice }: AlLinkMenuArgs): MenuDescriptor {
+function buildAlLinkMenu({ el, x, y, onOpenEntry, onNotice, onFindMentions }: AlLinkMenuArgs): MenuDescriptor {
   const entityId = el.getAttribute("data-entity-id") ?? "";
   const entityType = el.getAttribute("data-entity-type") ?? "";
   const entityName = el.getAttribute("data-entity-name") ?? "";
@@ -225,7 +227,7 @@ function buildAlLinkMenu({ el, x, y, onOpenEntry, onNotice }: AlLinkMenuArgs): M
     items: [
       { label: "Open full entry", icon: "feather", onClick: () => onOpenEntry(entityId, kind) },
       { type: "sep" },
-      { label: "Find mentions", onClick: () => onNotice("Find mentions — coming soon") },
+      { label: "Find mentions", onClick: () => onFindMentions(entityName) },
       { label: "Unlink here", onClick: () => onNotice("Unlink here — coming soon") },
       { label: `Never link "${entityName}"`, onClick: () => onNotice(`Never link — coming soon`) },
       { label: "Manage aliases…", onClick: () => onNotice("Aliases — coming soon") },
@@ -264,10 +266,11 @@ interface CanvasWrapProps {
   popoverProps: ReturnType<typeof useSpellCheckPopover>["popoverProps"];
   storyBibleStore: StoryBibleStore;
   onOpenEntry: (id: string, kind: string) => void;
+  onFindMentions?: (entityName: string) => void;
 }
 
 function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
-  visible, popoverProps, storyBibleStore, onOpenEntry }: CanvasWrapProps) {
+  visible, popoverProps, storyBibleStore, onOpenEntry, onFindMentions }: CanvasWrapProps) {
   const { peek, handleMouseOver, handleMouseOut, closePeek } = useAutoLinkHover();
   const [alMenu, setAlMenu] = useState<MenuDescriptor | null>(null);
   const [mockNotice, setMockNotice] = useState<string | null>(null);
@@ -277,10 +280,12 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
     setTimeout(() => setMockNotice(null), 2200);
   }
 
+  function handleFind(name: string): void { if (onFindMentions) { onFindMentions(name); } else { fireNotice(`Find mentions: ${name} — coming soon`); } }
+
   function handleAlLinkContext(e: React.MouseEvent<HTMLDivElement>): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>(".al-link");
     if (!el) return;
-    setAlMenu(buildAlLinkMenu({ el, x: e.clientX, y: e.clientY, onOpenEntry, onNotice: fireNotice }));
+    setAlMenu(buildAlLinkMenu({ el, x: e.clientX, y: e.clientY, onOpenEntry, onNotice: fireNotice, onFindMentions: handleFind }));
   }
 
   return (
@@ -297,7 +302,7 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
       {visible && <SpellCheckPopover {...popoverProps} />}
       {peek && <AutoLinkPeek entityId={peek.entityId} entityType={peek.entityType}
         store={storyBibleStore} anchorEl={peek.anchorEl} onOpenEntry={onOpenEntry}
-        onFindMentions={() => fireNotice("Find mentions — coming soon")} onClose={closePeek} />}
+        onFindMentions={() => handleFind(peek.entityName)} onClose={closePeek} />}
       {alMenu && <ContextMenu menu={alMenu} onClose={() => setAlMenu(null)} />}
       <AlNotice msg={mockNotice} />
     </div>
@@ -328,6 +333,8 @@ interface EditorProps extends EditorFocusProps {
   captureProseRef: MutableRefObject<() => string>;
   /** Called when the user clicks "Open entry" in the AutoLinkPeek card. */
   onOpenEntry?: (id: string, kind: string) => void;
+  /** Called when the user picks "Find mentions" on an auto-linked span — lead wires it to open Find & Replace prefilled with the entity name. */
+  onFindMentions?: (entityName: string) => void;
   /** Active project id — used to load entities for the AutoLink index. */
   activeProjectId?: string | null;
 }
@@ -364,7 +371,7 @@ export function Editor({
   doc, tree, selectedSceneId, storyBibleStore, linksVersion = 0,
   flip, onAnimationEnd, captureProseRef,
   focusMode = false, typewriterOn = true, dimParagraphsOn = true,
-  onOpenEntry, activeProjectId = null,
+  onOpenEntry, onFindMentions, activeProjectId = null,
 }: EditorProps) {
   const alIndex = useAutoLinkIndex(storyBibleStore, activeProjectId, linksVersion);
   const { editor, visible, popoverProps } = useEditorCore(
@@ -379,7 +386,7 @@ export function Editor({
     <div className="canvas-scroll">
       <CanvasWrap editor={editor} activeScene={activeScene} liveWords={liveWords}
         characters={characters} locations={locations} visible={visible} popoverProps={popoverProps}
-        storyBibleStore={storyBibleStore} onOpenEntry={handleOpenEntry} />
+        storyBibleStore={storyBibleStore} onOpenEntry={handleOpenEntry} onFindMentions={onFindMentions} />
       {flip && <PageFlipLeaf key={flip.key} flip={flip} onAnimationEnd={onAnimationEnd} />}
     </div>
   );
