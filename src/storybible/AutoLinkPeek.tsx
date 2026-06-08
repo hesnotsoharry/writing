@@ -17,6 +17,8 @@ export interface AutoLinkPeekProps {
   store: StoryBibleStore;
   anchorEl: HTMLElement;
   onOpenEntry: (id: string, kind: string) => void;
+  /** Called when the user clicks "Find mentions" — mock action, wire to Find & Replace later. */
+  onFindMentions?: () => void;
   onClose: () => void;
 }
 
@@ -100,7 +102,7 @@ function useClampedPosition(
 // AutoLinkPeek
 // ---------------------------------------------------------------------------
 
-export function AutoLinkPeek({ entityId, entityType, store, anchorEl, onOpenEntry, onClose }: AutoLinkPeekProps) {
+export function AutoLinkPeek({ entityId, entityType, store, anchorEl, onOpenEntry, onFindMentions, onClose }: AutoLinkPeekProps) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = useClampedPosition(ref, anchorEl, entityId);
   const { name, description, portraitSrc, loaded } = useEntityDetails(store, entityType, entityId);
@@ -123,6 +125,9 @@ export function AutoLinkPeek({ entityId, entityType, store, anchorEl, onOpenEntr
       <div className="al-peek-acts">
         <button className="al-pbtn" onClick={() => onOpenEntry(entityId, entityKind(entityType))}>
           Open entry
+        </button>
+        <button className="al-pbtn" onClick={() => onFindMentions?.()}>
+          Find mentions
         </button>
       </div>
     </div>

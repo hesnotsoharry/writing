@@ -149,7 +149,12 @@ describe("alBuildMatcher", () => {
     expect(byVariant.has("Redemption")).toBe(false);
   });
 
-  it("allowedTypes=empty Set produces no variants (simulates autolinkOn:false for a type)", () => {
+  it("allowedTypes=empty Set produces no variants (all chips off → link nothing)", () => {
+    // This is the production path for autolinkTypes=[] after the Fix-2 change:
+    // buildDecorations always builds a Set from autolinkTypes, so an empty array
+    // produces an empty Set and filters every entry out → DecorationSet.empty.
+    // This test guards alBuildMatcher's side of that contract (callers should
+    // also hit the filtered.length===0 early-return before reaching here).
     const e = makeEntity("id1", "Maren");
     const { re, byVariant } = alBuildMatcher([e], new Set<string>());
     expect(re).toBeNull();

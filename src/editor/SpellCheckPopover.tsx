@@ -193,6 +193,43 @@ async function resolvePopoverSuggestions(
   return specSuggestions;
 }
 
+/** Data extracted from a proofread decoration under the right-click cursor. */
+interface DecoHit {
+  from: number;
+  to: number;
+  spec: ProofreadDecoSpec;
+  word: string;
+}
+
+/**
+ * Finds the proofread decoration at (clientX, clientY) in the given view.
+ * Returns null when the click misses any proofread decoration.
+ */
+function findProofreadDecoAtCursor(
+  view: EditorView,
+  clientX: number,
+  clientY: number,
+): DecoHit | null {
+  const coords = view.posAtCoords({ left: clientX, top: clientY });
+  if (!coords) return null;
+
+  const decoSet = proofreadKey.getState(view.state);
+  if (!decoSet) return null;
+
+  // find(pos, pos+1): a zero-width range would miss the decoration when the
+  // click lands exactly on the word's last character (overlap is half-open).
+  const decos = decoSet.find(coords.pos, coords.pos + 1);
+  if (decos.length === 0) return null;
+
+  const deco = decos[0];
+  const spec = deco.spec as ProofreadDecoSpec;
+  // Guard against a decoration without a proofread spec (prevents
+  // undefined.length throw if a non-proofread decoration is clicked).
+  if (!spec || !spec.proofreadType) return null;
+  const word = view.state.doc.textBetween(deco.from, deco.to);
+  return { from: deco.from, to: deco.to, spec, word };
+}
+
 /**
  * Creates a contextmenu handler that opens the popover on proofread decorations.
  */
@@ -207,38 +244,27 @@ function createContextMenuHandler(
     // right-click (not only on a misspelling) — the app owns right-click in
     // the editor surface, so the OS menu must never win the fight.
     e.preventDefault();
+    // Yield to the .al-link context menu (React onContextMenu on .canvas-wrap,
+    // an ancestor). That handler fires after this native listener has already
+    // run, so we must yield HERE — returning early lets the al-link menu win
+    // for words that are simultaneously a misspelling and a story-bible name.
+    if ((e.target as HTMLElement)?.closest?.(".al-link")) return;
 
-    const view = editor.view;
-    const coords = view.posAtCoords({ left: e.clientX, top: e.clientY });
-    if (!coords) return;
-
-    const decoSet = proofreadKey.getState(view.state);
-    if (!decoSet) return;
-
-    // find(pos, pos+1): a zero-width range would miss the decoration when the
-    // click lands exactly on the word's last character (overlap is half-open).
-    const decos = decoSet.find(coords.pos, coords.pos + 1);
-    if (decos.length === 0) return;
-
-    const deco = decos[0];
-    const spec = deco.spec as ProofreadDecoSpec;
-    // Fix 5: guard against a decoration without a proofread spec (prevents
-    // undefined.length throw if a non-proofread decoration is clicked).
-    if (!spec || !spec.proofreadType) return;
-    const word = view.state.doc.textBetween(deco.from, deco.to);
+    const hit = findProofreadDecoAtCursor(editor.view, e.clientX, e.clientY);
+    if (!hit) return;
 
     const suggestions = await resolvePopoverSuggestions(
-      spec.proofreadType,
-      spec.proofreadSuggestions,
-      word,
+      hit.spec.proofreadType,
+      hit.spec.proofreadSuggestions,
+      hit.word,
     );
     if (editor.isDestroyed) return; // editor torn down during the async fetch
 
     setState({
       x: e.clientX,
       y: e.clientY,
-      from: deco.from,
-      to: deco.to,
+      from: hit.from,
+      to: hit.to,
       suggestions,
     });
   };

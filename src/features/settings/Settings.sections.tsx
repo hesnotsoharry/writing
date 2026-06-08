@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { openPath } from "../../lib/ipc";
 import type { AccentPalette, Theme } from "../../theme/useTheme";
-import { Seg, SetRow, SetSelect, SetToggle } from "./Settings.primitives";
+import { Seg, SetChips, SetRow, SetSelect, SetToggle } from "./Settings.primitives";
 import type { Tweaks } from "./settings.store";
 import { GRAMMAR_KEY, SPELLCHECK_KEY, STYLEHINTS_KEY } from "./settings.store";
 
@@ -124,8 +124,29 @@ function EditorBottomRows({ tweaks, setTweak }: SectionProps) {
       <SetRow label="Smart quotes & dashes" desc="Turn straight quotes curly, -- into em dashes.">
         <SetToggle value={tweaks.smartQuotes} onChange={v => setTweak("smartQuotes", v)} />
       </SetRow>
-      <SetRow label="Typewriter scrolling" desc="Keep the line you're writing vertically centred." last>
+      <SetRow label="Typewriter scrolling" desc="Keep the line you're writing vertically centred.">
         <SetToggle value={tweaks.typewriter} onChange={v => setTweak("typewriter", v)} />
+      </SetRow>
+    </>
+  );
+}
+
+const AL_TYPE_OPTS: [string, string][] =
+  [["character","Characters"],["location","Locations"],["item","Items"],["faction","Factions"],["lore","Lore"]];
+
+function EditorAutoLinkRows({ tweaks, setTweak }: SectionProps) {
+  return (
+    <>
+      <SetRow label="Auto-link" desc="Underline Story Bible names as you write.">
+        <SetToggle value={tweaks.autolinkOn} onChange={v => setTweak("autolinkOn", v)} />
+      </SetRow>
+      <SetRow label="Link scope">
+        <Seg value={tweaks.autolinkScope} options={[["all","All mentions"],["first","First only"]]}
+          onChange={v => setTweak("autolinkScope", v as Tweaks["autolinkScope"])} />
+      </SetRow>
+      <SetRow label="Link types" last>
+        <SetChips options={AL_TYPE_OPTS} value={tweaks.autolinkTypes}
+          onChange={v => setTweak("autolinkTypes", v)} />
       </SetRow>
     </>
   );
@@ -136,6 +157,7 @@ export function EditorSection({ tweaks, setTweak }: SectionProps) {
     <>
       <EditorTopRows tweaks={tweaks} setTweak={setTweak} />
       <EditorBottomRows tweaks={tweaks} setTweak={setTweak} />
+      <EditorAutoLinkRows tweaks={tweaks} setTweak={setTweak} />
     </>
   );
 }

@@ -69,3 +69,29 @@ export function SetSelect({ value, options, onChange }: SetSelectProps) {
     </select>
   );
 }
+
+// ── SetChips ──────────────────────────────────────────────────────────────────
+
+export interface SetChipsProps {
+  /** [value, label] pairs for each chip. */
+  options: [string, string][];
+  /** Currently selected values (multi-select). */
+  value: string[];
+  onChange: (v: string[]) => void;
+}
+
+export function SetChips({ options, value, onChange }: SetChipsProps) {
+  function toggle(v: string): void {
+    const next = value.includes(v) ? value.filter((x) => x !== v) : [...value, v];
+    onChange(next);
+  }
+  return (
+    <div className="set-chips">
+      {options.map(([v, l]) => (
+        <button key={v} className={"set-chip" + (value.includes(v) ? " on" : "")} onClick={() => toggle(v)}>
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}

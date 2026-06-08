@@ -7,14 +7,15 @@ import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 
 import * as Y from "yjs";
 
 import type { BinderTree } from "../binder/buildTree";
-import type { SqliteStoryBibleStore } from "../db/sqliteStoryBibleStore";
+import { ContextMenu, type MenuDescriptor } from "../components/menu/ContextMenu";
+import type { StoryBibleStore } from "../db/storyBibleStore";
+import { useAutolinkSettings } from "../features/settings/settings.store";
 import type { AlIndex } from "../lib/alBuildIndex";
 import { alBuildIndex } from "../lib/alBuildIndex";
-import { readBoolSetting } from "../lib/settings";
 import { normalizeStatus, STATUS_META } from "../lib/status";
 import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
 import { EditorHeader } from "./EditorHeader";
-import AutoLinkExtension, { autolinkKey } from "./extensions/AutoLink";
+import AutoLinkExtension, { type AutoLinkConfig, autolinkKey } from "./extensions/AutoLink";
 import FocusModeExtension, { type FocusFlags,focusModeKey } from "./extensions/FocusModeExtension";
 import ProofreadExtension from "./extensions/ProofreadExtension";
 import { FormatBubble } from "./FormatBubble";
@@ -88,21 +89,17 @@ interface EditorCoreState {
   popoverProps: ReturnType<typeof useSpellCheckPopover>["popoverProps"];
 }
 
-const AUTOLINK_SETTING = "writing.autolinkOn";
-const DEFAULT_AUTOLINK_TYPES = ["character", "location", "item", "faction", "lore"];
-
 // Build the extensions array outside useEditorCore to stay within the 40-line limit.
 function buildExtensions(
   doc: Y.Doc,
-  alIndex: AlIndex | null,
-  autolinkOn: boolean,
+  alCfg: AutoLinkConfig,
   flags: FocusFlags,
 ) {
   return [
     StarterKit.configure({ undoRedo: false }),
     Collaboration.configure({ document: doc, field: "content" }),
     ProofreadExtension,
-    AutoLinkExtension.configure({ alIndex, autolinkOn, autolinkTypes: DEFAULT_AUTOLINK_TYPES }),
+    AutoLinkExtension.configure(alCfg),
     // FIX (review angle 4): pass current flag values so the initial plugin state
     // reflects reality on first render — no cold-start flash when focus is already on.
     FocusModeExtension.configure(flags),
@@ -120,21 +117,21 @@ function useEditorCore(
   alIndex: AlIndex | null,
   { focusMode, dimOn, typewriterOn }: FocusFlags,
 ): EditorCoreState {
-  const autolinkOn = readBoolSetting(AUTOLINK_SETTING, true);
+  const { autolinkOn, autolinkScope, autolinkTypes } = useAutolinkSettings();
+  const alCfg = { alIndex, autolinkOn, autolinkTypes, autolinkScope };
   const editor = useEditor({
-    extensions: buildExtensions(doc, alIndex, autolinkOn, { focusMode, dimOn, typewriterOn }),
+    extensions: buildExtensions(doc, alCfg, { focusMode, dimOn, typewriterOn }),
     editorProps: { attributes: { class: "prose" } },
   });
-  // When alIndex changes (linksVersion bump), dispatch a meta transaction so
-  // the autolink plugin rebuilds its DecorationSet without tearing down the editor.
+  // When alIndex or any autolink setting changes, dispatch a meta transaction so
+  // the plugin rebuilds its DecorationSet without tearing down the editor.
   useEffect(() => {
     if (!editor) return;
-    const newConfig = { alIndex, autolinkOn, autolinkTypes: DEFAULT_AUTOLINK_TYPES };
-    editor.view.dispatch(editor.state.tr.setMeta(autolinkKey, newConfig));
-  // autolinkOn is read synchronously from localStorage; alIndex identity changes
-  // when linksVersion bumps. editor identity only changes on doc swap.
+    editor.view.dispatch(editor.state.tr.setMeta(autolinkKey, alCfg));
+  // alCfg is a new object each render; spread its members into deps so the effect
+  // only fires when one of those values actually changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, alIndex]);
+  }, [editor, alIndex, autolinkOn, autolinkScope, autolinkTypes]);
   // Dispatch focus-mode flag changes into the ProseMirror plugin via meta transaction.
   useEffect(() => {
     if (!editor) return;
@@ -206,6 +203,54 @@ function useAutoLinkHover() {
 }
 
 // ---------------------------------------------------------------------------
+// buildAlLinkMenu — assembles the right-click ContextMenu for an .al-link span.
+// "Open full entry" is real; others are mock-toasts (documented TODOs).
+// ---------------------------------------------------------------------------
+
+interface AlLinkMenuArgs {
+  el: HTMLElement;
+  x: number;
+  y: number;
+  onOpenEntry: (id: string, kind: string) => void;
+  onNotice: (msg: string) => void;
+}
+
+function buildAlLinkMenu({ el, x, y, onOpenEntry, onNotice }: AlLinkMenuArgs): MenuDescriptor {
+  const entityId = el.getAttribute("data-entity-id") ?? "";
+  const entityType = el.getAttribute("data-entity-type") ?? "";
+  const entityName = el.getAttribute("data-entity-name") ?? "";
+  const kind = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+  return {
+    x, y,
+    items: [
+      { label: "Open full entry", icon: "feather", onClick: () => onOpenEntry(entityId, kind) },
+      { type: "sep" },
+      { label: "Find mentions", onClick: () => onNotice("Find mentions — coming soon") },
+      { label: "Unlink here", onClick: () => onNotice("Unlink here — coming soon") },
+      { label: `Never link "${entityName}"`, onClick: () => onNotice(`Never link — coming soon`) },
+      { label: "Manage aliases…", onClick: () => onNotice("Aliases — coming soon") },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AlNotice — transient mock-toast for al-link actions not yet fully implemented.
+// ---------------------------------------------------------------------------
+
+function AlNotice({ msg }: { msg: string | null }) {
+  if (!msg) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
+      background: "var(--ink)", color: "var(--paper)", padding: "7px 18px",
+      borderRadius: 8, fontSize: "var(--text-sm)", pointerEvents: "none", zIndex: 9000,
+    }}>
+      {msg}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // CanvasWrap — inner .canvas-wrap content (extracted to keep Editor ≤40 lines)
 // ---------------------------------------------------------------------------
 
@@ -217,15 +262,31 @@ interface CanvasWrapProps {
   locations: number;
   visible: boolean;
   popoverProps: ReturnType<typeof useSpellCheckPopover>["popoverProps"];
-  storyBibleStore: SqliteStoryBibleStore;
+  storyBibleStore: StoryBibleStore;
   onOpenEntry: (id: string, kind: string) => void;
 }
 
 function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
   visible, popoverProps, storyBibleStore, onOpenEntry }: CanvasWrapProps) {
   const { peek, handleMouseOver, handleMouseOut, closePeek } = useAutoLinkHover();
+  const [alMenu, setAlMenu] = useState<MenuDescriptor | null>(null);
+  const [mockNotice, setMockNotice] = useState<string | null>(null);
+
+  function fireNotice(msg: string): void {
+    setMockNotice(msg);
+    setTimeout(() => setMockNotice(null), 2200);
+  }
+
+  function handleAlLinkContext(e: React.MouseEvent<HTMLDivElement>): void {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(".al-link");
+    if (!el) return;
+    setAlMenu(buildAlLinkMenu({ el, x: e.clientX, y: e.clientY, onOpenEntry, onNotice: fireNotice }));
+  }
+
   return (
-    <div className="canvas-wrap" onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}>
+    <div className="canvas-wrap"
+      onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}
+      onContextMenu={handleAlLinkContext}>
       {activeScene && (
         <EditorHeader chapterTitle={activeScene.chapterTitle} title={activeScene.scene.title}
           status={normalizeStatus(activeScene.scene.status)}
@@ -235,8 +296,10 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
       {editor && <FormatBubble editor={editor} />}
       {visible && <SpellCheckPopover {...popoverProps} />}
       {peek && <AutoLinkPeek entityId={peek.entityId} entityType={peek.entityType}
-        store={storyBibleStore} anchorEl={peek.anchorEl}
-        onOpenEntry={onOpenEntry} onClose={closePeek} />}
+        store={storyBibleStore} anchorEl={peek.anchorEl} onOpenEntry={onOpenEntry}
+        onFindMentions={() => fireNotice("Find mentions — coming soon")} onClose={closePeek} />}
+      {alMenu && <ContextMenu menu={alMenu} onClose={() => setAlMenu(null)} />}
+      <AlNotice msg={mockNotice} />
     </div>
   );
 }
@@ -258,8 +321,8 @@ interface EditorProps extends EditorFocusProps {
   doc: Y.Doc;
   tree: BinderTree;
   selectedSceneId: string | null;
-  storyBibleStore: SqliteStoryBibleStore;
-  linksVersion: number;
+  storyBibleStore: StoryBibleStore;
+  linksVersion?: number;
   flip: FlipState | null;
   onAnimationEnd: (key: number) => void;
   captureProseRef: MutableRefObject<() => string>;
@@ -275,7 +338,7 @@ interface EditorProps extends EditorFocusProps {
  * Returns null until the first load completes or when activeProjectId is null.
  */
 function useAutoLinkIndex(
-  storyBibleStore: SqliteStoryBibleStore,
+  storyBibleStore: StoryBibleStore,
   activeProjectId: string | null,
   linksVersion: number,
 ): AlIndex | null {
@@ -298,7 +361,7 @@ function useAutoLinkIndex(
 }
 
 export function Editor({
-  doc, tree, selectedSceneId, storyBibleStore, linksVersion,
+  doc, tree, selectedSceneId, storyBibleStore, linksVersion = 0,
   flip, onAnimationEnd, captureProseRef,
   focusMode = false, typewriterOn = true, dimParagraphsOn = true,
   onOpenEntry, activeProjectId = null,

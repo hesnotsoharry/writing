@@ -37,25 +37,36 @@ export interface AutoLinkConfig {
   alIndex: AlIndex | null;
   autolinkOn: boolean;
   autolinkTypes: string[];
+  autolinkScope: "all" | "first";
 }
 
 // ---------------------------------------------------------------------------
 // scanNodeDecorations — collect decorations from one text node.
 // ---------------------------------------------------------------------------
 
+interface NodeScanMatcher {
+  re: RegExp;
+  byVariant: ReturnType<typeof alBuildMatcher>["byVariant"];
+}
+
 function scanNodeDecorations(
   text: string,
   pos: number,
-  re: RegExp,
-  matchMap: ReturnType<typeof alBuildMatcher>["byVariant"],
+  matcher: NodeScanMatcher,
+  seen: Set<string> | null,
 ): Decoration[] {
   const out: Decoration[] = [];
-  re.lastIndex = 0;
+  matcher.re.lastIndex = 0;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = matcher.re.exec(text)) !== null) {
     const matched = m[1] ?? m[0];
-    const entry = matchMap.get(matched);
+    const entry = matcher.byVariant.get(matched);
     if (!entry) continue;
+    // autolinkScope="first": skip subsequent mentions of the same entity.
+    if (seen !== null) {
+      if (seen.has(entry.id)) continue;
+      seen.add(entry.id);
+    }
     const from = pos + m.index;
     const to = from + matched.length;
     const spec: AutoLinkDecoSpec = {
@@ -67,6 +78,7 @@ function scanNodeDecorations(
       class: "al-link",
       "data-entity-id": entry.id,
       "data-entity-type": entry.type,
+      "data-entity-name": entry.name,
     }, spec));
   }
   return out;
@@ -83,11 +95,12 @@ export function buildDecorations(
   if (!cfg.autolinkOn || !cfg.alIndex || cfg.alIndex.entries.length === 0) {
     return DecorationSet.empty;
   }
-  const allowedTypes = cfg.autolinkTypes.length > 0
-    ? new Set(cfg.autolinkTypes) : null;
-  const filtered = allowedTypes
-    ? cfg.alIndex.entries.filter((e) => allowedTypes.has(e.type))
-    : cfg.alIndex.entries;
+  // Always build the Set — empty autolinkTypes (all chips off) must produce
+  // zero filtered entries and therefore zero decorations.  The previous
+  // `length > 0 ? Set : null` guard inverted the UI contract: [] → null →
+  // bypass filter → link ALL types.
+  const allowedTypes = new Set(cfg.autolinkTypes);
+  const filtered = cfg.alIndex.entries.filter((e) => allowedTypes.has(e.type));
   if (filtered.length === 0) return DecorationSet.empty;
 
   const pseudo = filtered.map((e) => ({
@@ -97,10 +110,14 @@ export function buildDecorations(
   const { re, byVariant } = alBuildMatcher(pseudo);
   if (!re) return DecorationSet.empty;
 
+  // "first" scope: one Set per buildDecorations call, reset each pass.
+  const seen: Set<string> | null = cfg.autolinkScope === "first" ? new Set<string>() : null;
+  // After the null guard above, re is narrowed to RegExp (non-null).
+  const matcher: NodeScanMatcher = { re, byVariant };
   const decorations: Decoration[] = [];
   doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
-    decorations.push(...scanNodeDecorations(node.text, pos, re, byVariant));
+    decorations.push(...scanNodeDecorations(node.text, pos, matcher, seen));
   });
   return DecorationSet.create(doc, decorations);
 }
@@ -183,7 +200,7 @@ function createAutolinkPlugin(config: AutoLinkConfig): Plugin {
 const AutoLinkExtension = Extension.create<AutoLinkConfig>({
   name: "autolink",
   addOptions() {
-    return { alIndex: null, autolinkOn: true, autolinkTypes: [] };
+    return { alIndex: null, autolinkOn: true, autolinkTypes: [], autolinkScope: "all" as const };
   },
   addProseMirrorPlugins() {
     return [createAutolinkPlugin(this.options)];

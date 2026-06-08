@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import {
@@ -38,6 +38,10 @@ export interface Tweaks {
   reopenLast: boolean;
   backupDest: string;
   backupFreq: "save" | "hourly" | "close";
+  // ── Auto-link settings (Wave 28 P8) ────────────────────────────────────────
+  autolinkOn: boolean;
+  autolinkScope: "all" | "first";
+  autolinkTypes: string[];
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -56,6 +60,9 @@ export const TWEAK_DEFAULTS: Tweaks = {
   reopenLast: true,
   backupDest: "Cloudflare R2",
   backupFreq: "save",
+  autolinkOn: true,
+  autolinkScope: "all",
+  autolinkTypes: ["character", "location", "item", "faction", "lore"],
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
@@ -124,3 +131,31 @@ export function useSettings(): {
 // Keep DEFAULT_ACCENT in scope (imported above) so it's available for callers
 // who need to compare against the accent default without importing useTheme directly.
 export { DEFAULT_ACCENT };
+
+// ── useAutolinkSettings ───────────────────────────────────────────────────────
+// Reactive subscription to the three autolink tweaks.
+// Re-reads on every SETTINGS_CHANGED_EVENT so the editor plugin updates live.
+
+export interface AutolinkSettings {
+  autolinkOn: boolean;
+  autolinkScope: "all" | "first";
+  autolinkTypes: string[];
+}
+
+function readAutolinkSettings(): AutolinkSettings {
+  return {
+    autolinkOn: getTweak("autolinkOn", TWEAK_DEFAULTS.autolinkOn),
+    autolinkScope: getTweak("autolinkScope", TWEAK_DEFAULTS.autolinkScope),
+    autolinkTypes: getTweak("autolinkTypes", TWEAK_DEFAULTS.autolinkTypes),
+  };
+}
+
+export function useAutolinkSettings(): AutolinkSettings {
+  const [settings, setSettings] = useState<AutolinkSettings>(readAutolinkSettings);
+  useEffect(() => {
+    const h = () => setSettings(readAutolinkSettings());
+    window.addEventListener(SETTINGS_CHANGED_EVENT, h);
+    return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, h);
+  }, []);
+  return settings;
+}

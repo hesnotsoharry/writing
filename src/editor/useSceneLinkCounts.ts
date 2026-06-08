@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { SqliteStoryBibleStore } from "../db/sqliteStoryBibleStore";
+import type { StoryBibleStore } from "../db/storyBibleStore";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,7 +28,7 @@ const ZERO: SceneLinkCounts = { characters: 0, locations: 0 };
  * pattern as useLiveWordCount) to satisfy react-hooks/set-state-in-effect.
  */
 export function useSceneLinkCounts(
-  store: SqliteStoryBibleStore,
+  store: StoryBibleStore,
   sceneId: string | null,
   refreshKey: number,
 ): SceneLinkCounts {
