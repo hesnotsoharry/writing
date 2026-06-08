@@ -48,9 +48,12 @@ self-contained component + a clean prop contract; the lead wires it into `App.*`
 `node_modules` exist there; hydrate from the committed lockfile before any gate.
 
 **Rule 2 — Gate discipline (worktree cwd).** Per `~/.claude/rules-deferred/worktree-batch-discipline.md`:
-gates MUST run inside YOUR worktree directory, never the main repo. Prefix every gate command with
-`cd '<your-worktree-path>' &&`. A gate run from the wrong cwd produces false results. Close-out is
-the LEAD's job: after merge the lead runs `git worktree remove '<path>'` and `git branch -d <branch>`.
+gates MUST run inside YOUR worktree directory, never the main repo. **The shell cwd resets to the
+MAIN repo on EVERY shell call (confirmed by the editor lane) — not just gates.** Prefix EVERY shell
+command (gates, git, npm, scripts) with `cd '<your-worktree-path>' &&`. A command run from the wrong
+cwd silently operates on the main repo / a sibling worktree and produces false results. If you use the
+run-phase Workflow, prefer the manual-dispatch fallback unless it guarantees the cwd prefix. Close-out
+is the LEAD's job: after merge the lead runs `git worktree remove '<path>'` and `git branch -d <branch>`.
 Do not leave stray worktrees.
 
 **Rule 3 — No UI smoke during the lane.** You CANNOT see the rendered app (Tauri runtime + WebView2
