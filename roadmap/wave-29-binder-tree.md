@@ -92,7 +92,7 @@ You CANNOT see the rendered app (Rule 3 — Tauri runtime + CDP held by the lead
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
+| 1 | 2026-06-08 | 2026-06-08 | (this commit) | Pending lead CDP — reload persistence (unit: 5/5 PASS) |
 | 2 | — | — | — | — |
 | 3 | — | — | — | — |
 | 4 | — | — | — | — |
