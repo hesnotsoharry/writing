@@ -213,6 +213,7 @@ interface SharedGroupProps {
   sortable: boolean;
   labels?: Label[];
   sceneLabels?: Record<string, string[]>;
+  onAfterSynopsisWrite?: () => void;
 }
 
 interface CorkboardContentProps {
@@ -304,6 +305,7 @@ export function Corkboard({
     onSelectScene, onViewChange, onCycleStatus: cycleStatus, onContextMenu: handleContextMenu,
     onReload: reload, renamingSceneId, onRenameEnd: () => setRenamingSceneId(null),
     sortable: !!dragCallbacks, labels, sceneLabels,
+    onAfterSynopsisWrite: reloadTree,
   };
   return (
     <div className="corkboard">

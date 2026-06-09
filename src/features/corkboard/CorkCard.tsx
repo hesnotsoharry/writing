@@ -76,9 +76,7 @@ function useCardChips(sceneId: string) {
       const charChips = characters.slice(0, 2).map((c) => ({ type: "character" as const, name: c.name }));
       const locChips = locations.slice(0, 1).map((l) => ({ type: "location" as const, name: l.name }));
       setChips([...charChips, ...locChips]);
-    }).catch((err: unknown) => {
-      console.warn("[corkboard] loadSceneEntities failed", err);
-    });
+    }).catch((err: unknown) => { console.warn("[corkboard] loadSceneEntities failed", err); });
     return () => { active = false; };
   }, [sceneId]);
   return chips;
@@ -86,7 +84,7 @@ function useCardChips(sceneId: string) {
 
 // useSynopsisEdit — inline synopsis editing.
 
-function useSynopsisEdit(scene: Scene) {
+function useSynopsisEdit(scene: Scene, onAfterWrite?: () => void) {
   const [editing, setEditing] = useState(false);
   const [shown, setShown] = useState<string | null>(scene.synopsis);
   const [draft, setDraft] = useState(scene.synopsis ?? "");
@@ -100,9 +98,9 @@ function useSynopsisEdit(scene: Scene) {
     const value = draft.trim() === "" ? null : draft.trim();
     setShown(value);
     setEditing(false);
-    defaultBinderStore.setSceneSynopsis(scene.id, value).catch((err: unknown) => {
-      console.warn("[corkboard] setSceneSynopsis failed", err);
-    });
+    defaultBinderStore.setSceneSynopsis(scene.id, value)
+      .then(() => { onAfterWrite?.(); })
+      .catch((err: unknown) => { console.warn("[corkboard] setSceneSynopsis failed", err); });
   };
 
   return { editing, draft, setDraft, shown, startEdit, commit };
@@ -130,9 +128,8 @@ function useCardRename(scene: Scene): RenameHook {
     const title = renameDraft.trim();
     if (!title || title === scene.title) { onDone(); return; }
     onDone();
-    defaultBinderStore.renameScene(scene.id, title).then(onReload).catch((err: unknown) => {
-      console.warn("[corkboard] renameScene failed", err);
-    });
+    defaultBinderStore.renameScene(scene.id, title).then(onReload)
+      .catch((err: unknown) => { console.warn("[corkboard] renameScene failed", err); });
   };
 
   return { renameDraft, setRenameDraft, commitRename };
@@ -162,8 +159,8 @@ function growTextarea(e: React.FormEvent<HTMLTextAreaElement>) {
   const el = e.currentTarget; el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`;
 }
 
-function SynopsisCell({ scene }: { scene: Scene }) {
-  const { editing, draft, setDraft, shown, startEdit, commit } = useSynopsisEdit(scene);
+function SynopsisCell({ scene, onAfterSynopsisWrite }: { scene: Scene; onAfterSynopsisWrite?: () => void }) {
+  const { editing, draft, setDraft, shown, startEdit, commit } = useSynopsisEdit(scene, onAfterSynopsisWrite);
   if (editing) {
     return (
       <textarea
@@ -231,9 +228,11 @@ export interface CorkCardProps {
   /** When true the card participates in @dnd-kit sortable drag-reorder. */
   sortable?: boolean;
   labels?: Label[]; /* assigned labels — optional; lane-boundary call sites default to [] */
+  /** Called after a synopsis write resolves — triggers App-level tree reload so the inspector updates. */
+  onAfterSynopsisWrite?: () => void;
 }
 
-export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renaming, onRenameEnd, sortable = false, labels = [] }: CorkCardProps) {
+export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renaming, onRenameEnd, sortable = false, labels = [], onAfterSynopsisWrite }: CorkCardProps) {
   const meta = STATUS_META[effectiveStatus];
   const wordLabel = scene.word_count ? scene.word_count.toLocaleString() + "w" : "—";
   const delay = Math.min(index, 9) * 45;
@@ -257,7 +256,7 @@ export function CorkCard({ scene, index, effectiveStatus, onSelectScene, onViewC
         <span className="w">{wordLabel}</span>
       </div>
       <TitleCell scene={scene} renaming={renaming} onReload={onReload} onRenameEnd={onRenameEnd} />
-      <SynopsisCell scene={scene} />
+      <SynopsisCell scene={scene} onAfterSynopsisWrite={onAfterSynopsisWrite} />
       <LabelBadges labels={labels} />
       <CardFoot sceneId={scene.id} />
     </div>
@@ -281,12 +280,13 @@ export interface ChapterGroupProps {
   sortable?: boolean;
   labels?: Label[];             /* all project labels — badge resolution */
   sceneLabels?: Record<string, string[]>; /* sceneId → labelId[] */
+  onAfterSynopsisWrite?: () => void;
 }
 
 const resolveSceneLabels = (sid: string, lbs: Label[], sl: Record<string, string[]>): Label[] =>
   (sl[sid] ?? []).map((id) => lbs.find((l) => l.id === id)).filter((l): l is Label => l !== undefined);
 
-export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false, labels = [], sceneLabels = {} }: ChapterGroupProps) {
+export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false, labels = [], sceneLabels = {}, onAfterSynopsisWrite }: ChapterGroupProps) {
   const { folder, scenes } = chapter;
   return (
     <div className="cork-chgroup">
@@ -309,6 +309,7 @@ export function ChapterGroup({ chapter, overrides, onSelectScene, onViewChange, 
                 onRenameEnd={onRenameEnd}
                 sortable={sortable}
                 labels={resolveSceneLabels(s.id, labels, sceneLabels)}
+                onAfterSynopsisWrite={onAfterSynopsisWrite}
               />
             ))}
       </div>
@@ -333,9 +334,10 @@ export interface ShortPiecesGroupProps {
   sortable?: boolean;
   labels?: Label[];             /* all project labels — badge resolution */
   sceneLabels?: Record<string, string[]>; /* sceneId → labelId[] */
+  onAfterSynopsisWrite?: () => void;
 }
 
-export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false, labels = [], sceneLabels = {} }: ShortPiecesGroupProps) {
+export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange, onCycleStatus, onContextMenu, onReload, renamingSceneId, onRenameEnd, sortable = false, labels = [], sceneLabels = {}, onAfterSynopsisWrite }: ShortPiecesGroupProps) {
   return (
     <div className="cork-chgroup">
       <div className="cork-chtitle">{`Short pieces · ${scenes.length}`}</div>
@@ -355,6 +357,7 @@ export function ShortPiecesGroup({ scenes, statusOf, onSelectScene, onViewChange
             onRenameEnd={onRenameEnd}
             sortable={sortable}
             labels={resolveSceneLabels(s.id, labels, sceneLabels)}
+            onAfterSynopsisWrite={onAfterSynopsisWrite}
           />
         ))}
       </div>

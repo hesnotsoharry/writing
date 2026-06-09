@@ -55,17 +55,33 @@ function SynopsisEditField({ sceneId, localSynopsis, onCommit, onCancel }: Synop
   );
 }
 
-// -- SynopsisGroup — editable synopsis block --------------------------------
-interface SynopsisGroupProps { scene: Scene | null; sceneId: string | null; }
-export function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
-  const [localSynopsis, setLocalSynopsis] = useState<string>(scene?.synopsis ?? "");
+// -- useSynopsisGroupState — state + render-phase sync guards ----------------
+interface SynopsisState {
+  localSynopsis: string;
+  editing: boolean;
+  setEditing: (v: boolean) => void;
+  handleCommit: (next: string | null) => void;
+}
+
+function useSynopsisGroupState(scene: Scene | null, sceneId: string | null): SynopsisState {
+  const synopsisNow = scene?.synopsis ?? null;
+  const [localSynopsis, setLocalSynopsis] = useState<string>(synopsisNow ?? "");
   const [prevSceneId, setPrevSceneId] = useState<string | null>(sceneId);
+  const [prevSynopsis, setPrevSynopsis] = useState<string | null>(synopsisNow);
   const [editing, setEditing] = useState(false);
 
   if (prevSceneId !== sceneId) {
     setPrevSceneId(sceneId);
-    setLocalSynopsis(scene?.synopsis ?? "");
+    setPrevSynopsis(synopsisNow);
+    setLocalSynopsis(synopsisNow ?? "");
     setEditing(false);
+  }
+
+  // Sync when synopsis prop updates on the SAME scene (e.g. after a corkboard write
+  // triggers reloadTree). The !editing guard never clobbers an in-progress edit.
+  if (!editing && prevSynopsis !== synopsisNow) {
+    setPrevSynopsis(synopsisNow);
+    setLocalSynopsis(synopsisNow ?? "");
   }
 
   const handleCommit = (next: string | null) => {
@@ -76,6 +92,13 @@ export function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
     });
   };
 
+  return { localSynopsis, editing, setEditing, handleCommit };
+}
+
+// -- SynopsisGroup — editable synopsis block --------------------------------
+interface SynopsisGroupProps { scene: Scene | null; sceneId: string | null; }
+export function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
+  const { localSynopsis, editing, setEditing, handleCommit } = useSynopsisGroupState(scene, sceneId);
   return (
     <div className="insp-group">
       <div className="insp-label">
