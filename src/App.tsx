@@ -19,6 +19,7 @@ import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteLabelStore } from "./db/sqliteLabelStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
+import { useStartupUpdateCheck } from "./lib/updater";
 import { useTheme } from "./theme/useTheme";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded, extractPlainText } from "./yjs/serialize";
@@ -198,9 +199,8 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   const onWordCountPersisted = useCallback(() => {
     const id = activeProjectIdRef.current;
     if (!id) return;
-    reloadTree(binderStore, id, setTree as (t: BinderTree) => void).catch(
-      (e) => console.error("[wiring] reloadTree after word-count persist failed", e)
-    );
+    reloadTree(binderStore, id, setTree as (t: BinderTree) => void)
+      .catch((e) => console.error("[wiring] reloadTree after word-count persist failed", e));
   }, [activeProjectIdRef, setTree]);
 
   const { onSavedRef, onEntitiesChanged } = useDetectionWiring({
@@ -225,9 +225,8 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   function doReloadTree() {
     const id = activeProjectIdRef.current;
     if (!id) return;
-    reloadTree(binderStore, id, setTree as (t: BinderTree) => void).catch(
-      (e) => console.error("[wiring] reloadTree failed", e)
-    );
+    reloadTree(binderStore, id, setTree as (t: BinderTree) => void)
+      .catch((e) => console.error("[wiring] reloadTree failed", e));
   }
   return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
     handleSelectScene, reloadTree: doReloadTree };
@@ -256,6 +255,7 @@ function useSnapshotState(
 }
 
 function useAppCore() {
+  useStartupUpdateCheck();
   const state = useAppState();
   const { setTheme, setAccent } = useTheme();
   const wiring = useAppWiring(state);
