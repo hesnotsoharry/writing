@@ -2,15 +2,14 @@ import type { MutableRefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import { useAutoSnapHooks } from "./App.autoSnap";
 import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
 import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
-import type { SnapCtx } from "./App.snapshots";
-import { fetchSnapshotText, snapCapture, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace, useActiveSceneSnapshots } from "./App.snapshots";
+import { fetchSnapshotText, snapCapture, type SnapCtx, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace, useActiveSceneSnapshots } from "./App.snapshots";
 import { useAppState, useProjectActions } from "./App.state";
 import type { BinderCallbacks } from "./binder/BinderCrud";
-import type { BinderTree } from "./binder/buildTree";
-import { buildTree } from "./binder/buildTree";
+import { type BinderTree,buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
 import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
@@ -192,7 +191,7 @@ interface AppWiring {
 function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   const { setTree, setSelectedSceneId, setDoc, setLoading, setProjects,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
-    setLinksVersion, selectedSceneId } = state;
+    setLinksVersion, selectedSceneId, doc } = state;
   // Fix 3: stable callback identity — wrapping in useCallback ensures the
   // detection-wiring effect does not re-run on every render because
   // onWordCountPersisted was a new inline arrow each time.
@@ -211,6 +210,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     setDoc, setSelectedSceneId, setTree, setLoading,
     setProjects, setActiveProjectId: setActiveProject, onSavedRef,
   });
+  const selectScene = useAutoSnapHooks(selectedSceneId, doc, handleSelectScene);
   const { onSwitchProject, onCreateProject } = useProjectActions({
     binderStore, activeProjectIdRef, loadProjectTokenRef,
     setTree: setTree as (t: BinderTree) => void,
@@ -229,7 +229,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
       .catch((e) => console.error("[wiring] reloadTree failed", e));
   }
   return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
-    handleSelectScene, reloadTree: doReloadTree };
+    handleSelectScene: selectScene, reloadTree: doReloadTree };
 }
 function useSnapshotState(
   doc: Y.Doc | null, selectedSceneId: string | null,

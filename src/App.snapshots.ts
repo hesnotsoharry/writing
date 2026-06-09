@@ -138,6 +138,28 @@ export function snapUndoReplace(
   }
 }
 
+/**
+ * Auto-capture a scene snapshot, skipping if content is unchanged since the
+ * last snapshot (trim-normalised plain-text dedup).
+ * Used by scene-nav-away and app-close triggers. Creates kind:"auto" entries.
+ */
+export async function snapAutoCapture({
+  sceneId, doc,
+}: { sceneId: string; doc: Y.Doc }): Promise<void> {
+  const currentText = extractPlainText(doc).trim();
+  if (!currentText) return;
+  const list = await snapshotStore.listSnapshots(sceneId);
+  if (list.length > 0) {
+    const lastText = await fetchSnapshotText(list[0].id);
+    if (lastText.trim() === currentText) return;
+  }
+  const wordCount = currentText.split(/\s+/).filter(Boolean).length;
+  const stateBase64 = encodeDoc(doc);
+  await snapshotStore.takeSnapshot({
+    sceneId, label: null, stateBase64, wordCount, kind: "auto",
+  });
+}
+
 export function snapDelete(snapshotId: string, sceneId: string | null, set: SetSnapshots): Promise<void> {
   return snapshotStore.deleteSnapshot(snapshotId)
     .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })
