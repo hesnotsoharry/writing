@@ -16,6 +16,7 @@ import type { AlIndex } from "../lib/alBuildIndex";
 import { alBuildIndex } from "../lib/alBuildIndex";
 import { normalizeStatus, STATUS_META } from "../lib/status";
 import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
+import { makeCanvasFocusHandler } from "./canvasFocus";
 import { EditorHeader } from "./EditorHeader";
 import AutoLinkExtension, { type AutoLinkConfig, autolinkKey } from "./extensions/AutoLink";
 import DropCapGate from "./extensions/DropCapGate";
@@ -284,12 +285,10 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
     if (!el) return;
     setAlMenu(buildAlLinkMenu({ el, x: e.clientX, y: e.clientY, onOpenEntry, onNotice: fireNotice, onFindMentions: handleFind }));
   }
-  // onClick below: clicking the blank page (outside PM's content DOM) focuses the editor at end.
   return (
     <div className="canvas-wrap"
       onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}
-      onContextMenu={handleAlLinkContext}
-      onClick={(e) => { if (editor && !editor.view.dom.contains(e.target as Node)) editor.commands.focus('end'); }}>
+      onContextMenu={handleAlLinkContext}>
       {activeScene && (
         <EditorHeader chapterTitle={activeScene.chapterTitle} title={activeScene.scene.title}
           status={normalizeStatus(activeScene.scene.status)}
@@ -378,7 +377,7 @@ export function Editor({
   const activeScene = findSceneWithChapter(tree, selectedSceneId);
   const handleOpenEntry = onOpenEntry ?? (() => undefined);
   return (
-    <div className="canvas-scroll">
+    <div className="canvas-scroll" onClick={makeCanvasFocusHandler(editor)}>
       <CanvasWrap editor={editor} activeScene={activeScene} liveWords={liveWords}
         characters={characters} locations={locations} visible={visible} popoverProps={popoverProps}
         storyBibleStore={storyBibleStore} onOpenEntry={handleOpenEntry} onFindMentions={onFindMentions} />
