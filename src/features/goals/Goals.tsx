@@ -11,12 +11,13 @@ import { Icon } from "../../components/Icon";
 import type { GoalsStore } from "../../db/sqliteGoalsStore";
 import { SqliteGoalsStore } from "../../db/sqliteGoalsStore";
 import { GOALS_CHANGED_EVENT } from "../../lib/settings";
-import type { GoalRecord, GoalScope, ScopedGoalKey } from "./goalModel";
-import { goalProgress, goalSummary, readMonthlyMetDays } from "./goalModel";
+import type { GoalRecord, GoalScope } from "./goalModel";
+import { goalProgress, goalSummary } from "./goalModel";
 import { GoalEditor, isoOf } from "./goalsEditorParts";
 import { readGoalConfig, writeGoalConfig, writeGoalsOn, writeGoalTarget } from "./goalStorage";
 import type { GoalTypeId } from "./goalTypes";
 import { GOAL_META } from "./goalTypes";
+import { CalHeatMap } from "./HeatMap";
 import { readStreak } from "./streak";
 
 export interface GoalsInitialScope {
@@ -25,46 +26,6 @@ export interface GoalsInitialScope {
 }
 
 const defaultGoalsStore: GoalsStore = new SqliteGoalsStore();
-
-const MON_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-// ── CalHeatMap ────────────────────────────────────────────────────────────────
-
-function HeatMapGrid({ cells, metDays, todayDay }: {
-  cells: (number | null)[]; metDays: Set<number>; todayDay: number;
-}): ReactElement {
-  return (
-    <div className="heat-grid">
-      {cells.map((d, i) => d == null ? <span key={i} className="heat-empty" /> : (
-        <span key={i} className={
-          "heat-day" + (metDays.has(d) ? " met" : "") +
-          (d === todayDay ? " today" : "") + (d > todayDay ? " future" : "")
-        } />
-      ))}
-    </div>
-  );
-}
-
-function CalHeatMap({ projectId }: { projectId: string }): ReactElement {
-  const now = new Date(); const year = now.getFullYear(); const month = now.getMonth();
-  const key: ScopedGoalKey = { projectId, scope: "manuscript", targetId: null };
-  const metDays = readMonthlyMetDays(key, year, month);
-  const firstDow = new Date(year, month, 1).getDay();
-  const daysIn = new Date(year, month + 1, 0).getDate();
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDow; i++) cells.push(null);
-  for (let d = 1; d <= daysIn; d++) cells.push(d);
-  return (
-    <div className="heat-map">
-      <div className="heat-label">
-        <Icon name="flame" className="ic" style={{ width: 13, height: 13, color: "var(--accent)" }} />
-        {MON_SHORT[month]} progress
-      </div>
-      <div className="heat-dow">{["S","M","T","W","T","F","S"].map((d, i) => <span key={i}>{d}</span>)}</div>
-      <HeatMapGrid cells={cells} metDays={metDays} todayDay={now.getDate()} />
-    </div>
-  );
-}
 
 // ── GoalRowMini ───────────────────────────────────────────────────────────────
 
@@ -153,18 +114,19 @@ function GoalsToggleRow({ goalsOn, onToggle }: { goalsOn: boolean; onToggle: () 
   );
 }
 
-function GoalListView({ goalsOn, onToggle, onClose, goals, projectId, onNewGoal, onEditGoal, onDeleteGoal, streakCount }: {
+function GoalListView({ goalsOn, onToggle, onClose, goals, projectId, onNewGoal, onEditGoal, onDeleteGoal, onNewGoalForDay, streakCount }: {
   goalsOn: boolean; onToggle: () => void; onClose: () => void;
   goals: GoalRecord[]; projectId: string | null;
   onNewGoal: () => void; onEditGoal: (g: GoalRecord) => void;
   onDeleteGoal: (id: string) => void; streakCount: number;
+  onNewGoalForDay: (type: GoalTypeId, iso: string) => void;
 }): ReactElement {
   return (
     <>
       <div className="sheet-body">
         <GoalsToggleRow goalsOn={goalsOn} onToggle={onToggle} />
         <GoalListSection goals={goals} goalsOn={goalsOn} onNewGoal={onNewGoal} onEditGoal={onEditGoal} onDeleteGoal={onDeleteGoal} />
-        {projectId && <CalHeatMap projectId={projectId} />}
+        {projectId && <CalHeatMap projectId={projectId} onNewGoalForDay={onNewGoalForDay} />}
       </div>
       <div className="sheet-foot">
         <span style={{ fontSize: 12, color: "var(--ink-3)" }}>Right-click any goal in the side panel to edit or remove it.</span>
@@ -261,23 +223,35 @@ function useGoalsFromDb(projectId: string | null, store: GoalsStore) {
   return { goals, setGoals };
 }
 
-export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = defaultGoalsStore, initialScope, editGoalId, manuscriptTotal = 0 }: GoalsProps): ReactElement {
+function useGoalEditorNav(editGoalId: string | undefined, goals: GoalRecord[]) {
   const [_mode, setMode] = useState<"list" | "edit">("list");
   const [_editing, setEditing] = useState<GoalRecord | null>(null);
+  const [initial, setInitial] = useState<{ type: GoalTypeId; date?: string } | null>(null);
+  const editFromId = editGoalId ? (goals.find((g) => g.id === editGoalId) ?? null) : null;
+  const mode = editFromId ? "edit" : _mode; const editing = editFromId ?? _editing;
+  const goBack = () => { setMode("list"); setEditing(null); setInitial(null); };
+  const openNew = () => { setEditing(null); setInitial(null); setMode("edit"); };
+  const openEdit = (g: GoalRecord) => { setEditing(g); setInitial(null); setMode("edit"); };
+  const openNewForDay = (type: GoalTypeId, date: string) => {
+    setInitial({ type, date }); setEditing(null); setMode("edit");
+  };
+  return { mode, editing, initial, goBack, openNew, openEdit, openNewForDay };
+}
+
+export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = defaultGoalsStore, initialScope, editGoalId, manuscriptTotal = 0 }: GoalsProps): ReactElement {
   const { goals, setGoals } = useGoalsFromDb(activeProjectId, store);
   const scope = initialScope?.scope ?? "manuscript";
   const [target] = useState(() => initialTarget(activeProjectId, scope));
   const streakCount = readStreak().count;
   const ctx: GoalCtx = { projectId: activeProjectId, scope, goalsOn, target, store };
-  const editFromId = editGoalId ? (goals.find((g) => g.id === editGoalId) ?? null) : null;
-  const mode = editFromId ? "edit" : _mode; const editing = editFromId ?? _editing;
+  const { mode, editing, initial, goBack, openNew, openEdit, openNewForDay } = useGoalEditorNav(editGoalId, goals);
   const handleToggle = () => { const next = !goalsOn; setGoalsOn(next); writeGoalsOn(next); };
   const handleSave = (g: GoalRecord) => {
     setGoals((prev) => { const idx = prev.findIndex((x) => x.id === g.id);
       return idx >= 0 ? [...prev.slice(0, idx), g, ...prev.slice(idx + 1)] : [...prev, g]; });
-    saveGoal(g, ctx); setMode("list"); setEditing(null);
+    saveGoal(g, ctx); goBack();
   };
-  const handleDone = () => finishGoal(goals, ctx, onClose); const goBack = () => { setMode("list"); setEditing(null); };
+  const handleDone = () => finishGoal(goals, ctx, onClose);
   const handleDeleteGoal = (id: string) => {
     void store.deleteGoal(id)
       .then(() => { setGoals((p) => p.filter((g) => g.id !== id)); window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)); })
@@ -290,12 +264,10 @@ export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = d
         {mode === "list"
           ? <GoalListView goalsOn={goalsOn} onToggle={handleToggle} onClose={handleDone}
               goals={goals} projectId={activeProjectId}
-              onNewGoal={() => { setEditing(null); setMode("edit"); }}
-              onEditGoal={(g) => { setEditing(g); setMode("edit"); }}
-              onDeleteGoal={handleDeleteGoal}
-              streakCount={streakCount} />
+              onNewGoal={openNew} onEditGoal={openEdit} onDeleteGoal={handleDeleteGoal}
+              onNewGoalForDay={openNewForDay} streakCount={streakCount} />
           : <GoalEditor goal={editing} goals={goals} projectWords={manuscriptTotal}
-              onSave={handleSave} onCancel={goBack} />
+              onSave={handleSave} onCancel={goBack} initial={initial ?? undefined} />
         }
       </div>
     </div>

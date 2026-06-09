@@ -109,7 +109,7 @@ export function AmountWordTarget({ draft, type, set }: {
         <div style={{ flex: 1 }}>
           <label className="field-label">Counts toward</label>
           <div className="exp-seg gt-seg">
-            {([["project", "This project"], ["all", "All projects"]] as [string, string][]).map(([id, l]) => (
+            {([["project", "Project"], ["all", "All"]] as [string, string][]).map(([id, l]) => (
               <button type="button" key={id} className={draft.scope === id ? "on" : ""} onClick={() => set({ scope: id })}>{l}</button>
             ))}
           </div>
@@ -259,13 +259,18 @@ function AdaptiveTarget({ fam, meta, draft, type, timeUnit, setTimeUnit, hasDail
   );
 }
 
-export function GoalEditor({ goal, goals, projectWords, onSave, onCancel }: {
+export function GoalEditor({ goal, goals, projectWords, onSave, onCancel, initial }: {
   goal: GoalRecord | null; goals: GoalRecord[];
   projectWords: number; onSave: (g: GoalRecord) => void; onCancel: () => void;
+  initial?: { type: GoalTypeId; date?: string };
 }): ReactElement {
   const isNew = goal == null;
-  const [type, setType] = useState<GoalTypeId>(goal ? goal.type : "daily");
-  const [draft, setDraft] = useState<GoalDraft>(() => goal ? draftFromGoal(goal, projectWords) : blankDraft("daily", projectWords));
+  const [type, setType] = useState<GoalTypeId>(() => goal ? goal.type : (initial?.type ?? "daily"));
+  const [draft, setDraft] = useState<GoalDraft>(() => {
+    if (goal) return draftFromGoal(goal, projectWords);
+    const t = initial?.type ?? "daily"; const d = blankDraft(t, projectWords);
+    if (initial?.date) d.date = initial.date; return d;
+  });
   const [timeUnit, setTimeUnit] = useState<"min" | "hr">("min");
   const meta = GOAL_META[type]; const fam = meta.family;
   const hasDailyElsewhere = goals.some((g) => g.type === "daily" && (!goal || g.id !== goal.id));

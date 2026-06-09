@@ -738,7 +738,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 /* Goal target adaptive section */
 .goal-target { margin-top: 18px; }
 .gt-row { display: flex; gap: 16px; }
-.gt-seg { width: 100%; }
+/* .gt-seg intentionally has no width override — lets the segmented control shrink-wrap */
 
 /* Stepper */
 .stepper { display: inline-flex; align-items: center; border: 1.5px solid var(--line);
