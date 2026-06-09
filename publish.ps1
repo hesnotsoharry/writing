@@ -45,10 +45,17 @@ if ($LASTEXITCODE -eq 0) {
 # The private key path + password are passed to the build via env vars; Tauri
 # signs the installer and writes a matching .sig file next to it.
 $pw = Read-Host -AsSecureString 'Enter your updater key password'
-$env:TAURI_SIGNING_PRIVATE_KEY_PATH     = $KeyPath
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD =
-    [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($pw))
+$env:TAURI_SIGNING_PRIVATE_KEY_PATH = $KeyPath
+# Convert the SecureString via an unmanaged BSTR, then zero+free that BSTR
+# immediately so the plaintext password does not linger in process memory for
+# the whole build. (The managed env-var copy is required by `tauri build`.)
+$bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($pw)
+try {
+    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD =
+        [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+} finally {
+    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+}
 
 Write-Host 'Building signed bundle (this takes a few minutes)...' -ForegroundColor Cyan
 npm run tauri build
