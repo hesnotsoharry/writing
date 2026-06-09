@@ -55,6 +55,9 @@ export interface SnapshotStore {
    */
   pruneAuto(sceneId: string, keepN: number): Promise<void>;
 
+  /** Update the stored wordCount for a snapshot by id. No-op if id not found. */
+  updateWordCount(id: string, wordCount: number): Promise<void>;
+
   // NOTE: No `restoreSnapshot` store method by design.
   // Restore is an app-layer operation (see App.snapshots.ts:snapRestore).
   // The store returns the snapshot payload via `getSnapshot`; callers apply

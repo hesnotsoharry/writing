@@ -6,7 +6,7 @@ import { useAutoSnapHooks } from "./App.autoSnap";
 import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
 import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
-import { fetchSnapshotText, snapCapture, type SnapCtx, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace, useActiveSceneSnapshots } from "./App.snapshots";
+import { backfillSnapshotWordCounts, fetchSnapshotText, snapCapture, type SnapCtx, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace, useActiveSceneSnapshots } from "./App.snapshots";
 import { useAppState, useProjectActions } from "./App.state";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import { type BinderTree,buildTree } from "./binder/buildTree";
@@ -179,10 +179,8 @@ function useSceneLoader(opts: SceneLoaderOptions) {
   return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene };
 }
 interface AppWiring {
-  callbacks: BinderCallbacks;
-  dragCallbacks: ReturnType<typeof useDragHandlers>;
-  onSwitchProject: (id: string) => void;
-  onCreateProject: () => void;
+  callbacks: BinderCallbacks; dragCallbacks: ReturnType<typeof useDragHandlers>;
+  onSwitchProject: (id: string) => void; onCreateProject: () => void;
   onEntitiesChanged: () => void;
   handleSelectScene: (sceneId: string) => void;
   reloadTree: () => void;
@@ -239,9 +237,11 @@ function useSnapshotState(
   useEffect(() => {
     if (!historySceneId || !showHistory) return;
     let alive = true;
-    snapshotStore.listSnapshots(historySceneId)
-      .then((list) => { if (alive) setHistorySnapshots(list); })
-      .catch((e: unknown) => console.error("[snapshots] listSnapshots failed", e));
+    snapshotStore.listSnapshots(historySceneId).then((list) => {
+      if (!alive) return;
+      setHistorySnapshots(list);
+      if (list.some((s) => s.wordCount === 0)) { void backfillSnapshotWordCounts(snapshotStore, historySceneId, (u) => { if (alive) setHistorySnapshots(u); }); }
+    }).catch((e: unknown) => console.error("[snapshots] listSnapshots failed", e));
     return () => { alive = false; };
   }, [historySceneId, showHistory]);
   // Derive baseline text inline. Only use the in-memory doc when it's for the overlay scene.
@@ -295,9 +295,9 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     onArchiveChanged: () => { bumpArchivedVersion(); wiring.reloadTree(); },
     showHistory, setShowHistory, historySceneId, historySceneTitle: histTitle,
     historySnapshots, historyCurrentText, historyCurrentWords,
-    onHistoryCapture: () => historySceneId ? snapCapture({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, currentWords: historyCurrentWords, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then((id) => { bumpRailKey(); return id; }) : Promise.resolve(null),
+    onHistoryCapture: () => historySceneId ? snapCapture({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then((id) => { bumpRailKey(); return id; }) : Promise.resolve(null),
     onHistoryRename: (id: string, label: string) => { void snapRename(id, label, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
-    onHistoryRestore: (id: string) => historySceneId ? snapRestore({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, currentWords: historyCurrentWords, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.handleSelectScene }, id).then(() => bumpRailKey()) : Promise.resolve(),
+    onHistoryRestore: (id: string) => historySceneId ? snapRestore({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.handleSelectScene }, id).then(() => bumpRailKey()) : Promise.resolve(),
     onHistoryDelete: (id: string) => { void snapDelete(id, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
     onHistoryGetText: fetchSnapshotText,
     showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed,
@@ -314,17 +314,17 @@ export default function App() {
     view, setView, linksVersion, archivedVersion,
     setShowHistory, setHistorySceneId,
     entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
-  const { setHistorySnapshots, historyCurrentWords } = snap;
+  const { setHistorySnapshots } = snap;
 
   if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (!tree) return null;
-  const ctx: SnapCtx = { sceneId: selectedSceneId, doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory };
+  const ctx: SnapCtx = { sceneId: selectedSceneId, doc, set: setHistorySnapshots, setShowHistory };
   const allScenes = [...(tree.chapters.flatMap((ch) => ch.scenes)), ...tree.shortPieces];
   const sceneTitle = (id: string | null) => id ? (allScenes.find((s) => s.id === id)?.title ?? "") : "";
   return (
     <AppContent tree={tree} selectedSceneId={selectedSceneId} doc={doc}
       onSelectScene={wiring.handleSelectScene} callbacks={{ ...wiring.callbacks,
-        onTakeSnapshot: (id) => { setHistorySceneId(id); void snapTakeFromMenu({ targetSceneId: id, isActive: id === selectedSceneId, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); },
+        onTakeSnapshot: (id) => { setHistorySceneId(id); void snapTakeFromMenu({ targetSceneId: id, isActive: id === selectedSceneId, activeDoc: doc, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); },
         onOpenHistory: (id) => { setHistorySceneId(id); setShowHistory(true); },
       }}
       projects={projects} activeProjectId={activeProjectId}
@@ -336,7 +336,7 @@ export default function App() {
       onOpenEntry={openEntry} onPushEntry={pushEntry} onEntryBack={entryBack} onExitEntry={exitEntry}
       historySnapshots={railSnapshots}
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
-      onTakeSnapshot={selectedSceneId ? () => { void snapCapture({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
+      onTakeSnapshot={selectedSceneId ? () => { void snapCapture({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
       labelStore={labelStore}
     />

@@ -53,6 +53,7 @@ function makeSnapStore(): SnapshotStore {
     renameSnapshot: vi.fn(() => Promise.resolve()),
     deleteSnapshot: vi.fn(() => Promise.resolve()),
     pruneAuto: vi.fn(() => Promise.resolve()),
+    updateWordCount: vi.fn(() => Promise.resolve()),
   };
 }
 

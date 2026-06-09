@@ -39,6 +39,7 @@ function makeSnapshotStore(onTakeSnapshot?: () => void) {
     renameSnapshot: vi.fn().mockResolvedValue(undefined),
     deleteSnapshot: vi.fn().mockResolvedValue(undefined),
     pruneAuto: vi.fn().mockResolvedValue(undefined),
+    updateWordCount: vi.fn().mockResolvedValue(undefined),
   };
 }
 

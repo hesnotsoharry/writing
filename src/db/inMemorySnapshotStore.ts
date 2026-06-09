@@ -54,6 +54,12 @@ export class InMemorySnapshotStore implements SnapshotStore {
     this.snapshots.delete(id);
   }
 
+  async updateWordCount(id: string, wordCount: number): Promise<void> {
+    const stored = this.snapshots.get(id);
+    if (!stored) return;
+    stored.meta.wordCount = wordCount;
+  }
+
   async pruneAuto(sceneId: string, keepN: number): Promise<void> {
     if (keepN <= 0) return;
     const autos = [...this.snapshots.values()]

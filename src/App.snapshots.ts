@@ -17,7 +17,7 @@ export type SetSnapshots = (updater: Snapshot[] | ((prev: Snapshot[]) => Snapsho
 /** Legacy context shape used by snapRename/snapDelete and as a named bag for ctx in App.tsx. */
 export interface SnapCtx {
   sceneId: string | null; doc: Y.Doc | null;
-  currentWords: number; set: SetSnapshots; setShowHistory: (v: boolean) => void;
+  set: SetSnapshots; setShowHistory: (v: boolean) => void;
 }
 
 /** Options for snapshot operations that address a specific target scene (which may differ from the active scene). */
@@ -26,9 +26,6 @@ export interface SnapTargetOpts {
   /** True when targetSceneId === the scene currently loaded in the live editor. */
   isActive: boolean;
   activeDoc: Y.Doc | null;
-  /** Word count for auto-backup metadata. Meaningful for the active scene only; pass 0 for
-   *  non-active targets — historyCurrentWords is 0 for non-active scenes by design in App.tsx. */
-  currentWords: number;
   set: SetSnapshots;
   load: (sceneId: string) => Promise<string | null>;
 }
@@ -39,9 +36,59 @@ export interface SnapRestoreOpts extends SnapTargetOpts {
   reloadScene: (sceneId: string) => void;
 }
 
+/**
+ * Compute a word count from a base64-encoded Yjs doc state.
+ * Returns 0 for empty content or corrupt/non-Yjs bytes.
+ */
+function wordCountFromBase64(stateBase64: string): number {
+  if (!stateBase64) return 0;
+  try {
+    const tmp = new Y.Doc();
+    applyEncoded(tmp, stateBase64);
+    const text = extractPlainText(tmp).trim();
+    return text ? text.split(/\s+/).filter(Boolean).length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Fire-and-forget backfill: for any snapshot in the list with wordCount === 0,
+ * decode its stored state, recompute the real count, and update the row.
+ * Genuinely-empty docs recompute to 0 and are left alone.
+ * Calls set(updated) once if any rows were fixed.
+ */
+export async function backfillSnapshotWordCounts(
+  store: SnapshotStore,
+  sceneId: string,
+  set: SetSnapshots,
+): Promise<void> {
+  const list = await store.listSnapshots(sceneId);
+  const zeroes = list.filter((s) => s.wordCount === 0);
+  if (zeroes.length === 0) return;
+  let anyFixed = false;
+  for (const snap of zeroes) {
+    const record = await store.getSnapshot(snap.id);
+    if (!record?.stateBase64) continue;
+    const computed = wordCountFromBase64(record.stateBase64);
+    if (computed === 0) continue;
+    await store.updateWordCount(snap.id, computed);
+    anyFixed = true;
+  }
+  if (anyFixed) {
+    const updated = await store.listSnapshots(sceneId);
+    set(updated);
+  }
+}
+
 export function reloadSnapshotList(sceneId: string, set: SetSnapshots) {
   snapshotStore.listSnapshots(sceneId)
-    .then((list) => set(list))
+    .then((list) => {
+      set(list);
+      if (list.some((s) => s.wordCount === 0)) {
+        void backfillSnapshotWordCounts(snapshotStore, sceneId, set);
+      }
+    })
     .catch((e: unknown) => console.error("[snapshots] reload failed", e));
 }
 
@@ -69,11 +116,14 @@ async function resolveTargetBytes(
 }
 
 export function snapCapture(
-  { targetSceneId, isActive, activeDoc, currentWords, set, load }: SnapTargetOpts,
+  { targetSceneId, isActive, activeDoc, set, load }: SnapTargetOpts,
 ): Promise<string | null> {
   return resolveTargetBytes(targetSceneId, isActive, activeDoc, load)
     .then((base64) =>
-      snapshotStore.takeSnapshot({ sceneId: targetSceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" }),
+      snapshotStore.takeSnapshot({
+        sceneId: targetSceneId, label: null, stateBase64: base64,
+        wordCount: wordCountFromBase64(base64), kind: "manual",
+      }),
     )
     .then((snap) => { set((prev) => [snap, ...(prev as Snapshot[])]); return snap.id; })
     .catch((e: unknown) => { console.error("[snapshots] takeSnapshot failed", e); return null; });
@@ -86,7 +136,7 @@ export function snapRename(snapshotId: string, label: string, sceneId: string | 
 }
 
 export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Promise<void> {
-  const { targetSceneId, isActive, activeDoc, currentWords, set, load, save, reloadScene } = opts;
+  const { targetSceneId, isActive, activeDoc, set, load, save, reloadScene } = opts;
   try {
     const record = await snapshotStore.getSnapshot(snapshotId);
     if (!record) return;
@@ -95,9 +145,7 @@ export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Pr
     const currentBytes = await resolveTargetBytes(targetSceneId, isActive, activeDoc, load);
     await snapshotStore.takeSnapshot({
       sceneId: targetSceneId, label: null, stateBase64: currentBytes,
-      // wordCount is only meaningful for the active scene; 0 for non-active is a known metadata-only
-      // limitation (historyCurrentWords is 0 for non-active by design in App.tsx snapState hook).
-      wordCount: isActive ? currentWords : 0, kind: "auto",
+      wordCount: wordCountFromBase64(currentBytes), kind: "auto",
     });
     // Persist restored bytes to the TARGET scene's store FIRST.
     // The scene reload reads from storage, so saving after the reload would silently no-op.
@@ -172,12 +220,15 @@ export function snapDelete(snapshotId: string, sceneId: string | null, set: SetS
 }
 
 export function snapTakeFromMenu(
-  { targetSceneId, isActive, activeDoc, currentWords, set, setShowHistory, load }:
+  { targetSceneId, isActive, activeDoc, set, setShowHistory, load }:
   SnapTargetOpts & { setShowHistory: (v: boolean) => void },
 ): Promise<void> {
   return resolveTargetBytes(targetSceneId, isActive, activeDoc, load)
     .then((base64) =>
-      snapshotStore.takeSnapshot({ sceneId: targetSceneId, label: null, stateBase64: base64, wordCount: currentWords, kind: "manual" }),
+      snapshotStore.takeSnapshot({
+        sceneId: targetSceneId, label: null, stateBase64: base64,
+        wordCount: wordCountFromBase64(base64), kind: "manual",
+      }),
     )
     .then(() => { setShowHistory(true); reloadSnapshotList(targetSceneId, set); })
     .catch((e: unknown) => { console.error("[snapshots] takeSnapshot (menu) failed", e); });

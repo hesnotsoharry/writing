@@ -90,6 +90,14 @@ export class SqliteSnapshotStore implements SnapshotStore {
     );
   }
 
+  async updateWordCount(id: string, wordCount: number): Promise<void> {
+    const db = await getDb();
+    await db.execute(
+      `UPDATE scene_snapshots SET word_count = $1 WHERE id = $2`,
+      [wordCount, id]
+    );
+  }
+
   async pruneAuto(sceneId: string, keepN: number): Promise<void> {
     if (keepN <= 0) return;
     const db = await getDb();

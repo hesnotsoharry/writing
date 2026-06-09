@@ -21,7 +21,6 @@ function makeOpts(doc: Y.Doc | null, isActive = true) {
     targetSceneId: "s1",
     isActive,
     activeDoc: doc,
-    currentWords: 5,
     set: vi.fn(),
     setShowHistory: vi.fn(),
     load: vi.fn().mockResolvedValue("Y3VycmVudA=="),
