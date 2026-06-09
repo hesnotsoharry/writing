@@ -5,6 +5,7 @@ import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { type MutableRefObject, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as Y from "yjs";
 
 import type { BinderTree } from "../binder/buildTree";
@@ -187,8 +188,8 @@ function useAutoLinkHover() {
 
   function handleMouseOut(e: React.MouseEvent<HTMLDivElement>) {
     const related = e.relatedTarget as HTMLElement | null;
-    // If the mouse moved to a .al-peek child, the peek's own onMouseLeave handles close.
-    if (related?.closest?.(".al-peek")) return;
+    // If the mouse moved to a .al-peek child, cancel the timer and let its own onMouseLeave close.
+    if (related?.closest?.(".al-peek")) { clearLeaveTimer(); return; }
     clearLeaveTimer();
     // Short delay so the mouse can travel from span to card without flickering.
     leaveTimerRef.current = setTimeout(() => {
@@ -302,9 +303,8 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
       <EditorContent editor={editor} className="editor-content-mount" />
       {editor && <FormatBubble editor={editor} />}
       {visible && <SpellCheckPopover {...popoverProps} />}
-      {peek && <AutoLinkPeek entityId={peek.entityId} entityType={peek.entityType}
-        store={storyBibleStore} anchorEl={peek.anchorEl} onOpenEntry={onOpenEntry}
-        onFindMentions={() => handleFind(peek.entityName)} onClose={closePeek} />}
+      {peek && createPortal(<AutoLinkPeek entityId={peek.entityId} entityType={peek.entityType}
+        store={storyBibleStore} anchorEl={peek.anchorEl} onOpenEntry={onOpenEntry} onFindMentions={() => handleFind(peek.entityName)} onClose={closePeek} />, document.body)}
       {alMenu && <ContextMenu menu={alMenu} onClose={() => setAlMenu(null)} />}
       <AlNotice msg={mockNotice} />
     </div>
@@ -314,7 +314,6 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-
 export interface EditorFocusProps {
   /** Whether focus mode is active — enables typewriter scroll + paragraph dimming. */
   focusMode?: boolean;
