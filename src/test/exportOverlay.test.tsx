@@ -329,6 +329,60 @@ describe("ExportOverlay — onSave omitted uses blobDownloadSave fallback", () =
   });
 });
 
+describe("ExportOverlay — chapter context scope gating and empty-content defense", () => {
+  it("does NOT render the Scene option when opened in chapter context (sceneId=null)", async () => {
+    const store = new InMemorySceneDocStore();
+    const folder = makeFolder("f1", "Chapter One", 1000);
+    const tree = buildTree([folder], []);
+    const { container } = render(
+      <ExportOverlay
+        projectId="proj-test"
+        initialScope="chapter"
+        sceneId={null}
+        chapterId="f1"
+        sceneDocStore={store}
+        tree={tree}
+        onClose={() => {}}
+      />
+    );
+    // "Scene" radio must be absent — the target id would be empty
+    const radios = container.querySelectorAll('[role="radio"]');
+    const labels = Array.from(radios).map((el) => el.textContent ?? "");
+    expect(labels.some((l) => l.includes("Scene"))).toBe(false);
+    // "Chapter" and "Whole manuscript" must be present
+    expect(labels.some((l) => l.includes("Chapter"))).toBe(true);
+    expect(labels.some((l) => l.includes("Whole manuscript"))).toBe(true);
+  });
+
+  it("does not call onSave and shows an error when the chapter has no scenes (empty content)", async () => {
+    const user = userEvent.setup();
+    const store = new InMemorySceneDocStore();
+    const folder = makeFolder("f1", "Empty Chapter", 1000);
+    // no scenes — collectBlocks will return []
+    const tree = buildTree([folder], []);
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      <ExportOverlay
+        projectId="proj-test"
+        initialScope="chapter"
+        sceneId={null}
+        chapterId="f1"
+        sceneDocStore={store}
+        tree={tree}
+        onClose={() => {}}
+        onSave={onSave}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+
+    await waitFor(() =>
+      expect(container.querySelector("[role='alert']")).toBeInTheDocument()
+    );
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
 describe("ExportOverlay — cancel / scrim close", () => {
   it("Cancel button calls onClose", async () => {
     const user = userEvent.setup();

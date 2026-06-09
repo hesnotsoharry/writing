@@ -64,8 +64,33 @@ function resolveTargetId(scope: ExportScope, sceneId: string | null, chapterId: 
   return projectId;
 }
 
+/**
+ * Clamps initialScope to one the current context can satisfy.
+ * Falls back: "scene" requires sceneId; "chapter" requires chapterId;
+ * "manuscript" is always valid. If the requested scope's target is absent,
+ * prefer "chapter" (when available), else "manuscript".
+ */
+function resolveInitialScope(
+  initialScope: ExportScope, sceneId: string | null, chapterId: string | null,
+): ExportScope {
+  if (initialScope === "scene" && sceneId !== null) return "scene";
+  if (initialScope === "chapter" && chapterId !== null) return "chapter";
+  if (initialScope === "manuscript") return "manuscript";
+  return chapterId !== null ? "chapter" : "manuscript";
+}
+
+/** Returns the ordered scope options that have a valid target in the current context. */
+function scopeOptions(hasScene: boolean, hasChapter: boolean): ExportScope[] {
+  const opts: ExportScope[] = [];
+  if (hasScene) opts.push("scene");
+  if (hasChapter) opts.push("chapter");
+  opts.push("manuscript");
+  return opts;
+}
+
 async function execExport({ format, scope, targetId, projectId, tree, store, save }: ExecExportOpts): Promise<void> {
   const { blocks, suggestedTitle } = await collectBlocks(scope, targetId, tree, store);
+  if (blocks.length === 0) throw new Error("Nothing to export — the selection contains no content.");
   const title = suggestedTitle || projectId;
   const { data, mime, ext } = await formatFor(format, blocks, title);
   await save(`${title}.${ext}`, data, mime);
@@ -132,6 +157,7 @@ function scopeDesc(
 
 interface ScopePickerProps {
   scope: ExportScope;
+  hasScene: boolean;
   hasChapter: boolean;
   sceneTitle: string | null;
   chapterTitle: string | null;
@@ -139,8 +165,8 @@ interface ScopePickerProps {
   onChange: (s: ExportScope) => void;
 }
 
-function ScopePicker({ scope, hasChapter, sceneTitle, chapterTitle, projectTitle, onChange }: ScopePickerProps): ReactElement {
-  const options: ExportScope[] = hasChapter ? ["scene", "chapter", "manuscript"] : ["scene", "manuscript"];
+function ScopePicker({ scope, hasScene, hasChapter, sceneTitle, chapterTitle, projectTitle, onChange }: ScopePickerProps): ReactElement {
+  const options = scopeOptions(hasScene, hasChapter);
   return (
     <div role="radiogroup" aria-label="Export scope" style={{ marginBottom: 16 }}>
       <label className="field-label">Scope</label>
@@ -172,6 +198,7 @@ function ScopePicker({ scope, hasChapter, sceneTitle, chapterTitle, projectTitle
 interface ExportSheetProps {
   scope: ExportScope;
   onScopeChange: (s: ExportScope) => void;
+  hasScene: boolean;
   hasChapter: boolean;
   sceneTitle: string | null;
   chapterTitle: string | null;
@@ -185,7 +212,7 @@ interface ExportSheetProps {
 }
 
 function ExportSheet({
-  scope, onScopeChange, hasChapter, sceneTitle, chapterTitle, projectTitle,
+  scope, onScopeChange, hasScene, hasChapter, sceneTitle, chapterTitle, projectTitle,
   format, onFormatChange, busy, errorMsg, onClose, onExport,
 }: ExportSheetProps): ReactElement {
   return (
@@ -199,7 +226,7 @@ function ExportSheet({
           <button className="iconbtn sheet-x" type="button" aria-label="Close" onClick={onClose}><Icon name="x" className="ic" /></button>
         </div>
         <div className="sheet-body">
-          <ScopePicker scope={scope} hasChapter={hasChapter}
+          <ScopePicker scope={scope} hasScene={hasScene} hasChapter={hasChapter}
             sceneTitle={sceneTitle} chapterTitle={chapterTitle} projectTitle={projectTitle} onChange={onScopeChange} />
           <FormatPicker format={format} onChange={onFormatChange} />
           {errorMsg !== null && (
@@ -228,7 +255,7 @@ function ExportSheet({
 export function ExportOverlay({
   projectId, initialScope, sceneId, chapterId, projectTitle, sceneDocStore, tree, onClose, onSave,
 }: ExportOverlayProps): ReactElement {
-  const [scope, setScope] = useState<ExportScope>(initialScope);
+  const [scope, setScope] = useState<ExportScope>(() => resolveInitialScope(initialScope, sceneId, chapterId));
   const [format, setFormat] = useState<ExportFormat>("markdown");
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -240,6 +267,7 @@ export function ExportOverlay({
 
   function handleExport(): void {
     if (busyRef.current) return;
+    if (!targetId) { setErrorMsg("Nothing to export for the selected scope."); return; }
     busyRef.current = true;
     setBusy(true);
     setErrorMsg(null);
@@ -258,7 +286,7 @@ export function ExportOverlay({
   return (
     <ExportSheet
       scope={scope} onScopeChange={setScope} format={format} onFormatChange={setFormat}
-      hasChapter={chapterId !== null} sceneTitle={activeScene?.title ?? null}
+      hasScene={sceneId !== null} hasChapter={chapterId !== null} sceneTitle={activeScene?.title ?? null}
       chapterTitle={activeChapter?.folder.title ?? null} projectTitle={projectTitle ?? null}
       busy={busy} errorMsg={errorMsg} onClose={onClose} onExport={handleExport}
     />

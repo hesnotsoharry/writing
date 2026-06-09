@@ -43,7 +43,6 @@ export interface ViewStageCtx {
   onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void;
   onExitEntry: () => void;
-  onRenameEntity: (kind: string, id: string, name: string) => void;
   onDeleteEntity: (kind: string, id: string) => void;
   labelStore: LabelStore;
   labels: Label[];

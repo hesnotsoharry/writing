@@ -216,15 +216,11 @@ function buildSideSlots(p: SideSlotsProps) {
 }
 
 function makeEntityHandlers(store: SqliteStoryBibleStore, onEntitiesChanged: () => void) {
-  // kind is Title-case display form; store takes lowercase entity_type
-  const onRenameEntity = (kind: string, id: string, name: string) =>
-    store.renameEntity(kind.toLowerCase(), id, name)
-      .catch((e: unknown) => console.error("[AppContent] renameEntity failed", e));
   const onDeleteEntity = (kind: string, id: string) =>
     store.deleteEntity(kind.toLowerCase(), id)
       .then(onEntitiesChanged)
       .catch((e: unknown) => console.error("[AppContent] deleteEntity failed", e));
-  return { onRenameEntity, onDeleteEntity };
+  return { onDeleteEntity };
 }
 
 interface ViewStageArgs {
@@ -237,7 +233,7 @@ interface ViewStageArgs {
   entryStack: EntryFrame[]; entryOrigin: "write" | "bible";
   onOpenEntry: (id: string, kind: string) => void; onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void; onExitEntry: () => void;
-  onRenameEntity: (kind: string, id: string, name: string) => void; onDeleteEntity: (kind: string, id: string) => void;
+  onDeleteEntity: (kind: string, id: string) => void;
   labelStore: LabelStore; ls: ReturnType<typeof useLabelState>; onTakeSnapshot?: (sceneId: string) => void; onOpenHistory?: (sceneId: string) => void;
   editorFocus?: { focusMode?: boolean; typewriterOn?: boolean; dimParagraphsOn?: boolean };
   onFindMentions?: (entityName: string) => void;  onRegisterInsert?: (fn: (text: string) => void) => void;
@@ -251,7 +247,7 @@ function makeViewStage(a: ViewStageArgs) {
     dragCallbacks: a.dragCallbacks, onAddGoal: a.onAddGoal, onArchiveScene: a.onArchiveScene,
     onExport: a.onExport, entryStack: a.entryStack, entryOrigin: a.entryOrigin,
     onOpenEntry: a.onOpenEntry, onPushEntry: a.onPushEntry, onEntryBack: a.onEntryBack,
-    onExitEntry: a.onExitEntry, onRenameEntity: a.onRenameEntity, onDeleteEntity: a.onDeleteEntity,
+    onExitEntry: a.onExitEntry, onDeleteEntity: a.onDeleteEntity,
     labelStore: a.labelStore, labels: a.ls.labels, sceneLabels: a.ls.sceneLabels,
     outlinerSort: a.ls.outlinerSort, setOutlinerSort: a.ls.setOutlinerSort,
     outlinerRenaming: a.ls.outlinerRenaming, setOutlinerRenaming: a.ls.setOutlinerRenaming,
@@ -287,14 +283,14 @@ function useAppContentSlots(props: AppContentProps) {
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
     showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot, onInsertAtCaret,
   });
-  const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
+  const { onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };
   // eslint-disable-next-line react-hooks/refs
   const viewStageContent = makeViewStage({
     view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene,
     onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
     onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
-    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls, onTakeSnapshot: callbacks.onTakeSnapshot, onOpenHistory: callbacks.onOpenHistory, editorFocus, onFindMentions, onRegisterInsert,
+    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onDeleteEntity, labelStore, ls, onTakeSnapshot: callbacks.onTakeSnapshot, onOpenHistory: callbacks.onOpenHistory, editorFocus, onFindMentions, onRegisterInsert,
   });
   return {
     focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,
