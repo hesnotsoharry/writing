@@ -19,6 +19,8 @@ export interface MenuItemAction {
   label: string;
   /** Icon name from the shared Icon set. */
   icon?: IconName;
+  /** CSS color string applied to the icon glyph (overrides the default neutral). */
+  iconColor?: string;
   /** A CSS color string rendered as a color swatch (e.g. "#ff0000"). */
   swatch?: string;
   /** Show a checkmark tick on the right side. */
@@ -56,6 +58,21 @@ interface ActionItemProps {
   onClose: () => void;
 }
 
+/** Leading visual for a menu item: color swatch, colored icon glyph, or spacer. */
+function LeadingGlyph({ item }: { item: MenuItemAction }) {
+  if (item.swatch) return <span className="swatch" style={{ background: item.swatch }} />;
+  if (item.icon) {
+    return (
+      <Icon
+        name={item.icon}
+        className="ic"
+        style={item.iconColor ? { color: item.iconColor } : undefined}
+      />
+    );
+  }
+  return <span style={{ width: 15 }} />;
+}
+
 function ActionItem({ item, index, openSub, onOpenSub, onClose }: ActionItemProps) {
   const hasSub = Array.isArray(item.submenu) && item.submenu.length > 0;
 
@@ -71,13 +88,7 @@ function ActionItem({ item, index, openSub, onOpenSub, onClose }: ActionItemProp
       onMouseEnter={() => onOpenSub(hasSub ? index : -1)}
       onClick={handleClick}
     >
-      {item.swatch ? (
-        <span className="swatch" style={{ background: item.swatch }} />
-      ) : item.icon ? (
-        <Icon name={item.icon} className="ic" />
-      ) : (
-        <span style={{ width: 15 }} />
-      )}
+      <LeadingGlyph item={item} />
       <span>{item.label}</span>
       {item.tick && <Icon name="check" className="tick" style={{ width: 15, height: 15 }} />}
       {item.right && <span className="right">{item.right}</span>}

@@ -23,6 +23,7 @@ export function buildStatusItems(
   return STATUS_ORDER.map((s) => ({
     label: STATUS_META[s].label,
     icon: STATUS_META[s].icon as IconName,
+    iconColor: STATUS_META[s].dot,
     tick: s === current,
     onClick: () => onPick(s),
   }));
