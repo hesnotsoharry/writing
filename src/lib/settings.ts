@@ -20,6 +20,13 @@ export const SETTINGS_CHANGED_EVENT = "writing:settings-changed";
 export const GOALS_CHANGED_EVENT = "writing:goals-changed";
 
 /**
+ * Dispatched after any quick-note mutation (create, delete, file/promote) so
+ * components that read from quick_notes (e.g. useQuickCount, useQuickItemsBadge)
+ * can re-fetch without waiting for a project switch.
+ */
+export const QUICK_NOTES_CHANGED_EVENT = "writing:quick-notes-changed";
+
+/**
  * Read a boolean setting from localStorage.
  * Returns `defaultValue` when the key is absent;
  * returns `true` only when the stored string is exactly `"true"`;

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { QuickCapture } from "../features/quickcapture/QuickCapture";
+import { QUICK_NOTES_CHANGED_EVENT } from "../lib/settings";
 
 afterEach(() => {
   cleanup();
@@ -55,10 +56,11 @@ describe("QuickCapture", () => {
     expect(screen.getByText("Capture").closest("button")).toBeDisabled();
   });
 
-  it("calls store.create, setHasQuickItems(true), and onClose after capture", async () => {
+  it("calls store.create, setHasQuickItems(true), dispatches QUICK_NOTES_CHANGED_EVENT, and calls onClose after capture", async () => {
     const store = makeStore();
     const setHasQuickItems = vi.fn();
     const onClose = vi.fn();
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     render(
       <QuickCapture
         onClose={onClose}
@@ -76,8 +78,12 @@ describe("QuickCapture", () => {
     await vi.waitFor(() => {
       expect(store.create).toHaveBeenCalledWith("p1", "my thought");
       expect(setHasQuickItems).toHaveBeenCalledWith(true);
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: QUICK_NOTES_CHANGED_EVENT }),
+      );
       expect(onClose).toHaveBeenCalled();
     });
+    dispatchSpy.mockRestore();
   });
 
   it("Cancel button calls onClose", () => {
@@ -110,11 +116,12 @@ describe("QuickCapture", () => {
     expect(screen.getByText("Capture").closest("button")).toBeDisabled();
   });
 
-  it("failed write keeps dialog open and does not call setHasQuickItems(true)", async () => {
+  it("failed write keeps dialog open, does not call setHasQuickItems(true), and does not dispatch event", async () => {
     const errorStore = { create: vi.fn().mockRejectedValue(new Error("boom")) };
     const setHasQuickItems = vi.fn();
     const onClose = vi.fn();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     render(
       <QuickCapture
         onClose={onClose}
@@ -131,7 +138,11 @@ describe("QuickCapture", () => {
     });
     expect(onClose).not.toHaveBeenCalled();
     expect(setHasQuickItems).not.toHaveBeenCalledWith(true);
+    expect(dispatchSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: QUICK_NOTES_CHANGED_EVENT }),
+    );
     errorSpy.mockRestore();
+    dispatchSpy.mockRestore();
   });
 
   it("double-click calls store.create exactly once due to isSubmitting guard", async () => {

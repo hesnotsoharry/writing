@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useQuickCount } from "../features/quickcapture/useQuickCount";
+import { QUICK_NOTES_CHANGED_EVENT } from "../lib/settings";
+
+afterEach(cleanup);
 
 describe("useQuickCount", () => {
   it("returns 0 initially and then the store count after the async call resolves", async () => {
@@ -71,6 +74,17 @@ describe("useQuickCount", () => {
     await Promise.resolve();
     // State must remain at the initial value — 99 must not have been applied.
     expect(result.current).toBe(0);
+  });
+
+  it("re-fetches countUnfiled and updates count when QUICK_NOTES_CHANGED_EVENT fires", async () => {
+    // Plain function (not vi.fn()) so it never exhausts and always returns a Promise.
+    const cell = { value: 1 };
+    const store = { countUnfiled: () => Promise.resolve(cell.value) };
+    const { result } = renderHook(() => useQuickCount("proj-1", store));
+    await vi.waitFor(() => { expect(result.current).toBe(1); });
+    cell.value = 2;
+    act(() => { window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT)); });
+    await vi.waitFor(() => { expect(result.current).toBe(2); });
   });
 
   it("leaves count unchanged on store error (does not reset to 0)", async () => {

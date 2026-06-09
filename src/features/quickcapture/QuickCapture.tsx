@@ -2,6 +2,8 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "../../components/Icon";
+import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
+import { usePopoverDismiss } from "../../lib/usePopoverDismiss";
 import { SqliteQuickNoteStore } from "./SqliteQuickNoteStore";
 
 const defaultStore = new SqliteQuickNoteStore();
@@ -69,6 +71,7 @@ function useCaptureHandler({
     try {
       await store.create(activeProjectId, val.trim());
       setHasQuickItems(true);
+      window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT));
       onClose();
     } catch (e) {
       console.error("[quickcapture] capture failed", e);
@@ -87,23 +90,25 @@ export function QuickCapture({
   store = defaultStore,
 }: QuickCaptureProps) {
   const [val, setVal] = useState("");
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { ref.current?.focus(); }, []);
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+  usePopoverDismiss(popRef, onClose);
 
   const { canCapture, handleCapture } = useCaptureHandler({
     val, activeProjectId, setHasQuickItems, store, onClose,
   });
 
   return (
-    <div className="qc-pop">
+    <div className="qc-pop" ref={popRef}>
       <div className="qc-head">
         <Icon name="zap" className="ic" />
         <span className="t">Quick capture</span>
         <span className="kbd">⌘K</span>
       </div>
       <textarea
-        ref={ref}
+        ref={textareaRef}
         className="qc-area"
         value={val}
         onChange={(e) => setVal(e.target.value)}

@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useQuickItemsBadge } from "../features/quickcapture/useQuickItemsBadge";
+import { QUICK_NOTES_CHANGED_EVENT } from "../lib/settings";
+
+afterEach(cleanup);
 
 describe("useQuickItemsBadge", () => {
   it("calls setHasQuickItems(true) when countUnfiled resolves > 0", async () => {
@@ -62,6 +65,19 @@ describe("useQuickItemsBadge", () => {
     });
     expect(store.countUnfiled).toHaveBeenCalledWith("A");
     expect(store.countUnfiled).toHaveBeenCalledWith("B");
+  });
+
+  it("re-runs countUnfiled and updates badge when QUICK_NOTES_CHANGED_EVENT fires", async () => {
+    // Use a cell ref so the mock always returns a Promise regardless of how many
+    // times strict-mode double-invoke triggers the effect before the event.
+    const cell = { value: 0 };
+    const store = { countUnfiled: vi.fn().mockImplementation(() => Promise.resolve(cell.value)) };
+    const setHasQuickItems = vi.fn();
+    renderHook(() => useQuickItemsBadge("proj-1", setHasQuickItems, store));
+    await vi.waitFor(() => { expect(setHasQuickItems).toHaveBeenCalledWith(false); });
+    cell.value = 1;
+    act(() => { window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT)); });
+    await vi.waitFor(() => { expect(setHasQuickItems).toHaveBeenCalledWith(true); });
   });
 
   it("does not call setHasQuickItems after unmount (cancelled flag guard)", async () => {

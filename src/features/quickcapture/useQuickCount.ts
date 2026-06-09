@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
 import { SqliteQuickNoteStore } from "./SqliteQuickNoteStore";
 
 const defaultStore = new SqliteQuickNoteStore();
@@ -47,6 +48,20 @@ export function useQuickCount(
     return () => {
       cancelled = true;
     };
+  }, [activeProjectId, store]);
+
+  // Re-fetch whenever a quick-note mutation fires (create / delete / promote).
+  // Handler is re-registered on activeProjectId/store change to avoid stale closures.
+  useEffect(() => {
+    if (activeProjectId === null) return;
+    const h = () => {
+      store
+        .countUnfiled(activeProjectId)
+        .then((n) => { setState({ projectId: activeProjectId, count: n }); })
+        .catch(() => {});
+    };
+    window.addEventListener(QUICK_NOTES_CHANGED_EVENT, h);
+    return () => { window.removeEventListener(QUICK_NOTES_CHANGED_EVENT, h); };
   }, [activeProjectId, store]);
 
   return state.count;

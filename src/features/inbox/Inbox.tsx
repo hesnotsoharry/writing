@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
 import { SqliteSceneDocStore } from "../../db/sqliteSceneDocStore";
+import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
 import { promoteNoteToScene } from "../quickcapture/promoteNoteToScene";
 import type { QuickNote, SqliteQuickNoteStore } from "../quickcapture/SqliteQuickNoteStore";
 import { SqliteQuickNoteStore as DefaultStore } from "../quickcapture/SqliteQuickNoteStore";
@@ -162,6 +163,7 @@ function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectiveProm
         setHasQuickItems(remaining.length > 0);
         return remaining;
       });
+      window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT));
     } catch (e) { console.error("[inbox] delete failed", e); }
   }
 
@@ -173,6 +175,7 @@ function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectiveProm
         setHasQuickItems(remaining.length > 0);
         return remaining;
       });
+      window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT));
     } catch (e) { console.error("[inbox] promote failed", e); }
   }
 

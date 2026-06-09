@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 
 import { getSpeller } from "../lib/dictionary";
 import type { GrammarSuggestion } from "../lib/ipc";
+import { usePopoverDismiss } from "../lib/usePopoverDismiss";
 import type { ProofreadDecoSpec } from "./extensions/ProofreadExtension";
 import { proofreadKey } from "./extensions/ProofreadExtension";
 
@@ -32,29 +33,6 @@ interface PopoverState {
 // ---------------------------------------------------------------------------
 // Presentational component
 // ---------------------------------------------------------------------------
-
-/**
- * Attaches listeners for Escape and click-outside to close the popover.
- */
-function usePopoverDismiss(
-  ref: React.RefObject<HTMLDivElement | null>,
-  onClose: () => void
-): void {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent): void {
-      if (e.key === "Escape") onClose();
-    }
-    function onPointer(e: MouseEvent): void {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
-    };
-  }, [onClose, ref]);
-}
 
 /**
  * Closes the popover when the document changes — captured from/to go stale the

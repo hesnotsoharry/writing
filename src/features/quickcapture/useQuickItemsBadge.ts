@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
+import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
 import { SqliteQuickNoteStore } from "./SqliteQuickNoteStore";
 
 const defaultStore = new SqliteQuickNoteStore();
@@ -10,6 +11,15 @@ export function useQuickItemsBadge(
   setHasQuickItems: Dispatch<SetStateAction<boolean>>,
   store: Pick<SqliteQuickNoteStore, "countUnfiled"> = defaultStore,
 ): void {
+  const [version, setVersion] = useState(0);
+
+  // Re-fetch whenever a quick-note mutation fires (create / delete / promote).
+  useEffect(() => {
+    const h = () => { setVersion((v) => v + 1); };
+    window.addEventListener(QUICK_NOTES_CHANGED_EVENT, h);
+    return () => { window.removeEventListener(QUICK_NOTES_CHANGED_EVENT, h); };
+  }, []);
+
   useEffect(() => {
     if (activeProjectId === null) {
       setHasQuickItems(false);
@@ -27,5 +37,5 @@ export function useQuickItemsBadge(
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, setHasQuickItems, store]);
+  }, [activeProjectId, setHasQuickItems, store, version]);
 }
