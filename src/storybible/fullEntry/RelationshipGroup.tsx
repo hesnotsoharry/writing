@@ -221,6 +221,9 @@ function RelationshipGroupInner({ entityId, projectId, entityType, store, onPush
   connectedIds.delete(entityId);
   const candidates = allEntities.filter((e) => e.id !== entityId && !connectedIds.has(e.id));
 
+  // Only show outgoing side of reciprocal pairs; non-reciprocal relations always show.
+  const visibleRelations = relations.filter((rel) => rel.reciprocalId === null || rel.fromEntity === entityId);
+
   async function handleAdd(targetId: string, label: string, inv: string | undefined) {
     await store.addRelation(projectId, { fromEntity: entityId, toEntity: targetId, label, reciprocalLabel: inv });
     setAdding(false); refresh(); onMutation?.();
@@ -231,12 +234,12 @@ function RelationshipGroupInner({ entityId, projectId, entityType, store, onPush
   return (
     <div className="insp-group">
       <div className="insp-label"><Icon name="arrowRight" className="ic" /> Relationships</div>
-      {relations.length === 0 && !adding && (
+      {visibleRelations.length === 0 && !adding && (
         <div className="empty-hint" style={{ padding: "8px 0", fontSize: "var(--text-sm)", color: "var(--ink-4)", fontStyle: "italic" }}>
           Link a character or location…
         </div>
       )}
-      {relations.map((rel) => {
+      {visibleRelations.map((rel) => {
         const peerId = rel.fromEntity === entityId ? rel.toEntity : rel.fromEntity;
         return (
           <RelationChip key={rel.id} relation={rel} targetEntity={entityMap.get(peerId)}

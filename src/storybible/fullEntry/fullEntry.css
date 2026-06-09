@@ -207,7 +207,7 @@
 .fe-fact-del {
   display: inline-flex; align-items: center; justify-content: center;
   width: 16px; height: 16px; border-radius: var(--r-xs); flex: none;
-  color: var(--ink-4); opacity: 0;
+  color: var(--ink-4); opacity: 0.45;
   transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
 }
 .fe-fact:hover .fe-fact-del { opacity: 1; }
