@@ -1,3 +1,4 @@
+import type { Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useState } from "react";
 
 import { Icon } from "../../components/Icon";
@@ -22,6 +23,8 @@ export interface SettingsProps {
   setTheme: (t: Theme) => void;
   setAccent: (a: AccentPalette) => void;
   onOpenGoals?: () => void;
+  /** Called when a pending update is found so the App-level modal can be shown. */
+  onUpdateFound?: (update: Update) => void;
 }
 
 // ── Nav definition ────────────────────────────────────────────────────────────
@@ -76,6 +79,7 @@ interface SettingsState {
 function useSettingsState(
   setThemeProp: (t: Theme) => void,
   setAccentProp: (a: AccentPalette) => void,
+  onUpdateFoundProp?: (update: Update) => void,
 ): SettingsState {
   const [sec, setSec] = useState<SectionId>("appearance");
   const { tweaks, setTweak } = useSettings();
@@ -100,11 +104,11 @@ function useSettingsState(
   function onCheckUpdates() {
     if (isCheckingUpdates) return;
     setIsCheckingUpdates(true);
-    void runUpdateCheck().then((status) => {
+    void runUpdateCheck(onUpdateFoundProp).then((status) => {
       setIsCheckingUpdates(false);
       if (status === "upToDate") showToast("You're up to date!");
       if (status === "checkError") showToast("Couldn't check for updates.");
-      if (status === "installError") showToast("Update found, but it couldn't be installed.");
+      // "found": modal shown via onUpdateFoundProp. "installError": now modal-owned.
     });
   }
 
@@ -169,8 +173,8 @@ function SectionRouter({ sec, tweaks, setTweak, theme, accent, onThemeChange, on
 
 // ── Settings root export ──────────────────────────────────────────────────────
 
-export function Settings({ onClose, setTheme, setAccent, onOpenGoals }: SettingsProps) {
-  const { sec, setSec, tweaks, setTweak, theme, accent, toast, handleTheme, handleAccent, showToast, isCheckingUpdates, onCheckUpdates } = useSettingsState(setTheme, setAccent);
+export function Settings({ onClose, setTheme, setAccent, onOpenGoals, onUpdateFound }: SettingsProps) {
+  const { sec, setSec, tweaks, setTweak, theme, accent, toast, handleTheme, handleAccent, showToast, isCheckingUpdates, onCheckUpdates } = useSettingsState(setTheme, setAccent, onUpdateFound);
 
   function handleGoals() {
     if (onOpenGoals) { onOpenGoals(); } else { showToast("Open Writing Goals from the toolbar"); }

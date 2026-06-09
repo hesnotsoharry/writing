@@ -1,6 +1,19 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Hoist mocks so they exist when the vi.mock factory functions run.
+const { mockCheck } = vi.hoisted(() => ({
+  mockCheck: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/plugin-updater", () => ({
+  check: mockCheck,
+}));
+
+vi.mock("@tauri-apps/plugin-process", () => ({
+  relaunch: vi.fn(),
+}));
 
 import { Settings } from "../features/settings/Settings";
 import { getTweak, SPELLCHECK_KEY } from "../features/settings/settings.store";
@@ -8,6 +21,7 @@ import { getTweak, SPELLCHECK_KEY } from "../features/settings/settings.store";
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  vi.clearAllMocks();
 });
 
 const baseProps = {
@@ -134,5 +148,33 @@ describe("Settings", () => {
     expect(scrim).toBeTruthy();
     fireEvent.click(scrim);
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("Settings — Check for updates flow", () => {
+  it("shows 'You're up to date!' toast when check() resolves null", async () => {
+    mockCheck.mockResolvedValue(null);
+    render(<Settings {...baseProps} />);
+    fireEvent.click(screen.getByText("About"));
+    fireEvent.click(screen.getByText("Check for updates"));
+    await waitFor(() => expect(screen.getByText("You're up to date!")).toBeTruthy());
+  });
+
+  it("shows error toast when check() rejects", async () => {
+    mockCheck.mockRejectedValue(new Error("network"));
+    render(<Settings {...baseProps} />);
+    fireEvent.click(screen.getByText("About"));
+    fireEvent.click(screen.getByText("Check for updates"));
+    await waitFor(() => expect(screen.getByText("Couldn't check for updates.")).toBeTruthy());
+  });
+
+  it("calls onUpdateFound with the Update object when an update is available", async () => {
+    const fakeUpdate = { version: "9.9.9", downloadAndInstall: vi.fn() };
+    mockCheck.mockResolvedValue(fakeUpdate);
+    const onUpdateFound = vi.fn();
+    render(<Settings {...baseProps} onUpdateFound={onUpdateFound} />);
+    fireEvent.click(screen.getByText("About"));
+    fireEvent.click(screen.getByText("Check for updates"));
+    await waitFor(() => expect(onUpdateFound).toHaveBeenCalledWith(fakeUpdate));
   });
 });

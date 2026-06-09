@@ -254,8 +254,8 @@ function useSnapshotState(
 }
 
 function useAppCore() {
-  useStartupUpdateCheck();
   const state = useAppState();
+  useStartupUpdateCheck((u) => state.setPendingUpdate(u));
   const { setTheme, setAccent } = useTheme();
   const wiring = useAppWiring(state);
   const { doc, selectedSceneId, showHistory, historySceneId } = state;
@@ -280,7 +280,7 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
     showHistory, setShowHistory, historySceneId, bumpArchivedVersion,
-    showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed, activeProjectId, projects } = state;
+    showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed, activeProjectId, projects, pendingUpdate, setPendingUpdate, appInstallError, setAppInstallError } = state;
   const { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords } = snap;
   const histTitle = historySceneId ? (sceneTitle(historySceneId) || sceneTitle(state.selectedSceneId)) : sceneTitle(state.selectedSceneId);
   return {
@@ -304,7 +304,7 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     findReplaceProjectId: activeProjectId, findReplaceSnapshotStore: snapshotStore,
     onFindReplaceJump: wiring.handleSelectScene,
     onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null), (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }),
-    onAfterReplace: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); },
+    onAfterReplace: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }, pendingUpdate, setPendingUpdate, appInstallError, setAppInstallError,
   };
 }
 

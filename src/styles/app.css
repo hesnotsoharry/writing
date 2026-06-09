@@ -1386,3 +1386,28 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .vh-empty .ic { width: 34px; height: 34px; color: var(--ink-4); }
 .vh-empty .t { font-size: 15px; font-weight: var(--w-semi); color: var(--ink-2); }
 .vh-empty .s { font-size: 13px; max-width: 280px; line-height: 1.5; }
+
+/* ============================================================================
+   Update modal (app-styled update-available overlay).
+   Reuses .scrim/.sheet/.sheet-head/.sheet-foot/.btn from the shared overlay kit.
+   ========================================================================== */
+
+.upd-sheet { width: 400px; max-width: 90vw; }
+.upd-body {
+  padding: var(--s-5); min-height: 56px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.upd-note { font-size: var(--text-sm); color: var(--ink-3); margin: 0; }
+.upd-bar-track {
+  height: 6px; border-radius: 3px;
+  background: var(--parchment-deep); overflow: hidden;
+}
+.upd-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: var(--accent); transition: width 0.2s ease;
+}
+@keyframes upd-slide {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(350%);  }
+}
+.upd-bar-indeterminate { width: 30%; animation: upd-slide 1.2s ease-in-out infinite; }

@@ -4,7 +4,8 @@
  * Each overlay receives only the props its stub currently declares; the full
  * contracts are filled by future feature lanes (wave-12 through wave-18).
  */
-import type { Dispatch, ReactElement, SetStateAction } from "react";
+import type { Update } from "@tauri-apps/plugin-updater";
+import { type Dispatch, type ReactElement, type SetStateAction,useEffect } from "react";
 
 import type { BinderTree } from "./binder/buildTree";
 import type { BinderStore } from "./db/binderStore";
@@ -20,6 +21,7 @@ import { Goals } from "./features/goals/Goals";
 import { Inbox } from "./features/inbox/Inbox";
 import { QuickCapture } from "./features/quickcapture/QuickCapture";
 import { Settings } from "./features/settings/Settings";
+import { UpdateModal } from "./features/updater/UpdateModal";
 import { VersionHistory } from "./storybible/VersionHistory";
 import type { AccentPalette, Theme } from "./theme/useTheme";
 
@@ -91,6 +93,13 @@ export interface OverlayStackProps {
   onAfterReplace?: (sceneId: string) => void;
   /** Prefill seed passed to FindReplace on open from "Find mentions". Empty string = normal open. */
   findReplaceSeed?: string;
+  // ── Update modal ─────────────────────────────────────────────────────────────
+  /** Non-null when a pending update is waiting for user action. */
+  pendingUpdate: Update | null;
+  setPendingUpdate: (u: Update | null) => void;
+  /** Non-null when a download/install error has occurred; auto-clears after 2.4 s. */
+  appInstallError: string | null;
+  setAppInstallError: (msg: string | null) => void;
 }
 
 type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
@@ -129,13 +138,63 @@ function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
       )}
       {p.showSettings && (
         <Settings onClose={() => p.setShowSettings(false)} setTheme={p.setTheme} setAccent={p.setAccent}
-          onOpenGoals={() => { p.setShowSettings(false); p.setShowGoals(true); }} />
+          onOpenGoals={() => { p.setShowSettings(false); p.setShowGoals(true); }}
+          onUpdateFound={(u) => p.setPendingUpdate(u)} />
       )}
     </>
   );
 }
 
+// ── App-level install error toast ─────────────────────────────────────────────
+
+interface AppInstallErrorToastProps {
+  msg: string | null;
+  onClose: () => void;
+}
+
+function AppInstallErrorToast({ msg, onClose }: AppInstallErrorToastProps) {
+  useEffect(() => {
+    if (!msg) return;
+    const id = setTimeout(onClose, 2400);
+    return () => clearTimeout(id);
+  }, [msg, onClose]);
+  if (!msg) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: 32, left: "50%", transform: "translateX(-50%)",
+      background: "var(--ink)", color: "var(--paper)", padding: "8px 20px",
+      borderRadius: 8, fontSize: "var(--text-sm)", pointerEvents: "none", zIndex: 9999,
+    }}>
+      {msg}
+    </div>
+  );
+}
+
+// ── Update layer (modal + error toast) ────────────────────────────────────────
+
+interface UpdateLayerProps {
+  pendingUpdate: Update | null;
+  onDismiss: () => void;
+  onInstallError: () => void;
+  appInstallError: string | null;
+  onClearError: () => void;
+}
+
+function UpdateLayer({ pendingUpdate, onDismiss, onInstallError, appInstallError, onClearError }: UpdateLayerProps) {
+  return (
+    <>
+      {pendingUpdate && (
+        <UpdateModal update={pendingUpdate} onDismiss={onDismiss} onInstallError={onInstallError} />
+      )}
+      <AppInstallErrorToast msg={appInstallError} onClose={onClearError} />
+    </>
+  );
+}
+
+// ── OverlayStack ──────────────────────────────────────────────────────────────
+
 export function OverlayStack(p: OverlayStackAllProps): ReactElement {
+  const installErrorMsg = "Update found, but it couldn't be installed.";
   return (
     <>
       <FeatureOverlays {...p} />
@@ -158,6 +217,13 @@ export function OverlayStack(p: OverlayStackAllProps): ReactElement {
           onAfterReplace={p.onAfterReplace}
         />
       )}
+      <UpdateLayer
+        pendingUpdate={p.pendingUpdate}
+        onDismiss={() => p.setPendingUpdate(null)}
+        onInstallError={() => p.setAppInstallError(installErrorMsg)}
+        appInstallError={p.appInstallError}
+        onClearError={() => p.setAppInstallError(null)}
+      />
     </>
   );
 }

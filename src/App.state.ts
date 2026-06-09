@@ -2,6 +2,7 @@
  * Extracted state hooks for App.tsx.
  * Kept separate so App.tsx stays under the 300-line ESLint limit.
  */
+import type { Update } from "@tauri-apps/plugin-updater";
 import type { MutableRefObject } from "react";
 import { useRef, useState } from "react";
 import * as Y from "yjs";
@@ -101,6 +102,8 @@ function useModalFlags() {
   const [historySceneId, setHistorySceneId] = useState<string | null>(null);
   const [showFindReplace, setShowFindReplace] = useState(false);
   const [findReplaceSeed, setFindReplaceSeed] = useState("");
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [appInstallError, setAppInstallError] = useState<string | null>(null);
   return {
     showQuickCapture, setShowQuickCapture,
     showInbox, setShowInbox,
@@ -117,6 +120,8 @@ function useModalFlags() {
     historySceneId, setHistorySceneId,
     showFindReplace, setShowFindReplace,
     findReplaceSeed, setFindReplaceSeed,
+    pendingUpdate, setPendingUpdate,
+    appInstallError, setAppInstallError,
   };
 }
 
