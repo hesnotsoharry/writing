@@ -3,17 +3,25 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef } from "react";
 
-export type UpdateCheckResult = "upToDate" | "found" | "error";
+export type UpdateCheckResult = "upToDate" | "found" | "checkError" | "installError";
 
 /**
  * Check for an app update. If one is available, ask the user and install.
- * Never throws — all errors are caught and returned as "error".
- * Safe to call in non-Tauri contexts: check() throwing is caught.
+ * Never throws — errors are caught and returned, with the failing stage kept
+ * distinct ("checkError" vs "installError") so the UI doesn't report an
+ * install-stage failure as "couldn't check" (which hid the v0.2.2
+ * dialog:allow-ask permission bug). Safe to call in non-Tauri contexts.
  */
 export async function runUpdateCheck(): Promise<UpdateCheckResult> {
+  let update;
   try {
-    const update = await check();
-    if (!update) return "upToDate";
+    update = await check();
+  } catch (err) {
+    console.error("[updater] check failed", err);
+    return "checkError";
+  }
+  if (!update) return "upToDate";
+  try {
     const label = update.version ?? "a newer version";
     const yes = await ask(
       `Version ${label} is available. Install and restart now?`,
@@ -25,8 +33,8 @@ export async function runUpdateCheck(): Promise<UpdateCheckResult> {
     }
     return "found";
   } catch (err) {
-    console.error("[updater] check failed", err);
-    return "error";
+    console.error("[updater] prompt/install failed", err);
+    return "installError";
   }
 }
 

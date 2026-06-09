@@ -103,7 +103,8 @@ function useSettingsState(
     void runUpdateCheck().then((status) => {
       setIsCheckingUpdates(false);
       if (status === "upToDate") showToast("You're up to date!");
-      if (status === "error") showToast("Couldn't check for updates.");
+      if (status === "checkError") showToast("Couldn't check for updates.");
+      if (status === "installError") showToast("Update found, but it couldn't be installed.");
     });
   }
 
