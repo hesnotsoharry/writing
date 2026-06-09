@@ -67,11 +67,10 @@ const noop = () => {};
 
 /**
  * Collapse action icons into an overflow menu below this titlebar pixel-width.
- * Estimated from: brand(≈38) + view-switch(≈300) + full-actions(≈310) +
- * wbtns(94) + gaps/padding(≈50) ≈ 792px; threshold is set ~30px below that.
- * Adjust visually if the transition point looks off at the target screen size.
+ * Measured at runtime: overlap observed at 795px (ViewSwitch right edge ~380px,
+ * actions bar starts ~358px), clean fit at ≥820px, 840 leaves safe margin.
  */
-const ACTIONS_COLLAPSE_WIDTH = 760;
+const ACTIONS_COLLAPSE_WIDTH = 840;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -145,7 +144,7 @@ function ViewSwitch({ view, onViewChange }: Pick<TitleBarProps, "view" | "onView
   // "entry" is a story-bible drill-down; both views keep the Story Bible button lit.
   const inBibleArea = view === "bible" || view === "entry";
   return (
-    <div className="segmented">
+    <div className="segmented" data-tauri-drag-region>
       <button
         className={view === "editor" ? "on" : ""}
         aria-pressed={view === "editor"}
@@ -181,7 +180,7 @@ function TitleBarActions({
 }: ActionBarProps): ReactElement {
   const accent = { color: "var(--accent)" };
   return (
-    <div className="tb-actions">
+    <div className="tb-actions" data-tauri-drag-region>
       <button className="iconbtn" title="Find &amp; replace  ⌘F" aria-label="Find and replace" onClick={onOpenFind}>
         <Icon name="search" className="ic" style={showFindReplace ? accent : undefined} />
       </button>
@@ -224,7 +223,7 @@ function CollapsedActionsBar(p: ActionBarProps): ReactElement {
     setMenu({ x, y: bottom + 4, items: buildOverflowMenuItems(p) });
   };
   return (
-    <div className="tb-actions">
+    <div className="tb-actions" data-tauri-drag-region>
       <button className="iconbtn" title="Actions" aria-label="Actions menu" onClick={open}>
         <Icon name="moreH" className="ic" />
       </button>
@@ -256,19 +255,19 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   const ap = makeActionBarProps(props);
   return (
     <div className="titlebar" ref={barRef} data-tauri-drag-region>
-      <div className="tb-left">
-        <div className="brand">
+      <div className="tb-left" data-tauri-drag-region>
+        <div className="brand" data-tauri-drag-region>
           {/* Theme-aware logo — replaces the former feather + "Writers Nook" wordmark. */}
-          <img className="logo-light" src={lightLogo} alt="Writers Nook" />
-          <img className="logo-dark" src={darkLogo} alt="Writers Nook" />
+          <img className="logo-light" src={lightLogo} alt="Writers Nook" data-tauri-drag-region />
+          <img className="logo-dark" src={darkLogo} alt="Writers Nook" data-tauri-drag-region />
         </div>
-        <div className="tb-divider" />
+        <div className="tb-divider" data-tauri-drag-region />
         <ViewSwitch view={view} onViewChange={onViewChange} />
       </div>
-      {docName !== undefined && <div className="doc-name">{docName}</div>}
+      {docName !== undefined && <div className="doc-name" data-tauri-drag-region>{docName}</div>}
       {collapsed ? <CollapsedActionsBar {...ap} /> : <TitleBarActions {...ap} />}
-      <div className="tb-divider" />
-      <div className="wbtns"><WindowControls /></div>
+      <div className="tb-divider" data-tauri-drag-region />
+      <div className="wbtns" data-tauri-drag-region><WindowControls /></div>
     </div>
   );
 }

@@ -18,7 +18,7 @@ export function WindowControls(): ReactElement {
   // render time — avoids a crash when `window.__TAURI_INTERNALS__` is absent
   // (jsdom test environment, hot-reload before Tauri context is ready).
   return (
-    <div style={{ display: "flex", gap: 2 }}>
+    <div style={{ display: "flex", gap: 2 }} data-tauri-drag-region>
       {/* Using canon .wbtn CSS class so hover states (including .wbtn.close:hover
           clay treatment) are driven by app.css rather than inline styles. */}
       <button className="wbtn" aria-label="Minimize"
