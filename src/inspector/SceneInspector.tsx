@@ -65,6 +65,7 @@ function useSceneEntities(
 interface PickerArgs {
   entityType: EntityType; projectId: string;
   sceneId: string | null; store: StoryBibleStore; onLinked: () => void;
+  onInsertAtCaret?: (name: string) => void;
 }
 
 interface PickerInlineState {
@@ -75,7 +76,7 @@ interface PickerInlineState {
 }
 
 function useEntityPickerInline(args: PickerArgs): PickerInlineState {
-  const { entityType, projectId, sceneId, store, onLinked } = args;
+  const { entityType, projectId, sceneId, store, onLinked, onInsertAtCaret } = args;
   const [picking, setPicking] = useState(false);
   const [candidates, setCandidates] = useState<Entity[]>([]);
 
@@ -102,6 +103,7 @@ function useEntityPickerInline(args: PickerArgs): PickerInlineState {
       const links = await store.loadSceneLinks(sceneId);
       await store.replaceSceneLinks(sceneId, [...links, { entityType, entityId: en.id }]);
       onLinked();
+      onInsertAtCaret?.(en.name);
       setPicking(false);
     } catch (err: unknown) {
       console.error("[SceneInspector] link entity failed", err);
@@ -144,14 +146,15 @@ interface EntityGroupProps {
   store: StoryBibleStore; onLinked: () => void;
   /** Called after a new entity is created and linked, or when an existing card is clicked. */
   onOpenEntry?: (entityId: string, type: EntityType) => void;
+  onInsertAtCaret?: (name: string) => void;
 }
 
 function EntityGroup({
   iconName, label, entities, ready, emptyHint, linkLabel,
-  entityType, projectId, sceneId, store, onLinked, onOpenEntry,
+  entityType, projectId, sceneId, store, onLinked, onOpenEntry, onInsertAtCaret,
 }: EntityGroupProps) {
   const { picking, candidates, beginPick, handlePick, closePicker } =
-    useEntityPickerInline({ entityType, projectId, sceneId, store, onLinked });
+    useEntityPickerInline({ entityType, projectId, sceneId, store, onLinked, onInsertAtCaret });
   const handleCreate = useEntityCreate({ entityType, projectId, sceneId, store, onLinked, onOpenEntry });
   return (
     <div className="insp-group">
@@ -231,23 +234,26 @@ export interface SceneInspectorProps {
   onOpenHistory?: () => void;
   /** Take a snapshot from the history rail + button. */
   onTakeSnapshot?: () => void;
+  /** Called after an entity is linked via the picker — inserts the entity name at the editor caret. */
+  onInsertAtCaret?: (name: string) => void;
 }
 
-function EntityGroups({ store, projectId, sceneId, characters, locations, ready, bump, onOpenEntry }: {
+function EntityGroups({ store, projectId, sceneId, characters, locations, ready, bump, onOpenEntry, onInsertAtCaret }: {
   store: StoryBibleStore; projectId: string; sceneId: string | null;
   characters: Entity[]; locations: Entity[]; ready: boolean; bump: () => void;
   onOpenEntry?: (entityId: string, type: EntityType) => void;
+  onInsertAtCaret?: (name: string) => void;
 }) {
   return (
     <>
       <EntityGroup iconName="users" label="Characters in scene" entities={characters} ready={ready}
         emptyHint="No characters linked yet." linkLabel="Link a character"
         entityType="character" projectId={projectId} sceneId={sceneId} store={store}
-        onLinked={bump} onOpenEntry={onOpenEntry} />
+        onLinked={bump} onOpenEntry={onOpenEntry} onInsertAtCaret={onInsertAtCaret} />
       <EntityGroup iconName="mapPin" label="Locations in scene" entities={locations} ready={ready}
         emptyHint="No locations linked yet." linkLabel="Link a location"
         entityType="location" projectId={projectId} sceneId={sceneId} store={store}
-        onLinked={bump} onOpenEntry={onOpenEntry} />
+        onLinked={bump} onOpenEntry={onOpenEntry} onInsertAtCaret={onInsertAtCaret} />
     </>
   );
 }
@@ -255,7 +261,7 @@ function EntityGroups({ store, projectId, sceneId, characters, locations, ready,
 export function SceneInspector({
   store, projectId, sceneId, scene, refreshKey, liveWordCount, onOpenEntry,
   manuscriptTotal: manuscriptTotalProp, chapterTotal, chapterId,
-  onGoalMenu, historySnapshots, onOpenHistory, onTakeSnapshot,
+  onGoalMenu, historySnapshots, onOpenHistory, onTakeSnapshot, onInsertAtCaret,
 }: SceneInspectorProps) {
   const [localRev, setLocalRev] = useState(0);
   const effectiveDep = (refreshKey ?? 0) + localRev;
@@ -278,7 +284,7 @@ export function SceneInspector({
         )}
         <EntityGroups store={store} projectId={projectId} sceneId={sceneId}
           characters={characters} locations={locations} ready={ready}
-          bump={bump} onOpenEntry={onOpenEntry} />
+          bump={bump} onOpenEntry={onOpenEntry} onInsertAtCaret={onInsertAtCaret} />
         <HistoryRail snapshots={historySnapshots ?? []} currentWords={liveWordCount}
           onOpenAll={onOpenHistory} onCapture={onTakeSnapshot} />
       </div>

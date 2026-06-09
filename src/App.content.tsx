@@ -7,7 +7,7 @@
  * App.content.viewstage.tsx. EditorPane lives in App.content.editor.tsx.
  */
 import type { Dispatch, SetStateAction } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Y from "yjs";
 
 import { buildViewStage } from "./App.content.viewstage";
@@ -186,7 +186,7 @@ interface SideSlotsProps {
   onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
   showSidePanels: boolean; view: AppView;
   onOpenEntry: (id: string, kind: string) => void;
-  historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
+  historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;  onInsertAtCaret?: (name: string) => void;
 }
 
 function buildSideSlots(p: SideSlotsProps) {
@@ -206,6 +206,7 @@ function buildSideSlots(p: SideSlotsProps) {
         chapterId={p.chapterId} chapterTotal={p.chapterTotal}
         historySnapshots={p.historySnapshots} onOpenHistory={p.onOpenHistory}
         onTakeSnapshot={p.onTakeSnapshot} onGoalMenu={p.onGoalMenu}
+        onInsertAtCaret={p.onInsertAtCaret}
         onOpenEntry={(entityId, type) => {
           const kind = type === "character" ? "Character" : type === "location" ? "Location" : type.charAt(0).toUpperCase() + type.slice(1);
           p.onOpenEntry(entityId, kind);
@@ -239,7 +240,7 @@ interface ViewStageArgs {
   onRenameEntity: (kind: string, id: string, name: string) => void; onDeleteEntity: (kind: string, id: string) => void;
   labelStore: LabelStore; ls: ReturnType<typeof useLabelState>;
   editorFocus?: { focusMode?: boolean; typewriterOn?: boolean; dimParagraphsOn?: boolean };
-  onFindMentions?: (entityName: string) => void;
+  onFindMentions?: (entityName: string) => void;  onRegisterInsert?: (fn: (text: string) => void) => void;
 }
 
 function makeViewStage(a: ViewStageArgs) {
@@ -254,7 +255,7 @@ function makeViewStage(a: ViewStageArgs) {
     labelStore: a.labelStore, labels: a.ls.labels, sceneLabels: a.ls.sceneLabels,
     outlinerSort: a.ls.outlinerSort, setOutlinerSort: a.ls.setOutlinerSort,
     outlinerRenaming: a.ls.outlinerRenaming, setOutlinerRenaming: a.ls.setOutlinerRenaming,
-    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, editorFocus: a.editorFocus, onFindMentions: a.onFindMentions,
+    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, editorFocus: a.editorFocus, onFindMentions: a.onFindMentions, onRegisterInsert: a.onRegisterInsert,
   });
 }
 
@@ -277,21 +278,23 @@ function useAppContentSlots(props: AppContentProps) {
   const focusSettingsHook = useFocusSettings();
   const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };  const onExport = (scope: "scene" | "chapter", id: string) => { setExportTarget(scope, id); setShowExport(true); };
   const { menu: goalMenu, openGoalMenu, closeGoalMenu, editGoalId, setEditGoalId } = useGoalMenu(setShowGoals);
-  const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";
+  const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";  const insertAtCaretRef = useRef<((text: string) => void) | null>(null);  const onRegisterInsert = useCallback((fn: (text: string) => void) => { insertAtCaretRef.current = fn; }, []);  const onInsertAtCaret = useCallback((name: string) => { insertAtCaretRef.current?.(name); }, []);
+  // eslint-disable-next-line react-hooks/refs
   const { binderSlot, inspectorSlot } = buildSideSlots({
     tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
-    showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
+    showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot, onInsertAtCaret,
   });
   const { onRenameEntity, onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };
+  // eslint-disable-next-line react-hooks/refs
   const viewStageContent = makeViewStage({
     view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene,
     onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
     onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
-    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls, editorFocus, onFindMentions,
+    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls, editorFocus, onFindMentions, onRegisterInsert,
   });
   return {
     focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,

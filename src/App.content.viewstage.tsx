@@ -58,6 +58,8 @@ export interface ViewStageCtx {
   editorFocus?: EditorFocusProps;
   /** Opens Find & Replace with the given entity name prefilled. */
   onFindMentions?: (entityName: string) => void;
+  /** Registers the editor inserter fn so the inspector can insert entity names at caret. */
+  onRegisterInsert?: (fn: (text: string) => void) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,5 +203,5 @@ export function buildViewStage(
   return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
     storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion}
     onOpenEntry={ctx.onOpenEntry} activeProjectId={activeProjectId}
-    onFindMentions={ctx.onFindMentions} {...(ctx.editorFocus ?? {})} />;
+    onFindMentions={ctx.onFindMentions} onRegisterInsert={ctx.onRegisterInsert} {...(ctx.editorFocus ?? {})} />;
 }

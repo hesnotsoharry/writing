@@ -335,10 +335,8 @@ interface EditorProps extends EditorFocusProps {
   captureProseRef: MutableRefObject<() => string>;
   /** Called when the user clicks "Open entry" in the AutoLinkPeek card. */
   onOpenEntry?: (id: string, kind: string) => void;
-  /** Called when the user picks "Find mentions" on an auto-linked span — lead wires it to open Find & Replace prefilled with the entity name. */
-  onFindMentions?: (entityName: string) => void;
-  /** Active project id — used to load entities for the AutoLink index. */
-  activeProjectId?: string | null;
+  /** Find-mentions callback (opens Find & Replace); active project id for the AutoLink index; insert-at-caret registration fn. */
+  onFindMentions?: (entityName: string) => void;  activeProjectId?: string | null;  onRegisterInsert?: (fn: (text: string) => void) => void;
 }
 
 /**
@@ -373,13 +371,14 @@ export function Editor({
   doc, tree, selectedSceneId, storyBibleStore, linksVersion = 0,
   flip, onAnimationEnd, captureProseRef,
   focusMode = false, typewriterOn = true, dimParagraphsOn = true,
-  onOpenEntry, onFindMentions, activeProjectId = null,
+  onOpenEntry, onFindMentions, activeProjectId = null, onRegisterInsert,
 }: EditorProps) {
   const alIndex = useAutoLinkIndex(storyBibleStore, activeProjectId, linksVersion);
   const { editor, visible, popoverProps } = useEditorCore(
     doc, captureProseRef, alIndex,
     { focusMode, dimOn: dimParagraphsOn, typewriterOn },
   );
+  useEffect(() => { if (editor) onRegisterInsert?.((text) => { const { $from } = editor.state.selection; const nb = $from.nodeBefore; const last = nb?.isText && nb.text ? nb.text[nb.text.length - 1] : ""; editor.chain().focus().insertContent(last && /\S/.test(last) ? " " + text : text).scrollIntoView().run(); }); }, [editor, onRegisterInsert]);
   const liveWords = useLiveWordCount(doc);
   const { characters, locations } = useSceneLinkCounts(storyBibleStore, selectedSceneId, linksVersion);
   const activeScene = findSceneWithChapter(tree, selectedSceneId);
