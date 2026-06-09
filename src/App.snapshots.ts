@@ -7,6 +7,7 @@ import * as Y from "yjs";
 
 import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
+import { getTweak, TWEAK_DEFAULTS } from "./features/settings/settings.store";
 import { applyEncoded, encodeDoc, extractPlainText } from "./yjs/serialize";
 
 export const snapshotStore = new SqliteSnapshotStore();
@@ -158,6 +159,10 @@ export async function snapAutoCapture({
   await snapshotStore.takeSnapshot({
     sceneId, label: null, stateBase64, wordCount, kind: "auto",
   });
+  const limit = getTweak("snapshotAutoLimit", TWEAK_DEFAULTS.snapshotAutoLimit);
+  if (limit > 0) {
+    await snapshotStore.pruneAuto(sceneId, limit);
+  }
 }
 
 export function snapDelete(snapshotId: string, sceneId: string | null, set: SetSnapshots): Promise<void> {

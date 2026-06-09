@@ -15,7 +15,15 @@ import * as Y from "yjs";
 
 import { snapAutoCapture, snapshotStore } from "../App.snapshots";
 import type { Snapshot } from "../db/snapshotStore";
+import { getTweak } from "../features/settings/settings.store";
 import { encodeDoc } from "../yjs/serialize";
+
+// Mock the settings module so snapAutoCapture can read snapshotAutoLimit
+// without needing localStorage (test environment is Node, not jsdom).
+vi.mock("../features/settings/settings.store", () => ({
+  getTweak: vi.fn(() => 25),
+  TWEAK_DEFAULTS: { snapshotAutoLimit: 25 },
+}));
 
 /** Build a Y.Doc whose "content" XmlFragment has a single paragraph with the given text. */
 function docWithText(text: string): Y.Doc {
@@ -34,12 +42,15 @@ function makeMeta(sceneId: string, id = "snap-1"): Snapshot {
 }
 
 describe("snapAutoCapture", () => {
-  afterEach(() => { vi.restoreAllMocks(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it("writes a new auto-snapshot when no previous snapshot exists", async () => {
     const doc = docWithText("hello world");
     vi.spyOn(snapshotStore, "listSnapshots").mockResolvedValue([]);
     const takeSnapshot = vi.spyOn(snapshotStore, "takeSnapshot").mockResolvedValue(makeMeta("s1"));
+    vi.spyOn(snapshotStore, "pruneAuto").mockResolvedValue();
 
     await snapAutoCapture({ sceneId: "s1", doc });
 
@@ -57,6 +68,7 @@ describe("snapAutoCapture", () => {
       meta: lastSnap, stateBase64: encodeDoc(prevDoc),
     });
     const takeSnapshot = vi.spyOn(snapshotStore, "takeSnapshot").mockResolvedValue(makeMeta("s1"));
+    vi.spyOn(snapshotStore, "pruneAuto").mockResolvedValue();
 
     await snapAutoCapture({ sceneId: "s1", doc });
 
@@ -87,5 +99,29 @@ describe("snapAutoCapture", () => {
     await snapAutoCapture({ sceneId: "s1", doc });
 
     expect(takeSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("calls pruneAuto with the configured limit after writing a new auto-snapshot", async () => {
+    vi.mocked(getTweak).mockReturnValue(2);
+    const doc = docWithText("new content to capture");
+    vi.spyOn(snapshotStore, "listSnapshots").mockResolvedValue([]);
+    vi.spyOn(snapshotStore, "takeSnapshot").mockResolvedValue(makeMeta("s1"));
+    const pruneAuto = vi.spyOn(snapshotStore, "pruneAuto").mockResolvedValue();
+
+    await snapAutoCapture({ sceneId: "s1", doc });
+
+    expect(pruneAuto).toHaveBeenCalledWith("s1", 2);
+  });
+
+  it("skips pruneAuto when snapshotAutoLimit is 0 (unlimited)", async () => {
+    vi.mocked(getTweak).mockReturnValue(0);
+    const doc = docWithText("content that would trigger a write");
+    vi.spyOn(snapshotStore, "listSnapshots").mockResolvedValue([]);
+    vi.spyOn(snapshotStore, "takeSnapshot").mockResolvedValue(makeMeta("s1"));
+    const pruneAuto = vi.spyOn(snapshotStore, "pruneAuto").mockResolvedValue();
+
+    await snapAutoCapture({ sceneId: "s1", doc });
+
+    expect(pruneAuto).not.toHaveBeenCalled();
   });
 });

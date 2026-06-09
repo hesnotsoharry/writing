@@ -85,11 +85,8 @@ function EditorTopRows({ tweaks, setTweak }: SectionProps) {
         />
       </SetRow>
       <SetRow label="Text size" desc={tweaks.proseSize + " px"}>
-        <input
-          type="range" className="set-range" min="16" max="24"
-          value={tweaks.proseSize}
-          onChange={e => setTweak("proseSize", +e.target.value)}
-        />
+        <input type="range" className="set-range" min="16" max="24"
+          value={tweaks.proseSize} onChange={e => setTweak("proseSize", +e.target.value)} />
       </SetRow>
       <SetRow label="Line spacing">
         <Seg
@@ -164,6 +161,11 @@ export function EditorSection({ tweaks, setTweak }: SectionProps) {
 
 // ── Section: Writing ──────────────────────────────────────────────────────────
 
+const SNAP_LIMIT_OPTS: [string, string][] = [
+  ["0","Unlimited"], ["10","Keep last 10"], ["25","Keep last 25"],
+  ["50","Keep last 50"], ["100","Keep last 100"],
+];
+
 export interface WritingSectionProps extends SectionProps {
   onOpenGoals: () => void;
 }
@@ -184,10 +186,14 @@ export function WritingSection({ tweaks, setTweak, onOpenGoals }: WritingSection
       <SetRow label="Reopen last scene on launch" desc="Pick up exactly where you left off.">
         <SetToggle value={tweaks.reopenLast} onChange={v => setTweak("reopenLast", v)} />
       </SetRow>
-      <SetRow label="Writing goals" desc="Daily word counts, streaks, deadlines — all optional." last>
+      <SetRow label="Writing goals" desc="Daily word counts, streaks, deadlines — all optional.">
         <button className="btn btn-soft" onClick={onOpenGoals}>
           <Icon name="target" className="ic" /> Configure…
         </button>
+      </SetRow>
+      <SetRow label="Version history" desc="Auto-saves kept per scene. Manual snapshots are never pruned." last>
+        <SetSelect value={String(tweaks.snapshotAutoLimit)} options={SNAP_LIMIT_OPTS}
+          onChange={v => setTweak("snapshotAutoLimit", Number(v))} />
       </SetRow>
     </>
   );
@@ -296,12 +302,8 @@ export function BackupSection({ tweaks, setTweak, showToast }: BackupSectionProp
 // ── Section: About ────────────────────────────────────────────────────────────
 
 const SHORTCUTS: [string, string][] = [
-  ["Quick capture",      "⌘ K"],
-  ["Focus mode",         "⌘ ."],
-  ["Export",             "⌘ E"],
-  ["Settings",           "⌘ ,"],
-  ["Close / cancel",     "Esc"],
-  ["Rename (in binder)", "Double-click"],
+  ["Quick capture","⌘ K"],    ["Focus mode","⌘ ."],    ["Export","⌘ E"],
+  ["Settings","⌘ ,"],         ["Close / cancel","Esc"], ["Rename (in binder)","Double-click"],
 ];
 
 export function AboutSection() {

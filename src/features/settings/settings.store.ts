@@ -42,6 +42,9 @@ export interface Tweaks {
   autolinkOn: boolean;
   autolinkScope: "all" | "first";
   autolinkTypes: string[];
+  // ── Snapshot retention (Fix 4) ──────────────────────────────────────────────
+  /** 0 = unlimited; positive = keep the N newest auto-snapshots per scene. */
+  snapshotAutoLimit: number;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -63,6 +66,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   autolinkOn: true,
   autolinkScope: "all",
   autolinkTypes: ["character", "location", "item", "faction", "lore"],
+  snapshotAutoLimit: 25,
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────

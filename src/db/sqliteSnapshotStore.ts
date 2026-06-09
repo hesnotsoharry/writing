@@ -91,6 +91,7 @@ export class SqliteSnapshotStore implements SnapshotStore {
   }
 
   async pruneAuto(sceneId: string, keepN: number): Promise<void> {
+    if (keepN <= 0) return;
     const db = await getDb();
     // Select IDs of auto-snapshots to delete (all beyond the keepN newest).
     // SQLite does not support LIMIT in DELETE directly; use a subquery.

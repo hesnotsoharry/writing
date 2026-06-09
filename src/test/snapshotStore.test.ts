@@ -140,4 +140,13 @@ describe("InMemorySnapshotStore", () => {
     await store.pruneAuto("s1", 10);
     expect(await store.listSnapshots("s1")).toHaveLength(3);
   });
+
+  it("pruneAuto with keepN = 0 (unlimited) leaves all auto-snapshots untouched", async () => {
+    const store = makeStore();
+    for (let i = 0; i < 4; i++) {
+      await store.takeSnapshot({ sceneId: "s1", label: null, stateBase64: `a${i}`, wordCount: i, kind: "auto" });
+    }
+    await store.pruneAuto("s1", 0);
+    expect(await store.listSnapshots("s1")).toHaveLength(4);
+  });
 });

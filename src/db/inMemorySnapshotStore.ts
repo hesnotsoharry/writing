@@ -55,6 +55,7 @@ export class InMemorySnapshotStore implements SnapshotStore {
   }
 
   async pruneAuto(sceneId: string, keepN: number): Promise<void> {
+    if (keepN <= 0) return;
     const autos = [...this.snapshots.values()]
       .filter((s) => s.meta.sceneId === sceneId && s.meta.kind === "auto")
       .sort((a, b) => b.meta.createdAt - a.meta.createdAt);
