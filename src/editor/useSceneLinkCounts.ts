@@ -50,9 +50,11 @@ export function useSceneLinkCounts(
 
     async function load(): Promise<void> {
       try {
-        const result = await store.loadSceneEntities(sceneId as string);
+        const groups = await store.loadSceneEntities(sceneId as string);
         if (!cancelled) {
-          setState({ sceneId, counts: { characters: result.characters.length, locations: result.locations.length } });
+          const charCount = groups.find((g) => g.type === "character")?.entities.length ?? 0;
+          const locCount = groups.find((g) => g.type === "location")?.entities.length ?? 0;
+          setState({ sceneId, counts: { characters: charCount, locations: locCount } });
         }
       } catch {
         // Graceful degradation: keep zeros on store error, never throw.

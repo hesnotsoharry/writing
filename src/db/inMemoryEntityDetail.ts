@@ -18,6 +18,7 @@ import type {
   FieldKey,
   FieldKind,
   Location,
+  SceneEntityGroup,
   SceneLink,
 } from "./storyBibleStore";
 
@@ -78,30 +79,43 @@ export function imCreateLocation(
   return location;
 }
 
-export function imLoadSceneEntities(
-  sceneId: string,
-  sceneLinks: (SceneLink & { sceneId: string })[],
-  characters: Character[],
-  locations: Location[]
-): { characters: Entity[]; locations: Entity[] } {
+/** Store collections needed to resolve scene-linked entities across all tables. */
+export interface ImSceneEntitiesCtx {
+  sceneLinks: (SceneLink & { sceneId: string })[];
+  characters: Character[];
+  locations: Location[];
+  genericEntities: Entity[];
+}
+
+export function imLoadSceneEntities(sceneId: string, ctx: ImSceneEntitiesCtx): SceneEntityGroup[] {
+  const { sceneLinks, characters, locations, genericEntities } = ctx;
   const links = sceneLinks.filter((sl) => sl.sceneId === sceneId);
-  const chars: Entity[] = [];
-  const locs: Entity[] = [];
+  const byType = new Map<string, Entity[]>();
   for (const link of links) {
+    let entity: Entity | undefined;
     if (link.entityType === "character") {
       const c = characters.find((ch) => ch.id === link.entityId);
-      if (c) chars.push({ id: c.id, projectId: c.projectId, type: "character", name: c.name, notes: c.notes, aliases: c.aliases });
-    } else {
+      if (c) entity = { id: c.id, projectId: c.projectId, type: "character", name: c.name, notes: c.notes, aliases: c.aliases };
+    } else if (link.entityType === "location") {
       const l = locations.find((lo) => lo.id === link.entityId);
-      if (l) locs.push({ id: l.id, projectId: l.projectId, type: "location", name: l.name, notes: l.notes, aliases: l.aliases });
+      if (l) entity = { id: l.id, projectId: l.projectId, type: "location", name: l.name, notes: l.notes, aliases: l.aliases };
+    } else {
+      entity = genericEntities.find((e) => e.id === link.entityId);
+    }
+    if (entity) {
+      const bucket = byType.get(link.entityType);
+      if (bucket) bucket.push(entity);
+      else byType.set(link.entityType, [entity]);
     }
   }
-  // Sort by name for a deterministic, stable card order in the inspector —
-  // mirrors the `ORDER BY name` the SQLite impl applies.
+  // Sort groups in taxonomy order (character, location, item, faction, lore, theme),
+  // custom types alphabetically after built-ins. Within each group, sort by name.
+  const TAXONOMY = ["character", "location", "item", "faction", "lore", "theme"];
+  const sortKey = (t: string) => { const i = TAXONOMY.indexOf(t); return i === -1 ? TAXONOMY.length : i; };
   const byName = (a: Entity, b: Entity) => a.name.localeCompare(b.name);
-  chars.sort(byName);
-  locs.sort(byName);
-  return { characters: chars, locations: locs };
+  return [...byType.entries()]
+    .sort(([a], [b]) => { const d = sortKey(a) - sortKey(b); return d !== 0 ? d : a.localeCompare(b); })
+    .map(([type, entities]) => ({ type, entities: [...entities].sort(byName) }));
 }
 
 export function imListEntities(characters: Character[], locations: Location[]): Entity[] {

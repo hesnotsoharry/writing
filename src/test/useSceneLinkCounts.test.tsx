@@ -21,10 +21,10 @@ function makeStore(
 
 describe("useSceneLinkCounts", () => {
   it("returns {characters:2,locations:1} after async resolves for a real sceneId", async () => {
-    const load = vi.fn().mockResolvedValue({
-      characters: [{ id: "a" }, { id: "b" }],
-      locations: [{ id: "c" }],
-    });
+    const load = vi.fn().mockResolvedValue([
+      { type: "character", entities: [{ id: "a" }, { id: "b" }] },
+      { type: "location",  entities: [{ id: "c" }] },
+    ]);
     const store = makeStore(load);
     const { result } = renderHook(() =>
       useSceneLinkCounts(store, "scene-1", 0),
@@ -46,8 +46,11 @@ describe("useSceneLinkCounts", () => {
   it("re-fetches when refreshKey changes and updates counts", async () => {
     const load = vi
       .fn()
-      .mockResolvedValueOnce({ characters: [{ id: "a" }], locations: [] })
-      .mockResolvedValueOnce({ characters: [{ id: "a" }, { id: "b" }], locations: [{ id: "c" }] });
+      .mockResolvedValueOnce([{ type: "character", entities: [{ id: "a" }] }])
+      .mockResolvedValueOnce([
+        { type: "character", entities: [{ id: "a" }, { id: "b" }] },
+        { type: "location",  entities: [{ id: "c" }] },
+      ]);
     const store = makeStore(load);
     const { result, rerender } = renderHook(
       ({ key }: { key: number }) => useSceneLinkCounts(store, "scene-1", key),
@@ -64,14 +67,11 @@ describe("useSceneLinkCounts", () => {
 
   it("(race) stale result from old sceneId does not overwrite newer sceneId result", async () => {
     // Deferred promises let us control resolution order.
-    let resolveA!: (v: { characters: unknown[]; locations: unknown[] }) => void;
-    let resolveB!: (v: { characters: unknown[]; locations: unknown[] }) => void;
-    const promiseA = new Promise<{ characters: unknown[]; locations: unknown[] }>(
-      (res) => { resolveA = res; },
-    );
-    const promiseB = new Promise<{ characters: unknown[]; locations: unknown[] }>(
-      (res) => { resolveB = res; },
-    );
+    type Groups = { type: string; entities: unknown[] }[];
+    let resolveA!: (v: Groups) => void;
+    let resolveB!: (v: Groups) => void;
+    const promiseA = new Promise<Groups>((res) => { resolveA = res; });
+    const promiseB = new Promise<Groups>((res) => { resolveB = res; });
 
     const load = vi.fn()
       .mockReturnValueOnce(promiseA)  // called with sceneId="A"
@@ -87,10 +87,10 @@ describe("useSceneLinkCounts", () => {
     rerender({ id: "B" });
 
     // Resolve B first (2 chars), then A (99 chars — should be ignored)
-    resolveB({ characters: [{ id: "x" }, { id: "y" }], locations: [] });
+    resolveB([{ type: "character", entities: [{ id: "x" }, { id: "y" }] }]);
     await waitFor(() => expect(result.current.characters).toBe(2));
 
-    resolveA({ characters: new Array(99).fill({ id: "z" }), locations: [] });
+    resolveA([{ type: "character", entities: new Array(99).fill({ id: "z" }) }]);
     // After a tick, state must still reflect B (2), not A (99)
     await waitFor(() => expect(result.current.characters).toBe(2));
   });

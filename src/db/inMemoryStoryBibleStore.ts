@@ -21,6 +21,7 @@ import {
   imRemoveLink,
   imRenameEntity,
   imReorderEntityFields,
+  type ImSceneEntitiesCtx,
   imSetEntityField,
   imSetPortrait,
   imUpdateEntityFieldKey,
@@ -40,6 +41,7 @@ import type {
   FieldKind,
   Location,
   Relation,
+  SceneEntityGroup,
   SceneLink,
   StoryBibleStore,
 } from "./storyBibleStore";
@@ -135,8 +137,9 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     return this.sceneLinks.filter((sl) => sl.sceneId === sceneId).map(({ entityType, entityId }) => ({ entityType, entityId }));
   }
 
-  async loadSceneEntities(sceneId: string): Promise<{ characters: Entity[]; locations: Entity[] }> {
-    return imLoadSceneEntities(sceneId, this.sceneLinks, this.characters, this.locations);
+  async loadSceneEntities(sceneId: string): Promise<SceneEntityGroup[]> {
+    const ctx: ImSceneEntitiesCtx = { sceneLinks: this.sceneLinks, characters: this.characters, locations: this.locations, genericEntities: this.genericEntities };
+    return imLoadSceneEntities(sceneId, ctx);
   }
 
   async findScenesForEntity(entityId: string): Promise<string[]> {

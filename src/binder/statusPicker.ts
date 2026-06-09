@@ -5,6 +5,7 @@
  * with `<ContextMenu>` in both the Binder dot-click and Outliner dot-click
  * pickers. Mirrors the shape of the status submenu in sceneMenu.ts.
  */
+import type { IconName } from "../components/Icon";
 import type { MenuItem } from "../components/menu/ContextMenu";
 import type { SceneStatus } from "../lib/status";
 import { STATUS_META, STATUS_ORDER } from "../lib/status";
@@ -21,7 +22,7 @@ export function buildStatusItems(
 ): MenuItem[] {
   return STATUS_ORDER.map((s) => ({
     label: STATUS_META[s].label,
-    swatch: STATUS_META[s].dot,
+    icon: STATUS_META[s].icon as IconName,
     tick: s === current,
     onClick: () => onPick(s),
   }));

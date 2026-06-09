@@ -28,6 +28,12 @@ export interface SceneLink {
   entityId: string;
 }
 
+/** A group of linked entities sharing the same type, for inspector display. */
+export interface SceneEntityGroup {
+  type: EntityType;
+  entities: Entity[];
+}
+
 export interface Entity {
   id: string;
   projectId: string;
@@ -205,10 +211,10 @@ export interface StoryBibleStore {
    * Return the full Entity objects linked to a scene, grouped by type.
    * Additive read-query (wave 9) — the inspector's entity cards consume this
    * (avatar initial from name, role subtitle from notes).
+   * Returns an array of non-empty groups in taxonomy order (character, location,
+   * item, faction, lore, theme), custom types alphabetically after built-ins.
    */
-  loadSceneEntities(
-    sceneId: string
-  ): Promise<{ characters: Entity[]; locations: Entity[] }>;
+  loadSceneEntities(sceneId: string): Promise<SceneEntityGroup[]>;
   /** Return scene_ids that reference the given entity (for usage counts). */
   findScenesForEntity(entityId: string): Promise<string[]>;
 

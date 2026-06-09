@@ -42,6 +42,7 @@ import type {
   FieldKind,
   Location,
   Relation,
+  SceneEntityGroup,
   SceneLink,
   StoryBibleStore,
 } from "./storyBibleStore";
@@ -185,44 +186,42 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     }));
   }
 
-  async loadSceneEntities(
-    sceneId: string
-  ): Promise<{ characters: Entity[]; locations: Entity[] }> {
+  async loadSceneEntities(sceneId: string): Promise<SceneEntityGroup[]> {
     const db = await getDb();
-    // Two sequential reads (tauri-plugin-sql has no multi-statement execute and no
-    // read transactions). The pair is not atomic, but this is a single-user local app
-    // with no concurrent writer, so a mid-read link mutation is unreachable in practice.
-    // ORDER BY name gives the inspector a deterministic, stable card order.
-    const charRows = await db.select<
-      { id: string; project_id: string; name: string; notes: string | null; aliases: string | null }[]
-    >(
-      "SELECT c.id, c.project_id, c.name, c.notes, c.aliases FROM scene_links sl JOIN characters c ON c.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'character' ORDER BY c.name",
-      [sceneId]
+    // One read per distinct entity_type present in scene_links for this scene.
+    // tauri-plugin-sql has no multi-statement execute; sequential reads are the only option.
+    // Single-user local app — no concurrent writer, so the non-atomic sequence is safe.
+    type Row = { id: string; project_id: string; name: string; notes: string | null; aliases: string | null };
+    const toEnt = (r: Row, t: string): Entity => ({ id: r.id, projectId: r.project_id, type: t, name: r.name, notes: r.notes, aliases: r.aliases });
+    const typeRows = await db.select<{ entity_type: string }[]>(
+      "SELECT DISTINCT entity_type FROM scene_links WHERE scene_id = $1", [sceneId]
     );
-    const locRows = await db.select<
-      { id: string; project_id: string; name: string; notes: string | null; aliases: string | null }[]
-    >(
-      "SELECT l.id, l.project_id, l.name, l.notes, l.aliases FROM scene_links sl JOIN locations l ON l.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'location' ORDER BY l.name",
-      [sceneId]
-    );
-    return {
-      characters: charRows.map((r) => ({
-        id: r.id,
-        projectId: r.project_id,
-        type: "character" as const,
-        name: r.name,
-        notes: r.notes,
-        aliases: r.aliases,
-      })),
-      locations: locRows.map((r) => ({
-        id: r.id,
-        projectId: r.project_id,
-        type: "location" as const,
-        name: r.name,
-        notes: r.notes,
-        aliases: r.aliases,
-      })),
-    };
+    if (typeRows.length === 0) return [];
+    const TAXONOMY = ["character", "location", "item", "faction", "lore", "theme"];
+    const sortedTypes = typeRows.map((r) => r.entity_type).sort((a, b) => {
+      const [ia, ib] = [TAXONOMY.indexOf(a), TAXONOMY.indexOf(b)];
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      return (ia === -1 ? TAXONOMY.length : ia) - (ib === -1 ? TAXONOMY.length : ib);
+    });
+    const groups: SceneEntityGroup[] = [];
+    for (const type of sortedTypes) {
+      let rows: Row[];
+      if (type === "character") {
+        rows = await db.select<Row[]>(
+          "SELECT c.id, c.project_id, c.name, c.notes, c.aliases FROM scene_links sl JOIN characters c ON c.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'character' ORDER BY c.name", [sceneId]
+        );
+      } else if (type === "location") {
+        rows = await db.select<Row[]>(
+          "SELECT l.id, l.project_id, l.name, l.notes, l.aliases FROM scene_links sl JOIN locations l ON l.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'location' ORDER BY l.name", [sceneId]
+        );
+      } else {
+        rows = await db.select<Row[]>(
+          "SELECT e.id, e.project_id, e.name, e.notes, e.aliases FROM scene_links sl JOIN entities e ON e.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = $2 ORDER BY e.name", [sceneId, type]
+        );
+      }
+      if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toEnt(r, type)) });
+    }
+    return groups;
   }
 
   async findScenesForEntity(entityId: string): Promise<string[]> {

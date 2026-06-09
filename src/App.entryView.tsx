@@ -3,7 +3,7 @@
  * Extracted from App.content.tsx to keep that file under the 300-line limit.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { AppView, EntryFrame } from "./App.state";
 import type { BinderTree } from "./binder/buildTree";
@@ -19,12 +19,14 @@ import { FullEntry } from "./storybible/fullEntry/FullEntry";
 /**
  * Loads the current top-of-stack entity via store.getEntity when view === "entry".
  * Returns null while loading or when the stack is empty.
+ * Also returns patchEntity — call it to optimistically update the in-memory entity
+ * (e.g. after a rename) without re-fetching from the DB.
  */
 export function useLoadEntry(
   store: SqliteStoryBibleStore,
   entryStack: EntryFrame[],
   view: AppView,
-): EntityWithPortrait | null {
+): { entity: EntityWithPortrait | null; patchEntity: (id: string, name: string) => void } {
   const [entity, setEntity] = useState<EntityWithPortrait | null>(null);
   const top: EntryFrame | undefined = entryStack[entryStack.length - 1];
   const topId = top?.id;
@@ -48,7 +50,11 @@ export function useLoadEntry(
     return () => { alive = false; };
   }, [store, topId, topKind, view]);
 
-  return entity;
+  const patchEntity = useCallback((id: string, name: string) => {
+    setEntity((prev) => prev && prev.id === id ? { ...prev, name } : prev);
+  }, []);
+
+  return { entity, patchEntity };
 }
 
 // ---------------------------------------------------------------------------
@@ -64,23 +70,25 @@ export interface EntryViewStageProps {
   onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void;
   onExitEntry: () => void;
-  onRenameEntity: (kind: string, id: string, name: string) => void;
   onDeleteEntity: (kind: string, id: string) => void;
 }
 
 export function EntryViewStage({
   store, entryStack, entryOrigin, tree, onSelectScene,
-  onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity,
+  onPushEntry, onEntryBack, onExitEntry, onDeleteEntity,
 }: EntryViewStageProps) {
-  const entity = useLoadEntry(store, entryStack, "entry");
+  const { entity, patchEntity } = useLoadEntry(store, entryStack, "entry");
   const top: EntryFrame | undefined = entryStack[entryStack.length - 1];
-  // Flatten binder tree into the props FullEntry expects.
   const folders: Folder[] = tree.chapters.map((ch) => ch.folder);
-  const scenes: Scene[] = [
-    ...tree.chapters.flatMap((ch) => ch.scenes),
-    ...tree.shortPieces,
-  ];
-
+  const scenes: Scene[] = [...tree.chapters.flatMap((ch) => ch.scenes), ...tree.shortPieces];
+  const handleRename = (kind: string, id: string, name: string) => {
+    const prevName = entity?.name ?? "";
+    patchEntity(id, name);
+    void store.renameEntity(kind.toLowerCase(), id, name).catch((err: unknown) => {
+      console.error("[EntryViewStage] renameEntity failed", err);
+      patchEntity(id, prevName);
+    });
+  };
   return (
     <FullEntry
       key={top?.id ?? "entry"}
@@ -97,9 +105,8 @@ export function EntryViewStage({
         onSelectScene(sceneId);
       }}
       onPushEntry={onPushEntry}
-      onRename={onRenameEntity}
+      onRename={handleRename}
       onDelete={(kind, id) => {
-        // FullEntry emits Title-case kind ("Character"|"Location"); store.deleteEntity takes lowercase.
         onDeleteEntity(kind.toLowerCase(), id);
         onExitEntry();
       }}

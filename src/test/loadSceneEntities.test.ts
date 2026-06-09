@@ -1,20 +1,26 @@
 import { describe, expect, it } from "vitest";
 
 import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
+import type { SceneEntityGroup } from "../db/storyBibleStore";
 
 /**
  * Wave 9 Phase 1 acceptance test (orchestrator-authored — loadSceneEntities contract).
  *
- * Contract: loadSceneEntities(sceneId) returns the FULL Entity objects (including
- * notes) that are linked to the scene via scene_links, grouped into
- * { characters, locations }. Project entities NOT linked to the scene are excluded.
- * A scene with no links returns empty arrays for both groups.
+ * Contract: loadSceneEntities(sceneId) returns an ordered array of non-empty
+ * SceneEntityGroup objects for all entity types linked to the scene via scene_links.
+ * Groups appear in taxonomy order (character → location → item → faction → lore → theme),
+ * with custom types alphabetically after built-ins. Within each group, entities are
+ * name-sorted. Project entities NOT linked to the scene are excluded.
+ * A scene with no links returns an empty array.
  *
- * This is the consumer surface the inspector's entity cards consume — avatar initial
- * from `name`, role subtitle from the first line of `notes`. The SQLite implementation
- * mirrors this contract via a scene_links → entities join; its real-DB behavior is
- * verified by manual smoke at wave end (there is no DB harness in unit tests).
+ * The SQLite implementation mirrors this contract via a scene_links → entities join;
+ * its real-DB behavior is verified by manual smoke at wave end (no DB harness in unit tests).
  */
+
+function groupFor(groups: SceneEntityGroup[], type: string) {
+  return groups.find((g) => g.type === type)?.entities ?? [];
+}
+
 describe("StoryBibleStore.loadSceneEntities", () => {
   async function seed(): Promise<InMemoryStoryBibleStore> {
     const store = new InMemoryStoryBibleStore();
@@ -39,7 +45,9 @@ describe("StoryBibleStore.loadSceneEntities", () => {
 
   it("returns linked characters and locations as full Entity objects, grouped by type", async () => {
     const store = await seed();
-    const { characters, locations } = await store.loadSceneEntities("s1");
+    const groups = await store.loadSceneEntities("s1");
+    const characters = groupFor(groups, "character");
+    const locations = groupFor(groups, "location");
 
     expect(characters).toHaveLength(1);
     expect(locations).toHaveLength(1);
@@ -57,15 +65,15 @@ describe("StoryBibleStore.loadSceneEntities", () => {
 
   it("excludes project entities that are not linked to the scene", async () => {
     const store = await seed();
-    const { characters } = await store.loadSceneEntities("s1");
+    const groups = await store.loadSceneEntities("s1");
+    const characters = groupFor(groups, "character");
     expect(characters.map((c) => c.name)).not.toContain("Bob");
   });
 
-  it("returns empty groups for a scene with no links", async () => {
+  it("returns an empty array for a scene with no links", async () => {
     const store = await seed();
     const result = await store.loadSceneEntities("s-unlinked");
-    expect(result.characters).toEqual([]);
-    expect(result.locations).toEqual([]);
+    expect(result).toEqual([]);
   });
 
   it("returns each group in a deterministic name-sorted order", async () => {
@@ -78,7 +86,36 @@ describe("StoryBibleStore.loadSceneEntities", () => {
       { entityType: "character", entityId: anna.id },
     ]);
 
-    const { characters } = await store.loadSceneEntities("s1");
+    const groups = await store.loadSceneEntities("s1");
+    const characters = groupFor(groups, "character");
     expect(characters.map((c) => c.name)).toEqual(["Anna", "Zoe"]);
+  });
+
+  it("returns a dedicated group for generic entity types (item) when linked", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const item = await store.createEntity("p1", "item", "Sword of Dawn", null);
+    await store.replaceSceneLinks("s1", [{ entityType: "item", entityId: item.id }]);
+
+    const groups = await store.loadSceneEntities("s1");
+    expect(groups).toHaveLength(1);
+    expect(groups[0].type).toBe("item");
+    expect(groups[0].entities).toHaveLength(1);
+    expect(groups[0].entities[0].name).toBe("Sword of Dawn");
+  });
+
+  it("orders multiple type groups by taxonomy: character before item before theme", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const char = await store.createCharacter("p1", "Alice", null);
+    const item = await store.createEntity("p1", "item", "Potion", null);
+    const theme = await store.createEntity("p1", "theme", "Hope", null);
+    // Links added in reverse taxonomy order to prove sorting is applied.
+    await store.replaceSceneLinks("s1", [
+      { entityType: "theme", entityId: theme.id },
+      { entityType: "item", entityId: item.id },
+      { entityType: "character", entityId: char.id },
+    ]);
+
+    const groups = await store.loadSceneEntities("s1");
+    expect(groups.map((g) => g.type)).toEqual(["character", "item", "theme"]);
   });
 });

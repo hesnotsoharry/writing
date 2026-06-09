@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 
+import type { IconName } from "../components/Icon";
 import { Icon } from "../components/Icon";
 import type { Scene } from "../db/binderStore";
 import type { Snapshot } from "../db/snapshotStore";
 import { SqliteBinderStore } from "../db/sqliteBinderStore";
-import type { Entity, EntityType, StoryBibleStore } from "../db/storyBibleStore";
+import type { Entity, EntityType, SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
 import type { GoalRecord } from "../features/goals/goalModel";
 import { anyGoalOn, GoalGroup } from "../features/goals/InspectorGoalRings";
+import { BUILT_IN_TYPES } from "../storybible/BibleTypes";
 import { HistoryRail } from "./HistoryRail";
 import { SynopsisGroup } from "./InspectorSynopsis";
 import { InspGroup } from "./InspGroup";
@@ -34,32 +36,32 @@ function EntityCard({ entity, onClick }: { entity: Entity; onClick?: () => void 
   );
 }
 
-// -- useSceneEntities — load character/location entities for a scene --------
-interface EntityGroups { characters: Entity[]; locations: Entity[]; ready: boolean; }
+// -- useSceneEntities — load all entity groups for a scene -----------------
+interface EntityGroupsState { groups: SceneEntityGroup[]; ready: boolean; }
 function useSceneEntities(
   store: StoryBibleStore,
   sceneId: string | null,
   effectiveDep: number,
-): EntityGroups {
-  const [groups, setGroups] = useState<EntityGroups>({ characters: [], locations: [], ready: false });
+): EntityGroupsState {
+  const [state, setState] = useState<EntityGroupsState>({ groups: [], ready: false });
 
   useEffect(() => {
     let alive = true;
     const load = sceneId
       ? store.loadSceneEntities(sceneId)
-      : Promise.resolve({ characters: [] as Entity[], locations: [] as Entity[] });
+      : Promise.resolve([] as SceneEntityGroup[]);
     load
-      .then(({ characters, locations }) => {
-        if (alive) setGroups({ characters, locations, ready: true });
+      .then((groups) => {
+        if (alive) setState({ groups, ready: true });
       })
       .catch((e: unknown) => {
         console.error("[SceneInspector] loadSceneEntities failed", e);
-        if (alive) setGroups({ characters: [], locations: [], ready: true });
+        if (alive) setState({ groups: [], ready: true });
       });
     return () => { alive = false; };
   }, [store, sceneId, effectiveDep]);
 
-  return groups;
+  return state;
 }
 
 // -- useEntityPickerInline — picker state + async load/commit for InspPicker --
@@ -124,10 +126,13 @@ function useEntityCreate(args: CreateArgs): () => void {
   const { entityType, projectId, sceneId, store, onLinked, onOpenEntry } = args;
   return () => {
     if (!sceneId) return;
-    const defaultName = entityType === "character" ? "New Character" : "New Location";
-    const createFn = entityType === "character"
-      ? () => store.createCharacter(projectId, defaultName, null)
-      : () => store.createLocation(projectId, defaultName, null);
+    const def = BUILT_IN_TYPES.find((d) => d.type === entityType);
+    const singular = def ? def.label.replace(/s$/, "") : entityType;
+    const defaultName = `New ${singular}`;
+    const createFn =
+      entityType === "character" ? () => store.createCharacter(projectId, defaultName, null)
+      : entityType === "location" ? () => store.createLocation(projectId, defaultName, null)
+      : () => store.createEntity(projectId, entityType, defaultName, null);
     createFn()
       .then(async (created) => {
         const existingLinks = await store.loadSceneLinks(sceneId);
@@ -141,7 +146,7 @@ function useEntityCreate(args: CreateArgs): () => void {
 
 // -- EntityGroup — one labelled group of entity cards with create + link ----
 interface EntityGroupProps {
-  iconName: "users" | "mapPin"; label: string; entities: Entity[];
+  iconName: IconName; label: string; entities: Entity[];
   ready: boolean; emptyHint: string; linkLabel: string;
   entityType: EntityType; projectId: string; sceneId: string | null;
   store: StoryBibleStore; onLinked: () => void;
@@ -157,7 +162,7 @@ function EntityGroup({
   const { picking, candidates, beginPick, handlePick, closePicker } =
     useEntityPickerInline({ entityType, projectId, sceneId, store, onLinked, onInsertAtCaret });
   const handleCreate = useEntityCreate({ entityType, projectId, sceneId, store, onLinked, onOpenEntry });
-  const gkey = entityType === "character" ? "chars" : "locs";
+  const gkey = entityType;
   const createAction = (
     <button className="add" title={`Add new ${entityType}`} onClick={handleCreate}>
       <Icon name="plus" style={{ width: 14, height: 14 }} />
@@ -239,22 +244,29 @@ export interface SceneInspectorProps {
   onInsertAtCaret?: (name: string) => void;
 }
 
-function EntityGroups({ store, projectId, sceneId, characters, locations, ready, bump, onOpenEntry, onInsertAtCaret }: {
+function EntityGroups({ store, projectId, sceneId, groups, ready, bump, onOpenEntry, onInsertAtCaret }: {
   store: StoryBibleStore; projectId: string; sceneId: string | null;
-  characters: Entity[]; locations: Entity[]; ready: boolean; bump: () => void;
+  groups: SceneEntityGroup[]; ready: boolean; bump: () => void;
   onOpenEntry?: (entityId: string, type: EntityType) => void;
   onInsertAtCaret?: (name: string) => void;
 }) {
   return (
     <>
-      <EntityGroup iconName="users" label="Characters in scene" entities={characters} ready={ready}
-        emptyHint="No characters linked yet." linkLabel="Link a character"
-        entityType="character" projectId={projectId} sceneId={sceneId} store={store}
-        onLinked={bump} onOpenEntry={onOpenEntry} onInsertAtCaret={onInsertAtCaret} />
-      <EntityGroup iconName="mapPin" label="Locations in scene" entities={locations} ready={ready}
-        emptyHint="No locations linked yet." linkLabel="Link a location"
-        entityType="location" projectId={projectId} sceneId={sceneId} store={store}
-        onLinked={bump} onOpenEntry={onOpenEntry} onInsertAtCaret={onInsertAtCaret} />
+      {groups.map((group) => {
+        const def = BUILT_IN_TYPES.find((d) => d.type === group.type);
+        const label = def?.label ?? group.type;
+        const icon: IconName = def?.icon ?? "feather";
+        const singular = label.replace(/s$/, "");
+        const article = /^[aeiou]/i.test(singular) ? "an" : "a";
+        return (
+          <EntityGroup key={group.type} iconName={icon} label={`${label} in scene`}
+            entities={group.entities} ready={ready}
+            emptyHint={`No ${label.toLowerCase()} linked yet.`}
+            linkLabel={`Link ${article} ${singular.toLowerCase()}`}
+            entityType={group.type} projectId={projectId} sceneId={sceneId} store={store}
+            onLinked={bump} onOpenEntry={onOpenEntry} onInsertAtCaret={onInsertAtCaret} />
+        );
+      })}
     </>
   );
 }
@@ -266,7 +278,7 @@ export function SceneInspector({
 }: SceneInspectorProps) {
   const [localRev, setLocalRev] = useState(0);
   const effectiveDep = (refreshKey ?? 0) + localRev;
-  const { characters, locations, ready } = useSceneEntities(store, sceneId, effectiveDep);
+  const { groups, ready } = useSceneEntities(store, sceneId, effectiveDep);
   const derivedTotal = useManuscriptTotal(projectId, sceneId, liveWordCount);
   const resolvedManuscriptTotal = manuscriptTotalProp ?? derivedTotal;
   const resolvedChapterId = chapterId ?? null;
@@ -284,7 +296,7 @@ export function SceneInspector({
             onGoalMenu={onGoalMenu} />
         )}
         <EntityGroups store={store} projectId={projectId} sceneId={sceneId}
-          characters={characters} locations={locations} ready={ready}
+          groups={groups} ready={ready}
           bump={bump} onOpenEntry={onOpenEntry} onInsertAtCaret={onInsertAtCaret} />
         <HistoryRail snapshots={historySnapshots ?? []} currentWords={liveWordCount}
           onOpenAll={onOpenHistory} onCapture={onTakeSnapshot} />

@@ -114,21 +114,28 @@ describe("SceneInspector", () => {
     expect(screen.queryByText(/today's goal/i)).toBeNull();
   });
 
-  it("shows per-group empty hints for a scene with no linked entities", async () => {
+  it("shows no entity groups for a scene with no linked entities", async () => {
+    // Empty groups are not rendered: loadSceneEntities returns [] when no entities are
+    // linked, so EntityGroups maps over an empty array and renders nothing.
     const store = await seed();
     render(
       <SceneInspector
         store={store}
         projectId="p1"
         sceneId="s2"
-        scene={makeScene({ id: "s2", synopsis: null })}
+        scene={makeScene({ id: "s2" })}
         refreshKey={0}
         liveWordCount={0}
       />
     );
 
-    await screen.findByText(/no characters linked yet/i);
-    expect(screen.getByText(/no locations linked yet/i)).toBeTruthy();
+    // Wait on the synopsis (rendered from props, synchronous) as a positive signal
+    // that the component has mounted and the async loadSceneEntities effect has settled.
+    await screen.findByText(/a tense confrontation/i);
+
+    // No entity groups appear when no entities are linked — no section headers, no cards.
+    expect(screen.queryByText(/characters in scene/i)).toBeNull();
+    expect(screen.queryByText(/locations in scene/i)).toBeNull();
     expect(screen.queryByText("Sarah")).toBeNull();
   });
 
@@ -156,15 +163,19 @@ describe("SceneInspector", () => {
         liveWordCount={0}
       />
     );
-    await screen.findByText(/no characters linked yet/i);
-    expect(screen.queryByText("Sarah")).toBeNull();
+    // s2 has no links: Sarah disappears and no entity groups render.
+    await waitFor(() => expect(screen.queryByText("Sarah")).toBeNull());
+    expect(screen.queryByText(/characters in scene/i)).toBeNull();
   });
 
   it("footer 'Link a character' picker calls replaceSceneLinks and the entity appears in the list", async () => {
-    // Start with an empty scene (s2), one character exists but not linked.
+    // Empty groups are not rendered, so the character group only appears when at
+    // least one character is already linked.  Pre-link Alice to make the group (and
+    // its "Link a character" button) visible; Rex is the candidate we then add.
     const store = new InMemoryStoryBibleStore();
+    const alice = await store.createCharacter("p1", "Alice", null);
     const rex = await store.createCharacter("p1", "Rex", "A loyal dog.");
-    // s2 has no links yet.
+    await store.replaceSceneLinks("s2", [{ entityType: "character", entityId: alice.id }]);
     render(
       <SceneInspector
         store={store}
@@ -175,7 +186,7 @@ describe("SceneInspector", () => {
         liveWordCount={0}
       />
     );
-    await screen.findByText(/no characters linked yet/i);
+    await screen.findByText("Alice"); // character group is visible
 
     // Clicking "Link a character" opens the picker menu.
     const linkBtn = screen.getByRole("button", { name: /link a character/i });
@@ -192,15 +203,19 @@ describe("SceneInspector", () => {
       expect(screen.getByText("Rex")).toBeTruthy();
     });
 
-    // Confirm the store actually has the link persisted.
+    // Confirm the store has both links (Alice pre-linked + Rex newly linked).
     const links = await store.loadSceneLinks("s2");
-    expect(links).toHaveLength(1);
-    expect(links[0].entityId).toBe(rex.id);
-    expect(links[0].entityType).toBe("character");
+    expect(links).toHaveLength(2);
+    const rexLink = links.find((l) => l.entityId === rex.id);
+    expect(rexLink).toBeDefined();
+    expect(rexLink!.entityType).toBe("character");
   });
 
   it("section '+' creates a new character, links it to the scene, and the entity appears in the list", async () => {
+    // Pre-link Alice so the character group (and its header '+' button) renders.
     const store = new InMemoryStoryBibleStore();
+    const alice = await store.createCharacter("p1", "Alice", null);
+    await store.replaceSceneLinks("s3", [{ entityType: "character", entityId: alice.id }]);
     const openEntry = vi.fn();
     render(
       <SceneInspector
@@ -213,7 +228,7 @@ describe("SceneInspector", () => {
         onOpenEntry={openEntry}
       />
     );
-    await screen.findByText(/no characters linked yet/i);
+    await screen.findByText("Alice"); // character group is visible
 
     // The header '+' button has title "Add new character".
     const createBtn = screen.getByTitle(/add new character/i);
@@ -224,14 +239,17 @@ describe("SceneInspector", () => {
       expect(screen.getByText("New Character")).toBeTruthy();
     });
 
-    // Store should have the new character linked.
+    // Store should have Alice (pre-linked) + the newly created character.
     const links = await store.loadSceneLinks("s3");
-    expect(links).toHaveLength(1);
-    expect(links[0].entityType).toBe("character");
+    expect(links).toHaveLength(2);
+    const newCharLink = links.find(
+      (l) => l.entityType === "character" && l.entityId !== alice.id
+    );
+    expect(newCharLink).toBeDefined();
 
-    // openEntry deferred no-op should have been called once.
+    // openEntry should have been called once for the new character.
     expect(openEntry).toHaveBeenCalledTimes(1);
-    expect(openEntry).toHaveBeenCalledWith(links[0].entityId, "character");
+    expect(openEntry).toHaveBeenCalledWith(newCharLink!.entityId, "character");
   });
 
   it("multi-ring renders only the scopes with config.on=true (Wave 25 P6b)", async () => {

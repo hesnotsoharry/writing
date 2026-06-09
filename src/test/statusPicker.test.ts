@@ -8,7 +8,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildStatusItems } from "../binder/statusPicker";
 import type { MenuItemAction } from "../components/menu/ContextMenu";
-import { type SceneStatus,STATUS_META, STATUS_ORDER } from "../lib/status";
+import type { SceneStatus } from "../lib/status";
+import { STATUS_META, STATUS_ORDER } from "../lib/status";
 
 describe("buildStatusItems — item count and STATUS_ORDER sequence", () => {
   it("returns exactly 5 items (one per STATUS_ORDER entry)", () => {
@@ -57,5 +58,15 @@ describe("buildStatusItems — onClick dispatches the correct status to onPick",
       expect(onPick).toHaveBeenNthCalledWith(i + 1, s as SceneStatus);
     });
     expect(onPick).toHaveBeenCalledTimes(STATUS_ORDER.length);
+  });
+});
+
+describe("buildStatusItems — icon glyph matches STATUS_META", () => {
+  it("each item has icon matching STATUS_META[status].icon and no swatch", () => {
+    const items = buildStatusItems("blank", vi.fn()) as MenuItemAction[];
+    STATUS_ORDER.forEach((s, i) => {
+      expect(items[i].icon).toBe(STATUS_META[s].icon);
+      expect(items[i].swatch).toBeUndefined();
+    });
   });
 });

@@ -71,10 +71,10 @@ function useCardChips(sceneId: string) {
   const [chips, setChips] = useState<{ type: "character" | "location"; name: string }[]>([]);
   useEffect(() => {
     let active = true;
-    defaultStoryBibleStore.loadSceneEntities(sceneId).then(({ characters, locations }) => {
+    defaultStoryBibleStore.loadSceneEntities(sceneId).then((groups) => {
       if (!active) return;
-      const charChips = characters.slice(0, 2).map((c) => ({ type: "character" as const, name: c.name }));
-      const locChips = locations.slice(0, 1).map((l) => ({ type: "location" as const, name: l.name }));
+      const charChips = (groups.find((g) => g.type === "character")?.entities ?? []).slice(0, 2).map((c) => ({ type: "character" as const, name: c.name }));
+      const locChips = (groups.find((g) => g.type === "location")?.entities ?? []).slice(0, 1).map((l) => ({ type: "location" as const, name: l.name }));
       setChips([...charChips, ...locChips]);
     }).catch((err: unknown) => { console.warn("[corkboard] loadSceneEntities failed", err); });
     return () => { active = false; };

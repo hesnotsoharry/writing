@@ -96,6 +96,7 @@ function makeOutlinerHandlers(p: CorkOutlinerProps) {
     onOpenScene: p.onSelectScene,
     onViewChange: p.onViewChange,
     setRenaming: p.setOutlinerRenaming,
+    onExport: (sceneId: string) => p.onExport("scene", sceneId),
     onSetSynopsis: (id: string, text: string) => {
       import("./db/sqliteBinderStore").then(({ SqliteBinderStore }) => {
         new SqliteBinderStore().setSceneSynopsis(id, text || null)
@@ -210,7 +211,7 @@ export function buildViewStage(
       store={ctx.storyBibleStore} entryStack={ctx.entryStack} entryOrigin={ctx.entryOrigin}
       tree={ctx.tree} onSelectScene={ctx.onSelectScene} onPushEntry={ctx.onPushEntry}
       onEntryBack={ctx.onEntryBack} onExitEntry={ctx.onExitEntry}
-      onRenameEntity={ctx.onRenameEntity} onDeleteEntity={ctx.onDeleteEntity} />;
+      onDeleteEntity={ctx.onDeleteEntity} />;
   }
   return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
     storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion}
