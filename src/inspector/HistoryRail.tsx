@@ -11,6 +11,7 @@
  */
 import { Icon } from "../components/Icon";
 import type { Snapshot } from "../db/snapshotStore";
+import { InspGroup } from "./InspGroup";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,19 +74,13 @@ export function HistoryRail({
   onCapture,
 }: HistoryRailProps) {
   const recent = snapshots.slice(0, 3);
-
+  const captureAction = (
+    <button className="add" title="Take snapshot" onClick={onCapture}>
+      <Icon name="camera" style={{ width: 14, height: 14 }} />
+    </button>
+  );
   return (
-    <div className="insp-group">
-      <div className="insp-label">
-        <Icon name="rotate" className="ic" /> History
-        <button
-          className="add"
-          title="Take snapshot"
-          onClick={onCapture}
-        >
-          <Icon name="camera" style={{ width: 14, height: 14 }} />
-        </button>
-      </div>
+    <InspGroup gkey="history" icon="rotate" label="History" action={captureAction}>
       {recent.length > 0 ? (
         recent.map((s) => (
           <RailSnapRow
@@ -104,6 +99,6 @@ export function HistoryRail({
         <Icon name="rotate" style={{ width: 13, height: 13 }} />{" "}
         {recent.length > 0 ? "See all & compare" : "Open version history"}
       </button>
-    </div>
+    </InspGroup>
   );
 }

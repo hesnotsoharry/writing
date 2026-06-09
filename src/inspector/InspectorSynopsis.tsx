@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import type { Scene } from "../db/binderStore";
 import { SqliteBinderStore } from "../db/sqliteBinderStore";
+import { InspGroup } from "./InspGroup";
 
 // Module-level singleton — constructor is side-effect-free (getDb is lazy).
 // Shared with SceneInspector via module scope; both import the same symbol.
@@ -99,14 +100,13 @@ function useSynopsisGroupState(scene: Scene | null, sceneId: string | null): Syn
 interface SynopsisGroupProps { scene: Scene | null; sceneId: string | null; }
 export function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
   const { localSynopsis, editing, setEditing, handleCommit } = useSynopsisGroupState(scene, sceneId);
+  const editAction = (
+    <button className="add" aria-label="Edit synopsis" onClick={() => { if (sceneId) setEditing(true); }}>
+      <Icon name="edit" style={{ width: 13, height: 13 }} />
+    </button>
+  );
   return (
-    <div className="insp-group">
-      <div className="insp-label">
-        <Icon name="fileText" className="ic" /> Synopsis
-        <button className="add" aria-label="Edit synopsis" onClick={() => { if (sceneId) setEditing(true); }}>
-          <Icon name="edit" style={{ width: 13, height: 13 }} />
-        </button>
-      </div>
+    <InspGroup gkey="synopsis" icon="fileText" label="Synopsis" action={editAction}>
       {editing ? (
         <SynopsisEditField sceneId={sceneId} localSynopsis={localSynopsis}
           onCommit={handleCommit} onCancel={() => setEditing(false)} />
@@ -115,6 +115,6 @@ export function SynopsisGroup({ scene, sceneId }: SynopsisGroupProps) {
           {localSynopsis}
         </div>
       ) : null}
-    </div>
+    </InspGroup>
   );
 }

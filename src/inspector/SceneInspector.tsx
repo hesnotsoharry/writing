@@ -9,6 +9,7 @@ import type { GoalRecord } from "../features/goals/goalModel";
 import { anyGoalOn, GoalGroup } from "../features/goals/InspectorGoalRings";
 import { HistoryRail } from "./HistoryRail";
 import { SynopsisGroup } from "./InspectorSynopsis";
+import { InspGroup } from "./InspGroup";
 import { InspPicker } from "./InspPicker";
 
 // Module-level singleton for useManuscriptTotal (lazy getDb — no side-effects at import time).
@@ -156,14 +157,14 @@ function EntityGroup({
   const { picking, candidates, beginPick, handlePick, closePicker } =
     useEntityPickerInline({ entityType, projectId, sceneId, store, onLinked, onInsertAtCaret });
   const handleCreate = useEntityCreate({ entityType, projectId, sceneId, store, onLinked, onOpenEntry });
+  const gkey = entityType === "character" ? "chars" : "locs";
+  const createAction = (
+    <button className="add" title={`Add new ${entityType}`} onClick={handleCreate}>
+      <Icon name="plus" style={{ width: 14, height: 14 }} />
+    </button>
+  );
   return (
-    <div className="insp-group">
-      <div className="insp-label">
-        <Icon name={iconName} className="ic" /> {label}
-        <button className="add" title={`Add new ${entityType}`} onClick={handleCreate}>
-          <Icon name="plus" style={{ width: 14, height: 14 }} />
-        </button>
-      </div>
+    <InspGroup gkey={gkey} icon={iconName} label={label} action={createAction}>
       {ready && entities.length > 0
         ? entities.map((e) => (
             <EntityCard key={e.id} entity={e}
@@ -178,7 +179,7 @@ function EntityGroup({
           <Icon name="plus" style={{ width: 13, height: 13 }} /> {linkLabel}
         </button>
       )}
-    </div>
+    </InspGroup>
   );
 }
 

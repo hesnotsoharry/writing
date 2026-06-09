@@ -375,6 +375,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .insp-label .add { margin-left: auto; color: var(--ink-3); width: 18px; height: 18px;
   display: grid; place-items: center; border-radius: var(--r-xs); }
 .insp-label .add:hover { background: var(--parchment-deep); color: var(--ink); }
+.insp-label--toggle { cursor: pointer; user-select: none; transition: color var(--dur-fast); }
+.insp-label--toggle:hover { color: var(--ink-2); }
+.insp-caret { color: var(--ink-4); flex: none; transition: transform var(--dur-fast); }
+.insp-caret.closed { transform: rotate(-90deg); }
+.insp-act { margin-left: auto; display: flex; align-items: center; }
+.insp-act .add { margin-left: 0; }
 
 .synopsis {
   font-family: var(--font-prose); font-size: var(--text-md); line-height: 1.55;

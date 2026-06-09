@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../../components/Icon";
 import type { GoalsStore } from "../../db/sqliteGoalsStore";
 import { SqliteGoalsStore } from "../../db/sqliteGoalsStore";
+import { InspGroup } from "../../inspector/InspGroup";
 import { GOALS_CHANGED_EVENT } from "../../lib/settings";
 import type { GoalProgress, GoalRecord, GoalScope } from "./goalModel";
 import { goalProgress } from "./goalModel";
@@ -140,8 +141,7 @@ export function GoalGroup({
   if (loaded && dbGoals.length === 0) return null;
   const dbGoal = dbGoals.length > 0 ? dbGoals[0] : undefined;
   return (
-    <div className="insp-group">
-      <div className="insp-label"><Icon name="target" className="ic" /> Today&#39;s goal</div>
+    <InspGroup gkey="goals" icon="target" label="Today's goal">
       <ScopedGoalRing projectId={projectId} scope="manuscript" targetId={null}
         scopeTotal={manuscriptTotal} label="Manuscript" dbGoal={dbGoal} onGoalMenu={onGoalMenu} />
       {chapterId !== null && chapterTotal !== null && (
@@ -152,7 +152,7 @@ export function GoalGroup({
         <ScopedGoalRing projectId={projectId} scope="scene" targetId={sceneId}
           scopeTotal={sceneWordCount} label="Scene" dbGoal={dbGoal} onGoalMenu={onGoalMenu} />
       )}
-    </div>
+    </InspGroup>
   );
 }
 
