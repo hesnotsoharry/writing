@@ -109,11 +109,11 @@ describe("Settings", () => {
   it("clicking Backup & data nav shows Backup-section-only text", () => {
     render(<Settings {...baseProps} />);
     // Initially on Appearance, so Backup content should not be visible
-    expect(screen.queryByText("Destination")).toBeNull();
+    expect(screen.queryByText("Library location")).toBeNull();
     // Click Backup & data nav
     fireEvent.click(screen.getByText("Backup & data"));
     // Backup-only label should appear
-    expect(screen.getByText("Destination")).toBeTruthy();
+    expect(screen.getByText("Library location")).toBeTruthy();
   });
 
   it("clicking About nav shows About-section-only text", () => {

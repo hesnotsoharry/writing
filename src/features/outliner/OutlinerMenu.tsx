@@ -34,7 +34,7 @@ export function useOutlinerMenu({ h, labels, sceneLabels, sceneIndex }: UseOutli
         h.onStatus?.({ clientX: e.clientX, clientY: e.clientY } as React.MouseEvent, { ...scene, status: s });
       },
       onDuplicate: () => setToast({ label: "Duplicate — coming in a later wave" }),
-      onExport: () => setToast({ label: "Export — coming in a later wave" }),
+      onExport: h.onExport ? () => { setMenu(null); h.onExport!(scene.id); } : () => setToast({ label: "Export — coming in a later wave" }),
       onArchive: () => setToast({ label: "Archive — coming in a later wave" }),
       onDelete: () => setToast({ label: "Delete — coming in a later wave" }),
     });

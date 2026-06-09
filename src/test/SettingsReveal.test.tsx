@@ -38,7 +38,7 @@ describe("Settings Reveal button (Backup & data)", () => {
     fireEvent.click(screen.getByText("Backup & data"));
 
     // Confirm the section is visible
-    expect(screen.getByText("Destination")).toBeTruthy();
+    expect(screen.getByText("Library location")).toBeTruthy();
 
     // Click the Reveal button
     const revealBtn = screen.getByText("Reveal");

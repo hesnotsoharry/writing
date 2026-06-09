@@ -249,8 +249,7 @@ function useSnapshotState(
   const historyCurrentText = historySceneId === selectedSceneId
     ? (doc && selectedSceneId ? extractPlainText(doc) : "")
     : "";
-  const historyCurrentWords = historyCurrentText.trim()
-    ? historyCurrentText.trim().split(/\s+/).filter(Boolean).length : 0;
+  const historyCurrentWords = historyCurrentText.trim() ? historyCurrentText.trim().split(/\s+/).filter(Boolean).length : 0;
   return { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords };
 }
 
@@ -281,14 +280,15 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     showExport, setShowExport, exportTarget, setExportTarget, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
     showHistory, setShowHistory, historySceneId, bumpArchivedVersion,
-    showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed, activeProjectId } = state;
+    showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed, activeProjectId, projects } = state;
   const { historySnapshots, setHistorySnapshots, historyCurrentText, historyCurrentWords } = snap;
   const histTitle = historySceneId ? (sceneTitle(historySceneId) || sceneTitle(state.selectedSceneId)) : sceneTitle(state.selectedSceneId);
   return {
-    showQuickCapture, setShowQuickCapture, showInbox, setShowInbox,
+    showQuickCapture, setShowQuickCapture, showInbox, setShowInbox, onAfterPromote: () => wiring.reloadTree(),
     showArchive, setShowArchive, showGoals, setShowGoals, goalsInitialScope, setGoalsInitialScope,
-    showExport, setShowExport, exportScope: exportTarget.scope, exportTargetId: exportTarget.targetId,
-    setExportTarget: (scope: typeof exportTarget.scope, targetId: string) => setExportTarget({ scope, targetId }),
+    showExport, setShowExport, exportScope: exportTarget.scope, exportSceneId: exportTarget.sceneId,
+    exportChapterId: exportTarget.chapterId, exportProjectTitle: projects.find((p) => p.id === activeProjectId)?.title,
+    setExportTarget: (opts: { scope: typeof exportTarget.scope; sceneId: string | null; chapterId: string | null }) => setExportTarget(opts),
     exportSceneDocStore: sceneDocStore, exportTree: tree, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
     setTheme, setAccent, binderStore,
@@ -336,7 +336,7 @@ export default function App() {
       onOpenEntry={openEntry} onPushEntry={pushEntry} onEntryBack={entryBack} onExitEntry={exitEntry}
       historySnapshots={railSnapshots}
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
-      onTakeSnapshot={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); void snapTakeFromMenu({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
+      onTakeSnapshot={selectedSceneId ? () => { void snapCapture({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
       labelStore={labelStore}
     />

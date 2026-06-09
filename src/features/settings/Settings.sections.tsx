@@ -1,4 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
 import { appConfigDir } from "@tauri-apps/api/path";
+import { save } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 
 import { Icon } from "../../components/Icon";
@@ -201,73 +203,23 @@ export function WritingSection({ tweaks, setTweak, onOpenGoals }: WritingSection
 
 // ── Section: Backup ───────────────────────────────────────────────────────────
 
-export interface BackupSectionProps extends SectionProps {
+export interface BackupSectionProps {
   showToast: (msg: string) => void;
 }
 
-function BackupStatusBar({ showToast }: { showToast: (msg: string) => void }) {
-  return (
-    <div className="set-backup-status">
-      <Icon name="cloud" style={{ width: 20, height: 20, color: "var(--good)" }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--ink)" }}>
-          Backed up 2 minutes ago
-        </div>
-        <div style={{ fontSize: "var(--text-2xs)", color: "var(--ink-3)" }}>
-          Versioned · point-in-time restore is available
-        </div>
-      </div>
-      <button className="btn btn-primary" onClick={() => showToast("Backing up now…")}>
-        <Icon name="cloud" className="ic" /> Back up now
-      </button>
-    </div>
-  );
+async function runBackup(showToast: (msg: string) => void): Promise<void> {
+  const path = await save({
+    defaultPath: `writing-backup-${new Date().toISOString().slice(0, 10)}.db`,
+    filters: [{ name: "Writing backup", extensions: ["db"] }],
+  });
+  if (path === null) return;
+  await invoke("backup_database", { destPath: path });
+  showToast(`Backed up to ${path}`);
 }
 
-interface BackupControlRowsProps extends BackupSectionProps {
-  displayPath: string;
-  onReveal: () => void;
-}
-
-function BackupControlRows({ tweaks, setTweak, showToast, displayPath, onReveal }: BackupControlRowsProps) {
-  return (
-    <>
-      <SetRow label="Destination" desc="Off-machine object storage you own.">
-        <SetSelect
-          value={tweaks.backupDest}
-          options={[["Cloudflare R2", "Cloudflare R2"], ["Backblaze B2", "Backblaze B2"]]}
-          onChange={v => setTweak("backupDest", v)}
-        />
-      </SetRow>
-      <SetRow label="How often">
-        <Seg
-          value={tweaks.backupFreq}
-          options={[
-            ["save", "On every change"], ["hourly", "Hourly"], ["close", "On close"],
-          ]}
-          onChange={v => setTweak("backupFreq", v as Tweaks["backupFreq"])}
-        />
-      </SetRow>
-      <SetRow label="Restore" desc="Bring back any earlier version of a scene or the whole project.">
-        <button className="btn btn-ghost set-bordered" onClick={() => showToast("Opening restore…")}>
-          <Icon name="rotate" className="ic" /> Restore from backup…
-        </button>
-      </SetRow>
-      <SetRow label="Library location" desc="Your words live here, on this machine." last>
-        <div className="set-path">
-          <Icon name="folder" style={{ width: 14, height: 14, color: "var(--ink-3)" }} />
-          <span>{displayPath}</span>
-          <button onClick={onReveal}>Reveal</button>
-        </div>
-      </SetRow>
-    </>
-  );
-}
-
-export function BackupSection({ tweaks, setTweak, showToast }: BackupSectionProps) {
+function useLibraryDir() {
   const [libDir, setLibDir] = useState<string | null>(null);
   const [resolveFailed, setResolveFailed] = useState(false);
-
   useEffect(() => {
     let active = true;
     appConfigDir()
@@ -275,8 +227,12 @@ export function BackupSection({ tweaks, setTweak, showToast }: BackupSectionProp
       .catch(() => { if (active) setResolveFailed(true); });
     return () => { active = false; };
   }, []);
-
   const displayPath = libDir ?? (resolveFailed ? "Library folder unavailable" : "Resolving…");
+  return { libDir, displayPath };
+}
+
+export function BackupSection({ showToast }: BackupSectionProps) {
+  const { libDir, displayPath } = useLibraryDir();
 
   async function handleReveal() {
     try {
@@ -288,13 +244,28 @@ export function BackupSection({ tweaks, setTweak, showToast }: BackupSectionProp
     }
   }
 
+  async function handleBackup() {
+    try {
+      await runBackup(showToast);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Backup failed");
+    }
+  }
+
   return (
     <>
-      <BackupStatusBar showToast={showToast} />
-      <BackupControlRows
-        tweaks={tweaks} setTweak={setTweak} showToast={showToast}
-        displayPath={displayPath} onReveal={() => void handleReveal()}
-      />
+      <SetRow label="Back up now" desc="Save a complete copy of your library (all manuscripts, scenes, snapshots, and notes) anywhere on this device.">
+        <button className="btn btn-primary" onClick={() => void handleBackup()}>
+          <Icon name="archive" className="ic" /> Back up now
+        </button>
+      </SetRow>
+      <SetRow label="Library location" desc="Your words live here, on this machine." last>
+        <div className="set-path">
+          <Icon name="folder" style={{ width: 14, height: 14, color: "var(--ink-3)" }} />
+          <span>{displayPath}</span>
+          <button onClick={() => void handleReveal()}>Reveal</button>
+        </div>
+      </SetRow>
     </>
   );
 }
@@ -319,8 +290,8 @@ export function AboutSection() {
         </div>
       </div>
       <p className="set-about-blurb">
-        A calm, local-first writing space. Your words live on your machine and are backed up
-        off it automatically — so a dead laptop loses nothing. No built-in AI, by design.
+        A calm, local-first writing space. Your words live entirely on this device. Use
+        Settings ▸ Backup to save a copy wherever you like. No built-in AI, by design.
         Everything exports in one step; there is no lock-in.
       </p>
       <div className="set-sub">Keyboard shortcuts</div>

@@ -97,8 +97,9 @@ describe("ExportOverlay — structure", () => {
     const { container } = render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
@@ -116,8 +117,9 @@ describe("ExportOverlay — structure", () => {
     render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
@@ -129,44 +131,53 @@ describe("ExportOverlay — structure", () => {
 
   it("shows the scope label 'Scene' in the sheet sub-header", async () => {
     const { store, tree } = await makeMinimalFixture();
-    render(
+    const { container } = render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
       />
     );
-    expect(screen.getByText("Scene")).toBeInTheDocument();
+    expect(container.querySelector(".sheet-sub")?.textContent).toBe("Scene");
   });
 
-  it("shows 'Chapter' for chapter scope and 'Whole manuscript' for manuscript scope", async () => {
-    const { store, tree } = await makeMinimalFixture();
-    const { rerender } = render(
+  it("shows 'Chapter' sub-header when initialScope='chapter'", async () => {
+    const store = new InMemorySceneDocStore();
+    const folder = makeFolder("f1", "Chapter One", 1000);
+    const tree = buildTree([folder], []);
+    const { container } = render(
       <ExportOverlay
         projectId="proj-test"
-        scope="chapter"
-        targetId="f1"
+        initialScope="chapter"
+        sceneId={null}
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
       />
     );
-    expect(screen.getByText("Chapter")).toBeInTheDocument();
+    expect(container.querySelector(".sheet-sub")?.textContent).toBe("Chapter");
+  });
 
-    rerender(
+  it("shows 'Whole manuscript' sub-header when initialScope='manuscript'", async () => {
+    const store = new InMemorySceneDocStore();
+    const tree = buildTree([], []);
+    const { container } = render(
       <ExportOverlay
         projectId="proj-test"
-        scope="manuscript"
-        targetId="proj-test"
+        initialScope="manuscript"
+        sceneId={null}
+        chapterId={null}
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
       />
     );
-    expect(screen.getByText("Whole manuscript")).toBeInTheDocument();
+    expect(container.querySelector(".sheet-sub")?.textContent).toBe("Whole manuscript");
   });
 
   it("Markdown is selected by default", async () => {
@@ -174,8 +185,9 @@ describe("ExportOverlay — structure", () => {
     render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
@@ -197,8 +209,9 @@ describe("ExportOverlay — PDF format pick calls onSave with the right args", (
     render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={onClose}
@@ -228,8 +241,9 @@ describe("ExportOverlay — Markdown format calls onSave with the right args", (
     render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
@@ -259,8 +273,9 @@ describe("ExportOverlay — docx format calls onSave with the right args", () =>
     render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={() => {}}
@@ -291,8 +306,9 @@ describe("ExportOverlay — onSave omitted uses blobDownloadSave fallback", () =
     render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={onClose}
@@ -322,8 +338,9 @@ describe("ExportOverlay — cancel / scrim close", () => {
     render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={onClose}
@@ -341,8 +358,9 @@ describe("ExportOverlay — cancel / scrim close", () => {
     const { container } = render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={onClose}
@@ -361,8 +379,9 @@ describe("ExportOverlay — cancel / scrim close", () => {
     const { container } = render(
       <ExportOverlay
         projectId="proj-test"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={onClose}

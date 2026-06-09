@@ -126,6 +126,7 @@ interface InboxProps {
   setHasQuickItems: Dispatch<SetStateAction<boolean>>;
   store?: Pick<SqliteQuickNoteStore, "listUnfiled" | "updateBody" | "delete" | "markFiled">;
   promote?: (note: QuickNote) => Promise<void>;
+  onAfterPromote?: () => void;
 }
 
 interface UseInboxNotesArgs {
@@ -133,9 +134,10 @@ interface UseInboxNotesArgs {
   setHasQuickItems: Dispatch<SetStateAction<boolean>>;
   store: Pick<SqliteQuickNoteStore, "listUnfiled" | "updateBody" | "delete" | "markFiled">;
   effectivePromote: (note: QuickNote) => Promise<void>;
+  onAfterPromote?: () => void;
 }
 
-function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectivePromote }: UseInboxNotesArgs) {
+function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectivePromote, onAfterPromote }: UseInboxNotesArgs) {
   // null = not yet loaded; [] = loaded, empty; [...] = loaded with notes.
   const [notes, setNotes] = useState<QuickNote[] | null>(null);
 
@@ -175,14 +177,14 @@ function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectiveProm
         setHasQuickItems(remaining.length > 0);
         return remaining;
       });
-      window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT));
+      window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT)); onAfterPromote?.();
     } catch (e) { console.error("[inbox] promote failed", e); }
   }
 
   return { notes, handleEdit, handleDelete, handlePromote };
 }
 
-export function Inbox({ onClose, activeProjectId, setHasQuickItems, store = defaultStore, promote }: InboxProps) {
+export function Inbox({ onClose, activeProjectId, setHasQuickItems, store = defaultStore, promote, onAfterPromote }: InboxProps) {
   // Default promote: real orchestration. Promote does NOT live-refresh the binder tree
   // (the new scene appears on next project load) — setTree lives in the frozen App.tsx.
   const effectivePromote = promote ?? ((note: QuickNote) => {
@@ -194,7 +196,7 @@ export function Inbox({ onClose, activeProjectId, setHasQuickItems, store = defa
   });
 
   const { notes, handleEdit, handleDelete, handlePromote } = useInboxNotes({
-    activeProjectId, setHasQuickItems, store, effectivePromote,
+    activeProjectId, setHasQuickItems, store, effectivePromote, onAfterPromote,
   });
 
   return (

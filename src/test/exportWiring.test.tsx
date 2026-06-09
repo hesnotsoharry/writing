@@ -7,7 +7,7 @@
  * scope+target and opens the ExportOverlay.  Tests render the real components
  * with spy callbacks — no vacuous mock-only assertions.
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BinderCallbacks } from "../binder/BinderCrud";
@@ -188,59 +188,62 @@ describe("Corkboard — context-menu Export trigger", () => {
 // ExportOverlay — receives correct projectId, scope, targetId
 // ---------------------------------------------------------------------------
 
-describe("ExportOverlay — receives correct projectId, scope, targetId", () => {
-  it("shows 'Scene' sub-header when scope='scene'", async () => {
+describe("ExportOverlay — receives correct projectId, initialScope, scene/chapter context", () => {
+  it("shows 'Scene' sub-header when initialScope='scene'", async () => {
     const store = new InMemorySceneDocStore();
     const folder = makeFolder("f1", "Chapter One");
     const scene = makeScene({ id: "s1", title: "Scene One", folder_id: "f1" });
     await store.save("s1", "", "");
     const tree = buildTree([folder], [scene]);
 
-    render(
+    const { container } = render(
       <ExportOverlay
         projectId="proj-1"
-        scope="scene"
-        targetId="s1"
+        initialScope="scene"
+        sceneId="s1"
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText("Scene")).toBeInTheDocument();
+    expect(container.querySelector(".sheet-sub")?.textContent).toBe("Scene");
   });
 
-  it("shows 'Chapter' sub-header when scope='chapter'", async () => {
+  it("shows 'Chapter' sub-header when initialScope='chapter'", async () => {
     const store = new InMemorySceneDocStore();
     const folder = makeFolder("f1", "Chapter One");
     const tree = buildTree([folder], []);
 
-    render(
+    const { container } = render(
       <ExportOverlay
         projectId="proj-1"
-        scope="chapter"
-        targetId="f1"
+        initialScope="chapter"
+        sceneId={null}
+        chapterId="f1"
         sceneDocStore={store}
         tree={tree}
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText("Chapter")).toBeInTheDocument();
+    expect(container.querySelector(".sheet-sub")?.textContent).toBe("Chapter");
   });
 
-  it("shows 'Whole manuscript' sub-header when scope='manuscript'", async () => {
+  it("shows 'Whole manuscript' sub-header when initialScope='manuscript'", async () => {
     const store = new InMemorySceneDocStore();
     const tree = buildTree([], []);
 
-    render(
+    const { container } = render(
       <ExportOverlay
         projectId="proj-1"
-        scope="manuscript"
-        targetId="proj-1"
+        initialScope="manuscript"
+        sceneId={null}
+        chapterId={null}
         sceneDocStore={store}
         tree={tree}
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText("Whole manuscript")).toBeInTheDocument();
+    expect(container.querySelector(".sheet-sub")?.textContent).toBe("Whole manuscript");
   });
 });

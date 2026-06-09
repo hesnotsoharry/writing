@@ -36,8 +36,6 @@ export interface Tweaks {
   defaultStatus: "blank" | "outline" | "draft";
   confirmDelete: boolean;
   reopenLast: boolean;
-  backupDest: string;
-  backupFreq: "save" | "hourly" | "close";
   // ── Auto-link settings (Wave 28 P8) ────────────────────────────────────────
   autolinkOn: boolean;
   autolinkScope: "all" | "first";
@@ -61,8 +59,6 @@ export const TWEAK_DEFAULTS: Tweaks = {
   defaultStatus: "blank",
   confirmDelete: true,
   reopenLast: true,
-  backupDest: "Cloudflare R2",
-  backupFreq: "save",
   autolinkOn: true,
   autolinkScope: "all",
   autolinkTypes: ["character", "location", "item", "faction", "lore"],

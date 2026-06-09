@@ -12,6 +12,7 @@ import type { SceneDocStore } from "./db/sceneDocStore";
 import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { Archive } from "./features/archive/Archive";
 import { ExportOverlay } from "./features/export/Export";
+import { tauriSave } from "./features/export/tauriSave";
 import type { ExportScope } from "./features/export/types";
 import { FindReplace } from "./features/findreplace/FindReplace";
 import type { GoalsInitialScope } from "./features/goals/Goals";
@@ -41,11 +42,16 @@ export interface OverlayStackProps {
   manuscriptTotal?: number;
   showExport: boolean;
   setShowExport: (v: boolean) => void;
-  /** Scope and target for the ExportOverlay — set by each trigger before opening. */
+  /** Initial scope for the ExportOverlay — the overlay manages scope as local state. */
   exportScope: ExportScope;
-  exportTargetId: string;
-  /** Updates the export scope + target before setShowExport(true). */
-  setExportTarget: (scope: ExportScope, targetId: string) => void;
+  /** Scene ID of the currently-selected scene (null when none active). */
+  exportSceneId: string | null;
+  /** Parent chapter folder ID of the selected scene (null for short pieces / no scene). */
+  exportChapterId: string | null;
+  /** Project title shown in the Manuscript scope option label. */
+  exportProjectTitle?: string;
+  /** Updates the export context (initial scope + scene/chapter IDs) before setShowExport(true). */
+  setExportTarget: (opts: { scope: ExportScope; sceneId: string | null; chapterId: string | null }) => void;
   /** Scene-doc store forwarded to ExportOverlay (needed to read Yjs docs). */
   exportSceneDocStore: SceneDocStore;
   /** Binder tree forwarded to ExportOverlay (needed to resolve scope → scenes). */
@@ -56,6 +62,8 @@ export interface OverlayStackProps {
   setAccent: (a: AccentPalette) => void;
   setGoalsOn: Dispatch<SetStateAction<boolean>>;
   setHasQuickItems: Dispatch<SetStateAction<boolean>>;
+  /** Called after a note is promoted to a scene so the binder tree reloads immediately. */
+  onAfterPromote?: () => void;
   /** Binder store passed to the Archive overlay for DI. */
   binderStore: BinderStore;
   /** Called after a restore inside Archive so the binder count and tree refresh. */
@@ -101,7 +109,8 @@ function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
       )}
       {p.showInbox && (
         <Inbox onClose={() => p.setShowInbox(false)}
-          activeProjectId={p.activeProjectId} setHasQuickItems={p.setHasQuickItems} />
+          activeProjectId={p.activeProjectId} setHasQuickItems={p.setHasQuickItems}
+          onAfterPromote={p.onAfterPromote} />
       )}
       {p.showArchive && (
         <Archive projectId={p.activeProjectId ?? undefined} store={p.binderStore}
@@ -113,9 +122,10 @@ function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
           editGoalId={p.editGoalId} manuscriptTotal={p.manuscriptTotal} />
       )}
       {p.showExport && p.activeProjectId && (
-        <ExportOverlay projectId={p.activeProjectId} scope={p.exportScope}
-          targetId={p.exportTargetId} sceneDocStore={p.exportSceneDocStore}
-          tree={p.exportTree} onClose={() => p.setShowExport(false)} />
+        <ExportOverlay projectId={p.activeProjectId} initialScope={p.exportScope}
+          sceneId={p.exportSceneId} chapterId={p.exportChapterId}
+          projectTitle={p.exportProjectTitle} sceneDocStore={p.exportSceneDocStore}
+          tree={p.exportTree} onClose={() => p.setShowExport(false)} onSave={tauriSave} />
       )}
       {p.showSettings && (
         <Settings onClose={() => p.setShowSettings(false)} setTheme={p.setTheme} setAccent={p.setAccent}

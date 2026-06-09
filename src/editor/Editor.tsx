@@ -277,24 +277,19 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
   const { peek, handleMouseOver, handleMouseOut, closePeek } = useAutoLinkHover();
   const [alMenu, setAlMenu] = useState<MenuDescriptor | null>(null);
   const [mockNotice, setMockNotice] = useState<string | null>(null);
-
-  function fireNotice(msg: string): void {
-    setMockNotice(msg);
-    setTimeout(() => setMockNotice(null), 2200);
-  }
-
-  function handleFind(name: string): void { if (onFindMentions) { onFindMentions(name); } else { fireNotice(`Find mentions: ${name} — coming soon`); } }
-
+  const fireNotice = (msg: string) => { setMockNotice(msg); setTimeout(() => setMockNotice(null), 2200); };
+  const handleFind = (name: string) => onFindMentions?.(name) ?? fireNotice(`Find mentions: ${name} — coming soon`);
   function handleAlLinkContext(e: React.MouseEvent<HTMLDivElement>): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>(".al-link");
     if (!el) return;
     setAlMenu(buildAlLinkMenu({ el, x: e.clientX, y: e.clientY, onOpenEntry, onNotice: fireNotice, onFindMentions: handleFind }));
   }
-
+  // onClick below: clicking the blank page (outside PM's content DOM) focuses the editor at end.
   return (
     <div className="canvas-wrap"
       onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}
-      onContextMenu={handleAlLinkContext}>
+      onContextMenu={handleAlLinkContext}
+      onClick={(e) => { if (editor && !editor.view.dom.contains(e.target as Node)) editor.commands.focus('end'); }}>
       {activeScene && (
         <EditorHeader chapterTitle={activeScene.chapterTitle} title={activeScene.scene.title}
           status={normalizeStatus(activeScene.scene.status)}

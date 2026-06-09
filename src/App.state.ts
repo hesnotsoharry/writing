@@ -17,7 +17,8 @@ import { readGoalsOn } from "./features/goals/goalStorage";
 
 export interface ExportTarget {
   scope: ExportScope;
-  targetId: string;
+  sceneId: string | null;
+  chapterId: string | null;
 }
 
 export type AppView = "editor" | "bible" | "cork" | "outline" | "entry";
@@ -91,7 +92,7 @@ function useModalFlags() {
   const [showGoals, setShowGoals] = useState(false);
   const [goalsInitialScope, setGoalsInitialScope] = useState<GoalsInitialScope | undefined>(undefined);
   const [showExport, setShowExport] = useState(false);
-  const [exportTarget, setExportTarget] = useState<ExportTarget>({ scope: "manuscript", targetId: "" });
+  const [exportTarget, setExportTarget] = useState<ExportTarget>({ scope: "manuscript", sceneId: null, chapterId: null });
   const [showSettings, setShowSettings] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [goalsOn, setGoalsOn] = useState(() => readGoalsOn());

@@ -34,6 +34,8 @@ export interface KeybindingSetters {
   setFocusMode: ToggleSetter;
   setShowFindReplace: BoolSetter;
   view: AppView;
+  /** When set, ⌘E uses this instead of the bare setShowExport — ensures scene context is pre-loaded. */
+  openExport?: () => void;
 }
 
 interface ModSets {
@@ -43,22 +45,23 @@ interface ModSets {
   setShowSettings: BoolSetter;
   setShowFindReplace: BoolSetter;
   view: AppView;
+  openExport?: () => void;
 }
 
 function handleModKey(key: string, shifted: boolean, sets: ModSets, e: KeyboardEvent) {
   if (key === "k") { e.preventDefault(); sets.setShowQuickCapture((v) => !v); }
   else if (key === ".") { e.preventDefault(); if (sets.view === "editor") sets.setFocusMode((v) => !v); }
-  else if (key === "e") { e.preventDefault(); sets.setShowExport(true); }
+  else if (key === "e") { e.preventDefault(); if (sets.openExport) sets.openExport(); else sets.setShowExport(true); }
   else if (key === ",") { e.preventDefault(); sets.setShowSettings(true); }
   else if (key === "h" && shifted) { e.preventDefault(); sets.setShowFindReplace(true); }
 }
 
 export function useGlobalKeybindings({
   setShowQuickCapture, setShowInbox, setShowArchive,
-  setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace, view,
+  setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace, view, openExport,
 }: KeybindingSetters): void {
   useEffect(() => {
-    const sets = { setShowQuickCapture, setFocusMode, setShowExport, setShowSettings, setShowFindReplace, view };
+    const sets = { setShowQuickCapture, setFocusMode, setShowExport, setShowSettings, setShowFindReplace, view, openExport };
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (e.key === "Escape") {
@@ -73,6 +76,6 @@ export function useGlobalKeybindings({
     return () => window.removeEventListener("keydown", onKey);
   }, [
     setShowQuickCapture, setShowInbox, setShowArchive,
-    setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace, view,
+    setShowGoals, setShowExport, setShowSettings, setFocusMode, setShowFindReplace, view, openExport,
   ]);
 }

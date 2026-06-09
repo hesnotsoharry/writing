@@ -48,6 +48,8 @@ export interface OutlinerRowHandlers {
   onSetSynopsis?: (id: string, text: string) => void;
   onToggleLabel?: (sceneId: string, labelId: string) => void;
   setRenaming?: (id: string | null) => void;
+  /** Opens the Export overlay scoped to the given scene. */
+  onExport?: (sceneId: string) => void;
 }
 
 // ── OutlinerRow sub-cells ─────────────────────────────────────────────────────

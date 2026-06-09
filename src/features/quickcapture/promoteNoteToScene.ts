@@ -5,12 +5,6 @@ import type { SceneDocStore } from "../../db/sceneDocStore";
 import { encodeDoc } from "../../yjs/serialize";
 import type { QuickNote } from "./SqliteQuickNoteStore";
 
-function deriveTitle(body: string): string {
-  const first = body.split("\n").map((l) => l.trim()).find((l) => l.length > 0);
-  if (!first) return "Untitled note";
-  return first.length > 60 ? `${first.slice(0, 60)}…` : first;
-}
-
 export function noteBodyToSceneDoc(body: string): string {
   const doc = new Y.Doc();
   const frag = doc.getXmlFragment("content");
@@ -47,7 +41,7 @@ export async function promoteNoteToScene(
   const sceneId = await deps.binderStore.createScene({
     projectId: args.projectId,
     folderId: null,
-    title: deriveTitle(args.note.body),
+    title: "Untitled",
   });
   await deps.sceneDocStore.save(
     sceneId,

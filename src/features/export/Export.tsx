@@ -11,8 +11,14 @@ import type { ExportData, ExportScope, SaveCallback } from "./types";
 
 export interface ExportOverlayProps {
   projectId: string;
-  scope: ExportScope;
-  targetId: string;
+  /** Scope shown when the overlay first opens; the user can change it. */
+  initialScope: ExportScope;
+  /** ID of the currently-selected scene (null if none). */
+  sceneId: string | null;
+  /** Parent chapter folder ID of the selected scene (null for short pieces / no active scene). */
+  chapterId: string | null;
+  /** Project/manuscript title used as the Manuscript scope label. */
+  projectTitle?: string;
   sceneDocStore: SceneDocStore;
   tree: BinderTree;
   onClose: () => void;
@@ -49,6 +55,13 @@ interface ExecExportOpts {
   tree: BinderTree;
   store: SceneDocStore;
   save: SaveCallback;
+}
+
+/** Resolves which ID to pass to collectBlocks based on the selected scope. */
+function resolveTargetId(scope: ExportScope, sceneId: string | null, chapterId: string | null, projectId: string): string {
+  if (scope === "scene") return sceneId ?? "";
+  if (scope === "chapter") return chapterId ?? "";
+  return projectId;
 }
 
 async function execExport({ format, scope, targetId, projectId, tree, store, save }: ExecExportOpts): Promise<void> {
@@ -103,11 +116,66 @@ function FormatPicker({ format, onChange }: { format: ExportFormat; onChange: (f
 }
 
 // ---------------------------------------------------------------------------
+// ScopePicker
+// ---------------------------------------------------------------------------
+
+function scopeDesc(
+  value: ExportScope,
+  sceneTitle: string | null,
+  chapterTitle: string | null,
+  projectTitle: string | null
+): string {
+  if (value === "scene") return sceneTitle ?? "Current scene";
+  if (value === "chapter") return chapterTitle ?? "Current chapter";
+  return projectTitle ?? "Whole manuscript";
+}
+
+interface ScopePickerProps {
+  scope: ExportScope;
+  hasChapter: boolean;
+  sceneTitle: string | null;
+  chapterTitle: string | null;
+  projectTitle: string | null;
+  onChange: (s: ExportScope) => void;
+}
+
+function ScopePicker({ scope, hasChapter, sceneTitle, chapterTitle, projectTitle, onChange }: ScopePickerProps): ReactElement {
+  const options: ExportScope[] = hasChapter ? ["scene", "chapter", "manuscript"] : ["scene", "manuscript"];
+  return (
+    <div role="radiogroup" aria-label="Export scope" style={{ marginBottom: 16 }}>
+      <label className="field-label">Scope</label>
+      <div className="fmt-grid">
+        {options.map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={scope === value}
+            className={"fmt" + (scope === value ? " on" : "")}
+            onClick={() => onChange(value)}
+          >
+            <span>
+              <div className="fmt-name">{SCOPE_LABEL[value]}</div>
+              <div className="fmt-desc">{scopeDesc(value, sceneTitle, chapterTitle, projectTitle)}</div>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ExportSheet
 // ---------------------------------------------------------------------------
 
 interface ExportSheetProps {
   scope: ExportScope;
+  onScopeChange: (s: ExportScope) => void;
+  hasChapter: boolean;
+  sceneTitle: string | null;
+  chapterTitle: string | null;
+  projectTitle: string | null;
   format: ExportFormat;
   onFormatChange: (f: ExportFormat) => void;
   busy: boolean;
@@ -116,7 +184,10 @@ interface ExportSheetProps {
   onExport: () => void;
 }
 
-function ExportSheet({ scope, format, onFormatChange, busy, errorMsg, onClose, onExport }: ExportSheetProps): ReactElement {
+function ExportSheet({
+  scope, onScopeChange, hasChapter, sceneTitle, chapterTitle, projectTitle,
+  format, onFormatChange, busy, errorMsg, onClose, onExport,
+}: ExportSheetProps): ReactElement {
   return (
     <div className="scrim" onClick={onClose}>
       <div className="sheet" style={{ width: 420 }} onClick={(e) => e.stopPropagation()}>
@@ -128,6 +199,8 @@ function ExportSheet({ scope, format, onFormatChange, busy, errorMsg, onClose, o
           <button className="iconbtn sheet-x" type="button" aria-label="Close" onClick={onClose}><Icon name="x" className="ic" /></button>
         </div>
         <div className="sheet-body">
+          <ScopePicker scope={scope} hasChapter={hasChapter}
+            sceneTitle={sceneTitle} chapterTitle={chapterTitle} projectTitle={projectTitle} onChange={onScopeChange} />
           <FormatPicker format={format} onChange={onFormatChange} />
           {errorMsg !== null && (
             <div role="alert" style={{ marginTop: 12, fontSize: 13, color: "var(--danger, #c0392b)" }}>
@@ -152,11 +225,18 @@ function ExportSheet({ scope, format, onFormatChange, busy, errorMsg, onClose, o
 // ExportOverlay (public export)
 // ---------------------------------------------------------------------------
 
-export function ExportOverlay({ projectId, scope, targetId, sceneDocStore, tree, onClose, onSave }: ExportOverlayProps): ReactElement {
+export function ExportOverlay({
+  projectId, initialScope, sceneId, chapterId, projectTitle, sceneDocStore, tree, onClose, onSave,
+}: ExportOverlayProps): ReactElement {
+  const [scope, setScope] = useState<ExportScope>(initialScope);
   const [format, setFormat] = useState<ExportFormat>("markdown");
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const busyRef = useRef(false);
+  const allScenes = [...tree.chapters.flatMap((c) => c.scenes), ...tree.shortPieces];
+  const activeScene = sceneId ? allScenes.find((s) => s.id === sceneId) : null;
+  const activeChapter = chapterId ? tree.chapters.find((c) => c.folder.id === chapterId) : null;
+  const targetId = resolveTargetId(scope, sceneId, chapterId, projectId);
 
   function handleExport(): void {
     if (busyRef.current) return;
@@ -177,7 +257,9 @@ export function ExportOverlay({ projectId, scope, targetId, sceneDocStore, tree,
 
   return (
     <ExportSheet
-      scope={scope} format={format} onFormatChange={setFormat}
+      scope={scope} onScopeChange={setScope} format={format} onFormatChange={setFormat}
+      hasChapter={chapterId !== null} sceneTitle={activeScene?.title ?? null}
+      chapterTitle={activeChapter?.folder.title ?? null} projectTitle={projectTitle ?? null}
       busy={busy} errorMsg={errorMsg} onClose={onClose} onExport={handleExport}
     />
   );

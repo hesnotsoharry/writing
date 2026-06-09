@@ -10,6 +10,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type * as Y from "yjs";
 
+import { useExportActions } from "./App.content.export";
 import { buildViewStage } from "./App.content.viewstage";
 import { useGlobalKeybindings } from "./App.keybindings";
 import type { OverlayStackProps } from "./App.overlays";
@@ -107,8 +108,7 @@ function useChapterInfo(tree: BinderTree, selectedSceneId: string | null, liveWo
   if (!selectedSceneId) return { chapterId: null, chapterTotal: null };
   const chapter = tree.chapters.find((ch) => ch.scenes.some((s) => s.id === selectedSceneId));
   if (!chapter) return { chapterId: null, chapterTotal: null };
-  const total = chapter.scenes.reduce(
-    (acc, s) => acc + (s.id === selectedSceneId ? liveWordCount : (s.word_count ?? 0)), 0);
+  const total = chapter.scenes.reduce((acc, s) => acc + (s.id === selectedSceneId ? liveWordCount : (s.word_count ?? 0)), 0);
   return { chapterId: chapter.folder.id, chapterTotal: total };
 }
 
@@ -267,7 +267,7 @@ function useAppContentSlots(props: AppContentProps) {
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree, entryStack,
     entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry, historySnapshots, onOpenHistory, onTakeSnapshot, labelStore } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget, setShowFindReplace, setFindReplaceSeed } = overlays;
-  useGlobalKeybindings({ ...overlays, setShowFindReplace, view }); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
+  const { onExport, openExport } = useExportActions(tree, selectedSceneId, setExportTarget, setShowExport); useGlobalKeybindings({ ...overlays, setShowFindReplace, view, openExport }); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle(); const motionOn = useMotion();
   const liveWordCount = useLiveWordCount(doc);
   const manuscriptTotal = useManuscriptWordCount({ tree, activeSceneId: selectedSceneId, liveActiveWords: liveWordCount });
@@ -276,7 +276,7 @@ function useAppContentSlots(props: AppContentProps) {
   const docName = projects.find((p) => p.id === activeProjectId)?.title; const activeScene = useActiveScene(tree, selectedSceneId);
   const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
   const focusSettingsHook = useFocusSettings();
-  const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };  const onExport = (scope: "scene" | "chapter", id: string) => { setExportTarget(scope, id); setShowExport(true); };
+  const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };
   const { menu: goalMenu, openGoalMenu, closeGoalMenu, editGoalId, setEditGoalId } = useGoalMenu(setShowGoals);
   const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";  const insertAtCaretRef = useRef<((text: string) => void) | null>(null);  const onRegisterInsert = useCallback((fn: (text: string) => void) => { insertAtCaretRef.current = fn; }, []);  const onInsertAtCaret = useCallback((name: string) => { insertAtCaretRef.current?.(name); }, []);
   // eslint-disable-next-line react-hooks/refs
@@ -298,7 +298,7 @@ function useAppContentSlots(props: AppContentProps) {
   });
   return {
     focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,
-    setShowExport, setExportTarget, liveWordCount, manuscriptTotal, goalProgress, docName,
+    setShowExport, openExport, liveWordCount, manuscriptTotal, goalProgress, docName,
     binderSlot, inspectorSlot, viewStageContent, overlays, activeProjectId, motionOn,
     labelState: ls, labelStore, focusSettingsHook, goalMenu, closeGoalMenu, editGoalId, setEditGoalId,
   };
@@ -308,7 +308,7 @@ function useAppContentSlots(props: AppContentProps) {
 
 export function AppContent(props: AppContentProps) {
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture,
-    setShowSettings, setShowExport, setExportTarget, liveWordCount, manuscriptTotal, goalProgress,
+    setShowSettings, openExport, liveWordCount, manuscriptTotal, goalProgress,
     docName, binderSlot, inspectorSlot, viewStageContent, overlays, motionOn,
     labelState, labelStore, focusSettingsHook, goalMenu, closeGoalMenu, editGoalId, setEditGoalId,
   } = useAppContentSlots(props);
@@ -325,7 +325,7 @@ export function AppContent(props: AppContentProps) {
           showFindReplace={overlays.showFindReplace} showHistory={overlays.showHistory} showQuickCapture={overlays.showQuickCapture} focusMode={focusMode} showSettings={overlays.showSettings}
           onToggleGoals={() => setShowGoals(true)} onOpenQuick={() => setShowQuickCapture(true)}
           onEnterFocus={() => { if (view === "editor") setFocusMode(true); }} onOpenSettings={() => setShowSettings(true)}
-          onOpenExport={() => { setExportTarget("manuscript", activeProjectId ?? ""); setShowExport(true); }}
+          onOpenExport={openExport}
           onOpenFind={() => { overlays.setFindReplaceSeed?.(""); overlays.setShowFindReplace(true); }}
           onOpenHistory={props.onOpenHistory} />}
         binder={binderSlot}

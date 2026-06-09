@@ -31,15 +31,15 @@ type SectionId = "appearance" | "editor" | "writing" | "backup" | "about";
 interface NavItem {
   id: SectionId;
   label: string;
-  icon: "palette" | "type" | "feather" | "cloud" | "info";
+  icon: "palette" | "type" | "feather" | "archive" | "info";
 }
 
 const SET_NAV: NavItem[] = [
-  { id: "appearance", label: "Appearance",    icon: "palette" },
-  { id: "editor",     label: "Editor",        icon: "type"    },
-  { id: "writing",    label: "Writing",       icon: "feather" },
-  { id: "backup",     label: "Backup & data", icon: "cloud"   },
-  { id: "about",      label: "About",         icon: "info"    },
+  { id: "appearance", label: "Appearance",    icon: "palette"  },
+  { id: "editor",     label: "Editor",        icon: "type"     },
+  { id: "writing",    label: "Writing",       icon: "feather"  },
+  { id: "backup",     label: "Backup & data", icon: "archive"  },
+  { id: "about",      label: "About",         icon: "info"     },
 ];
 
 // ── Safe localStorage read ────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ function SectionRouter({ sec, tweaks, setTweak, theme, accent, onThemeChange, on
   if (sec === "appearance") return <AppearanceSection tweaks={tweaks} setTweak={setTweak} theme={theme} accent={accent} onThemeChange={onThemeChange} onAccentChange={onAccentChange} />;
   if (sec === "editor")     return <EditorSection tweaks={tweaks} setTweak={setTweak} />;
   if (sec === "writing")    return <WritingSection tweaks={tweaks} setTweak={setTweak} onOpenGoals={onOpenGoals} />;
-  if (sec === "backup")     return <BackupSection tweaks={tweaks} setTweak={setTweak} showToast={showToast} />;
+  if (sec === "backup")     return <BackupSection showToast={showToast} />;
   return (
     <>
       <AboutSection />
