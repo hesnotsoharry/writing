@@ -2,13 +2,14 @@
 vendor: "Tauri 2.x"
 sdkVersion: "2"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-03
+lastVerified: 2026-06-09
 relatedPaths:
   - src/shell/WindowControls.tsx
   - src/shell/TitleBar.tsx
   - src-tauri/tauri.conf.json
   - src-tauri/capabilities/default.json
-notes: "Gotchas discovered during first Tauri window API integration (custom frameless window, window controls, drag region). Windows 11 + WebView2 context."
+  - src/shell/UpdateModal.tsx
+notes: "Gotchas: Tauri 2 window API, custom frameless, drag region inheritance, dialog permissions, auto-updater config/relaunch. Windows 11 + WebView2 context."
 ---
 
 # Tauri gotchas
@@ -31,6 +32,9 @@ Source: wave-5, commit a3e9491
 **Workaround:** Place `data-tauri-drag-region` on the title bar's root container, and structure clickable controls (buttons) so they are children of that region. The drag region is hit-tested; clicks on buttons inside the region are delivered to the button, not consumed by the drag handler.
 **Why:** Tauri's drag-region implementation is OS-level; it intercepts the entire region before handing off to React's event system, so careful DOM structure is load-bearing.
 
+**Refinement (2026-06-09):** The attribute does NOT inherit to child elements — it applies only to the exact DOM element bearing it. Wrappers, `<img>` logos, text nodes, and dividers inside a titled region will swallow mouse events and block window dragging. Fix: apply `data-tauri-drag-region` to EVERY non-interactive element in the title bar (never on buttons or controls), not just the top-level container.
+Source: recent session, commit 4ca46c7
+
 ## 2026-06-03 — Calling `getCurrentWindow()` at React render scope crashes in jsdom tests
 Source: wave-5, commit a3e9491
 **Gotcha:** When `getCurrentWindow()` is called during a component's render phase (top-level in the function body, not in an event handler), it throws if the Tauri context is not available. In jsdom test environments, `window.__TAURI_INTERNALS__` is undefined, causing the import's initialization to fail with a hard crash. The test cannot even render the component without a mock.
@@ -42,3 +46,21 @@ Source: wave-5, deferred gotcha from scope decision
 **Gotcha:** Setting `transparent: true` in `tauri.conf.json` (required for floating-window designs with inset shadows and rounded corners) exposes known WebView2 rendering bugs on Windows 11, including color banding, incorrect alpha blending, and shadow artifacts. The trade-off between design fidelity (rounded shadow over desktop) and rendering reliability is unresolved in this version.
 **Workaround:** Ship square-frameless (`transparent: false`, `.win` fills the window bounds, no inset/shadow). Defer the floating design to a future wave once WebView2 transparency is verified in live smoke tests. If choosing transparency: test heavily on the target Windows build (11 22H2+) before shipping; enable only after explicit sign-off.
 **Why:** WebView2's transparency support is documented as partial and version-sensitive. Tauri inherits all of WebView2's rendering quirks. No mitigation exists in Tauri itself — the fix (if any) is OS/browser-side. This is a platform limitation, not a Tauri bug.
+
+## 2026-06-09 — Tauri 2 `dialog:default` capability set does NOT include `allow-ask`
+Source: recent session, commit 87ab44c
+**Gotcha:** The default `dialog` capability permission set includes `allow-message`, `allow-save`, and `allow-open` but omits `allow-ask`. Calling `dialog.ask()` from the frontend throws a permission denial. In an auto-updater flow, this manifests as a silent failure or a misleading "update check failed" error (the updater misreports the cause).
+**Workaround:** Add `dialog:allow-ask` explicitly to the capabilities `permissions[]` array in `src-tauri/capabilities/default.json`. Alternatively, replace `ask()` with a custom in-app confirmation modal.
+**Why:** Tauri 2's ACL denies all operations by default; the default dialog set is a convenience covering common cases but omits less-frequent ones. Not documented in the PluginConfig schema.
+
+## 2026-06-09 — `@tauri-apps/plugin-updater` Windows install mode: `plugins.updater.windows.installMode`
+Source: recent session, commit a64c71c
+**Gotcha:** The `@tauri-apps/plugin-updater` plugin configuration supports a `windows.installMode` setting (quiet | passive | basicUi, default passive) at `tauri.conf.json` under `plugins.updater`, but it is NOT documented in the schema (PluginConfig uses `additionalProperties: true`, allowing arbitrary keys). Discovery requires reading the plugin source, not the schema.
+**Workaround:** Set `windows.installMode: "quiet"` under `[plugins.updater]` in `tauri.conf.json`. "quiet" suppresses the NSIS installer window for per-user installs, enabling silent updates.
+**Why:** Tauri's config schema uses `additionalProperties: true` for plugin configs, so it doesn't enforce or document plugin-specific keys. The plugin source code is the canonical reference.
+
+## 2026-06-09 — `downloadAndInstall()` requires explicit `relaunch()` after installation completes
+Source: recent session, commit a64c71c
+**Gotcha:** The progress callback from `downloadAndInstall()` emits events: `{event: 'Started'|'Progress'|'Finished', data:{contentLength?,chunkLength}}`. On 'Finished', the installation is ready but the app does NOT automatically restart. The update will not be applied without an explicit call to `relaunch()` from `@tauri-apps/plugin-process`.
+**Workaround:** Listen for the 'Finished' event and call `relaunch()` after a brief UI confirmation (e.g., "Update installed, restarting…"). Do NOT assume the NSIS installer or OS will auto-restart the app.
+**Why:** NSIS (the Windows installer format used by Tauri) unpacks and registers the update, then returns control to the app. Tauri expects the app to orchestrate the restart via the process plugin.

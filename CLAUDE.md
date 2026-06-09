@@ -4,9 +4,9 @@ A local-first creative-writing desktop app (Windows now; mobile later) for a sin
 modern writing space with a Scrivener-style binder, owned local storage, and automatic off-machine
 backup. **No built-in AI** (deliberate — keeps running cost near zero).
 
-> Status (2026-06-02): **pre-scaffold.** The design and the first implementation plan exist; no app
-> code is checked in yet. The build starts at `docs/superpowers/plans/2026-06-02-phase-1-walking-skeleton.md`,
-> Task 1. Read `roadmap/HANDOFF.md` first.
+> Status (2026-06-09): **shipped and in use** (v0.2.6 — branded as WritersNook). Phase 1 desktop app
+> is built, released via a signed GitHub-release auto-update pipeline, and installed on real users'
+> machines (Cole + writing partner). Read `roadmap/HANDOFF.md` first for current state.
 
 ## Commands
 
@@ -19,6 +19,11 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
 - `npm run lint` / `npm run lint:fix` — ESLint via the strict flat config `eslint.config.mjs`, which
   mirrors the meta-framework spec (40-line functions, complexity 10, `simple-import-sort`,
   `no-explicit-any: error`). Lint is a phase gate alongside `tsc` and `vitest`.
+- `.\publish.ps1` — release pipeline (build signed NSIS bundle → `latest.json` updater manifest →
+  GitHub release). Interactive (prompts for the updater key password) — Cole runs it, agents don't.
+  Bump the version in all four files first (`package.json`, `src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}`)
+  and tag `vX.Y.Z`. Artifact selection is version-anchored — do not weaken it (a bare glob once
+  shipped a stale installer under a new tag and broke updates).
 
 ## Key Files
 
@@ -50,6 +55,9 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
   brings its own undo manager). Enabling both corrupts undo state.
 - **One Yjs doc per scene** (not per manuscript) — load-bearing for performance and future sync. Do
   not collapse scenes into a single document.
+- **More Tauri-specific traps** (drag-region inheritance, capability permission gaps, updater config)
+  live in `.claude/vendor-gotchas/tauri.md` — check it before touching the title bar, capabilities,
+  or the updater.
 
 ## Known Tech Debt / Deferred
 
