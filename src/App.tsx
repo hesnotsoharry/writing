@@ -324,7 +324,7 @@ export default function App() {
   return (
     <AppContent tree={tree} selectedSceneId={selectedSceneId} doc={doc}
       onSelectScene={wiring.handleSelectScene} callbacks={{ ...wiring.callbacks,
-        onTakeSnapshot: (id) => { void snapTakeFromMenu({ targetSceneId: id, isActive: id === selectedSceneId, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); },
+        onTakeSnapshot: (id) => { setHistorySceneId(id); void snapTakeFromMenu({ targetSceneId: id, isActive: id === selectedSceneId, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); },
         onOpenHistory: (id) => { setHistorySceneId(id); setShowHistory(true); },
       }}
       projects={projects} activeProjectId={activeProjectId}
@@ -336,7 +336,7 @@ export default function App() {
       onOpenEntry={openEntry} onPushEntry={pushEntry} onEntryBack={entryBack} onExitEntry={exitEntry}
       historySnapshots={railSnapshots}
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
-      onTakeSnapshot={selectedSceneId ? () => { void snapTakeFromMenu({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
+      onTakeSnapshot={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); void snapTakeFromMenu({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, currentWords: historyCurrentWords, set: setHistorySnapshots, setShowHistory, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
       labelStore={labelStore}
     />
