@@ -90,7 +90,7 @@ function MatchSnippet({ text, matchOffset, queryLen, repl }: SnippetProps) {
   const after = text.slice(matchOffset + queryLen);
   return (
     <span className="fr-snippet">
-      …{before}<span className="fr-preview">{repl}</span>{after}
+      …{before}<span className="fr-hit new">{repl}</span>{after}
     </span>
   );
 }
@@ -244,10 +244,12 @@ function FindReplaceInputs({ query, repl, caseSensitive, wholeWord, inputRef, se
           <input ref={inputRef} value={query}
             onChange={(e) => { setQuery(e.target.value); setConfirming(false); }} placeholder="Find…" />
         </div>
-        <button className={"iconbtn fr-toggle" + (caseSensitive ? " on" : "")} title="Match case"
-          aria-pressed={caseSensitive} onClick={() => setCaseSensitive(!caseSensitive)}>Aa</button>
-        <button className={"iconbtn fr-toggle" + (wholeWord ? " on" : "")} title="Whole word"
-          aria-pressed={wholeWord} onClick={() => setWholeWord(!wholeWord)}>W</button>
+        <div className="fr-opts">
+          <button className={"fr-opt" + (caseSensitive ? " on" : "")} title="Match case"
+            aria-pressed={caseSensitive} onClick={() => setCaseSensitive(!caseSensitive)}>Aa</button>
+          <button className={"fr-opt" + (wholeWord ? " on" : "")} title="Whole word"
+            aria-pressed={wholeWord} onClick={() => setWholeWord(!wholeWord)}>W</button>
+        </div>
       </div>
       <div className="fr-row">
         <div className="fr-field" style={{ flex: 1 }}>
