@@ -45,7 +45,9 @@ if ($LASTEXITCODE -eq 0) {
 # The private key path + password are passed to the build via env vars; Tauri
 # signs the installer and writes a matching .sig file next to it.
 $pw = Read-Host -AsSecureString 'Enter your updater key password'
-$env:TAURI_SIGNING_PRIVATE_KEY_PATH = $KeyPath
+# TAURI_SIGNING_PRIVATE_KEY accepts a path OR the key contents; the bundler does
+# not read the *_PATH variant, so we point this var at the key file directly.
+$env:TAURI_SIGNING_PRIVATE_KEY = $KeyPath
 # Convert the SecureString via an unmanaged BSTR, then zero+free that BSTR
 # immediately so the plaintext password does not linger in process memory for
 # the whole build. (The managed env-var copy is required by `tauri build`.)
@@ -99,7 +101,8 @@ gh release create $Tag $setup.FullName $latestPath `
     --notes "Release $Version"
 if ($LASTEXITCODE -ne 0) { throw 'gh release create failed.' }
 
-# Clear the password from the environment for this session.
+# Clear the signing secrets from the environment for this session.
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $null
+$env:TAURI_SIGNING_PRIVATE_KEY = $null
 
 Write-Host "Done. Installed apps will see $Version on their next update check." -ForegroundColor Green
