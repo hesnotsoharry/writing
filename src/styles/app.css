@@ -155,7 +155,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .panel-inspector {
   width: var(--inspector-w); flex: none;
   background: var(--parchment); border-left: 1px solid var(--line);
-  display: flex; flex-direction: column; min-height: 0;
+  display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: hidden;
+  /* height:100% bounds the panel to the .body row and overflow:hidden clips it,
+     so the inner .insp-scroll engages (Bug: no scroll) and content can't bleed
+     past the body into the status bar (Bug: overlap). Mirrors .panel-binder. */
 }
 .center { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
 
