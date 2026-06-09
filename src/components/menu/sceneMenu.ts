@@ -89,8 +89,6 @@ export interface EntityMenuCallbacks {
   onEditName: () => void;
   /** Edit the reserved role field (entity_fields key="role"). */
   onEditRole: () => void;
-  /** Edit the sketch area notes for this entity. */
-  onEditSketch: () => void;
   onOpenFullEntry: () => void;
   onDelete: () => void;
 }
@@ -99,7 +97,6 @@ export function buildEntityMenu(cb: EntityMenuCallbacks): MenuItem[] {
   return [
     { label: "Edit name",         onClick: cb.onEditName       },
     { label: "Edit role",         onClick: cb.onEditRole       },
-    { label: "Edit sketch",       onClick: cb.onEditSketch     },
     { label: "Open full entry",   onClick: cb.onOpenFullEntry  },
     { type: "sep"                                               },
     { label: `Delete ${cb.kind}`, danger: true, onClick: cb.onDelete },

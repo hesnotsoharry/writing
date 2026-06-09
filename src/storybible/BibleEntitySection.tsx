@@ -45,15 +45,13 @@ function buildMenu(args: {
   onMutated: () => void; onOpenEntry?: (id: string, kind: string) => void;
   setRenameRequest: React.Dispatch<React.SetStateAction<EditRequest>>;
   setEditRoleRequest: React.Dispatch<React.SetStateAction<EditRequest>>;
-  setEditSketchRequest: React.Dispatch<React.SetStateAction<EditRequest>>;
 }): MenuDescriptor["items"] {
   const { kind, id, store, def, onMutated, onOpenEntry,
-    setRenameRequest, setEditRoleRequest, setEditSketchRequest } = args;
+    setRenameRequest, setEditRoleRequest } = args;
   return buildEntityMenu({
     kind,
     onEditName:      () => setRenameRequest((p) => bumpEditRequest(p, id)),
     onEditRole:      () => setEditRoleRequest((p) => bumpEditRequest(p, id)),
-    onEditSketch:    () => setEditSketchRequest((p) => bumpEditRequest(p, id)),
     onOpenFullEntry: () => { if (onOpenEntry) onOpenEntry(id, kind); else console.warn("[StoryBibleView] no onOpenEntry"); },
     onDelete:        () => { store.deleteEntity(def.type, id).then(onMutated).catch((e: unknown) => console.error("[StoryBibleView] delete failed", e)); },
   });
@@ -66,11 +64,10 @@ export function GenericEntitySection({
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
   const [renameRequest, setRenameRequest] = useState<EditRequest>(null);
   const [editRoleRequest, setEditRoleRequest] = useState<EditRequest>(null);
-  const [editSketchRequest, setEditSketchRequest] = useState<EditRequest>(null);
   const kind = def.label.replace(/s$/, "");  const addLabel = `New ${kind.toLowerCase()}`;  const t = def.type;
 
   function onCtxMenu(e: React.MouseEvent, id: string) {
-    setMenu({ x: e.clientX, y: e.clientY, items: buildMenu({ kind, id, store, def, onMutated, onOpenEntry, setRenameRequest, setEditRoleRequest, setEditSketchRequest }) });
+    setMenu({ x: e.clientX, y: e.clientY, items: buildMenu({ kind, id, store, def, onMutated, onOpenEntry, setRenameRequest, setEditRoleRequest }) });
   }
   function doAdd() {
     const p = t === "character" ? store.createCharacter(projectId, addLabel, null)
@@ -78,7 +75,7 @@ export function GenericEntitySection({
       : store.createEntity(projectId, t, addLabel, null);
     p.then((c) => { setJustCreatedId(c.id); onMutated(); }).catch((e: unknown) => console.error("[StoryBibleView] create failed", e));
   }
-  function onEditDone() { setJustCreatedId(null); setRenameRequest(null); setEditRoleRequest(null); setEditSketchRequest(null); }
+  function onEditDone() { setJustCreatedId(null); setRenameRequest(null); setEditRoleRequest(null); }
 
   return (
     <div className="tcol">
@@ -89,10 +86,10 @@ export function GenericEntitySection({
       </div>
       {!collapsed && (<>
         {entities.map((e) => (
-          <EntityRow key={e.id} id={e.id} name={e.name} notes={e.notes} type={e.type}
+          <EntityRow key={e.id} id={e.id} name={e.name} type={e.type}
             store={store} onMutated={onMutated} refreshVersion={refreshVersion}
             justCreated={justCreatedId === e.id} renameVersion={rowVersion(renameRequest, e.id)}
-            editRoleVersion={rowVersion(editRoleRequest, e.id)} editSketchVersion={rowVersion(editSketchRequest, e.id)}
+            editRoleVersion={rowVersion(editRoleRequest, e.id)}
             onEditDone={onEditDone} onContextMenu={onCtxMenu} />
         ))}
         <AddEntityButton addLabel={addLabel} onAdd={doAdd} />

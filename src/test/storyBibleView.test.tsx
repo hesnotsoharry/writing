@@ -6,17 +6,17 @@ import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 import { StoryBibleView } from "../storybible/StoryBibleView";
 
 /**
- * StoryBibleView acceptance test (updated Wave 26 Phase 7 — sketch area, role, right-click-only).
+ * StoryBibleView acceptance test — role, right-click-only.
  *
  * Contract: <StoryBibleView store={StoryBibleStore} projectId={string} /> lets the writer
- * add, rename, delete, edit role, and edit sketch for characters/locations via a right-click
+ * add, rename, delete, and edit role for characters/locations via a right-click
  * context menu on each card. The card body has NO click-to-edit handlers.
  *
- * Right-click menu shape (Wave 26 Phase 7):
- *   Edit name / Edit role / Edit sketch / Open full entry / [sep] / Delete Character|Location (danger)
+ * Right-click menu shape:
+ *   Edit name / Edit role / Open full entry / [sep] / Delete Character|Location (danger)
  *
  * Role is stored as entity_fields[kind="fact", key="role"] — no new migration.
- * The card shows a white "Character Sketch"/"Location Sketch" area.
+ * Cards show: avatar + name + role subtitle only (no sketch box, no scene count).
  */
 
 afterEach(cleanup);
@@ -55,7 +55,7 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     expect(locations[0].name).toBe("Thornfield");
   });
 
-  it("right-clicking a card shows Edit name, Edit role, Edit sketch, Open full entry, and Delete menu items", async () => {
+  it("right-clicking a card shows Edit name, Edit role, Open full entry, and Delete menu items (no Edit sketch)", async () => {
     const store = new InMemoryStoryBibleStore();
     await store.createCharacter("p1", "Sarah", null);
     render(<StoryBibleView store={store} projectId="p1" />);
@@ -66,7 +66,7 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
 
     await screen.findByText("Edit name");
     expect(screen.getByText("Edit role")).toBeTruthy();
-    expect(screen.getByText("Edit sketch")).toBeTruthy();
+    expect(screen.queryByText("Edit sketch")).toBeNull();
     expect(screen.getByText("Open full entry")).toBeTruthy();
     expect(screen.getByText("Delete Character")).toBeTruthy();
   });
@@ -118,16 +118,6 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     expect(screen.queryByText("Sarah")).toBeTruthy();
   });
 
-  it("shows a per-entity scene-count footer", async () => {
-    const store = new InMemoryStoryBibleStore();
-    await store.createCharacter("p1", "Sarah", null);
-    render(<StoryBibleView store={store} projectId="p1" />);
-
-    await screen.findByText("Sarah");
-    // No scene links yet → "0 scenes".
-    await screen.findByText(/0 scenes/i);
-  });
-
   it("card body has no click-to-edit: single click on name does not open rename input", async () => {
     const store = new InMemoryStoryBibleStore();
     await store.createCharacter("p1", "Sarah", null);
@@ -151,24 +141,6 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
     // Right-click-only policy: double-click must NOT open inline rename on the card body.
     expect(screen.queryByDisplayValue("Sarah")).toBeNull();
     expect(screen.getByText("Sarah")).toBeTruthy();
-  });
-
-  it("card renders 'Character Sketch' label in the sketch area for a character", async () => {
-    const store = new InMemoryStoryBibleStore();
-    await store.createCharacter("p1", "Sarah", null);
-    render(<StoryBibleView store={store} projectId="p1" />);
-
-    await screen.findByText("Sarah");
-    expect(screen.getByText("Character Sketch")).toBeTruthy();
-  });
-
-  it("card renders 'Location Sketch' label in the sketch area for a location", async () => {
-    const store = new InMemoryStoryBibleStore();
-    await store.createLocation("p1", "Thornfield", null);
-    render(<StoryBibleView store={store} projectId="p1" />);
-
-    await screen.findByText("Thornfield");
-    expect(screen.getByText("Location Sketch")).toBeTruthy();
   });
 
   it("right-click Edit role opens inline role input for that entity", async () => {
@@ -202,19 +174,6 @@ describe("StoryBibleView — character & location CRUD (canon)", () => {
       const role = fields.find((f) => f.kind === "fact" && f.key === "role");
       expect(role?.value).toBe("Protagonist");
     });
-  });
-
-  it("right-click Edit sketch opens inline sketch textarea for that entity", async () => {
-    const store = new InMemoryStoryBibleStore();
-    await store.createCharacter("p1", "Sarah", null);
-    render(<StoryBibleView store={store} projectId="p1" />);
-
-    const card = (await screen.findByText("Sarah")).closest(".bible-entry")!;
-    fireEvent.contextMenu(card);
-    fireEvent.click(await screen.findByText("Edit sketch"));
-
-    const textarea = await screen.findByPlaceholderText("Sketch notes…");
-    expect(textarea.tagName).toBe("TEXTAREA");
   });
 
   it("card .be-role shows the new value after Edit role is committed (refreshRole wiring)", async () => {

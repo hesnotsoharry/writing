@@ -38,7 +38,6 @@ function entityKind(type: string): string {
 
 interface EntityDetails {
   name: string;
-  description: string | null;
   portraitSrc: string | null;
   loaded: boolean;
 }
@@ -46,7 +45,6 @@ interface EntityDetails {
 function useEntityDetails(store: StoryBibleStore, type: string, id: string): EntityDetails {
   const aliveRef = useRef(true);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState<string | null>(null);
   const [portraitSrc, setPortraitSrc] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -56,7 +54,6 @@ function useEntityDetails(store: StoryBibleStore, type: string, id: string): Ent
       .then((ent) => {
         if (!aliveRef.current) return;
         setName(ent?.name ?? "");
-        setDescription(ent?.notes ?? null);
         setPortraitSrc(toDisplaySrc(ent?.portraitPath ?? null));
         setLoaded(true);
       })
@@ -68,7 +65,7 @@ function useEntityDetails(store: StoryBibleStore, type: string, id: string): Ent
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { name, description, portraitSrc, loaded };
+  return { name, portraitSrc, loaded };
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +102,7 @@ function useClampedPosition(
 export function AutoLinkPeek({ entityId, entityType, store, anchorEl, onOpenEntry, onFindMentions, onClose }: AutoLinkPeekProps) {
   const ref = useRef<HTMLDivElement>(null);
   const pos = useClampedPosition(ref, anchorEl, entityId);
-  const { name, description, portraitSrc, loaded } = useEntityDetails(store, entityType, entityId);
+  const { name, portraitSrc, loaded } = useEntityDetails(store, entityType, entityId);
 
   return (
     <div ref={ref} className="al-peek"
@@ -121,7 +118,6 @@ export function AutoLinkPeek({ entityId, entityType, store, anchorEl, onOpenEntr
           <div className="al-peek-type">{typeLabel(entityType)}</div>
         </div>
       </div>
-      {description && <div className="al-peek-note">{description.slice(0, 120)}</div>}
       <div className="al-peek-acts">
         <button className="al-pbtn" onClick={() => onOpenEntry(entityId, entityKind(entityType))}>
           Open entry
