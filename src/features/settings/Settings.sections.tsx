@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { appConfigDir } from "@tauri-apps/api/path";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -277,7 +278,17 @@ const SHORTCUTS: [string, string][] = [
   ["Settings","⌘ ,"],         ["Close / cancel","Esc"], ["Rename (in binder)","Double-click"],
 ];
 
+/** Live app version from the Tauri shell (tauri.conf.json's `version`); null while loading or outside Tauri (tests). */
+function useAppVersion(): string | null {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => setVersion(null));
+  }, []);
+  return version;
+}
+
 export function AboutSection() {
+  const version = useAppVersion();
   return (
     <div className="set-about">
       <div className="set-about-head">
@@ -286,7 +297,7 @@ export function AboutSection() {
         </div>
         <div>
           <div className="set-app-name">Writers Nook</div>
-          <div className="set-app-ver">Version 1.0 · Phase 1 (desktop)</div>
+          <div className="set-app-ver">{version ? `v${version}` : ""}</div>
         </div>
       </div>
       <p className="set-about-blurb">
