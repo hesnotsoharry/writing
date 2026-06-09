@@ -87,7 +87,7 @@ function SnapRow({ snapshot, active, currentWords, onClick, onContextMenu, renam
           </div>
         ) : (
           <span className={"snap-label" + (snapshot.label ? "" : " untitled")}>
-            {snapshot.label ?? "Auto-save"}
+            {snapshot.label ?? (snapshot.kind === "auto" ? "Auto-save" : "Manual")}
           </span>
         )}
       </div>
@@ -170,7 +170,7 @@ function SnapshotViewer({ sel, sceneTitle, snapshotText, currentText, mode, setM
     <div className="vh-viewer">
       <div className="vh-vhead">
         <div>
-          <div className="vh-vtitle">{sel.label ?? "Auto-save"}</div>
+          <div className="vh-vtitle">{sel.label ?? (sel.kind === "auto" ? "Auto-save" : "Manual")}</div>
           <div className="vh-vsub">
             {formatWhen(sel.createdAt)} · {sel.wordCount.toLocaleString()} words ·{" "}
             <span style={{ color: "var(--good)" }}>+{counts.added}</span>{" "}

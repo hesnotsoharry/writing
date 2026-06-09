@@ -40,7 +40,7 @@ function RailSnapRow({ snapshot, currentWords, onClick }: RailSnapRowProps) {
           <Icon name={snapshot.kind === "auto" ? "rotate" : "check"} className="ic" />
         </span>
         <span className={"snap-label" + (snapshot.label ? "" : " untitled")}>
-          {snapshot.label ?? "Auto-save"}
+          {snapshot.label ?? (snapshot.kind === "auto" ? "Auto-save" : "Manual")}
         </span>
       </div>
       <div className="snap-meta">
