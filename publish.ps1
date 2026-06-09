@@ -65,11 +65,14 @@ if ($LASTEXITCODE -ne 0) { throw 'tauri build failed.' }
 
 # --- Locate artifacts -----------------------------------------------------
 # NSIS is the updater artifact on Windows. The .sig sits next to the installer.
+# Match THIS version's artifacts explicitly — the bundle dir accumulates older
+# builds, and a bare '*-setup.exe | First 1' once shipped a stale installer
+# under a new tag (v0.2.3 released the 0.2.2 exe).
 $nsisDir = Join-Path $ProjectRoot 'src-tauri\target\release\bundle\nsis'
-$setup   = Get-ChildItem $nsisDir -Filter '*-setup.exe'     | Select-Object -First 1
-$sigFile = Get-ChildItem $nsisDir -Filter '*-setup.exe.sig' | Select-Object -First 1
-if (-not $setup)   { throw "No -setup.exe found in $nsisDir." }
-if (-not $sigFile) { throw "No .sig found in $nsisDir — was the build signed? Check the key env vars." }
+$setup   = Get-ChildItem $nsisDir -Filter "*_$($Version)_*-setup.exe"     | Select-Object -First 1
+$sigFile = Get-ChildItem $nsisDir -Filter "*_$($Version)_*-setup.exe.sig" | Select-Object -First 1
+if (-not $setup)   { throw "No $Version -setup.exe found in $nsisDir — did the build produce artifacts for this version?" }
+if (-not $sigFile) { throw "No $Version .sig found in $nsisDir — was the build signed? Check the key env vars." }
 
 $signature = (Get-Content $sigFile.FullName -Raw).Trim()
 $assetUrl  = "https://github.com/$Repo/releases/download/$Tag/$($setup.Name)"
