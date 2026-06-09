@@ -238,7 +238,7 @@ interface ViewStageArgs {
   onOpenEntry: (id: string, kind: string) => void; onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void; onExitEntry: () => void;
   onRenameEntity: (kind: string, id: string, name: string) => void; onDeleteEntity: (kind: string, id: string) => void;
-  labelStore: LabelStore; ls: ReturnType<typeof useLabelState>;
+  labelStore: LabelStore; ls: ReturnType<typeof useLabelState>; onTakeSnapshot?: (sceneId: string) => void; onOpenHistory?: (sceneId: string) => void;
   editorFocus?: { focusMode?: boolean; typewriterOn?: boolean; dimParagraphsOn?: boolean };
   onFindMentions?: (entityName: string) => void;  onRegisterInsert?: (fn: (text: string) => void) => void;
 }
@@ -255,7 +255,7 @@ function makeViewStage(a: ViewStageArgs) {
     labelStore: a.labelStore, labels: a.ls.labels, sceneLabels: a.ls.sceneLabels,
     outlinerSort: a.ls.outlinerSort, setOutlinerSort: a.ls.setOutlinerSort,
     outlinerRenaming: a.ls.outlinerRenaming, setOutlinerRenaming: a.ls.setOutlinerRenaming,
-    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, editorFocus: a.editorFocus, onFindMentions: a.onFindMentions, onRegisterInsert: a.onRegisterInsert,
+    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, onTakeSnapshot: a.onTakeSnapshot, onOpenHistory: a.onOpenHistory, editorFocus: a.editorFocus, onFindMentions: a.onFindMentions, onRegisterInsert: a.onRegisterInsert,
   });
 }
 
@@ -294,7 +294,7 @@ function useAppContentSlots(props: AppContentProps) {
     view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene,
     onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
     onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
-    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls, editorFocus, onFindMentions, onRegisterInsert,
+    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onRenameEntity, onDeleteEntity, labelStore, ls, onTakeSnapshot: callbacks.onTakeSnapshot, onOpenHistory: callbacks.onOpenHistory, editorFocus, onFindMentions, onRegisterInsert,
   });
   return {
     focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,

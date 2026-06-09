@@ -60,6 +60,30 @@ interface SceneMenuArgs {
   onAddGoal?: (scope: "scene" | "chapter", targetId: string) => void;
   onArchiveScene?: (sceneId: string) => void;
   onExport?: (scope: "scene", targetId: string) => void;
+  labels?: Label[];
+  sceneLabels?: Record<string, string[]>;
+  onToggleLabel?: (sceneId: string, labelId: string) => void;
+  onTakeSnapshot?: (sceneId: string) => void;
+  onOpenHistory?: (sceneId: string) => void;
+}
+
+interface CorkItemsArgs {
+  base: ReturnType<typeof buildSceneMenu>;
+  labels: Label[] | undefined;
+  sceneId: string;
+  sceneLabels: Record<string, string[]> | undefined;
+  onToggleLabel: ((sId: string, lId: string) => void) | undefined;
+  close: () => void;
+}
+
+function buildCorkItems({ base, labels, sceneId, sceneLabels, onToggleLabel, close }: CorkItemsArgs) {
+  if (!labels?.length || !onToggleLabel) return base;
+  const sub = labels.map((l) => ({
+    label: l.name, swatch: `var(--label-${l.color})`,
+    tick: (sceneLabels?.[sceneId] ?? []).includes(l.id),
+    onClick: () => { onToggleLabel(sceneId, l.id); close(); },
+  }));
+  return [{ label: "Labels ▸", submenu: sub }, { type: "sep" as const }, ...base];
 }
 
 function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
@@ -69,36 +93,36 @@ function useSceneMenu(a: SceneMenuArgs): SceneMenuHook {
 
   const handleContextMenu = (e: React.MouseEvent, scene: Scene) => {
     const effectiveStatus = a.overrides[scene.id] ?? scene.status;
-    setMenu({
-      x: e.clientX, y: e.clientY,
-      items: buildSceneMenu({
-        onRename: () => { setMenu(null); setRenamingSceneId(scene.id); },
-        currentStatus: effectiveStatus,
-        onSetStatus: (s) => {
-          a.setOverride(scene.id, s);
-          setMenu(null);
-          void Promise.resolve(a.setSceneStatus(scene.id, s))
-            .then(() => { a.onAfterStatusWrite?.(); })
-            .catch((err: unknown) => { console.error("[corkboard] setSceneStatus failed", err); });
-        },
-        onDuplicate: () => setToast({ label: "Duplicate — coming in a later wave" }),
-        onExport: a.onExport
-          ? () => { setMenu(null); a.onExport!("scene", scene.id); }
-          : () => setToast({ label: "Export — coming in a later wave" }),
-        onArchive: a.onArchiveScene
-          ? () => { setMenu(null); a.onArchiveScene!(scene.id); }
-          : () => setToast({ label: "Archive — coming in a later wave" }),
-        onDelete: () => {
-          setMenu(null);
-          defaultBinderStore.deleteScene(scene.id)
-            .then(() => { a.reload(); a.onAfterDelete?.(); })
-            .catch((err: unknown) => { console.warn("[corkboard] deleteScene failed", err); });
-        },
-        onAddGoal: a.onAddGoal
-          ? () => a.onAddGoal!("scene", scene.id)
-          : undefined,
-      }),
+    const baseItems = buildSceneMenu({
+      onRename: () => { setMenu(null); setRenamingSceneId(scene.id); },
+      currentStatus: effectiveStatus,
+      onSetStatus: (s) => {
+        a.setOverride(scene.id, s);
+        setMenu(null);
+        void Promise.resolve(a.setSceneStatus(scene.id, s))
+          .then(() => { a.onAfterStatusWrite?.(); })
+          .catch((err: unknown) => { console.error("[corkboard] setSceneStatus failed", err); });
+      },
+      onDuplicate: () => setToast({ label: "Duplicate — coming in a later wave" }),
+      onExport: a.onExport
+        ? () => { setMenu(null); a.onExport!("scene", scene.id); }
+        : () => setToast({ label: "Export — coming in a later wave" }),
+      onArchive: a.onArchiveScene
+        ? () => { setMenu(null); a.onArchiveScene!(scene.id); }
+        : () => setToast({ label: "Archive — coming in a later wave" }),
+      onDelete: () => {
+        setMenu(null);
+        defaultBinderStore.deleteScene(scene.id)
+          .then(() => { a.reload(); a.onAfterDelete?.(); })
+          .catch((err: unknown) => { console.warn("[corkboard] deleteScene failed", err); });
+      },
+      onAddGoal: a.onAddGoal ? () => a.onAddGoal!("scene", scene.id) : undefined,
+      onTakeSnapshot: a.onTakeSnapshot ? () => a.onTakeSnapshot!(scene.id) : undefined,
+      onOpenHistory: a.onOpenHistory ? () => a.onOpenHistory!(scene.id) : undefined,
     });
+    setMenu({ x: e.clientX, y: e.clientY,
+      items: buildCorkItems({ base: baseItems, labels: a.labels, sceneId: scene.id,
+        sceneLabels: a.sceneLabels, onToggleLabel: a.onToggleLabel, close: () => setMenu(null) }) });
   };
 
   return { menu, toast, renamingSceneId, setMenu, setToast, setRenamingSceneId, handleContextMenu };
@@ -282,6 +306,12 @@ interface CorkboardProps {
   labels?: Label[];
   /** sceneId → labelId[] — for label badge display on cards. Optional. */
   sceneLabels?: Record<string, string[]>;
+  /** Toggle a label on/off for a scene — for the context menu. Optional. */
+  onToggleLabel?: (sceneId: string, labelId: string) => void;
+  /** Take a named snapshot of a scene via context menu. Optional. */
+  onTakeSnapshot?: (sceneId: string) => void;
+  /** Open the Version History overlay for a scene via context menu. Optional. */
+  onOpenHistory?: (sceneId: string) => void;
 }
 
 export function Corkboard({
@@ -296,11 +326,14 @@ export function Corkboard({
   onExport,
   labels,
   sceneLabels,
+  onToggleLabel,
+  onTakeSnapshot,
+  onOpenHistory,
 }: CorkboardProps) {
   const { overrides, statusOf, cycleStatus, setOverride } = useCorkStatus(setSceneStatus, reloadTree);
   const { localTree, reload } = useLocalTree(tree);
   const { menu, toast, renamingSceneId, setMenu, setToast, setRenamingSceneId, handleContextMenu } =
-    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree, onAddGoal, onArchiveScene, onExport });
+    useSceneMenu({ overrides, setSceneStatus, reload, setOverride, onAfterStatusWrite: reloadTree, onAfterDelete: reloadTree, onAddGoal, onArchiveScene, onExport, labels, sceneLabels, onToggleLabel, onTakeSnapshot, onOpenHistory });
   const shared: SharedGroupProps = {
     onSelectScene, onViewChange, onCycleStatus: cycleStatus, onContextMenu: handleContextMenu,
     onReload: reload, renamingSceneId, onRenameEnd: () => setRenamingSceneId(null),

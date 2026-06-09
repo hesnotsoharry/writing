@@ -54,6 +54,8 @@ export interface ViewStageCtx {
   setOutlinerRenaming: (id: string | null) => void;
   onOpenLabelManager: () => void;
   onLabelsChanged: () => void;
+  onTakeSnapshot?: (sceneId: string) => void;
+  onOpenHistory?: (sceneId: string) => void;
   /** Focus-mode props forwarded to EditorPane → Editor (all optional). */
   editorFocus?: EditorFocusProps;
   /** Opens Find & Replace with the given entity name prefilled. */
@@ -85,6 +87,8 @@ interface CorkOutlinerProps {
   setOutlinerRenaming: (id: string | null) => void;
   onOpenLabelManager: () => void;
   onLabelsChanged: () => void;
+  onTakeSnapshot?: (sceneId: string) => void;
+  onOpenHistory?: (sceneId: string) => void;
 }
 
 function makeOutlinerHandlers(p: CorkOutlinerProps) {
@@ -137,7 +141,16 @@ function PlanContent(p: CorkOutlinerProps & { isOutline: boolean }) {
   return <Corkboard tree={p.tree} onSelectScene={p.onSelectScene} onViewChange={p.onViewChange}
     reloadTree={p.reloadTree} dragCallbacks={p.dragCallbacks}
     onAddGoal={p.onAddGoal} onArchiveScene={p.onArchiveScene} onExport={p.onExport}
-    labels={p.labels} sceneLabels={p.sceneLabels} />;
+    labels={p.labels} sceneLabels={p.sceneLabels}
+    onTakeSnapshot={p.onTakeSnapshot} onOpenHistory={p.onOpenHistory}
+    onToggleLabel={(sceneId, labelId) => {
+      const assigned = p.sceneLabels[sceneId] ?? [];
+      const op = assigned.includes(labelId)
+        ? p.labelStore.unassignLabel(sceneId, labelId)
+        : p.labelStore.assignLabel(sceneId, labelId);
+      op.then(p.onLabelsChanged)
+        .catch((e: unknown) => console.error("[corkboard] toggle label failed", e));
+    }} />;
 }
 
 /** Planning area with Corkboard ⇄ Outliner toggle. "cork"/"outline" both activate the TitleBar segment. */
@@ -155,11 +168,9 @@ export function CorkOutlinerView(p: CorkOutlinerProps) {
           </button>
         </div>
         <span style={{ flex: 1 }} />
-        {isOutline && (
-          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={p.onOpenLabelManager}>
-            <Icon name="palette" className="ic" style={{ width: 14, height: 14 }} /> Labels
-          </button>
-        )}
+        <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={p.onOpenLabelManager}>
+          <Icon name="palette" className="ic" style={{ width: 14, height: 14 }} /> Labels
+        </button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", backgroundColor: "var(--parchment-deep)" }}>
         <PlanContent {...p} isOutline={isOutline} />
@@ -186,6 +197,7 @@ export function buildViewStage(
         outlinerSort={ctx.outlinerSort} setOutlinerSort={ctx.setOutlinerSort}
         outlinerRenaming={ctx.outlinerRenaming} setOutlinerRenaming={ctx.setOutlinerRenaming}
         onOpenLabelManager={ctx.onOpenLabelManager} onLabelsChanged={ctx.onLabelsChanged}
+        onTakeSnapshot={ctx.onTakeSnapshot} onOpenHistory={ctx.onOpenHistory}
       />
     );
   }
