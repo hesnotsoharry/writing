@@ -48,10 +48,17 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: var(--titlebar);
   border-bottom: 1px solid var(--parchment-edge);
   user-select: none; position: relative;
+  overflow: hidden; /* prevent flex items from bleeding past the right edge */
 }
+/* Left flex group: brand + divider + view-switch. flex:1 + min-width:0 lets this
+   section shrink when the window narrows, keeping the right-side items (actions
+   overflow button + window controls) always visible. */
+.tb-left { display: flex; align-items: center; gap: var(--s-3); flex: 1; min-width: 0; }
 .titlebar .brand { display: flex; align-items: center; flex: none; }
 .tb-divider { width: 1px; height: 22px; background: var(--parchment-edge); flex: none; }
-.tb-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: none; }
+/* margin-left: auto removed — .tb-left (flex:1) handles the gap between
+   the view-switch and actions sections. */
+.tb-actions { display: flex; align-items: center; gap: 2px; flex: none; }
 .titlebar .doc-name {
   position: absolute; left: 50%; transform: translateX(-50%);
   font-size: var(--text-xs); color: var(--ink-3); font-weight: var(--w-medium);
