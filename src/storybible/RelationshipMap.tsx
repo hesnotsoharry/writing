@@ -68,7 +68,10 @@ function useRmapData(entities: Entity[], relations: Relation[]) {
   const nodes = entities.filter(e => e.type !== "theme" && involvedIds.has(e.id));
   const unlinkedCount = entities.filter(e => e.type !== "theme" && !involvedIds.has(e.id)).length;
   const N = nodes.length;
-  const W = Math.round(Math.max(560, Math.min(1500, 250 * Math.sqrt(Math.max(1, N)))));
+  // Baseline 760 (was 560): the header bar (back + title + count + type chips)
+  // needs the width — a narrower sparse canvas left the chips overhanging the
+  // frame's right edge (user feedback 2026-06-10).
+  const W = Math.round(Math.max(760, Math.min(1500, 250 * Math.sqrt(Math.max(1, N)))));
   const H = Math.round(Math.max(420, W * 0.64));
   const radii: Record<string, number> = {};
   nodes.forEach(nd => { radii[nd.id] = 15 + Math.min(11, (degree[nd.id] ?? 1) * 2); });
@@ -107,9 +110,28 @@ function useRmapLayout(nodes: Entity[], edges: EdgeDef[], radii: Record<string, 
 
 // ── Subcomponents ──────────────────────────────────────────────────────────────
 
+/** Filter chips: id, label, type color ("all" keeps the clay default via null). */
+function buildFilters(
+  present: string[], ct: Pick<CustomEntityType, "name" | "icon" | "color">[],
+): [string, string, string | null][] {
+  return [
+    ["all", "All", null],
+    ...present.map((t): [string, string, string | null] => {
+      const def = resolveEntityTypeDef(t, ct);
+      return [t, def.label, def.color];
+    }),
+  ];
+}
+
+/** Active chip takes the type's own color; "all" (color null) keeps the clay default. */
+function chipStyle(active: boolean, color: string | null): CSSProperties | undefined {
+  if (!active || !color) return undefined;
+  return { borderColor: color, color, background: `color-mix(in srgb, ${color} 12%, transparent)` };
+}
+
 function RmapBar({ onBack, N, edgeCount, filter, setFilter, filters }: {
   onBack?: () => void; N: number; edgeCount: number;
-  filter: string; setFilter: (f: string) => void; filters: string[][];
+  filter: string; setFilter: (f: string) => void; filters: [string, string, string | null][];
 }) {
   return (
     <div className="relmap-bar">
@@ -121,8 +143,9 @@ function RmapBar({ onBack, N, edgeCount, filter, setFilter, filters }: {
       </span>
       {N > 0 && <span style={{ fontSize: 12, color: "var(--ink-4)", whiteSpace: "nowrap" }}>{N} linked · {edgeCount} ties</span>}
       {N > 0 && <div className="relmap-filter" style={{ marginLeft: "auto" }}>
-        {filters.map(([id, label]) => (
-          <button key={id} className={"rel-chip" + (filter === id ? " on" : "")} onClick={() => setFilter(id)}>{label}</button>
+        {filters.map(([id, label, color]) => (
+          <button key={id} className={"rel-chip" + (filter === id ? " on" : "")}
+            style={chipStyle(filter === id, color)} onClick={() => setFilter(id)}>{label}</button>
         ))}
       </div>}
     </div>
@@ -262,7 +285,7 @@ export function RelationshipMap({ entities, relations, customTypes, onOpenEntry,
   const pos = useRmapLayout(nodes, edges, radii, { W, H, ex });
   const neighbors = useMemo(() => buildNeighbors(hover, edges), [hover, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
-  const FILTERS = [["all", "All"], ...present.map(t => [t, resolveEntityTypeDef(t, ct).label])];
+  const FILTERS = buildFilters(present, ct);
   const nodeShown = (id: string) =>
     (filter === "all" || nodeMap.get(id)?.type === filter) && (!neighbors || neighbors.has(id));
   const edgeShown = (e: EdgeDef) => {

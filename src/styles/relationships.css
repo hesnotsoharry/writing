@@ -25,8 +25,8 @@
 .relgraph .node.dim { opacity: 0.28; }
 
 /* relationship map bar (header + type filter row) */
-.relmap-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.relmap-filter { display: flex; gap: 6px; }
+.relmap-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 12px; }
+.relmap-filter { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 
 /* ----------------------------------------------------------------------------
    Relationship map — Jun 2026 overhaul, Direction B "Cartographer's key"
