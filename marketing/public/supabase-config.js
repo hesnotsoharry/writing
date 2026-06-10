@@ -11,6 +11,7 @@
 // dashboard (Settings → API) before testing or shipping the auth flow.
 // ============================================================================
 window.WN_SB = {
-  url: "https://REPLACE_PROJECT.supabase.co",  // e.g. "https://abcxyz123.supabase.co"
-  anonKey: "REPLACE_WITH_ANON_KEY",            // Public anon key — safe to commit
+  url: "https://mhflotubzbgzitckgwyv.supabase.co",
+  anonKey:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1oZmxvdHViemJneml0Y2tnd3l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNTYzMjAsImV4cCI6MjA5NjYzMjMyMH0.eWZyVTO84lGsRhJylB7ZjPMdDUVMlrd1A03JabG1sVg", // Public anon key — safe to commit (RLS-restricted)
 };
