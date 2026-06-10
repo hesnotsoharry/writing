@@ -28,6 +28,16 @@ Source: wave-m4, commit 2510aa3
 
 **Why:** the client-side payload is deliberately limited to prevent key enumeration attacks; the receipt link is signed and safe.
 
+## 2026-06-10 — test→live flip assigns NEW variant IDs and NEW checkout UUIDs
+
+Source: v0.3.0 launch session (commits 445ed56, 0a1007f)
+
+**Gotcha:** flipping the store from test mode to live does NOT carry over identifiers. The same product got a new numeric variant ID (test 1748920 → live 1773908) AND a new checkout-URL UUID (test 6e07b36b… → live 5722d58c…). Anything hardcoding either — our desktop gate's variant check, ls-config.js's `variantApp` checkout slug — silently breaks: the gate would reject every real customer key, and the buy button would open a dead/test checkout.
+
+**Workaround:** after any test→live flip, re-read BOTH identifiers from the live dashboard (product → Share link for the checkout UUID; API/webhook payloads or product URL for the numeric variant ID) and update every hardcoded site. The desktop gate accepts both live and test variant IDs (`WRITERSNOOK_APP_VARIANT_IDS` in src-tauri/src/license.rs) so test-mode E2E purchases keep working.
+
+**Why:** LS treats test-mode and live-mode records as separate objects; the flip recreates products rather than promoting them in place.
+
 ## 2026-06-04 — License API is public (no Bearer token required)
 
 Source: wave-m4, commit c3be6f9
