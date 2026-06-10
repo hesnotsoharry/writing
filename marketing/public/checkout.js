@@ -2,6 +2,7 @@
 // checkout.js — Lemon Squeezy hosted-checkout wiring
 // ES module: exported pure function (testable) + DOM wiring on load.
 // ============================================================================
+/* global window, document, console, sessionStorage, URLSearchParams */
 
 /**
  * Build a Lemon Squeezy hosted-checkout URL.
@@ -67,6 +68,7 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
   // Wire the Checkout.Success event: capture order data, then redirect.
   window.LemonSqueezy.Setup({
     eventHandler: function (data) {
+      console.debug("[wn-checkout] lemon.js event:", data && data.event);
       if (data && data.event === "Checkout.Success") {
         var d = (data.data) || {};
         try {
@@ -77,7 +79,7 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
             productName: (d.first_order_item || {}).product_name || null,
             receiptUrl: (d.urls || {}).receipt || null,
           }));
-        } catch (e) { /* sessionStorage unavailable — page falls back to generic */ }
+        } catch { /* sessionStorage unavailable — page falls back to generic */ }
         window.location.href = "purchase-success.html";
       }
     },

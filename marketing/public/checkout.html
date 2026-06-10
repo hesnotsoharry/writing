@@ -42,26 +42,7 @@
 
       <div class="acct-card" style="margin-top:18px">
         <div class="acct-eyebrow"><span class="co-step">2</span>Payment</div>
-        <label class="co-label">Card number</label>
-        <div class="co-input co-card">
-          <input id="card" inputmode="numeric" placeholder="1234 1234 1234 1234" autocomplete="cc-number">
-          <span class="co-cards">
-            <svg viewBox="0 0 32 20" width="30" height="19"><rect width="32" height="20" rx="3" fill="#1a3a8f"/><text x="16" y="14" font-family="Hanken Grotesk,sans-serif" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">VISA</text></svg>
-          </span>
-        </div>
-        <div class="co-row">
-          <div><label class="co-label">Expiry</label><div class="co-input"><input id="exp" placeholder="MM / YY" inputmode="numeric" autocomplete="cc-exp"></div></div>
-          <div><label class="co-label">CVC</label><div class="co-input"><input id="cvc" placeholder="123" inputmode="numeric" autocomplete="cc-csc"></div></div>
-        </div>
-        <label class="co-label">Name on card</label>
-        <div class="co-input"><input id="name" placeholder="Nina Okafor" autocomplete="cc-name"></div>
-        <label class="co-label">Country</label>
-        <div class="co-input co-select">
-          <select id="country">
-            <option>United States</option><option>Canada</option><option>United Kingdom</option><option>Australia</option><option>Other…</option>
-          </select>
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </div>
+        <p class="co-hint" style="margin-top:14px;line-height:1.65">Payment is collected securely by <strong>Lemon Squeezy</strong>, our merchant of record — the payment window opens when you click below. We never see or store your card details.</p>
       </div>
 
       <button class="m-btn m-btn-primary m-btn-block m-btn-lg co-pay" id="payBtn">
@@ -278,18 +259,6 @@
     });
   }
 
-  // light input formatting for realism
-  var card = document.getElementById('card');
-  if(card) card.addEventListener('input', function(){
-    var v = this.value.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim();
-    this.value = v;
-  });
-  var exp = document.getElementById('exp');
-  if(exp) exp.addEventListener('input', function(){
-    var v = this.value.replace(/\D/g,'').slice(0,4);
-    if(v.length > 2) v = v.slice(0,2) + ' / ' + v.slice(2);
-    this.value = v;
-  });
 })();
 </script>
 </body>
