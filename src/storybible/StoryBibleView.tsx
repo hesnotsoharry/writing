@@ -42,7 +42,7 @@ export function StoryBibleView({ store, projectId, onEntitiesChanged, onOpenEntr
 
   if (subView === "map") {
     return (
-      <RelationshipMap entities={mapEntities} relations={mapRelations}
+      <RelationshipMap entities={mapEntities} relations={mapRelations} customTypes={customTypes}
         onOpenEntry={(id, kind) => { setSubView("list"); onOpenEntry?.(id, kind); }}
         onBack={() => setSubView("list")} />
     );

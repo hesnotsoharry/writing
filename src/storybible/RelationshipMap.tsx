@@ -9,7 +9,7 @@ import type { CSSProperties } from "react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Icon, ICON_PATHS } from "../components/Icon";
-import type { Entity, Relation } from "../db/storyBibleStore";
+import type { CustomEntityType, Entity, Relation } from "../db/storyBibleStore";
 import { resolveEntityTypeDef } from "./entityTypeDefs";
 import type { ExZone, LayoutConfig, Vec2 } from "./frLayout";
 import { declashLabels, frLayout } from "./frLayout";
@@ -21,6 +21,7 @@ export interface EdgeDef { a: string; b: string; label: string; }
 export interface RelationshipMapProps {
   entities: Entity[];
   relations: Relation[];
+  customTypes?: Pick<CustomEntityType, "name" | "icon" | "color">[];
   onOpenEntry?: (entityId: string, kind: string) => void;
   onBack?: () => void;
 }
@@ -168,12 +169,13 @@ function RmapEdge({ edge, pos, dim, strong, N, hover }: {
   );
 }
 
-function RmapNode({ entity, p, r, dim, hot, onEnter, onOpenEntry }: {
+function RmapNode({ entity, p, r, dim, hot, onEnter, onOpenEntry, customTypes }: {
   entity: Entity; p: Vec2; r: number; dim: boolean; hot: boolean;
   onEnter: (id: string) => void; onOpenEntry?: (id: string, kind: string) => void;
+  customTypes?: Pick<CustomEntityType, "name" | "icon" | "color">[];
 }) {
   const t = entity.type, round = t === "character";
-  const def = resolveEntityTypeDef(t, []);
+  const def = resolveEntityTypeDef(t, customTypes ?? []);
   const c = def.color;
   const deep = `color-mix(in srgb, ${c} 78%, var(--ink))`;
   const fill = `color-mix(in srgb, ${c} 15%, var(--paper))`;
@@ -198,12 +200,12 @@ function RmapNode({ entity, p, r, dim, hot, onEnter, onOpenEntry }: {
   );
 }
 
-function RmapKeyCard({ present }: { present: string[] }) {
+function RmapKeyCard({ present, customTypes }: { present: string[]; customTypes?: Pick<CustomEntityType, "name" | "icon" | "color">[]; }) {
   return (
     <div className="rmap-key">
       <h5>Map key</h5>
       {present.map(t => {
-        const def = resolveEntityTypeDef(t, []);
+        const def = resolveEntityTypeDef(t, customTypes ?? []);
         return (
           <div key={t} className="rmap-key-row" style={{ "--c": def.color } as CSSProperties}>
             <span className={t === "character" ? "sw" : "sw sq"} />
@@ -221,10 +223,11 @@ type RmapAreaProps = {
   pos: Record<string, Vec2>; radii: Record<string, number>;
   hover: string | null; setHover: (id: string | null) => void; N: number;
   edgeShown: (e: EdgeDef) => boolean; nodeShown: (id: string) => boolean;
-  present: string[]; onOpenEntry?: (id: string, kind: string) => void;
+  present: string[]; customTypes?: Pick<CustomEntityType, "name" | "icon" | "color">[];
+  onOpenEntry?: (id: string, kind: string) => void;
 };
 
-function RmapMapArea({ wrapRef, W, H, edges, nodes, pos, radii, hover, setHover, N, edgeShown, nodeShown, present, onOpenEntry }: RmapAreaProps) {
+function RmapMapArea({ wrapRef, W, H, edges, nodes, pos, radii, hover, setHover, N, edgeShown, nodeShown, present, customTypes, onOpenEntry }: RmapAreaProps) {
   return (
     <div className="rmap-wrap" ref={wrapRef}>
       <svg className="relgraph rmap" viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} onMouseLeave={() => setHover(null)}>
@@ -237,28 +240,29 @@ function RmapMapArea({ wrapRef, W, H, edges, nodes, pos, radii, hover, setHover,
         {nodes.map(e => {
           const p = pos[e.id];
           if (!p) return null;
-          return <RmapNode key={e.id} entity={e} p={p} r={radii[e.id]} dim={!nodeShown(e.id)} hot={hover === e.id} onEnter={setHover} onOpenEntry={onOpenEntry} />;
+          return <RmapNode key={e.id} entity={e} p={p} r={radii[e.id]} dim={!nodeShown(e.id)} hot={hover === e.id} onEnter={setHover} customTypes={customTypes} onOpenEntry={onOpenEntry} />;
         })}
       </svg>
-      <RmapKeyCard present={present} />
+      <RmapKeyCard present={present} customTypes={customTypes} />
     </div>
   );
 }
 
 // ── RelationshipMap ────────────────────────────────────────────────────────────
 
-export function RelationshipMap({ entities, relations, onOpenEntry, onBack }: RelationshipMapProps) {
+export function RelationshipMap({ entities, relations, customTypes, onOpenEntry, onBack }: RelationshipMapProps) {
+  const ct = customTypes ?? [];
   const [filter, setFilter] = useState<string>("all");
   const [hover, setHover] = useState<string | null>(null);
   const { edges, nodes, unlinkedCount, N, W, H, radii, present } = useRmapData(entities, relations);
   const { wrapRef, measuredW } = useRmapMeasure(N);
-  const keyW = Math.max(96, present.reduce((m, t) => Math.max(m, resolveEntityTypeDef(t, []).label.length * 6.2 + 46), 0));
+  const keyW = Math.max(96, present.reduce((m, t) => Math.max(m, resolveEntityTypeDef(t, ct).label.length * 6.2 + 46), 0));
   const rscale = Math.min(1, (measuredW ?? 820) / W);
   const ex: ExZone = { x: Math.round((keyW + 46) / rscale), y: Math.round((34 + present.length * 21 + 46) / rscale) };
   const pos = useRmapLayout(nodes, edges, radii, { W, H, ex });
   const neighbors = useMemo(() => buildNeighbors(hover, edges), [hover, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
-  const FILTERS = [["all", "All"], ...present.map(t => [t, resolveEntityTypeDef(t, []).label])];
+  const FILTERS = [["all", "All"], ...present.map(t => [t, resolveEntityTypeDef(t, ct).label])];
   const nodeShown = (id: string) =>
     (filter === "all" || nodeMap.get(id)?.type === filter) && (!neighbors || neighbors.has(id));
   const edgeShown = (e: EdgeDef) => {
@@ -272,7 +276,7 @@ export function RelationshipMap({ entities, relations, onOpenEntry, onBack }: Re
         <div style={{ maxWidth: W, margin: "0 auto" }}>
           <RmapBar onBack={onBack} N={N} edgeCount={edges.length} filter={filter} setFilter={setFilter} filters={FILTERS} />
           {N === 0 ? <RmapEmptyState onBack={onBack} /> : (
-            <RmapMapArea wrapRef={wrapRef} W={W} H={H} edges={edges} nodes={nodes} pos={pos} radii={radii} hover={hover} setHover={setHover} N={N} edgeShown={edgeShown} nodeShown={nodeShown} present={present} onOpenEntry={onOpenEntry} />
+            <RmapMapArea wrapRef={wrapRef} W={W} H={H} edges={edges} nodes={nodes} pos={pos} radii={radii} hover={hover} setHover={setHover} N={N} edgeShown={edgeShown} nodeShown={nodeShown} present={present} customTypes={ct} onOpenEntry={onOpenEntry} />
           )}
           {N > 0 && unlinkedCount > 0 && (
             <div className="rmap-foot">
