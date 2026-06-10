@@ -19,9 +19,11 @@ In the Lemon Squeezy dashboard, find your store subdomain (e.g. `writers-nook` i
 ```js
 window.WN_LS = {
   store: "writers-nook",        // your store subdomain
-  variantApp: "123456",         // the app product's variant ID
+  variantApp: "6e07b36b-xxxx-xxxx-xxxx-xxxxxxxxxxxx",  // the app product's variant ID (UUID-slug format)
 };
 ```
+**Note:** the numeric variant ID (e.g. `123456`) is the API/webhook identifier and must NOT be used in the
+checkout URL; use the UUID-slug format shown above (matches the comment in `public/ls-config.js`).
 
 That's all the checkout needs — `public/checkout.js` builds
 `https://<store>.lemonsqueezy.com/checkout/buy/<variant>?embed=1&checkout[email]=…&checkout[discount_code]=…`
@@ -35,15 +37,17 @@ and opens it as an overlay via lemon.js.
   field passes the entered code through as `checkout[discount_code]`; LS validates it. (The blanket founder
   discount is NOT a coupon — it's the product's base price. Coupons are for targeted promos only.)
 - **Post-purchase redirect.** Leave the product's "redirect after purchase" setting **empty** — the redirect
-  is handled in code: `checkout.js`'s `Checkout.Success` handler sends the buyer to `purchase-success.html`.
-  (LS hosted checkout has no `success_url` URL param; the event handler is the static-site path.)
+  is handled in code: `checkout.js`'s `Checkout.Success` handler sends the buyer to `purchase-success.html`,
+  which receives order data via `sessionStorage` key `wn_order` (direct visits or refresh show the no-order
+  fallback by design). (LS hosted checkout has no `success_url` URL param; the event handler is the static-site path.)
 
 ## 4. Test it (test mode)
 
 The store starts in **test mode**; the same checkout URL works in both test and live (mode is a store-level
 flag, not a separate URL). Complete a purchase with test card **`4242 4242 4242 4242`**, any future expiry,
 any CVC. Confirm: overlay opens → payment succeeds → redirect to `purchase-success.html` → the m1 webhook
-writes a `purchases` row (check the Supabase table).
+writes a `purchases` row (check the Supabase table). The `order_created` event writes the row with `license_key = null`;
+the `license_key_created` event populates the key asynchronously and triggers the license email.
 
 ## 5. When the founder window ends (~3 months)
 

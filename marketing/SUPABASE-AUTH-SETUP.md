@@ -68,10 +68,10 @@ no data leak, by RLS construction. See Locked Decision 1 in `roadmap/wave-m3-mag
 
 The account page marks these `WN_M4` — not yet wired to real sources:
 
-- **Activation count** ("2 of 3 devices") + **device management** — need the LS license API
-  (`activate`/`validate`/`deactivate`).
-- **Real installer download URLs** — the macOS/Windows buttons stay `href="#"` until signed build
-  artifacts are hosted (served via LS digital delivery per `launch-infra-checklist.md`).
+- **Activation count** ("2 of 3 devices") + **device management** — live via the LS license API
+  (account.js lines 71–87 live-call `POST https://api.lemonsqueezy.com/v1/licenses/validate`, wired in m4).
+- **Real installer download URLs** — resolve from `downloads-config.js` (wired in m4); the macOS/Windows
+  buttons are served via LS digital delivery per `launch-infra-checklist.md`.
 - **Subscription status / backup stats** — the sync product is deferred.
 
 _Wave m3 · 2026-06-04. Companions: `CHECKOUT-SETUP.md`, `../roadmap/launch-infra-checklist.md`._
