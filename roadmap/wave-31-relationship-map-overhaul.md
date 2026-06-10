@@ -132,7 +132,9 @@ decision-review cell.)*
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-10 (run wf_d66244f8-13e) | 2026-06-10 — gates green; reviewer FLAG (icon: string vs IconName) adjudicated + fixed inline (narrowed to IconName) | (phase-1 commit) | Internal — no observation point, as planned |
+| 1 | 2026-06-10 (run wf_d66244f8-13e) | 2026-06-10 — gates green; reviewer FLAG (icon: string vs IconName) adjudicated + fixed inline (narrowed to IconName) | 4a1c066 | Internal — no observation point, as planned |
+| 2 | 2026-06-10 (run wf_22996ee3-8d9) | 2026-06-10 — gates green; reviewer FLAG (relKey missing label → stale edge label) fixed inline | b96efdb | HIT — CDP smoke: Cartographer's-key rendering live (chart frame, icon nodes, key card, halo labels, footer hint) |
+| 3 | 2026-06-10 (orchestrator smoke) | 2026-06-10 — full matrix green: 5-type dense light+dark · hover dims non-neighbours only (neighbour stays lit) · narrow-pane key-card clearance · empty state + CTA · click-to-open · filter chips. No map defects. Side investigation: char→item "save failure" = automation error (two-step picker), confirmed by diagnostician + attack-hypothesis review (PASS w/ 1 FLAG); the FLAG (RelationshipGroup.tsx:82 avatar class wrong for item/faction/lore) fixed inline via entityTypeDefs color | (phase-3 commit) | HIT — all five types distinct in both themes; empty state observed in second project |
 
 ## Follow-up candidates
 

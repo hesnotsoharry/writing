@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import type { Entity, Relation, RelationPreset, StoryBibleStore } from "../../db/storyBibleStore";
 import { getPresetsForType } from "../../db/storyBibleStore";
+import { resolveEntityTypeDef } from "../entityTypeDefs";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -75,11 +76,12 @@ function RelationChip({ relation, targetEntity, entityType, onDelete, onRelabel,
   const [open, setOpen] = useState(false);
   const menuRef = useClickOutside(open, () => setOpen(false));
   if (!targetEntity) return null;
-  const isChar = targetEntity.type === "character";
+  const typeColor = resolveEntityTypeDef(targetEntity.type, []).color;
   const kind = targetEntity.type.charAt(0).toUpperCase() + targetEntity.type.slice(1);
   return (
     <div className="entity-card fe-person" style={{ position: "relative" }}>
-      <div className={"avatar " + (isChar ? "character" : "location")} style={{ cursor: "pointer", flexShrink: 0 }}
+      <div className="avatar"
+        style={{ cursor: "pointer", flexShrink: 0, color: typeColor, background: `color-mix(in srgb, ${typeColor} 16%, transparent)` }}
         onClick={() => onPushEntry?.(targetEntity.id, kind)}>
         {entityInitial(targetEntity.name)}
       </div>
