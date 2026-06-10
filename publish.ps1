@@ -145,6 +145,33 @@ gh release create $Tag $setup.FullName $latestPath `
     --notes "Release $Version"
 if ($LASTEXITCODE -ne 0) { throw 'gh release create failed.' }
 
+# --- Upload to R2 (downloads.writersnook.app) ---------------------------------
+# Uploads the signed installer to Cloudflare R2 under two keys:
+#   - Stable   → WritersNook-Setup.exe   (what downloads-config.js points at)
+#   - Versioned → e.g. WritersNook_0_2_6_x64-setup.exe  (archive copy)
+# Wrangler is a devDep in marketing/ so we run it from there.
+# Non-fatal: if wrangler isn't authed or fails, print the manual command and continue.
+Write-Host 'Uploading installer to R2 (downloads.writersnook.app)...' -ForegroundColor Cyan
+$marketingDir = Join-Path $ProjectRoot 'marketing'
+$r2Bucket = 'writersnook-downloads'
+try {
+    Push-Location $marketingDir
+    # Stable name — this is the URL in downloads-config.js
+    npx wrangler r2 object put "$r2Bucket/WritersNook-Setup.exe" --file $setup.FullName
+    if ($LASTEXITCODE -ne 0) { throw 'wrangler stable-name upload failed' }
+    # Versioned archive copy (original filename, e.g. WritersNook_0_2_6_x64-setup.exe)
+    npx wrangler r2 object put "$r2Bucket/$($setup.Name)" --file $setup.FullName
+    if ($LASTEXITCODE -ne 0) { throw 'wrangler versioned-name upload failed' }
+    Write-Host "R2 upload complete — stable + $($setup.Name)" -ForegroundColor Green
+} catch {
+    Write-Warning "R2 upload failed: $_"
+    Write-Warning "Manual upload commands (run from marketing/ after 'npx wrangler login'):"
+    Write-Warning "  npx wrangler r2 object put $r2Bucket/WritersNook-Setup.exe --file `"$($setup.FullName)`""
+    Write-Warning "  npx wrangler r2 object put `"$r2Bucket/$($setup.Name)`" --file `"$($setup.FullName)`""
+} finally {
+    Pop-Location
+}
+
 # Clear the signing secrets from the environment for this session.
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $null
 $env:TAURI_SIGNING_PRIVATE_KEY = $null
