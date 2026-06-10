@@ -11,10 +11,11 @@ import { useState } from "react";
 import { Icon } from "../../components/Icon";
 import { activateLicense } from "./activate";
 import { saveActivation } from "./license.store";
+import { formatLicenseKeyInput, isLicenseKeyShaped } from "./validate";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ErrorKind = "invalid_key" | "rejected" | "network";
+type ErrorKind = "format_error" | "invalid_key" | "rejected" | "network";
 
 type GatePhase =
   | { status: "idle" }
@@ -35,6 +36,9 @@ export interface ActivationGateProps {
 // ─── Error copy ───────────────────────────────────────────────────────────────
 
 function friendlyError(kind: ErrorKind, message: string): string {
+  if (kind === "format_error") {
+    return "That doesn't look like a license key — keys look like XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX and are in your purchase email.";
+  }
   if (kind === "invalid_key") {
     return "That key doesn't look right — double-check your purchase email.";
   }
@@ -73,13 +77,17 @@ async function runActivate(
   onActivated: () => void,
 ): Promise<void> {
   if (!key.trim()) return;
+  if (!isLicenseKeyShaped(key)) {
+    setPhase({ status: "error", kind: "format_error", message: "" });
+    return;
+  }
   setPhase({ status: "activating" });
-  const result = await activateLicense(key.trim());
+  const result = await activateLicense(key);
   if (!result.ok) {
     setPhase({ status: "error", kind: result.kind, message: result.message });
     return;
   }
-  await doSave(key.trim(), result, setPhase, onActivated);
+  await doSave(key, result, setPhase, onActivated);
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -151,12 +159,13 @@ function GateBody({ phase, licenseKey, setLicenseKey, onActivate }: GateBodyProp
       <input
         className="gate-input"
         type="text"
-        placeholder="XXXX-XXXX-XXXX-XXXX"
+        placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
         value={licenseKey}
+        maxLength={36}
         disabled={busy}
         autoFocus
         aria-label="License key"
-        onChange={(e) => setLicenseKey(e.target.value)}
+        onChange={(e) => setLicenseKey(formatLicenseKeyInput(e.target.value))}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !busy) onActivate();
         }}
