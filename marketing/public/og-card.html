@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>og-card — Writers Nook</title>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&family=Hanken+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 1200px;
+  height: 630px;
+  overflow: hidden;
+}
+body {
+  background: radial-gradient(140% 150% at 50% -5%, #2e2b24 0%, #1c1b17 55%, #141310 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 80px 60px;
+  position: relative;
+  font-family: "Literata", Georgia, "Times New Roman", serif;
+}
+/* subtle warm vignette dots */
+body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(178,90,56,0.06) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(178,90,56,0.04) 0%, transparent 35%);
+  pointer-events: none;
+}
+.logo {
+  width: 88px;
+  height: 88px;
+  margin-bottom: 36px;
+  position: relative;
+}
+.headline {
+  font-size: 78px;
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  text-align: center;
+  color: #f4eee2;
+  margin-bottom: 26px;
+  font-family: "Literata", Georgia, serif;
+}
+.subline {
+  font-size: 26px;
+  font-weight: 400;
+  color: rgba(236, 229, 214, 0.55);
+  letter-spacing: 0.03em;
+  text-align: center;
+  font-family: "Hanken Grotesk", -apple-system, system-ui, sans-serif;
+}
+.domain {
+  position: absolute;
+  bottom: 48px;
+  font-size: 19px;
+  color: rgba(236, 229, 214, 0.28);
+  font-family: "Hanken Grotesk", -apple-system, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+}
+</style>
+</head>
+<body>
+<img class="logo" src="assets/logo-light.png" alt="Writers Nook">
+<h1 class="headline">A quiet study for your novel</h1>
+<p class="subline">One-time purchase &nbsp;·&nbsp; your files stay yours</p>
+<span class="domain">writersnook.app</span>
+</body>
+</html>
