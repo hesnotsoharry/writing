@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { openPath } from "../../lib/ipc";
 import type { AccentPalette, Theme } from "../../theme/useTheme";
+import type { ActivationRecord } from "../license/license.store";
+import { loadActivation } from "../license/license.store";
 import { Seg, SetChips, SetRow, SetSelect, SetToggle } from "./Settings.primitives";
 import type { Tweaks } from "./settings.store";
 import { GRAMMAR_KEY, SPELLCHECK_KEY, STYLEHINTS_KEY } from "./settings.store";
@@ -287,32 +289,50 @@ function useAppVersion(): string | null {
   return version;
 }
 
+/** Activation record from the app DB; null while loading or when not activated. */
+function useLicenseActivation(): ActivationRecord | null {
+  const [record, setRecord] = useState<ActivationRecord | null>(null);
+  useEffect(() => {
+    loadActivation().then(setRecord).catch(() => setRecord(null));
+  }, []);
+  return record;
+}
+
 export function AboutSection() {
   const version = useAppVersion();
+  const record = useLicenseActivation();
+  const licenseText = record
+    ? `Activated · key ending …${record.licenseKey.slice(-4)}`
+    : "Not activated";
   return (
-    <div className="set-about">
-      <div className="set-about-head">
-        <div className="set-app-mark">
-          <Icon name="feather" style={{ width: 26, height: 26 }} />
-        </div>
-        <div>
-          <div className="set-app-name">Writers Nook</div>
-          <div className="set-app-ver">{version ? `v${version}` : ""}</div>
-        </div>
-      </div>
-      <p className="set-about-blurb">
-        A calm, local-first writing space. Your words live entirely on this device. Use
-        Settings ▸ Backup to save a copy wherever you like. No built-in AI, by design.
-        Everything exports in one step; there is no lock-in.
-      </p>
-      <div className="set-sub">Keyboard shortcuts</div>
-      <div className="set-keys">
-        {SHORTCUTS.map(([l, k]) => (
-          <div key={l} className="set-key-row">
-            <span>{l}</span><span className="kbd">{k}</span>
+    <>
+      <div className="set-about">
+        <div className="set-about-head">
+          <div className="set-app-mark">
+            <Icon name="feather" style={{ width: 26, height: 26 }} />
           </div>
-        ))}
+          <div>
+            <div className="set-app-name">Writers Nook</div>
+            <div className="set-app-ver">{version ? `v${version}` : ""}</div>
+          </div>
+        </div>
+        <p className="set-about-blurb">
+          A calm, local-first writing space. Your words live entirely on this device. Use
+          Settings ▸ Backup to save a copy wherever you like. No built-in AI, by design.
+          Everything exports in one step; there is no lock-in.
+        </p>
+        <div className="set-sub">Keyboard shortcuts</div>
+        <div className="set-keys">
+          {SHORTCUTS.map(([l, k]) => (
+            <div key={l} className="set-key-row">
+              <span>{l}</span><span className="kbd">{k}</span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+      <SetRow label="License">
+        <span>{licenseText}</span>
+      </SetRow>
+    </>
   );
 }

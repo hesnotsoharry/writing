@@ -31,11 +31,6 @@ import ReactDOM from "react-dom/client";
 
 import App from "./App";
 
-// WAVE30-P4: remove — Phase 3 imports the license module via the gate; until then this
-// side-effect import registers the DEV-only smoke hook (window.__wnActivateLicense).
-if (import.meta.env.DEV) {
-  void import("./features/license/activate");
-}
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

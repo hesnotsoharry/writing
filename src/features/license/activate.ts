@@ -100,15 +100,3 @@ export async function activateLicense(
     };
   }
 }
-
-// ─── DEV smoke hook ────────────────────────────────────────────────────────
-// Exposes activateLicense on window so a CDP console session can drive the
-// full Rust→LS→parse→frontend path during smoke without any UI.
-// WAVE30-P4: remove
-if (import.meta.env.DEV && typeof window !== "undefined") {
-  (
-    window as Window & {
-      __wnActivateLicense?: typeof activateLicense;
-    }
-  ).__wnActivateLicense = activateLicense;
-}

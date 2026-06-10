@@ -125,6 +125,8 @@ seam tests + fixture JSON only — say so in the phase report.
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
 | 1 | 2026-06-09 (wf_8141ee30-958) | 2026-06-10 · gates green · panel FLAG adjudicated (scope=orchestrator's own parallel commits, dismissed; nullable-collapse → hardened in P2) | 0023c9b | **HIT 2026-06-10** — CDP console `__wnActivateLicense("junk")` → live LS response `{ok:false, kind:"invalid_key", message:"license_key not found."}` (full Rust→LS→parse→frontend path proven) |
+| 2 | 2026-06-10 (wf_18013045-fc0) | 2026-06-10 · gates green, full suite 1054/1054 · single-review BLOCK adjudicated false-positive (flagged files were orchestrator commits in the diff window) | d6638dd | Internal — no observation point (per plan; exercised by P3) |
+| 3 | 2026-06-10 (wf_8a6bc911-d87) | 2026-06-10 · gates green, 15 seam tests · review FLAG (line condensations for 300-line cap) justified · workflow smoke CANNOT-LAUNCH superseded by orchestrator CDP smoke | 7e7d18b | **HIT 2026-06-10** — gate rendered in the running app (no record, bypass unset); junk key through the real UI → live LS call → "That key doesn't look right — double-check your purchase email." |
 
 ## Follow-up candidates
 
