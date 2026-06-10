@@ -47,12 +47,14 @@ export interface EntityRowProps {
   editRoleVersion?: number;
   onEditDone?: () => void;
   onContextMenu: (e: React.MouseEvent, id: string) => void;
+  /** Left-click anywhere on the card (outside inline editors) opens the full entry. */
+  onOpen?: (id: string) => void;
 }
 
 export function EntityRow({
   id, name, type, store, onMutated,
   refreshVersion, justCreated, renameVersion, editRoleVersion,
-  onEditDone, onContextMenu,
+  onEditDone, onContextMenu, onOpen,
 }: EntityRowProps) {
   const initial = name.trim()[0]?.toUpperCase() ?? "";
   const { nameKey, roleKey } = rowKeys(id, renameVersion, editRoleVersion);
@@ -60,7 +62,12 @@ export function EntityRow({
   const editingRole = (editRoleVersion ?? 0) > 0;
   const avatarClass = AVATAR_TYPES.has(type) ? `avatar ${type}` : "avatar generic-entity";
   return (
-    <div className="bible-entry" onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, id); }}>
+    <div className="bible-entry" onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, id); }}
+      onClick={(e) => {
+        // Ignore clicks inside inline editors (rename / role inputs).
+        if ((e.target as HTMLElement).closest("input, textarea, button")) return;
+        onOpen?.(id);
+      }}>
       <div className={avatarClass}>{initial}</div>
       <div className="be-body">
         <EntityRowName key={nameKey} id={id} name={name} type={type} store={store}

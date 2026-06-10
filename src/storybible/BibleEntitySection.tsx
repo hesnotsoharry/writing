@@ -90,7 +90,8 @@ export function GenericEntitySection({
             store={store} onMutated={onMutated} refreshVersion={refreshVersion}
             justCreated={justCreatedId === e.id} renameVersion={rowVersion(renameRequest, e.id)}
             editRoleVersion={rowVersion(editRoleRequest, e.id)}
-            onEditDone={onEditDone} onContextMenu={onCtxMenu} />
+            onEditDone={onEditDone} onContextMenu={onCtxMenu}
+            onOpen={(entityId) => onOpenEntry?.(entityId, kind)} />
         ))}
         <AddEntityButton addLabel={addLabel} onAdd={doAdd} />
       </>)}
