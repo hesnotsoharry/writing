@@ -11,16 +11,14 @@ import {
   writeActivationRecord,
 } from "../features/license/license.store";
 
-type DbLike = {
-  select: ReturnType<typeof vi.fn>;
-  execute: ReturnType<typeof vi.fn>;
-};
+// The store's handle type uses plugin-sql's generic select<T> signature, which plain mock
+// functions can't structurally satisfy — the cast is the sanctioned seam for this stub.
+type StoreDb = Parameters<typeof readActivationRecord>[0];
 
-function stubDb(): DbLike {
-  return {
-    select: vi.fn().mockResolvedValue([]),
-    execute: vi.fn().mockResolvedValue(undefined),
-  };
+function stubDb() {
+  const select = vi.fn().mockResolvedValue([]);
+  const execute = vi.fn().mockResolvedValue(undefined);
+  return { select, execute, db: { select, execute } as unknown as StoreDb };
 }
 
 const RECORD: ActivationRecord = {
@@ -31,10 +29,10 @@ const RECORD: ActivationRecord = {
 
 describe("license.store — activation record round-trip contract (app_meta)", () => {
   it("writeActivationRecord upserts the record as JSON under the 'license' key in app_meta", async () => {
-    const db = stubDb();
+    const { execute, db } = stubDb();
     await writeActivationRecord(db, RECORD);
-    expect(db.execute).toHaveBeenCalledTimes(1);
-    const [sql, params] = db.execute.mock.calls[0] as [string, unknown[]];
+    expect(execute).toHaveBeenCalledTimes(1);
+    const [sql, params] = execute.mock.calls[0] as [string, unknown[]];
     expect(sql).toMatch(/app_meta/);
     expect(params).toContain("license");
     const jsonParam = (params as string[]).find((p) => typeof p === "string" && p.startsWith("{"));
@@ -43,35 +41,35 @@ describe("license.store — activation record round-trip contract (app_meta)", (
   });
 
   it("readActivationRecord returns null when no row exists", async () => {
-    const db = stubDb();
-    db.select.mockResolvedValue([]);
+    const { select, db } = stubDb();
+    select.mockResolvedValue([]);
     await expect(readActivationRecord(db)).resolves.toBeNull();
   });
 
   it("readActivationRecord returns the parsed record when the row exists", async () => {
-    const db = stubDb();
-    db.select.mockResolvedValue([{ value: JSON.stringify(RECORD) }]);
+    const { select, db } = stubDb();
+    select.mockResolvedValue([{ value: JSON.stringify(RECORD) }]);
     await expect(readActivationRecord(db)).resolves.toEqual(RECORD);
   });
 
   it("readActivationRecord returns null (does not throw) on corrupt JSON", async () => {
-    const db = stubDb();
-    db.select.mockResolvedValue([{ value: "{not-json" }]);
+    const { select, db } = stubDb();
+    select.mockResolvedValue([{ value: "{not-json" }]);
     await expect(readActivationRecord(db)).resolves.toBeNull();
   });
 
   it("readActivationRecord returns null when the JSON is valid but missing required fields", async () => {
-    const db = stubDb();
-    db.select.mockResolvedValue([{ value: JSON.stringify({ licenseKey: "x" }) }]);
+    const { select, db } = stubDb();
+    select.mockResolvedValue([{ value: JSON.stringify({ licenseKey: "x" }) }]);
     await expect(readActivationRecord(db)).resolves.toBeNull();
   });
 
   it("round-trips: what write persists, read returns", async () => {
-    const db = stubDb();
+    const { select, execute, db } = stubDb();
     await writeActivationRecord(db, RECORD);
-    const [, params] = db.execute.mock.calls[0] as [string, string[]];
+    const [, params] = execute.mock.calls[0] as [string, string[]];
     const persisted = params.find((p) => typeof p === "string" && p.startsWith("{")) as string;
-    db.select.mockResolvedValue([{ value: persisted }]);
+    select.mockResolvedValue([{ value: persisted }]);
     await expect(readActivationRecord(db)).resolves.toEqual(RECORD);
   });
 });

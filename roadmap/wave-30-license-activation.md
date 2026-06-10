@@ -124,7 +124,7 @@ seam tests + fixture JSON only — say so in the phase report.
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-09 (wf_8141ee30-958) | 2026-06-10 · gates green · panel FLAG adjudicated (scope=orchestrator's own parallel commits, dismissed; nullable-collapse → hardened in P2) | 0023c9b | pending — live CDP smoke queued (tauri dev building) |
+| 1 | 2026-06-09 (wf_8141ee30-958) | 2026-06-10 · gates green · panel FLAG adjudicated (scope=orchestrator's own parallel commits, dismissed; nullable-collapse → hardened in P2) | 0023c9b | **HIT 2026-06-10** — CDP console `__wnActivateLicense("junk")` → live LS response `{ok:false, kind:"invalid_key", message:"license_key not found."}` (full Rust→LS→parse→frontend path proven) |
 
 ## Follow-up candidates
 
