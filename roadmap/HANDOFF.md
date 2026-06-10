@@ -10,12 +10,12 @@ updated: 2026-06-10
 - Marketing site (writersnook.app, auto-deploys on push to master): today shipped LS overlay branding (clay button), dark-mode email-input fix, founder-price labels (incl. hero + checkout), macOS claims pulled → "Windows today · macOS coming soon" (no Mac build exists; needs Apple Dev account + macOS CI when we do it)
 - Design-reference synced from Claude Design handoff bundle (relmap Direction B canon)
 
-## Next 3 steps (launch — v0.3.0 PUBLISHED 2026-06-10)
-1. **Cole + partner: redeem the 100%-off coupon (2 uses) on writersnook.app LIVE** → license keys arrive by email. Partner does the full cold path: buy → download from site → install → activate. Cole: installed app auto-updates 0.2.6→0.3.0, gate appears, enter LIVE key (dev-DB activation used the test key)
-2. **Verify the trio**: success-page shows real order data · license email arrives (Resend) · activation succeeds against live variant. If webhook/email misfires, debug marketing backend (E2E-TEST-PLAN sections 3-4)
-3. Post-launch: marketing screenshot refresh (Claude Design brief in flight) · UpdateModal error clarity + rate-limiting deferrals · 13 OPEN follow-ups unprioritized
+## Next 3 steps (post-launch — LAUNCHED 2026-06-10 🎉)
+1. **Cole:** activate the INSTALLED app — it auto-updates 0.2.6→0.3.0, gate appears, enter LIVE key 395…38EC (dev build used the test key; key shows Inactive 0/3 until then)
+2. Marketing screenshot refresh (Claude Design brief in flight; use NEW relationship map)
+3. Deferred next: UpdateModal error clarity · rate-limiting + body-size guards on contact/newsletter · 13 OPEN follow-ups unprioritized
 
-**Launch state (all 2026-06-10):** v0.3.0 published — signed (Authenticode 2s/artifact), GitHub release + latest.json, R2 upload live (`downloads.writersnook.app/WritersNook-Setup.exe`, HTTP 200, 15.2MB). Gate scoped to variants [1773908 live, 1748920 test], fail-closed; UUID input mask on activation screen. Checkout points at LIVE UUID 5722d58c (test→live flip changed both variant id and checkout UUID — gotcha). Secret rotation: DONE. wrangler OAuth: logged in (v3 warns about v4 — harmless)
+**Launch record (all 2026-06-10):** v0.3.0 LIVE — both founder purchases completed (orders 3977791/3977792, 100%-off coupon); partner did the full cold path buy→download→install→activate (key Active 1/3). Signed (Authenticode), GitHub release + latest.json, R2 delivery live (`downloads.writersnook.app/WritersNook-Setup.exe`, 200/15.2MB; publish.ps1 uploads stable+versioned). Gate scoped to variants [1773908 live, 1748920 test] fail-closed + UUID input mask. Checkout on LIVE UUID 5722d58c. **Live webhook created post-purchase** (test-mode webhooks don't carry over — see lemonsqueezy vendor-gotchas; secret = `LEMON_SQUEEZY_SIGNING_SECRET`, rotated + redeployed e076246); the two pre-webhook orders were backfilled into `purchases` via SQL editor — all future purchases flow automatically. Azure signer secret rotation: DONE. wrangler: OAuth'd (v3, harmless v4 warning)
 
 ## Active work
 - Wave in flight: none · wave-31 wrapped (no follow-ups qualified, no decisions promoted, no vendor gotchas)
