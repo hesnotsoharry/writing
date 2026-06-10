@@ -65,6 +65,15 @@
   background: color-mix(in srgb, var(--c) 14%, var(--paper)); border: 1.6px solid var(--c); }
 .rmap-key-row .sw.sq { border-radius: 3.5px; }
 
+/* ego graph node labels — scaled-down version of rmap-name/rmap-elabel for the
+   small side-panel canvas (340 × 200 px). Same font, same halo — smaller px. */
+.relgraph-name { font-family: var(--font-prose); font-style: italic; font-size: 10px;
+  font-weight: var(--w-medium); fill: var(--ink-2); text-anchor: middle;
+  paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; }
+.relgraph-elabel { font-family: var(--font-prose); font-style: italic; font-size: 8.5px;
+  font-weight: var(--w-medium); fill: var(--ink-2); text-anchor: middle;
+  paint-order: stroke; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; }
+
 /* footer hint when entities exist that aren't linked yet */
 .rmap-foot { margin-top: 10px; display: flex; align-items: center; gap: 7px;
   font-size: var(--text-xs); color: var(--ink-3); font-family: var(--font-ui); }

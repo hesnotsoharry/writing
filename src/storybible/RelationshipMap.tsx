@@ -194,7 +194,7 @@ function RmapEdge({ edge, pos, dim, strong, N, hover }: {
 
 function RmapNode({ entity, p, r, dim, hot, onEnter, onOpenEntry, customTypes }: {
   entity: Entity; p: Vec2; r: number; dim: boolean; hot: boolean;
-  onEnter: (id: string) => void; onOpenEntry?: (id: string, kind: string) => void;
+  onEnter: (id: string | null) => void; onOpenEntry?: (id: string, kind: string) => void;
   customTypes?: Pick<CustomEntityType, "name" | "icon" | "color">[];
 }) {
   const t = entity.type, round = t === "character";
@@ -206,7 +206,8 @@ function RmapNode({ entity, p, r, dim, hot, onEnter, onOpenEntry, customTypes }:
   const kind = t.charAt(0).toUpperCase() + t.slice(1);
   return (
     <g className="rmap-node" style={{ opacity: dim ? 0.16 : 1 }}
-      onClick={() => onOpenEntry?.(entity.id, kind)} onMouseEnter={() => onEnter(entity.id)}>
+      onClick={() => onOpenEntry?.(entity.id, kind)}
+      onMouseEnter={() => onEnter(entity.id)} onMouseLeave={() => onEnter(null)}>
       <g className={hot ? "body hot" : "body"}>
         {round
           ? <circle cx={p.x} cy={p.y} r={r + 3.5} fill="none" stroke={c} strokeOpacity={0.4} strokeWidth={1} />
