@@ -11,9 +11,10 @@
 window.WN_LS = {
   store: "writersnookapp", // writersnookapp.lemonsqueezy.com
   // The CHECKOUT URL uses the variant's public UUID slug (verified against the
-  // live store 2026-06-04). The numeric variant ID (1748920) is the API/webhook
-  // identifier — NOT the checkout-URL identifier; don't swap them.
-  variantApp: "6e07b36b-d763-429c-8064-a0154c679983", // one-time app purchase (founder $29)
+  // LIVE store 2026-06-10, post test→live flip). The numeric variant ID
+  // (live 1773908; test-mode was 1748920) is the API/webhook identifier — NOT
+  // the checkout-URL identifier; don't swap them.
+  variantApp: "5722d58c-f3e9-46cf-9d29-a84ecf338723", // one-time app purchase (founder $29)
   // Phase 2 — NOT wired yet: the $5/mo Device Sync subscription (relay-based,
   // end-to-end encrypted, no server-side storage of user content).
   // (numeric variant 1748967; its checkout UUID is TBD when it ships).
