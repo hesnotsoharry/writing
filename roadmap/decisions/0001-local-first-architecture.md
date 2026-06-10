@@ -1,7 +1,7 @@
 ---
 id: 0001
-title: Local-first stack — Tauri + TipTap + Yjs + SQLite + cloud backup
-status: accepted
+title: Local-first stack — Tauri + TipTap + Yjs + SQLite (cloud backup superseded — see 2026-06-09 amendment)
+status: accepted (amended 2026-06-09)
 decided-in: brainstorming-2026-06-02
 date: 2026-06-02
 durable: true
@@ -49,3 +49,30 @@ and reviews must check phase-1 work against the four load-bearing constraints ab
 **Sources (as of 2026):** Yjs vs Automerge vs Loro (pkgpulse); y-sweet (github.com/jamsocket/y-sweet);
 TipTap/Lexical/Slate/Quill comparison (pkgpulse); Electric vs PowerSync vs Zero (trybuildpilot);
 Tauri vs Electron (pkgpulse); TenTap (github.com/10play/10tap-editor). Full citations in the spec.
+
+---
+
+## Amendment — 2026-06-09 (LS compliance: server-side storage removed)
+
+**Context:** Lemon Squeezy merchant-of-record compliance review found that storing user document
+content server-side (even encrypted at rest) is not permitted under the current MoR arrangement.
+
+**Superseded design elements:**
+- Phase-1 "app-driven snapshots to Cloudflare R2 / Backblaze B2" with object versioning for
+  point-in-time restore — **dropped**.
+- Phase-2 "y-sweet persisting to the same R2/B2 bucket" — **architecture changed**: y-sweet (or
+  equivalent) must operate as a **stateless relay only**, forwarding Yjs update messages between
+  devices without persisting document content to any server-side store.
+- Version history / point-in-time restore from our servers — **feature removed**.
+- Server-side backup as a subscription selling point — **removed**.
+
+**Replacement:**
+- Phase-2 sync is an **end-to-end-encrypted relay** with no persistence of document content on our
+  infrastructure. We cannot read user writing and we do not store it.
+- Off-machine backup remains the free bring-your-own-folder story: user points the app at their own
+  Dropbox/OneDrive folder. This is unchanged from Phase-1 marketing; it now carries more weight as
+  the sole backup path.
+
+**Load-bearing Phase-1 decisions (above) are unaffected** — Yjs substrate, one-doc-per-scene,
+web-bundle editor, and the WebSocket sync contract all remain valid. The amendment only affects
+where and whether documents are persisted server-side.

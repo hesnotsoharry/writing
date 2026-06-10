@@ -13,9 +13,9 @@ updated: 2026-06-09
 - **v0.2.6 status:** Tagged (a64c71c) · NOT YET PUBLISHED (awaiting `.\publish.ps1`)
 
 ## Next 3 steps (launch sequence)
-1. **Relay rewrite:** product change — cloud storage REMOVED (Lemon Squeezy compliance); Device Sync $5/mo stays but as E2E-encrypted relay, NO server-side storage of user data. Rewrite ~9 marketing files (privacy.html critical) + amend ADR 0001/spec (y-sweet-persists-to-bucket Phase-2 design is now forbidden).
-2. **License activation screen in the app** (wave): paste key → LS `activate` (key + machine ID, public API) → store local flag → never phone home again. App currently has NO licensing at all.
-3. **Provision + deploy + E2E purchase test** (see Marketing launch state below), then publish v0.2.6 and get partner onto ≥v0.2.4.
+1. **License activation screen in the app** (wave): paste key → LS `activate` (key + machine ID, public API) → store local flag → never phone home again. App currently has NO licensing at all.
+2. **Provision + deploy + E2E purchase test** (see Marketing launch state below), then publish v0.2.6 and get partner onto ≥v0.2.4.
+3. **DONE 2026-06-09 — relay rewrite:** cloud storage REMOVED (LS compliance); Device Sync $5/mo reframed as E2E-encrypted relay, no server-side storage of user data. 18 files rewritten (privacy/pricing/features/index/checkout/account/email + terms/refunds/support/whats-new/purchase-success) + ADR 0001 & spec amended (y-sweet must be stateless relay). Adversarially reviewed (FLAG items fixed).
 
 ## Marketing launch state (merged from marketing-backend)
 - **m1–m4 feature code DONE, gates green** — built against placeholders; provisioning + deploy remain:
@@ -35,7 +35,7 @@ updated: 2026-06-09
 ## Reference index
 - **Project:** [CLAUDE.md](../CLAUDE.md) — local-first Tauri desktop app, zero built-in AI · marketing site decoupled under `marketing/`
 - **Process:** Lane A (features) + Lane B (bugs) per `~/.claude/rules/development-pipeline.md`
-- **Durable ADRs:** [decisions/](decisions/) — keystone: [0001-local-first-architecture.md](decisions/0001-local-first-architecture.md) (needs relay amendment) · [act-then-mark-webhook-idempotency.md](decisions/act-then-mark-webhook-idempotency.md)
+- **Durable ADRs:** [decisions/](decisions/) — keystone: [0001-local-first-architecture.md](decisions/0001-local-first-architecture.md) (amended 2026-06-09: relay-only sync, no server-side storage) · [act-then-mark-webhook-idempotency.md](decisions/act-then-mark-webhook-idempotency.md)
 - **Updater pipeline:** [RELEASING.md](../../RELEASING.md) + `publish.ps1` (version-anchored) · UI: [UpdateModal.tsx](../../src/features/updater/UpdateModal.tsx) · `installMode=quiet`
 - **Build & test:** `npm run tauri dev` (WebView2 CDP 9222 + tauri-devtools MCP) · `npm run test` (Vitest) · `npm run lint:fix` · marketing: `cd marketing && npm test`
 - **Vendor-gotchas:** [.claude/vendor-gotchas/](../../.claude/vendor-gotchas/) (tauri) · `marketing/.claude/vendor-gotchas/{lemonsqueezy,resend}.md`

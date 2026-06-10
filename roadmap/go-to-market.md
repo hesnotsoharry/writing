@@ -54,7 +54,7 @@ Overlap of the two best segments → **~$45–65 one-time** is the demand-set pr
 |---|---|---|
 | **App (one-time, perpetual)** | **$49 USD** | Deliberately under Scrivener's $59.99 — "the modern, calm alternative for less." Free point updates; optional paid major-version upgrade (~$19–25) every couple years *if* a v2 ever ships. |
 | **Launch / founder price** | **$29–34** for first ~3 months | Seeds reviews + word-of-mouth (the biggest lever for an unknown indie tool), then raise to $49. Early buyers feel smart, not gouged. |
-| **Cloud backup/sync (Phase 2)** | **$4/mo billed annually (~$40/yr)** or **$5/mo monthly** | Matches Obsidian Sync to the dollar — the price writers already accept. |
+| **Device Sync (Phase 2)** | **$4/mo billed annually (~$40/yr)** or **$5/mo monthly** | Matches Obsidian Sync to the dollar — the price writers already accept. End-to-end encrypted relay; no server-side storage of user content (LS compliance, 2026-06-09). |
 | **Free local backup (in base app)** | **$0 — point at the user's own Dropbox/OneDrive folder** | Defuses the "why pay $5/mo when Dropbox exists" objection. Paid sync becomes "we make it effortless," not "we hold your backups hostage." |
 | **Trial** | **21–30 days, no credit card** | Trial *length* barely affects conversion; *no-card* + *let them import a real project* matter a lot. **No permanent free tier** — pure support burden, no revenue for a solo dev. |
 

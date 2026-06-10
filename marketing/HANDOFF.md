@@ -19,7 +19,7 @@ No build step, no framework, no bundler. Every page is hand-editable HTML.
 **Product facts baked into copy (keep consistent if you change them):**
 - Name: **Writers Nook** (no apostrophe). Domain: **writersnook.app**.
 - Price: **$49 USD one-time** for the app (lifetime license, macOS & Windows).
-- Add-on: **Cloud Backup & Sync — $5/mo USD**, optional, cancel anytime.
+- Add-on: **Device Sync — $5/mo USD**, optional, cancel anytime. End-to-end encrypted relay; no user content stored on our servers (LS compliance — cloud storage offering removed 2026-06-09).
 - Payments: **Lemon Squeezy is the merchant of record.**
 - Activation: license key, pasted into the app **once**, verified with Lemon
   Squeezy (one-time in-app activation; 3 device activations).
@@ -167,7 +167,7 @@ your ESP / Lemon Squeezy. Subject line is noted in the file header.
 
 1. `grep -rn "WN_TODO_" marketing/` → the JS integration points.
 2. `grep -rn 'href="#"' marketing/` → dead links to wire up.
-3. Stand up Lemon Squeezy (products: app $49 one-time, backup $5/mo sub;
+3. Stand up Lemon Squeezy (products: app $49 one-time, Device Sync $5/mo sub;
    the FOUNDERS coupon) and wire `WN_TODO_PAYMENT` + `WN_TODO_COUPONS`.
 4. Build the email magic-link auth (`WN_TODO_MAGICLINK`) + account data
    (`account.html`).

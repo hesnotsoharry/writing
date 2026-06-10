@@ -259,3 +259,23 @@ TenTap+Yjs spike first to retire R1.
 2. One Yjs doc per scene.
 3. Editor authored as a self-contained web bundle, decoupled from Tauri-native APIs.
 4. The future sync contract is "Yjs updates over WebSocket" — nothing in Phase 1 should violate it.
+
+---
+
+## Amendment — 2026-06-09 (LS compliance: server-side storage removed)
+
+The following sections of this spec describe a Phase-1 backup and Phase-2 sync design that is
+**superseded** by LS merchant-of-record compliance requirements. Do not implement the superseded
+design. See `roadmap/decisions/0001-local-first-architecture.md` §Amendment for the full record.
+
+**Superseded spec sections (affected text, do not implement):**
+- §5 Architecture table: "Backup (Phase 1) — App-driven snapshot → Cloudflare R2 / Backblaze B2"
+- §5 Architecture table: "Sync (Phase 2) — Self-hosted y-sweet persisting to the same R2/B2 bucket"
+- §9 Backup & safety: automatic off-machine backup to R2/B2, versioned snapshots, point-in-time restore
+- §11 Phase plan: "backup-only off-machine safety" (Phase 1) and "same bucket becomes sync + backup" (Phase 2)
+- F10 (Feature table): "Automatic, scheduled, versioned off-machine backup; user can restore a prior version"
+
+**Current design:**
+- Phase-2 sync is a stateless, end-to-end-encrypted **relay** — no document content is persisted
+  server-side. We forward Yjs update messages between devices and store nothing.
+- Off-machine backup = free bring-your-own-folder (Dropbox/OneDrive). This is the only backup path.

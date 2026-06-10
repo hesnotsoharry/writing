@@ -130,15 +130,23 @@ Same spirit, no "well, actually." (The brand is trust — the copy can't have a 
 - **Azure code-signing cert** (goes into the build pipeline, not the website)
 - **Wise USD account details** (routing + account number → paste into LS payout at first sale)
 
-## Phase 2 note — backup/sync subscription
+## Phase 2 note — Device Sync subscription
+
+> **Amendment 2026-06-09 (LS compliance):** The original design bundled backup + sync into one tier,
+> with an R2/B2 bucket persisting document state server-side. That design is **superseded**. Lemon
+> Squeezy MoR compliance forbids storing user content on our servers, so server-side backup and
+> version history features are dropped. The Phase-2 offering is **Device Sync only**: an
+> end-to-end-encrypted relay that forwards changes between the user's devices without persisting
+> document content. The free bring-your-own-folder backup (Dropbox/OneDrive) covers the backup
+> story. See ADR 0001 amendment for technical details.
 
 - Separate **LS subscription product**; **requires the account**; **$4/mo billed annually (~$40/yr)**
-  or **$5/mo monthly** (matches Obsidian Sync). **One bundled tier = backup + cross-device sync**
-  (don't split — same infrastructure). **Launch it WITH sync, not before** — backup-alone is a weak
-  $5 pitch when free bring-your-own-folder backup exists in the base app.
+  or **$5/mo monthly** (matches Obsidian Sync).
+- **Relay architecture only** — the relay forwards Yjs update messages between devices and does NOT
+  persist document content. No server-side storage of user writing at any point.
+- **No version history or restore** — those features are removed; free Dropbox/OneDrive covers
+  off-machine backup for Phase 1 and Phase 2 users alike.
 - Free **bring-your-own-folder backup** (point at the user's Dropbox/OneDrive) carries Phase 1 at $0.
 - Use **LS's hosted customer portal** for subscription management/cancellation.
-- **Prose is tiny** (a novel = a few MB) → effectively unlimited storage is a selling point, with
-  healthy margin. Better cost story than Obsidian's 10 GB cap (their users store images/PDFs).
 - **Tauri auto-updater** (signed updates) — fast-follow after launch so a v1.0.1 doesn't mean
   emailing everyone a new link.
