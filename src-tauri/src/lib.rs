@@ -1,4 +1,5 @@
 mod grammar;
+mod license;
 
 use tauri::Manager;
 
@@ -69,7 +70,8 @@ pub fn run() {
             grammar::lint_text,
             open_path,
             backup_database,
-            write_export_file
+            write_export_file,
+            license::activate_license
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

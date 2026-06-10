@@ -27,6 +27,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 harper-core = { version = "=2.0.0", features = ["concurrent"] }
 tauri-plugin-process = "2"
+reqwest = { version = "0.12", features = ["json"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
