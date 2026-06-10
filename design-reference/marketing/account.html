@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){try{var t=localStorage.getItem("wn-theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
+<title>Your account — Writers Nook</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><img id="brand-logo" src="assets/logo-dark.png" alt="Writers Nook">Writers Nook</a>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="nav-links" id="navLinks">
+      <a href="features.html">Features</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="about.html">About</a>
+      <a href="blog.html">Blog</a>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark theme" title="Toggle theme"><svg class="ic moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><svg class="ic sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+      <a class="m-btn m-btn-ghost nav-cta" href="signin.html">Sign out</a>
+    </div>
+  </div>
+</nav>
+
+<header style="padding:48px 0 8px">
+  <div class="wrap io" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="width:54px;height:54px;border-radius:50%;background:var(--accent-tint);color:var(--accent-deep);display:grid;place-items:center;font-family:var(--font-prose);font-weight:600;font-size:22px">N</div>
+    <div style="flex:1;min-width:200px">
+      <h1 style="font-size:30px;line-height:1.1">Your account</h1>
+      <p style="color:var(--ink-3);margin:4px 0 0;font-size:15px">nina@example.com · member since June 2026</p>
+    </div>
+    <span class="badge active dot">Writers Nook · Active</span>
+  </div>
+</header>
+
+<section class="section-pad-sm" style="padding-top:28px">
+  <div class="wrap">
+    <div class="acct-grid io">
+      <!-- license -->
+      <div class="acct-card">
+        <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg>License</div>
+        <h3>Writers Nook 1.0</h3>
+        <div class="keybox" style="margin-top:12px">
+          <code id="lickey">WNOOK-7Q4M-XP2D-9KFA-T1RE</code>
+          <button class="copybtn" id="copyKey"><svg class="ic" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy</button>
+        </div>
+        <div class="kv" style="margin-top:8px"><span class="k">Activations</span><span class="v">2 of 3 devices</span></div>
+        <div class="kv"><span class="k">License type</span><span class="v">Lifetime · one-time</span></div>
+        <div style="margin-top:14px"><a class="copybtn" href="#" style="text-decoration:none">Manage devices</a></div>
+      </div>
+
+      <!-- downloads -->
+      <div class="acct-card">
+        <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Downloads</div>
+        <h3>Version 1.0 <span style="font-weight:400;color:var(--ink-3);font-size:14px;font-family:var(--font-ui)">· latest</span></h3>
+        <div class="platform-row" style="margin-top:14px">
+          <a class="m-btn m-btn-primary" href="#"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 1.9c.1 1-.3 2-.9 2.7-.6.8-1.7 1.4-2.7 1.3-.1-1 .4-2 .9-2.6.7-.8 1.8-1.3 2.7-1.4zM18.9 8.4c-1.5-.1-2.8.8-3.5.8-.7 0-1.8-.8-3-.8-1.5 0-2.9.9-3.7 2.3-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.6 2.3 2.8 2.3 1.1 0 1.5-.7 2.9-.7 1.3 0 1.7.7 2.9.7 1.2 0 2-1.1 2.7-2.2.6-.8.8-1.3 1.2-2.2-3.1-1.2-3.6-5.6-.5-7.3-1-1.2-2.3-1.9-2.9-1.9z"/></svg>macOS</a>
+          <a class="m-btn m-btn-ghost" href="#"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5l7.5-1v7.4H3V5.5zm0 13l7.5 1v-7.3H3v6.3zM11.5 4.4L21 3v8.9h-9.5V4.4zm0 8.5H21V21l-9.5-1.3v-6.8z"/></svg>Windows</a>
+        </div>
+        <div class="dl-meta"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Authenticated to your license · <a href="#" style="color:var(--accent-deep);font-weight:600;margin-left:4px">What's new</a></div>
+      </div>
+
+      <!-- cloud backup -->
+      <div class="acct-card">
+        <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.5A4.5 4.5 0 0017 8h-1.26A7 7 0 104 15"/><path d="M12 12v8m0-8l-3 3m3-3l3 3"/></svg>Cloud Backup &amp; Sync</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h3 style="margin:0">$5<span style="font-weight:400;color:var(--ink-3);font-size:15px;font-family:var(--font-ui)">/month</span></h3><span class="badge active dot">Active</span></div>
+        <div class="kv" style="margin-top:12px"><span class="k">Last backup</span><span class="v">2 minutes ago</span></div>
+        <div class="kv"><span class="k">Stored</span><span class="v">1.2 GB · 1 project</span></div>
+        <div class="kv"><span class="k">Renews</span><span class="v">July 4, 2026</span></div>
+        <div style="margin-top:14px;display:flex;gap:10px"><a class="copybtn" href="#" style="text-decoration:none">Restore a version</a><a class="copybtn" href="#" style="text-decoration:none">Cancel</a></div>
+      </div>
+
+      <!-- profile -->
+      <div class="acct-card">
+        <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</div>
+        <div class="kv" style="margin-top:2px"><span class="k">Email</span><span class="v">nina@example.com</span></div>
+        <div class="kv"><span class="k">Password</span><span class="v"><a href="#" style="color:var(--accent-deep);font-weight:600">Change</a></span></div>
+        <div class="kv"><span class="k">Receipts &amp; payments</span><span class="v">Lemon Squeezy</span></div>
+        <div class="kv"><span class="k">Newsletter</span><span class="v">Subscribed</span></div>
+      </div>
+
+      <!-- billing history -->
+      <div class="acct-card span2">
+        <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payment history</div>
+        <table class="bill-table">
+          <thead><tr><th>Item</th><th>Date</th><th>Amount</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Cloud Backup &amp; Sync — monthly</td><td>Jun 4, 2026</td><td class="amt">$5.00</td><td><a class="rcpt" href="#">Receipt</a></td></tr>
+            <tr><td>Writers Nook — app (one-time)</td><td>Jun 4, 2026</td><td class="amt">$49.00</td><td><a class="rcpt" href="#">Receipt</a></td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:13px;color:var(--ink-3);margin:18px 0 0;display:flex;align-items:center;gap:8px"><svg class="ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Payments and receipts are securely handled by Lemon Squeezy, our merchant of record.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-top">
+      <div>
+        <a class="brand" href="index.html"><img src="assets/logo-light.png" alt="" style="width:30px;height:30px">Writers Nook</a>
+        <p class="foot-blurb">A calm, paper-warm desktop writing app for novelists. Made with care in Canada.</p>
+      </div>
+      <div class="foot-col"><h5>Product</h5><a href="features.html">Features</a><a href="pricing.html">Pricing</a><a href="account.html">Download</a><a href="whats-new.html">What's new</a></div>
+      <div class="foot-col"><h5>Company</h5><a href="about.html">About</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a><a href="signin.html">Sign in</a></div>
+      <div class="foot-col"><h5>Support &amp; legal</h5><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refunds.html">Refunds</a></div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Writers Nook · writersnook.app</span>
+      <span class="made"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.3-8.2C.9 9.8 2.2 6 5.5 6c1.9 0 3.3 1.1 4.1 2.4C10.4 7.1 11.8 6 13.7 6 17 6 18.3 9.8 16.6 12.8 14.7 16.7 12 21 12 21z"/></svg>Built for one writer, shared with all of them</span>
+    </div>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+<script>
+(function(){
+  var btn=document.getElementById('copyKey');
+  if(btn) btn.addEventListener('click',function(){
+    var k=document.getElementById('lickey').textContent.trim();
+    navigator.clipboard&&navigator.clipboard.writeText(k);
+    btn.classList.add('done'); btn.innerHTML='<svg class="ic" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Copied';
+    setTimeout(function(){ btn.classList.remove('done'); btn.innerHTML='<svg class="ic" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy'; },1800);
+  });
+})();
+</script>
+</body>
+</html>

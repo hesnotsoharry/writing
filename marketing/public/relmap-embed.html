@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Relationship map — live embed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="writing-app-design/tokens.css" />
+<link rel="stylesheet" href="writing-app-design/app.css" />
+<link rel="stylesheet" href="writing-app-design/relationships.css" />
+<style>
+  html, body { margin: 0; background: var(--parchment-deep); }
+  /* Standalone (no app flex parent): let the board size to its content so the
+     parent page can measure and fit the iframe to it. */
+  #root .corkboard { overflow: visible; }
+  #root .corkboard-inner { padding: 18px 20px 22px; }
+  /* The back button targets a Story-Bible view that doesn't exist here. */
+  #root .relmap-bar .fe-back { display: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="writing-app-design/icons.jsx"></script>
+<script type="text/babel" src="writing-app-design/relmap.jsx"></script>
+<script type="text/babel">
+  // --- Theme: follow the marketing site (same-origin). Read on load, then
+  //     react to live toggles via postMessage from the parent and to storage
+  //     events from other tabs. tokens.css keys off [data-theme="dark"]. ---
+  function applyTheme(t) {
+    if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    else document.documentElement.removeAttribute("data-theme");
+  }
+  (function initTheme() {
+    var QS = new URLSearchParams(location.search);
+    var t = QS.get("theme");
+    if (!t) { try { t = localStorage.getItem("wn-theme"); } catch (e) {} }
+    if (!t) t = (window.matchMedia && matchMedia("(prefers-color-scheme:dark)").matches) ? "dark" : "light";
+    applyTheme(t);
+  })();
+  window.addEventListener("message", function (e) {
+    if (e.data && e.data.type === "wn-theme") applyTheme(e.data.theme);
+  });
+  window.addEventListener("storage", function (e) {
+    if (e.key === "wn-theme") applyTheme(e.newValue);
+  });
+
+  // --- The cast. A curated, marketing-friendly graph (not the 30-node stress
+  //     fixture): one coastal family + the people, places and forces around it.
+  //     Same shape the real app feeds the map, so behaviour is identical. ---
+  window.ENTITY_DETAILS = {};
+  window.ENTITY_TYPE_DEFS = {
+    character: { label: "Characters" },
+    location: { label: "Places" },
+    item: { label: "Items" },
+    faction: { label: "Factions" },
+    lore: { label: "Lore" },
+  };
+
+  const ents = [
+    { id: "maren",    name: "Maren Vale",      initial: "M", color: "character", type: "character" },
+    { id: "edda",     name: "Edda Vale",       initial: "E", color: "character", type: "character" },
+    { id: "bram",     name: "Bram Vale",       initial: "B", color: "character", type: "character" },
+    { id: "tomas",    name: "Tomas Roe",       initial: "T", color: "character", type: "character" },
+    { id: "wenna",    name: "Wenna Roe",       initial: "W", color: "character", type: "character" },
+    { id: "cora",     name: "Cora Ashe",       initial: "C", color: "character", type: "character" },
+    { id: "silas",    name: "Silas Crane",     initial: "S", color: "character", type: "character" },
+    { id: "light",    name: "The Lighthouse",  initial: "L", color: "location",  type: "location" },
+    { id: "roe",      name: "Roe House",       initial: "R", color: "location",  type: "location" },
+    { id: "keepers",  name: "The Keepers",     initial: "K", color: "plum",      type: "faction" },
+    { id: "logbook",  name: "Edda's Logbook",  initial: "L", color: "gold",      type: "item" },
+    { id: "wreck",    name: "The Maundy Wreck",initial: "M", color: "sea",       type: "lore" },
+  ];
+
+  // A connected WEB (not a star): several mid-degree people so the force layout
+  // spreads evenly across the frame and reads like a real project's map.
+  const ED = {
+    maren: { people: [
+      { id: "edda",    relation: "Kin" },
+      { id: "bram",    relation: "Sibling" },
+      { id: "tomas",   relation: "Ally" },
+      { id: "cora",    relation: "Mentor" },
+      { id: "silas",   relation: "Sworn enemy" },
+      { id: "light",   relation: "Keeper" },
+      { id: "logbook", relation: "Inherited" },
+    ] },
+    edda:  { people: [
+      { id: "light",   relation: "Former keeper" },
+      { id: "logbook", relation: "Author" },
+      { id: "wreck",   relation: "Survivor" },
+    ] },
+    bram:  { people: [
+      { id: "keepers", relation: "Initiate" },
+      { id: "silas",   relation: "Rival" },
+    ] },
+    tomas: { people: [
+      { id: "wenna",   relation: "Sibling" },
+      { id: "roe",     relation: "Home" },
+    ] },
+    wenna: { people: [
+      { id: "roe",     relation: "Home" },
+      { id: "cora",    relation: "Apprentice" },
+    ] },
+    cora:  { people: [ { id: "keepers", relation: "Leader of" } ] },
+    silas: { people: [
+      { id: "keepers", relation: "Cast out" },
+      { id: "wreck",   relation: "Lost kin" },
+    ] },
+  };
+
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <RelationshipMap entities={ents} edits={ED} onOpen={() => {}} onBack={() => {}} labelsOnHover />  );
+
+  // --- Fit the iframe to the content. Measure the rendered board and tell the
+  //     parent its height; re-measure on resize so it stays snug responsively. ---
+  function postHeight() {
+    var el = document.getElementById("root");
+    var h = el ? Math.ceil(el.getBoundingClientRect().height) : 0;
+    if (h) parent.postMessage({ type: "wn-relmap-height", height: h }, "*");
+  }
+  var ro = window.ResizeObserver ? new ResizeObserver(postHeight) : null;
+  // Defer until React has painted, then re-post as fonts/layout settle.
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      postHeight();
+      if (ro) ro.observe(document.getElementById("root"));
+    });
+  });
+  [120, 350, 700, 1400].forEach(function (t) { setTimeout(postHeight, t); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(postHeight);
+  window.addEventListener("resize", postHeight);
+  window.addEventListener("load", postHeight);
+</script>
+</body>
+</html>

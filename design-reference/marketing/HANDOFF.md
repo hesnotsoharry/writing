@@ -9,35 +9,20 @@ Read it fully before touching files.
 > the public website in `marketing/`.
 
 > **Changed Jun 2026 (feature-wave copy pass):** exact old→new edit manifest for
-> applying this pass to the already-live site:
-> **`../design-reference/marketing/CHANGES-2026-06-10.md`** (applied to
-> `public/` 2026-06-10). Summary: site copy now reflects the app's expanded
-> feature set. (1) Story-bible copy grew from "characters, locations, notes" to
-> **six entry types** (characters · locations · items · factions · themes ·
-> lore) on `index.html` (feature card + showcase row) and `features.html`; the
-> bible mock's "Notes" tab/card became "Items". (2) The corkboard section on
-> `features.html` is now **"Corkboard & outliner"** — one structure, two views.
-> (3) `pricing.html`'s plan bullet + comparison table gained the **outliner**
-> and a **Relationship map** row. (4) The full-width **Relationship map**
-> section on `features.html` (between the bible and corkboard rows) is a **LIVE
-> interactive embed** (replaced the interim screenshots 2026-06-10):
-> `public/relmap-embed.html` — the real app `RelationshipMap` component with a
-> curated 12-entity cast — loads in an `<iframe class="relmap-embed"
-> data-src="relmap-embed.html">`. Its runtime deps live INSIDE the site root at
-> `public/writing-app-design/{tokens,app,relationships}.css + icons.jsx +
-> relmap.jsx` (paths in the embed are `writing-app-design/...`, deliberately
-> NOT the design-workspace's `../writing-app-design/...` — only `public/` is
-> deployed, so the deps must ship inside it). `site.js` injects the embed via
-> `srcdoc` (fetched from `data-src`, with an `f.src` fallback for plain
-> hosting), postMessages `{type:'wn-theme'}` on every toggle, and auto-fits
-> height from the embed's `{type:'wn-relmap-height'}` messages. The embed pulls
-> React 18 + Babel standalone from unpkg (dev builds, JSX compiled in-browser)
-> — fine to ship, but a future perf pass could precompile and pin production
-> builds. Keep `public/writing-app-design/` in sync with `design-reference/`
-> when the app component changes (`relmap.jsx` gained `labelsOnHover`,
-> 2026-06-10). Note: the homepage feature-card grid still has **no**
-> relationship-map card — deliberate as of this pass; add one only as a
-> deliberate copy decision, not as drift cleanup.
+> applying this pass to the already-live site: **`CHANGES-2026-06-10.md`**.
+> Summary: site copy now reflects the
+> app's expanded feature set. (1) Story-bible copy grew from “characters,
+> locations, notes” to **six entry types** (characters · locations · items ·
+> factions · themes · lore) on `index.html` (feature card + showcase row) and
+> `features.html`; the bible mock's “Notes” tab/card became “Items”. (2) The
+> corkboard section on `features.html` is now **“Corkboard & outliner”** — one
+> structure, two views. (3) `pricing.html`'s plan bullet + comparison table
+> gained the **outliner** and a **Relationship map** row. (4) New full-width
+> **Relationship map** section on `features.html` (between the bible and
+> corkboard rows) — its media is an `<image-slot>` placeholder (component:
+> `assets/image-slot.js`) awaiting the final map screenshot: **grep
+> `WN_TODO_RELMAP_SHOT`**. For production, replace the slot with a real `<img>`
+> and drop the script tag.
 
 ---
 
@@ -50,7 +35,7 @@ No build step, no framework, no bundler. Every page is hand-editable HTML.
 **Product facts baked into copy (keep consistent if you change them):**
 - Name: **Writers Nook** (no apostrophe). Domain: **writersnook.app**.
 - Price: **$49 USD one-time** for the app (lifetime license, macOS & Windows).
-- Add-on: **Device Sync — $5/mo USD**, optional, cancel anytime. End-to-end encrypted relay; no user content stored on our servers (LS compliance — cloud storage offering removed 2026-06-09).
+- Add-on: **Cloud Backup & Sync — $5/mo USD**, optional, cancel anytime.
 - Payments: **Lemon Squeezy is the merchant of record.**
 - Activation: license key, pasted into the app **once**, verified with Lemon
   Squeezy (one-time in-app activation; 3 device activations).
@@ -84,6 +69,7 @@ No build step, no framework, no bundler. Every page is hand-editable HTML.
 | `site.js` | Shared behavior: theme toggle, sticky-nav border, mobile nav, scroll reveal, starfield, newsletter handler. |
 | `assets/logo-dark.png` | Feather logo for **light** backgrounds (dark-colored mark). |
 | `assets/logo-light.png` | Feather logo for **dark** backgrounds (cream mark). |
+| `assets/image-slot.js` | Drag-and-drop image placeholder web component — design-workspace aid only, used by the relationship-map section on `features.html` (`WN_TODO_RELMAP_SHOT`). Not for production. |
 
 ---
 
@@ -136,19 +122,14 @@ Every spot that needs a backend / Lemon Squeezy wiring is marked **inline** with
 a `WN_TODO_*` token (grep for it) or listed here. The mock uses `#` or a fake
 redirect so the flow is clickable end-to-end.
 
-> **Update (waves m1–m2):** the static site now lives in **`public/`**; Cloudflare Pages Functions in
-> `functions/`, Supabase schema in `supabase/`. The fulfillment **webhook + purchases schema are wired
-> (m1)**; **`WN_TODO_PAYMENT` + `WN_TODO_COUPONS` are wired (m2)** — see **`CHECKOUT-SETUP.md`**.
-> `WN_TODO_MAGICLINK`, downloads, license key, account data, newsletter, and contact remain (waves m3–m4).
-
 | Token / location | What the mock does | What production needs |
 |---|---|---|
-| **`WN_TODO_PAYMENT`** — `checkout.html` pay button | ✅ **WIRED (m2)** | lemon.js overlay via `public/checkout.js` → LS hosted checkout (one-time app, founder $29, prefilled email + coupon→`discount_code`); `Checkout.Success` → `purchase-success.html`. Sync add-on hidden (Phase-2). Slot real store/variant IDs in `public/ls-config.js` — see `CHECKOUT-SETUP.md`. |
-| **`WN_TODO_COUPONS`** — `checkout.html` coupon field | ✅ **WIRED (m2)** | client-side discount math removed; the coupon input value is passed through as `checkout[discount_code]` for LS to validate. Create targeted codes (e.g. `FOUNDERS`) in the LS dashboard. |
-| **`WN_TODO_MAGICLINK`** — `signin.html` form | ✅ **WIRED (m3)** | Supabase Auth `signInWithOtp` (implicit flow, `shouldCreateUser:true`) via `public/signin.js` → "check your inbox"; magic link → `account.html` authenticated. Same flow = "restore purchase". Needs a Supabase project + dashboard redirect allowlist — see `SUPABASE-AUTH-SETUP.md`. |
+| **`WN_TODO_PAYMENT`** — `checkout.html` pay button | redirects to `purchase-success.html` | Hand off to **Lemon Squeezy Checkout** (overlay/hosted/embedded) with line items: app ($49 one-time) + optional Cloud Backup & Sync ($5/mo) + applied coupon + email. On success, route to `purchase-success.html` with order/license context. |
+| **`WN_TODO_COUPONS`** — `checkout.html` `COUPONS` map | client-side demo codes `FOUNDERS` (20%), `EARLYBIRD` ($10) | **Real coupons live in Lemon Squeezy** (incl. the launch **FOUNDERS** code). Validate via LS Checkout or LS API; remove client-side discount math (user-editable). |
+| **`WN_TODO_MAGICLINK`** — `signin.html` form | swaps to "check your inbox" card | POST email → backend sends signed, short-lived magic-link email; link authenticates and lands on `account.html`. Same flow = "restore purchase" (account keyed by email). |
 | **Downloads** — `purchase-success.html` & `account.html` (`href="#"` on the macOS/Windows buttons) | dead links | Real installer URLs, **authenticated to the purchase** (LS-signed/licensed download links). |
-| **License key** — `purchase-success.html` `#lickey`, `account.html` `#lickey` | 🟡 **PARTIAL (m3)** | `account.html` `#lickey` renders the real `license_key` from the `purchases` row (written by the m1 webhook from LS). `purchase-success.html` `#lickey` still static — wire in m4. |
-| **Account data** — `account.html` | 🟡 **PARTIAL (m3)** | License key + order/product/date/amount + email render from the Supabase session + `purchases` row (RLS-scoped) via `public/account.js`. **Still WN_M4 stubs:** activations "2 of 3", real downloads, subscription status, device management (need LS license API + hosted installers). |
+| **License key** — `purchase-success.html` `#lickey`, `account.html` `#lickey` | hard-coded `WNOOK-…` string | Real key from Lemon Squeezy license API. App verifies it once with LS on activation. |
+| **Account data** — `account.html` (license, activations "2 of 3", subscription status, billing history, "Manage devices"/"Restore a version"/"Cancel"/"Change") | static demo values, `#` links | Populate from backend + Lemon Squeezy (license activations, subscription state, invoices/receipts). |
 | **Newsletter** — `index.html` & `blog.html` `.news-form` (handler in `site.js`) | shows a thank-you, no send | Wire to your ESP (e.g. Buttondown/ConvertKit/Resend). |
 | **Contact** — `contact.html` `#contactForm` | shows a thank-you, no send | Wire to email/helpdesk. Addresses in copy: `support@writersnook.app`, `hello@writersnook.app` (swap for real). |
 | **Receipts / "Receipt" links** — `account.html`, `purchase-success.html` (`ls-trust`) | `#` | Link to Lemon Squeezy customer portal / receipt URLs. |
@@ -198,7 +179,7 @@ your ESP / Lemon Squeezy. Subject line is noted in the file header.
 
 1. `grep -rn "WN_TODO_" marketing/` → the JS integration points.
 2. `grep -rn 'href="#"' marketing/` → dead links to wire up.
-3. Stand up Lemon Squeezy (products: app $49 one-time, Device Sync $5/mo sub;
+3. Stand up Lemon Squeezy (products: app $49 one-time, backup $5/mo sub;
    the FOUNDERS coupon) and wire `WN_TODO_PAYMENT` + `WN_TODO_COUPONS`.
 4. Build the email magic-link auth (`WN_TODO_MAGICLINK`) + account data
    (`account.html`).

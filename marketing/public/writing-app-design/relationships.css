@@ -1,0 +1,101 @@
+/* Story-bible relationships — exploration styles. Built on tokens.css + app.css
+   + full-entry.css (reuses .insp-group, .fe-add, .avatar, .entity-*, .toggle).
+   Rough first pass. */
+
+/* relation row (on the Full Entry rail / list) */
+.rel-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-md);
+  transition: background var(--dur-fast); }
+.rel-row:hover { background: var(--parchment-deep); }
+.rel-relation { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-deep); }
+.rel-row .rel-acts { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity var(--dur-fast); }
+.rel-row:hover .rel-acts { opacity: 1; }
+
+/* add-relation flow */
+.rel-add-panel { border: 1.5px solid var(--accent-ring); border-radius: var(--r-md); background: var(--paper); padding: 12px; margin-top: 6px; }
+.rel-step-label { font-size: var(--text-2xs); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 8px; display: block; }
+.rel-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.rel-chip { font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: var(--r-pill);
+  border: 1.5px solid var(--line); background: var(--paper); color: var(--ink-2); transition: all var(--dur-fast); }
+.rel-chip:hover { border-color: var(--accent-ring); }
+.rel-chip.on { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-deep); }
+.rel-chip.custom { border-style: dashed; color: var(--ink-3); }
+.rel-recip { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 12px;
+  background: var(--parchment); border-radius: var(--r-md); }
+.rel-recip .rr-text { font-size: 12.5px; color: var(--ink-2); line-height: 1.4; }
+.rel-recip .rr-text b { color: var(--ink); }
+.rel-pickrow { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-md); width: 100%; text-align: left; transition: background var(--dur-fast); }
+.rel-pickrow:hover { background: var(--parchment-deep); }
+
+/* graph (ego + map) */
+.relgraph { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg); display: block;
+  box-shadow: var(--shadow-card); }
+.relgraph .edge { stroke: var(--parchment-edge); stroke-width: 1.6; }
+.relgraph .edge.dim { opacity: 0.25; }
+.relgraph .edge-label { font-size: 9px; fill: var(--ink-3); text-anchor: middle; font-family: var(--font-ui); }
+.relgraph .node-name { font-size: 11px; font-weight: 600; fill: var(--ink-2); text-anchor: middle; font-family: var(--font-ui); }
+.relgraph .node-mono { font-size: 15px; font-weight: 700; text-anchor: middle; dominant-baseline: central; font-family: var(--font-ui); }
+.relgraph .node { cursor: pointer; }
+.relgraph .node.dim { opacity: 0.28; }
+
+.relmap-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.relmap-filter { display: flex; gap: 6px; }
+
+/* relation label as a clickable preset trigger (canon Full Entry) */
+.fe-rel-pick { text-align: left; cursor: pointer; border-radius: 4px; padding: 1px 4px; margin: 0 -4px; }
+.fe-rel-pick:hover { background: var(--parchment-deep); }
+
+/* ----------------------------------------------------------------------------
+   Relationship map — Jun 2026 overhaul, Direction B "Cartographer's key"
+   (picked from `Relationship map - explorations.html`). Ruled chart frame,
+   tinted icon nodes with a double ring, italic-serif halo labels, quiet ink
+   edges, in-canvas map key. All values from tokens; both themes covered.
+   -------------------------------------------------------------------------- */
+.rmap-wrap { position: relative; }
+
+.rmap-node { cursor: pointer; transition: opacity var(--dur) var(--ease); }
+.rmap-edge { transition: opacity var(--dur) var(--ease); }
+.rmap-node .body { transition: transform var(--dur-fast) var(--ease); transform-box: fill-box; transform-origin: center; }
+.rmap-node .body.hot { transform: scale(1.07); filter: drop-shadow(0 3px 7px rgba(58, 46, 28, 0.26)); }
+[data-theme="dark"] .rmap-node .body.hot { filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.6)); }
+
+/* italic serif name under the node, paper halo so it sits on edges legibly */
+.rmap-name { font-family: var(--font-prose); font-style: italic; font-size: 12.5px;
+  font-weight: var(--w-medium); fill: var(--ink-2); text-anchor: middle;
+  paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+
+/* edge label — italic serif with the same halo, no pill */
+.rmap-elabel { font-family: var(--font-prose); font-style: italic; font-size: 11.5px;
+  font-weight: var(--w-medium); fill: var(--ink-2); text-anchor: middle;
+  paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; }
+
+/* map key card — bottom-left, doubles as the type legend */
+.rmap-key { position: absolute; left: 14px; bottom: 14px;
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: 9px 12px 8px; box-shadow: var(--shadow-sm); pointer-events: none; }
+.rmap-key h5 { margin: 0 0 6px; font-family: var(--font-prose); font-style: italic;
+  font-size: var(--text-xs); font-weight: var(--w-semi); color: var(--ink-2); }
+.rmap-key-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px;
+  font-weight: var(--w-semi); color: var(--ink-2); padding: 2.5px 0; font-family: var(--font-ui); }
+.rmap-key-row .sw { width: 11px; height: 11px; flex: none; border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 14%, var(--paper)); border: 1.6px solid var(--c); }
+.rmap-key-row .sw.sq { border-radius: 3.5px; }
+
+/* footer hint when entities exist that aren't linked yet */
+.rmap-foot { margin-top: 10px; display: flex; align-items: center; gap: 7px;
+  font-size: var(--text-xs); color: var(--ink-3); font-family: var(--font-ui); }
+.rmap-foot .ic { width: 13px; height: 13px; color: var(--ink-4); flex: none; }
+
+/* empty state — the chart frame with a ghost of the map-to-be */
+.rmap-empty { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card); padding: 56px 32px 60px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+.rmap-empty::before { content: ""; position: absolute; inset: 11px; border: 1px solid var(--line);
+  border-radius: 2px; pointer-events: none; }
+.rmap-empty::after { content: ""; position: absolute; inset: 16px; border: 1px solid var(--line-soft);
+  border-radius: 2px; pointer-events: none; }
+.rmap-empty h3 { margin: 10px 0 0; font-family: var(--font-prose); font-size: var(--text-xl);
+  font-weight: var(--w-semi); color: var(--ink); white-space: nowrap; }
+.rmap-empty p { margin: 0 0 14px; font-size: var(--text-sm); line-height: 1.55; color: var(--ink-3);
+  max-width: 340px; font-family: var(--font-ui); }

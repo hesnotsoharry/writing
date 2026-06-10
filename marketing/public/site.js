@@ -19,10 +19,18 @@
   // ---- light / dark theme ----
   var THEME_KEY = 'wn-theme';
   var brandLogo = document.getElementById('brand-logo');
+  // Live interactive embeds (e.g. the relationship map iframe on Features)
+  // can't see our <html data-theme>, so push the theme to them on every change.
+  function pushThemeToEmbeds(t) {
+    document.querySelectorAll('iframe.relmap-embed').forEach(function (f) {
+      try { f.contentWindow.postMessage({ type: 'wn-theme', theme: t }, '*'); } catch (e) {}
+    });
+  }
   function applyTheme(t) {
     if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
     if (brandLogo) brandLogo.src = (t === 'dark') ? 'assets/logo-light.png' : 'assets/logo-dark.png';
+    pushThemeToEmbeds(t);
   }
   var savedTheme = null;
   try { savedTheme = localStorage.getItem(THEME_KEY); } catch { /* storage unavailable */ }
@@ -33,6 +41,33 @@
     var next = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
     try { localStorage.setItem(THEME_KEY, next); } catch { /* storage unavailable */ }
     applyTheme(next);
+  });
+
+  // ---- relationship-map embed: load the embed via srcdoc (the preview's serve
+  //      endpoint token-gates iframe navigations, but same-origin subresource
+  //      fetches are fine — and srcdoc works identically in production). Then
+  //      fit the iframe to its content and hand it the current theme. ----
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type === 'wn-relmap-height' && d.height) {
+      document.querySelectorAll('iframe.relmap-embed').forEach(function (f) {
+        if (f.contentWindow === e.source) f.style.height = d.height + 'px';
+      });
+    }
+  });
+  document.querySelectorAll('iframe.relmap-embed').forEach(function (f) {
+    f.addEventListener('load', function () { pushThemeToEmbeds(currentTheme()); });
+    var url = f.getAttribute('data-src');
+    if (!url) return;
+    fetch(url).then(function (r) { return r.text(); }).then(function (html) {
+      f.srcdoc = html;
+    }).catch(function () {
+      // Fallback for plain static hosting: a normal navigation still works.
+      f.src = url;
+    });
   });
 
   // ---- nav: scrolled border ----
