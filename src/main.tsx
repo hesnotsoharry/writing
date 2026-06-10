@@ -25,6 +25,7 @@ import "@fontsource/ibm-plex-mono/500.css";
 // Design-system stylesheets (tokens first — app.css consumes the vars)
 import "./styles/tokens.css";
 import "./styles/app.css";
+import "./styles/relationships.css";
 
 import React from "react";
 import ReactDOM from "react-dom/client";

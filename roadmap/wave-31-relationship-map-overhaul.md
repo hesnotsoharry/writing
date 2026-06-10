@@ -132,6 +132,7 @@ decision-review cell.)*
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
+| 1 | 2026-06-10 (run wf_d66244f8-13e) | 2026-06-10 — gates green; reviewer FLAG (icon: string vs IconName) adjudicated + fixed inline (narrowed to IconName) | (phase-1 commit) | Internal — no observation point, as planned |
 
 ## Follow-up candidates
 
