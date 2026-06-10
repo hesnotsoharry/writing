@@ -603,10 +603,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   display: flex; gap: 12px; padding: var(--s-3); border-radius: var(--r-md);
   border: 1px solid var(--line); background: var(--paper); margin-bottom: var(--s-3);
   box-shadow: var(--shadow-card);
-  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), background var(--dur-fast);
   cursor: pointer;
 }
-.bible-entry:hover { border-color: var(--parchment-edge); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.bible-entry:hover { background: var(--parchment); border-color: var(--accent-ring); box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .bible-entry .avatar { width: 38px; height: 38px; font-size: var(--text-md); }
 .bible-entry .be-body { min-width: 0; flex: 1; }
 .bible-entry .be-name { font-size: var(--text-md); font-weight: var(--w-bold); color: var(--ink); }
