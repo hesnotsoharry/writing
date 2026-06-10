@@ -35,7 +35,13 @@ Read it fully before touching files.
 > — fine to ship, but a future perf pass could precompile and pin production
 > builds. Keep `public/writing-app-design/` in sync with `design-reference/`
 > when the app component changes (`relmap.jsx` gained `labelsOnHover`,
-> 2026-06-10). Note: the homepage feature-card grid still has **no**
+> 2026-06-10). ⚠ **`relmap.jsx` here is AHEAD of the design-workspace canon:**
+> commit `2b8a4ea` added a node-level `onMouseLeave` (hover highlight used to
+> latch until the pointer left the iframe). The claude.ai/design workspace
+> does NOT have this fix — if you sync a future bundle export, re-apply or
+> preserve the `onMouseLeave={() => setHover((h) => (h === e.id ? null : h))}`
+> line on the node `<g>`, or the bug regresses. Note: the homepage
+> feature-card grid still has **no**
 > relationship-map card — deliberate as of this pass; add one only as a
 > deliberate copy decision, not as drift cleanup.
 
