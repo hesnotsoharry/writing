@@ -21,12 +21,39 @@ $Repo        = 'hesnotsoharry/writing'
 $KeyPath     = Join-Path $env:USERPROFILE '.tauri\writing.key'
 $ProjectRoot = $PSScriptRoot
 
+# Azure Artifact Signing (Authenticode — signs the app exe + NSIS installer so
+# SmartScreen shows a real publisher instead of "unknown"). Independent of the
+# Tauri updater signature above; both run during the same build.
+# Mechanism: signtool + Microsoft's Artifact Signing dlib plugin. The account /
+# profile / endpoint live in metadata.json; auth comes from the AZURE_* env
+# vars (writersnook-signer app registration, signer role on the account).
+$SignDlib     = Join-Path $env:USERPROFILE '.artifact-signing\client\bin\x64\Azure.CodeSigning.Dlib.dll'
+$SignMetadata = Join-Path $env:USERPROFILE '.artifact-signing\metadata.json'
+
 # --- Preflight ------------------------------------------------------------
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     throw "GitHub CLI ('gh') not found. Install it and run 'gh auth login' first."
 }
 if (-not (Test-Path $KeyPath)) {
     throw "Signing key not found at $KeyPath. Cannot sign an update without it."
+}
+if (-not (Test-Path $SignDlib)) {
+    throw "Artifact Signing dlib not found at $SignDlib — re-download the Microsoft.Trusted.Signing.Client NuGet package."
+}
+if (-not (Test-Path $SignMetadata)) {
+    throw "Signing metadata not found at $SignMetadata (endpoint + account + profile JSON)."
+}
+$SignTool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' -ErrorAction SilentlyContinue |
+    Sort-Object FullName -Descending | Select-Object -First 1
+if (-not $SignTool) {
+    throw 'signtool.exe not found under Windows Kits — install a Windows 10/11 SDK (ships with VS Build Tools).'
+}
+# The dlib authenticates via an Entra app registration with the
+# "Artifact Signing Certificate Profile Signer" role, read from these env vars.
+foreach ($v in 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET') {
+    if (-not (Get-Item "env:$v" -ErrorAction SilentlyContinue)) {
+        throw "Missing $v. Set the three AZURE_* env vars for the signing app registration first."
+    }
 }
 
 # --- Read version ---------------------------------------------------------
@@ -59,8 +86,22 @@ try {
     [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
 }
 
+# Authenticode wiring: hand Tauri a custom sign command via a config overlay
+# (kept out of tauri.conf.json so plain `tauri build` runs don't require Azure
+# credentials). Tauri replaces %1 with each binary it produces — app exe first,
+# then the NSIS installer — so both come out Authenticode-signed. Object form
+# (cmd/args) is required because signtool's path contains spaces.
+$signCommand = [ordered]@{
+    cmd  = $SignTool.FullName
+    args = @('sign', '/fd', 'SHA256', '/tr', 'http://timestamp.acs.microsoft.com', '/td', 'SHA256',
+             '/dlib', $SignDlib, '/dmdf', $SignMetadata, '%1')
+}
+$overlay = @{ bundle = @{ windows = @{ signCommand = $signCommand } } } | ConvertTo-Json -Depth 6
+$overlayPath = Join-Path $env:TEMP 'wn-sign-overlay.json'
+Set-Content $overlayPath $overlay -Encoding utf8
+
 Write-Host 'Building signed bundle (this takes a few minutes)...' -ForegroundColor Cyan
-npm run tauri build
+npm run tauri -- build --config $overlayPath
 if ($LASTEXITCODE -ne 0) { throw 'tauri build failed.' }
 
 # --- Locate artifacts -----------------------------------------------------
