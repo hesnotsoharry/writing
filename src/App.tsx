@@ -18,6 +18,8 @@ import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteLabelStore } from "./db/sqliteLabelStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
+import { ActivationGate } from "./features/license/ActivationGate";
+import { useLicenseGate } from "./features/license/license.gate";
 import { useStartupUpdateCheck } from "./lib/updater";
 import { useTheme } from "./theme/useTheme";
 import { bindPersistence } from "./yjs/bindPersistence";
@@ -181,8 +183,7 @@ function useSceneLoader(opts: SceneLoaderOptions) {
 interface AppWiring {
   callbacks: BinderCallbacks; dragCallbacks: ReturnType<typeof useDragHandlers>;
   onSwitchProject: (id: string) => void; onCreateProject: () => void;
-  onEntitiesChanged: () => void;
-  handleSelectScene: (sceneId: string) => void;
+  onEntitiesChanged: () => void; handleSelectScene: (sceneId: string) => void;
   reloadTree: () => void;
 }
 
@@ -229,10 +230,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
     handleSelectScene: selectScene, reloadTree: doReloadTree };
 }
-function useSnapshotState(
-  doc: Y.Doc | null, selectedSceneId: string | null,
-  showHistory: boolean, historySceneId: string | null,
-) {
+function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, showHistory: boolean, historySceneId: string | null) {
   const [historySnapshots, setHistorySnapshots] = useState<Snapshot[]>([]);
   useEffect(() => {
     if (!historySceneId || !showHistory) return;
@@ -315,8 +313,10 @@ export default function App() {
     setShowHistory, setHistorySceneId,
     entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
   const { setHistorySnapshots } = snap;
+  const { gateStatus, onActivated } = useLicenseGate(!loading);
 
-  if (loading) return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
+  if (loading || gateStatus === "checking") return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
+  if (gateStatus === "needed") return <ActivationGate onActivated={onActivated} />;
   if (!tree) return null;
   const ctx: SnapCtx = { sceneId: selectedSceneId, doc, set: setHistorySnapshots, setShowHistory };
   const allScenes = [...(tree.chapters.flatMap((ch) => ch.scenes)), ...tree.shortPieces];
