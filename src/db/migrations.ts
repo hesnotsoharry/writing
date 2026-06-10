@@ -4,6 +4,7 @@ import {
   migration_011_scene_labels,
   migration_012_entity_relations,
   migration_013_entity_types,
+  migration_014_app_meta,
 } from "./migrations2";
 import type { DbHandle } from "./schema";
 import { ensureColumn } from "./schema";
@@ -370,6 +371,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 11, name: "scene-labels", up: migration_011_scene_labels },
   { version: 12, name: "entity-relations", up: migration_012_entity_relations },
   { version: 13, name: "entity-types", up: migration_013_entity_types },
+  { version: 14, name: "app-meta", up: migration_014_app_meta },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

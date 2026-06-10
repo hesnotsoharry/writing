@@ -159,12 +159,12 @@ describe("migration 13 — entity_types tables", () => {
 });
 
 describe("migration suite — after entity_types", () => {
-  it("stamps LATEST user_version (13) after runMigrations", async () => {
+  it("stamps LATEST user_version (14) after runMigrations", async () => {
     const db = await makeSqlJsDb();
     try {
       await runMigrations(db);
       expect(await readUserVersion(db)).toBe(LATEST);
-      expect(LATEST).toBe(13);
+      expect(LATEST).toBe(14);
     } finally {
       db.close();
     }

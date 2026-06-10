@@ -34,6 +34,28 @@ export type ActivationResult =
 // ─── Wrapper ───────────────────────────────────────────────────────────────
 
 /**
+ * Map an activated Rust result to an ActivationResult.
+ * Extracted to keep activateLicense within the 40-line function limit.
+ * Guards against a null/empty instanceId that should never occur on a true
+ * activated response — returns rejected rather than fabricating a blank id.
+ */
+function mapActivated(r: LsCommandResult): ActivationResult {
+  if (!r.instanceId) {
+    return {
+      ok: false,
+      kind: "rejected",
+      message: "Unexpected response from the license server — please try again.",
+    };
+  }
+  return {
+    ok: true,
+    instanceId: r.instanceId,
+    activationLimit: r.activationLimit ?? 0,
+    activationUsage: r.activationUsage ?? 0,
+  };
+}
+
+/**
  * Activate a Lemon Squeezy license key.
  *
  * - Ok result → activated successfully; carries instanceId + usage counters.
@@ -52,14 +74,7 @@ export async function activateLicense(
       licenseKey,
     });
 
-    if (result.activated) {
-      return {
-        ok: true,
-        instanceId: result.instanceId ?? "",
-        activationLimit: result.activationLimit ?? 0,
-        activationUsage: result.activationUsage ?? 0,
-      };
-    }
+    if (result.activated) return mapActivated(result);
 
     if (result.httpStatus === 404) {
       return {

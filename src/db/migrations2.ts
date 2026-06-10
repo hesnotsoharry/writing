@@ -123,5 +123,18 @@ export async function migration_013_entity_types(db: DbHandle): Promise<void> {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_entity_types_custom_project_id ON entity_types_custom (project_id)`);
 }
 
+/**
+ * Create the app_meta key-value table for app-level singleton records.
+ *
+ * One row per key; value is always TEXT (JSON-encoded for structured records).
+ * Primary use: the license activation record stored under key 'license'.
+ * Uses TEXT PRIMARY KEY so upserts can use INSERT OR REPLACE.
+ */
+export async function migration_014_app_meta(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
+  );
+}
+
 // ensureColumn is re-exported so callers that import from migrations2 can use it.
 export { ensureColumn };
