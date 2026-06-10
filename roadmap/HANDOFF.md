@@ -9,7 +9,9 @@ updated: 2026-06-10
 - Active wave: none
 - Status: SHIPPED (license-activation screen delivered)
 - v0.2.6 build: 1043+ tests pass · TypeScript clean · lint clean · ready to stage
-- Marketing: 63+ own tests · gates: test + tsc only (no lint, for stack independence)
+- Marketing: 73 own tests · gates: test + tsc only (no lint, for stack independence)
+- Marketing launch-prep assets LIVE 2026-06-10: OG/social cards + og-card.png, real-mark favicon, press.html — plan + owners in [marketing-execution-plan.md](marketing-execution-plan.md)
+- **CF Pages is git-connected: any push to master = production deploy of the marketing site.** `npm run deploy` (wrangler) fails in agent sessions — push IS the pipeline.
 - Updater verified: Cole ran v0.2.4→v0.2.5 auto-update successfully · clean restart · quiet install working
 - Wave-30 audit results: 13 follow-ups remain open (none prioritized) · 1 decision promoted to durable records · tauri.md vendor-gotcha +1 entry
 - Known friction: UpdateModal doesn't distinguish restart error vs install error — marked for follow-up clarity pass
@@ -39,6 +41,7 @@ updated: 2026-06-10
   - **Publish:** v0.2.6+ release to GitHub with signed installer
   - **DNS cutover:** writersnook.app domain
 - Marketing build status: feature code complete (m1–m4 phases) · all gates green · runbooks documented
+- Marketing promo prep (2026-06-10): [marketing-execution-plan.md](marketing-execution-plan.md) (4 phases, Cole-vs-AI owners) + [show-hn-launch-kit.md](show-hn-launch-kit.md) drafted · **Cole:** answer the 4 [CONFIRM] items in the HN kit (open-source stance, exports, trial, offline activation) + 2-min analytics enable (CF dashboard → Pages project → Metrics → Enable Web Analytics) · next AI items: AuthorTube outreach list, "vs Scrivener" comparison page, demo shot list
 - Deferred tasks: UpdateModal error clarity · rate-limiting + body-size guards on contact + newsletter endpoints
 
 ## Reference index
@@ -47,5 +50,5 @@ updated: 2026-06-10
 - **Vendor-gotchas:** [.claude/vendor-gotchas/tauri.md](../../.claude/vendor-gotchas/tauri.md) (wave-30: +1 entry) · marketing (lemonsqueezy, resend, Supabase)
 - **Build commands:** `npm run tauri dev` (WebView2 CDP 9222 + tauri-devtools) · `npm run test` · `npm run lint:fix` · marketing: `cd marketing && npm test`
 - **Release pipeline:** [RELEASING.md](../../RELEASING.md) (version-anchored sync) · `.\publish.ps1` (Cole-only) · signed NSIS installer + GitHub release
-- **Key UI/docs:** [UpdateModal.tsx](../../src/features/updater/UpdateModal.tsx) · [go-to-market.md](roadmap/go-to-market.md) · [launch-infra-checklist.md](roadmap/launch-infra-checklist.md)
+- **Key UI/docs:** [UpdateModal.tsx](../../src/features/updater/UpdateModal.tsx) · [go-to-market.md](go-to-market.md) · [launch-infra-checklist.md](launch-infra-checklist.md) · [marketing-execution-plan.md](marketing-execution-plan.md) · [show-hn-launch-kit.md](show-hn-launch-kit.md)
 - **Marketing provisioning:** [CHECKOUT-SETUP.md](../../marketing/CHECKOUT-SETUP.md) · [SUPABASE-AUTH-SETUP.md](../../marketing/SUPABASE-AUTH-SETUP.md)

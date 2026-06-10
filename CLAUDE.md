@@ -58,6 +58,11 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
 - **More Tauri-specific traps** (drag-region inheritance, capability permission gaps, updater config)
   live in `.claude/vendor-gotchas/tauri.md` — check it before touching the title bar, capabilities,
   or the updater.
+- **Pushing master deploys the live marketing site.** Cloudflare Pages is git-connected to this
+  repo: every push to master auto-deploys `marketing/public/` to writersnook.app. `npm run deploy`
+  (direct wrangler) fails in agent sessions (interactive auth) — push IS the deploy pipeline.
+  Marketing-vendor traps (Lemon Squeezy, Resend, Cloudflare Pages) live in
+  `marketing/.claude/vendor-gotchas/`.
 
 ## Known Tech Debt / Deferred
 
