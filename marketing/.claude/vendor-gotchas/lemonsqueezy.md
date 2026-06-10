@@ -57,3 +57,11 @@ Source: prior waves (M24/M25 implicit; reaffirmed m4)
 **Workaround:** load the script synchronously or wrap the `createLemonSqueezy()` call in a `DOMContentLoaded` listener. Ensure the script tag is in the document head, and call `createLemonSqueezy()` in an inline script or a deferred module immediately after.
 
 **Why:** the library initializes `window.LemonSqueezy` on the first call to `createLemonSqueezy()` — if you reference the global before that call, you get undefined.
+
+## 2026-06-10 -- buy-URL 302s to a cart session; curl gives misleading 404s; prefill survives
+
+Source: live dry-run diagnosis (overnight session 2026-06-10)
+
+**Gotcha:** `checkout/buy/<variant-uuid>?embed=1&checkout[email]=...` 302-redirects to `checkout/cart/<cart-uuid>` with NO query params on the redirect target. Three traps: (1) curl/HEAD without a cookie jar gets 404 on both `/buy/` and `/checkout/buy/` forms -- looks like a dead variant but is just the session dance; diagnose with a real browser, not curl. (2) The stripped params are NOT lost -- LS carries them server-side into the cart session (email prefill was observed reaching Stripe `billingDetails[email]` inside the overlay). Do not "fix" the bracket encoding: PHP decodes `%5B`/`%5D` before array parsing, so `checkout%5Bemail%5D` is identical to `checkout[email]`. (3) The embed overlay is a full-screen fixed iframe (100%x100%, max z-index) -- users and screenshots cannot distinguish it from a real navigation to LS; "it navigated away" reports need the iframe check (`document.querySelector("iframe[src*=lemonsqueezy]")`).
+
+**Workaround / belt-and-suspenders:** for the post-purchase order summary, do not rely solely on the `Checkout.Success` postMessage -> sessionStorage handoff; also set the LS product Confirmation-modal button link to `purchase-success.html?order_id=[order_id]&email=[email]&total=[total]` (template variables per docs.lemonsqueezy.com/help/products/link-variables) and have the page read query params as a second source.

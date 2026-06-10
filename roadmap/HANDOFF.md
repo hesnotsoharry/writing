@@ -14,6 +14,14 @@ updated: 2026-06-10
 - Wave-30 audit results: 13 follow-ups remain open (none prioritized) · 1 decision promoted to durable records · tauri.md vendor-gotcha +1 entry
 - Known friction: UpdateModal doesn't distinguish restart error vs install error — marked for follow-up clarity pass
 
+## Overnight session 2026-06-10 (post-dry-run fixes) — MORNING TEST CHECKLIST
+- **Provisioned & live:** Supabase (migrations + RLS), Cloudflare Pages (`writersnook.app`), `/api/health` green (real DB round-trip), LS test-mode webhook set. Lockfile dropped for `marketing/` (`.npmrc package-lock=false`) — npm cannot reconcile wrangler's esbuild 0.17 vs vitest's 0.28; Pages now plain-installs.
+- **Dry-run found 2 checkout bugs; both fixed + deployed + live-verified via browser:**
+  1. checkout.html shipped the design-mock card/CVC/name fields wired to nothing (the "two forms" complaint + trust hazard) — removed; step 2 is now an LS trust note. Email prefill confirmed reaching Stripe billing details.
+  2. purchase-success "—" summary: Checkout.Success sessionStorage handoff didn't arrive; page now ALSO reads `?order_id=&email=&total=` query params (LS confirmation-link template variables) before falling back.
+- **Morning actions (Cole):** (1) LS dashboard → product → Confirmation modal button link → set to `https://writersnook.app/purchase-success.html?order_id=[order_id]&email=[email]&total=[total]`. (2) Re-run the test purchase: expect NO card fields on our page, overlay prefilled email, and real order data on success page. (3) DevTools console during purchase: look for `[wn-checkout] lemon.js event: Checkout.Success` — tells us if the postMessage path works (if yes, summary fills even without the redirect params). (4) Continue E2E-TEST-PLAN: refund path + magic-link account + newsletter/contact. (5) Azure: retry cert profile if not done; send account name + region + profile name for publish.ps1 signing.
+- Adversarial hypothesis review correctly killed two wrong fixes tonight (bracket-encoding + embed-stripping theories); runtime browser smoke found the real causes.
+
 ## Next 3 steps (launch sequence)
 1. **Cole provisioning:** Azure cert profile (validation approved; profile creation hit transient error — retry) · Supabase project create · Cloudflare Pages project on `marketing/` · then agent wires migrations/env/LS webhook per runbooks.
 2. **Wire Authenticode signing into publish.ps1** (needs Cole's Trusted Signing account name + region + cert profile name) → then E2E test-mode purchase dry run (`marketing/E2E-TEST-PLAN.md`) → LS test→live flip.
