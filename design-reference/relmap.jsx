@@ -251,7 +251,8 @@ function RelationshipMap({ entities, edits, onOpen, onBack, labelsOnHover }) {
                 const rx = Math.round(r * 0.36); const s = Math.round(r * 1.06);
                 return (
                   <g key={e.id} className="rmap-node" style={{ opacity: dim ? 0.16 : 1 }}
-                    onClick={() => onOpen(e)} onMouseEnter={() => setHover(e.id)}>
+                    onClick={() => onOpen(e)} onMouseEnter={() => setHover(e.id)}
+                    onMouseLeave={() => setHover((h) => (h === e.id ? null : h))}>
                     <g className={"body" + (hot ? " hot" : "")}>
                       {round
                         ? <circle cx={p.x} cy={p.y} r={r + 3.5} fill="none" stroke={c} strokeOpacity="0.4" strokeWidth="1"></circle>
