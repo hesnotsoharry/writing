@@ -21,11 +21,14 @@ export function buildCheckoutUrl({ store, variant, email, discountCode, embed })
 
   if (embed) params.set("embed", "1");
 
-  // Visual cleanup: suppress LS branding/description for a focused overlay.
+  // Visual cleanup: suppress LS branding/description for a focused overlay,
+  // and match the pay button to the site's clay accent (tokens.css --accent).
   if (embed) {
     params.set("logo", "0");
     params.set("media", "0");
     params.set("desc", "0");
+    params.set("button_color", "#b25a38");
+    params.set("button_text_color", "#ffffff");
   }
 
   if (email) params.set("checkout[email]", email);
