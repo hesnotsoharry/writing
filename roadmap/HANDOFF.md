@@ -12,7 +12,7 @@ updated: 2026-06-10
 
 ## Next 3 steps (launch sequence)
 1. **Cole:** LS dashboard — set product Confirmation-modal button link to `https://writersnook.app/purchase-success.html?order_id=[order_id]&email=[email]&total=[total]`; set store-level button colors `#b25a38` / `#ffffff`; re-run test purchase per `marketing/E2E-TEST-PLAN.md` (expect: no card fields on our page, prefilled overlay, real order data on success page)
-2. **Cole:** Azure Trusted Signing cert profile (retry after transient error) → send account name + region + profile name → agent wires Authenticode into publish.ps1 → LS test→live flip
+2. ~~Azure Authenticode signing~~ **DONE 2026-06-10** (commit 930b8d6): publish.ps1 signs via signtool + Artifact Signing dlib (account `writersnook`, profile `writersnook-pub`, eus; assets in `~/.artifact-signing/`; AZURE_* user env vars) — live smoke-test signed in ~2.5s. **Cole: rotate the `writersnook-signer` client secret** (old one exposed in a session transcript): portal → App registrations → writersnook-signer → Certificates & secrets → new secret → update `AZURE_CLIENT_SECRET` user env var. Then LS test→live flip
 3. **Generate Cole + partner license keys** (100%-off coupons, LIVE mode — doubles as live pipeline smoke) → publish v0.3.0 (first gated + signed release) · installer hosting for downloads.writersnook.app still undecided (R2 recommended)
 
 ## Active work
