@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){try{var t=localStorage.getItem("wn-theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
+<title>Checkout — Writers Nook</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="index.html"><img id="brand-logo" src="assets/logo-dark.png" alt="Writers Nook">Writers Nook</a>
+    <div class="nav-links" id="navLinks" style="margin-left:auto">
+      <span class="co-secure"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Secure checkout</span>
+    </div>
+  </div>
+</nav>
+
+<header style="padding:44px 0 6px">
+  <div class="wrap" style="max-width:980px">
+    <a href="pricing.html" class="co-back"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Back to pricing</a>
+    <h1 style="font-size:clamp(28px,3.6vw,38px);margin-top:14px">Complete your purchase</h1>
+  </div>
+</header>
+
+<section class="section-pad-sm" style="padding-top:26px">
+  <div class="wrap co-grid">
+    <!-- ===== left: payment form ===== -->
+    <div class="co-form">
+      <div class="acct-card">
+        <div class="acct-eyebrow"><span class="co-step">1</span>Your email</div>
+        <input id="email" type="email" class="co-input" placeholder="you@example.com" value="" autocomplete="email">
+        <p class="co-hint">Your license key, receipt, and download link go here. This becomes your account email.</p>
+      </div>
+
+      <div class="acct-card" style="margin-top:18px">
+        <div class="acct-eyebrow"><span class="co-step">2</span>Payment</div>
+        <label class="co-label">Card number</label>
+        <div class="co-input co-card">
+          <input id="card" inputmode="numeric" placeholder="1234 1234 1234 1234" autocomplete="cc-number">
+          <span class="co-cards">
+            <svg viewBox="0 0 32 20" width="30" height="19"><rect width="32" height="20" rx="3" fill="#1a3a8f"/><text x="16" y="14" font-family="Hanken Grotesk,sans-serif" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">VISA</text></svg>
+          </span>
+        </div>
+        <div class="co-row">
+          <div><label class="co-label">Expiry</label><div class="co-input"><input id="exp" placeholder="MM / YY" inputmode="numeric" autocomplete="cc-exp"></div></div>
+          <div><label class="co-label">CVC</label><div class="co-input"><input id="cvc" placeholder="123" inputmode="numeric" autocomplete="cc-csc"></div></div>
+        </div>
+        <label class="co-label">Name on card</label>
+        <div class="co-input"><input id="name" placeholder="Nina Okafor" autocomplete="cc-name"></div>
+        <label class="co-label">Country</label>
+        <div class="co-input co-select">
+          <select id="country">
+            <option>United States</option><option>Canada</option><option>United Kingdom</option><option>Australia</option><option>Other…</option>
+          </select>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+      </div>
+
+      <button class="m-btn m-btn-primary m-btn-block m-btn-lg co-pay" id="payBtn">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        Pay <span id="payTotal">$29.00</span> — Get Writers Nook
+      </button>
+      <p class="co-trust"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Instant authenticated download &amp; license key, emailed to you.</p>
+      <p class="co-mor">Payments are securely processed by <strong>Lemon Squeezy</strong>, our merchant of record. By purchasing you agree to our <a href="terms.html">Terms</a> &amp; <a href="refunds.html">Refund policy</a>.</p>
+    </div>
+
+    <!-- ===== right: order summary ===== -->
+    <aside class="co-summary">
+      <div class="acct-card co-sumcard">
+        <h3 style="font-size:18px;margin-bottom:2px">Order summary</h3>
+        <p class="co-hint" style="margin:0 0 18px">One-time purchase · yours to keep</p>
+
+        <div class="co-line">
+          <div class="co-line-ic co-logo">
+            <img class="lg lg-light" src="assets/logo-dark.png" alt="">
+            <img class="lg lg-dark" src="assets/logo-light.png" alt="">
+          </div>
+          <div class="co-line-body">
+            <div class="co-line-t">Writers Nook</div>
+            <div class="co-line-s">The full app · macOS &amp; Windows · lifetime license</div>
+          </div>
+          <div class="co-line-amt">$29.00 <span class="price-was" style="font-size:12px">$49</span></div>
+        </div>
+
+        <!-- WN_PHASE2: re-enable sync add-on -->
+        <!--
+        <label class="co-addon" id="addonRow">
+          <span class="co-line-ic alt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.5A4.5 4.5 0 0017 8h-1.26A7 7 0 104 15"/><path d="M12 12v8m0-8l-3 3m3-3l3 3"/></svg></span>
+          <span class="co-line-body">
+            <span class="co-line-t">Add Cloud Backup &amp; Sync <span class="co-pill">optional</span></span>
+            <span class="co-line-s">Encrypted off-site backups, version history &amp; device sync. $5.00/mo — cancel anytime.</span>
+          </span>
+          <span class="co-switch"><input type="checkbox" id="addon"><span class="co-knob"></span></span>
+        </label>
+        -->
+
+        <!-- coupon -->
+        <div class="co-coupon" id="couponWrap">
+          <div class="co-input co-coupon-in">
+            <svg class="ic co-tagic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2A2 2 0 012.8 12V4.8A2 2 0 014.8 2.8H12a2 2 0 011.4.6l7.2 7.2a2 2 0 010 2.8z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor"/></svg>
+            <input id="coupon" placeholder="Coupon code" autocomplete="off" spellcheck="false">
+            <button type="button" class="co-apply" id="applyCoupon">Apply</button>
+          </div>
+          <p class="co-coupon-msg" id="couponMsg" hidden></p>
+        </div>
+
+        <div class="co-totals">
+          <div class="co-trow"><span>Writers Nook</span><span>$29.00 <span class="price-was" style="font-size:11px">$49</span></span></div>
+          <!-- Discounts/coupons are applied on the Lemon Squeezy checkout (checkout[discount_code]) — the pre-checkout summary doesn't compute them. -->
+          <!-- WN_PHASE2: re-enable the sync line + a "then $5/mo" sub-note here when the subscription product ships. -->
+          <!-- <div class="co-trow"><span>Cloud Backup &amp; Sync</span><span id="monthly">$0.00/mo</span></div> -->
+          <div class="co-trow co-grand"><span>Total today</span><span id="grand">$29.00 USD</span></div>
+        </div>
+
+        <ul class="co-assure">
+          <li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>30-day money-back guarantee</li>
+          <li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Write without an account — no login, no cloud, just you and the page</li>
+          <li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Free updates within version 1.0</li>
+        </ul>
+      </div>
+      <div class="co-help">Questions before you buy? <a href="contact.html">Talk to us</a>.</div>
+    </aside>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-top">
+      <div>
+        <a class="brand" href="index.html"><img src="assets/logo-light.png" alt="" style="width:30px;height:30px">Writers Nook</a>
+        <p class="foot-blurb">A calm, paper-warm desktop writing app for novelists. Made with care in Canada.</p>
+      </div>
+      <div class="foot-col"><h5>Product</h5><a href="features.html">Features</a><a href="pricing.html">Pricing</a><a href="account.html">Download</a><a href="whats-new.html">What's new</a></div>
+      <div class="foot-col"><h5>Company</h5><a href="about.html">About</a><a href="blog.html">Blog</a><a href="contact.html">Contact</a><a href="signin.html">Sign in</a></div>
+      <div class="foot-col"><h5>Support &amp; legal</h5><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refunds.html">Refunds</a></div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Writers Nook · writersnook.app</span>
+      <span class="made"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.3-8.2C.9 9.8 2.2 6 5.5 6c1.9 0 3.3 1.1 4.1 2.4C10.4 7.1 11.8 6 13.7 6 17 6 18.3 9.8 16.6 12.8 14.7 16.7 12 21 12 21z"/></svg>Built for one writer, shared with all of them</span>
+    </div>
+  </div>
+</footer>
+
+<style>
+.co-secure { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--ink-2); }
+.co-secure .ic { width:16px; height:16px; color:var(--good); }
+.co-back { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--ink-3); font-weight:500; }
+.co-back:hover { color:var(--ink); }
+.co-back .ic { width:16px; height:16px; }
+
+.co-grid { display:grid; grid-template-columns: 1fr 400px; gap:32px; align-items:start; max-width:980px; }
+.co-summary { position:sticky; top:90px; }
+
+.acct-eyebrow .co-step { width:22px; height:22px; border-radius:50%; background:var(--accent); color:#fff; font-family:var(--font-ui); font-size:12px; font-weight:700; display:grid; place-items:center; margin-right:2px; }
+.co-label { display:block; font-size:13px; font-weight:600; color:var(--ink-2); margin:14px 0 7px; }
+.co-input { display:flex; align-items:center; gap:10px; width:100%; background:var(--paper); border:1px solid var(--parchment-edge); border-radius:var(--r-md); padding:0 14px; transition:border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.co-input:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash); }
+.co-input input, .co-input select { flex:1; border:none; outline:none; background:transparent; font-family:var(--font-ui); font-size:15.5px; color:var(--ink); padding:13px 0; width:100%; }
+.co-input input::placeholder { color:var(--ink-4); }
+#email.co-input { padding:13px 14px; }
+.co-card .co-cards { display:flex; gap:5px; flex:none; }
+.co-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.co-select { position:relative; }
+.co-select select { appearance:none; -webkit-appearance:none; cursor:pointer; }
+.co-select .ic { width:18px; height:18px; color:var(--ink-3); flex:none; pointer-events:none; }
+.co-hint { font-size:12.5px; color:var(--ink-3); margin:10px 0 0; line-height:1.5; }
+
+.co-pay { margin-top:20px; }
+.co-trust { display:flex; align-items:center; justify-content:center; gap:8px; font-size:13px; color:var(--ink-2); margin:14px 0 0; }
+.co-trust .ic { width:15px; height:15px; color:var(--good); flex:none; }
+.co-mor { font-size:12.5px; color:var(--ink-3); text-align:center; margin:14px auto 0; max-width:380px; line-height:1.6; }
+.co-mor a { color:var(--accent-deep); font-weight:600; }
+
+/* summary */
+.co-sumcard { padding:26px; }
+.co-line { display:flex; gap:13px; align-items:flex-start; padding:4px 0 18px; }
+.co-line-ic { width:40px; height:40px; border-radius:var(--r-md); background:var(--accent-tint); color:var(--accent-deep); display:grid; place-items:center; flex:none; }
+.co-line-ic .ic { width:20px; height:20px; }
+.co-line-ic.alt { background:var(--note-tint); color:var(--note); }
+.co-logo { background:var(--parchment); padding:6px; }
+.co-logo .lg { width:100%; height:100%; object-fit:contain; }
+.co-logo .lg-dark { display:none; }
+[data-theme="dark"] .co-logo .lg-light { display:none; }
+[data-theme="dark"] .co-logo .lg-dark { display:block; }
+.co-line-body { flex:1; }
+.co-line-t { font-weight:600; color:var(--ink); font-size:15px; }
+.co-line-s { font-size:12.5px; color:var(--ink-3); margin-top:3px; line-height:1.5; }
+.co-line-amt { font-family:var(--font-mono); font-weight:600; color:var(--ink); font-size:15px; }
+.co-pill { font-family:var(--font-mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--note); background:var(--note-tint); padding:2px 7px; border-radius:var(--r-pill); vertical-align:middle; margin-left:6px; font-weight:600; }
+
+.co-addon { display:flex; gap:13px; align-items:flex-start; padding:16px; border:1px dashed var(--parchment-edge); border-radius:var(--r-md); cursor:pointer; transition:border-color var(--dur-fast), background var(--dur-fast); }
+.co-addon:hover { border-color:var(--note); background:var(--note-tint); }
+.co-addon.on { border-style:solid; border-color:var(--note); background:var(--note-tint); }
+.co-switch { position:relative; width:42px; height:24px; flex:none; margin-top:2px; }
+.co-switch input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.co-knob { position:absolute; inset:0; background:var(--ink-4); border-radius:999px; transition:background var(--dur-fast); }
+.co-knob::after { content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; background:#fff; border-radius:50%; transition:transform var(--dur-fast); box-shadow:0 1px 3px rgba(0,0,0,.3); }
+.co-switch input:checked + .co-knob { background:var(--note); }
+.co-switch input:checked + .co-knob::after { transform:translateX(18px); }
+
+.co-totals { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); }
+
+/* coupon */
+.co-coupon { margin-top:16px; }
+.co-coupon-in { padding:0 6px 0 14px; }
+.co-tagic { width:17px; height:17px; color:var(--ink-3); flex:none; }
+.co-coupon-in input { text-transform:uppercase; letter-spacing:.04em; font-family:var(--font-mono); font-size:14px; }
+.co-coupon-in input::placeholder { text-transform:none; letter-spacing:normal; font-family:var(--font-ui); }
+.co-apply { flex:none; border:none; background:var(--parchment-deep); color:var(--ink); font-family:var(--font-ui); font-weight:600; font-size:13px; padding:8px 14px; border-radius:var(--r-sm); cursor:pointer; transition:background var(--dur-fast); }
+.co-apply:hover { background:var(--accent-tint); color:var(--accent-deep); }
+.co-apply.applied { background:var(--location-tint); color:var(--location); }
+.co-coupon-msg { font-size:12.5px; margin:9px 0 0; padding-left:2px; }
+.co-coupon-msg.ok { color:var(--location); }
+.co-coupon-msg.err { color:var(--accent-deep); }
+.co-discount span:last-child { color:var(--location) !important; }
+.co-discount span:first-child { color:var(--location); }
+.co-trow { display:flex; justify-content:space-between; font-size:14.5px; color:var(--ink-2); padding:5px 0; }
+.co-trow span:last-child { font-family:var(--font-mono); color:var(--ink); }
+.co-grand { margin-top:8px; padding-top:12px; border-top:1px solid var(--line); font-family:var(--font-prose); font-size:18px; font-weight:600; color:var(--ink); }
+.co-grand span:last-child { font-family:var(--font-prose); font-size:18px; font-weight:600; }
+.co-assure { list-style:none; padding:0; margin:20px 0 0; display:grid; gap:10px; }
+.co-assure li { display:flex; gap:10px; align-items:flex-start; font-size:13px; color:var(--ink-2); }
+.co-assure .ic { width:16px; height:16px; color:var(--accent); flex:none; margin-top:1px; }
+.co-help { text-align:center; font-size:13.5px; color:var(--ink-3); margin-top:18px; }
+.co-help a { color:var(--accent-deep); font-weight:600; }
+
+@media (max-width: 860px) {
+  .co-grid { grid-template-columns:1fr; }
+  .co-summary { position:static; order:-1; }
+}
+</style>
+
+<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+<script src="ls-config.js"></script>
+<script type="module" src="checkout.js"></script>
+<script src="site.js"></script>
+<script>
+(function(){
+  // Coupon input: the value flows to checkout[discount_code] via checkout.js.
+  // Client-side discount math is removed — LS is the source of truth for pricing.
+  // The coupon DOM elements are kept so checkout.js can read the entered code.
+  var couponInput = document.getElementById('coupon');
+  var applyBtn = document.getElementById('applyCoupon');
+  var msg = document.getElementById('couponMsg');
+
+  // Apply button now just gives visual feedback; real validation happens inside LS.
+  function applyCoupon(){
+    var code = (couponInput.value || '').trim().toUpperCase();
+    if(!code){ return; }
+    // Show the code as "staged" so the buyer knows it will be applied on checkout.
+    applyBtn.textContent = 'Remove'; applyBtn.classList.add('applied');
+    msg.hidden = false; msg.className = 'co-coupon-msg ok';
+    msg.textContent = 'Code "' + code + '" will be applied at checkout.';
+  }
+  function removeCoupon(){
+    couponInput.value = ''; couponInput.disabled = false;
+    applyBtn.textContent = 'Apply'; applyBtn.classList.remove('applied');
+    msg.hidden = true;
+  }
+
+  if(applyBtn){
+    applyBtn.addEventListener('click', function(){
+      if(applyBtn.classList.contains('applied')){ removeCoupon(); return; }
+      applyCoupon();
+    });
+  }
+  if(couponInput){
+    couponInput.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ e.preventDefault(); applyCoupon(); }
+    });
+  }
+
+  // light input formatting for realism
+  var card = document.getElementById('card');
+  if(card) card.addEventListener('input', function(){
+    var v = this.value.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim();
+    this.value = v;
+  });
+  var exp = document.getElementById('exp');
+  if(exp) exp.addEventListener('input', function(){
+    var v = this.value.replace(/\D/g,'').slice(0,4);
+    if(v.length > 2) v = v.slice(0,2) + ' / ' + v.slice(2);
+    this.value = v;
+  });
+})();
+</script>
+</body>
+</html>

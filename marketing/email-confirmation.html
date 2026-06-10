@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Your Writers Nook purchase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,600&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<!--
+  ============================================================================
+  WRITERS NOOK — PURCHASE CONFIRMATION EMAIL  (terminal agents: read this)
+  ----------------------------------------------------------------------------
+  Email-safe: table layout + inline styles only (no <style>/JS in the body;
+  email clients strip them). Web font degrades to Georgia / Helvetica.
+
+  PLACEHOLDER — TEMPLATE VARIABLES  (token: WN_TODO_EMAIL_VARS)
+  Replace the example values below with your ESP/Lemon Squeezy merge tags:
+    {{first_name}}        e.g. "Nina"            (greeting; optional)
+    {{license_key}}       e.g. "WNOOK-7Q4M-…"    (from LS license API)
+    {{download_mac_url}}  authenticated installer URL (macOS)
+    {{download_win_url}}  authenticated installer URL (Windows)
+    {{account_url}}       magic-link to account.html (or sign-in URL)
+    {{order_id}}          e.g. "WN-10428"
+    {{order_total}}       e.g. "$49.00 USD"
+    {{receipt_url}}       Lemon Squeezy receipt URL
+    {{has_backup}}        bool — show/hide the Cloud Backup & Sync line + its $5/mo note
+    {{LOGO_BASE_URL}}     absolute https URL where the logo PNG is hosted (email needs absolute image src)
+  Subject line: "You're in — download Writers Nook (license inside)"
+  Preheader is the hidden span right after <body>.
+  ============================================================================
+-->
+</head>
+<body style="margin:0;padding:0;background:#ebe0cc;-webkit-font-smoothing:antialiased;">
+<!-- preheader (hidden preview text) -->
+<span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">Your license key and download links are inside — welcome to the Nook.</span>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ebe0cc;">
+<tr><td align="center" style="padding:32px 16px;">
+
+  <!-- ====== email card ====== -->
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background:#fcfaf5;border:1px solid #e3d9c6;border-radius:16px;overflow:hidden;">
+
+    <!-- header / brand -->
+    <tr><td style="padding:30px 40px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td style="vertical-align:middle;padding-right:11px;">
+          <img src="assets/logo-dark.png" width="34" height="34" alt="" style="display:block;width:34px;height:34px;">
+        </td>
+        <td style="vertical-align:middle;font-family:'Literata',Georgia,serif;font-size:20px;font-weight:600;color:#2a251d;letter-spacing:-0.01em;white-space:nowrap;">Writers Nook</td>
+      </tr></table>
+    </td></tr>
+
+    <!-- hero copy -->
+    <tr><td style="padding:30px 40px 8px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#b25a38;font-weight:500;">Payment complete</div>
+      <h1 style="margin:12px 0 0;font-family:'Literata',Georgia,serif;font-size:30px;line-height:1.12;font-weight:600;color:#2a251d;letter-spacing:-0.01em;">You're in. Welcome to the Nook.</h1>
+      <p style="margin:14px 0 0;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#5c5546;">Thank you for buying Writers Nook, Nina. Your copy is ready, and your license key is below — everything's also saved to your account.</p>
+    </td></tr>
+
+    <!-- download buttons (bulletproof) -->
+    <tr><td style="padding:26px 40px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="padding-right:6px;width:50%;">
+          <a href="#" style="display:block;text-align:center;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;background:#b25a38;border-radius:10px;padding:14px 10px;text-decoration:none;">Download for macOS</a>
+        </td>
+        <td style="padding-left:6px;width:50%;">
+          <a href="#" style="display:block;text-align:center;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#2a251d;background:#fcfaf5;border:1px solid #d9cdb6;border-radius:10px;padding:13px 10px;text-decoration:none;">Download for Windows</a>
+        </td>
+      </tr></table>
+      <p style="margin:12px 0 0;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:12.5px;line-height:1.5;color:#8a8071;">These links are tied to your purchase. Version 1.0 · macOS 12+ / Windows 10+.</p>
+    </td></tr>
+
+    <!-- license key -->
+    <tr><td style="padding:24px 40px 0;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#8a8071;font-weight:500;margin-bottom:9px;">Your license key</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="background:#f4ece0;border:1px dashed #d9cdb6;border-radius:10px;padding:15px 16px;font-family:'IBM Plex Mono',monospace;font-size:17px;letter-spacing:0.04em;color:#2a251d;text-align:center;">WNOOK-7Q4M-XP2D-9KFA-T1RE</td></tr></table>
+      <p style="margin:11px 0 0;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:12.5px;line-height:1.55;color:#8a8071;">Open Writers Nook and paste this key once to activate — the app verifies it a single time, then you're set on up to three computers.</p>
+    </td></tr>
+
+    <!-- divider -->
+    <tr><td style="padding:26px 40px 0;"><div style="height:1px;background:#e3d9c6;line-height:1px;font-size:0;">&nbsp;</div></td></tr>
+
+    <!-- order summary -->
+    <tr><td style="padding:22px 40px 0;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#8a8071;font-weight:500;margin-bottom:12px;">Order summary</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:14.5px;color:#5c5546;">
+        <tr><td style="padding:5px 0;">Writers Nook — app (one-time)</td><td align="right" style="padding:5px 0;font-family:'IBM Plex Mono',monospace;color:#2a251d;">$49.00</td></tr>
+        <!-- WN_TODO_EMAIL_VARS: render this row only if {{has_backup}} -->
+        <tr><td style="padding:5px 0;color:#8a8071;">Cloud Backup &amp; Sync — added, billed separately</td><td align="right" style="padding:5px 0;font-family:'IBM Plex Mono',monospace;color:#8a8071;">$5.00/mo</td></tr>
+        <tr><td colspan="2" style="padding:8px 0 0;"><div style="height:1px;background:#e3d9c6;line-height:1px;font-size:0;">&nbsp;</div></td></tr>
+        <tr><td style="padding:10px 0 0;font-family:'Literata',Georgia,serif;font-size:16px;font-weight:600;color:#2a251d;">Total paid today</td><td align="right" style="padding:10px 0 0;font-family:'Literata',Georgia,serif;font-size:16px;font-weight:600;color:#2a251d;">$49.00 USD</td></tr>
+      </table>
+      <p style="margin:14px 0 0;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:12.5px;color:#8a8071;">Order #WN-10428 · June 4, 2026 · <a href="#" style="color:#9a4a2c;font-weight:600;text-decoration:none;">View receipt</a> (Lemon Squeezy, our merchant of record)</p>
+    </td></tr>
+
+    <!-- account note -->
+    <tr><td style="padding:24px 40px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7ece6;border:1px solid #ecd9cd;border-radius:12px;"><tr><td style="padding:18px 20px;">
+        <div style="font-family:'Literata',Georgia,serif;font-size:16px;font-weight:600;color:#2a251d;">Your account, whenever you need it</div>
+        <p style="margin:7px 0 14px;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.55;color:#5c5546;">No password to remember. Your license, downloads, and backup all live under your email — just request a sign-in link any time. The same link restores everything on a new computer.</p>
+        <a href="#" style="font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#9a4a2c;text-decoration:none;">Go to your account &rarr;</a>
+      </td></tr></table>
+    </td></tr>
+
+    <!-- help -->
+    <tr><td style="padding:22px 40px 4px;">
+      <p style="margin:0;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.6;color:#5c5546;">Stuck on anything? Just reply to this email, or write to <a href="mailto:support@writersnook.app" style="color:#9a4a2c;font-weight:600;text-decoration:none;">support@writersnook.app</a> — a real person will help.</p>
+      <p style="margin:14px 0 0;font-family:'Literata',Georgia,serif;font-size:15px;color:#5c5546;font-style:italic;">Happy writing,<br>— The Writers Nook team</p>
+    </td></tr>
+
+    <!-- footer -->
+    <tr><td style="padding:28px 40px 32px;">
+      <div style="height:1px;background:#e3d9c6;line-height:1px;font-size:0;margin-bottom:18px;">&nbsp;</div>
+      <p style="margin:0;font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#a59a86;">Writers Nook · writersnook.app · Made with care in Canada<br>You're receiving this because you purchased Writers Nook. This is a transactional receipt, not marketing.</p>
+    </td></tr>
+
+  </table>
+  <!-- ====== /email card ====== -->
+
+</td></tr>
+</table>
+</body>
+</html>
