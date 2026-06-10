@@ -17,9 +17,10 @@ updated: 2026-06-10
 
 ## Active work
 - Wave in flight: none · wave-31 wrapped (no follow-ups qualified, no decisions promoted, no vendor gotchas)
+- Post-wrap polish batch SHIPPED 2026-06-10 (555b177..63428ca): map header/canvas alignment + 760 baseline · type-colored active filter chips · hover clears on node mouseleave · EgoGraph (CONNECTIONS) restyled to map language · bible cards left-click to open full entry + visible hover. Hover doctrine ratified by Cole: two tiers stay — neutral parchment hovers for furniture, accent ring/wash for content surfaces; do NOT spread accent hovers app-wide
 - Marketing refresh pending: Claude Design brief for new features (auto-link, outliner, expanded story bible, relationship map) drafted in-session 2026-06-10 — Cole feeding it to Claude Design; relationship-map screenshots for the site should use the NEW map (shipped today)
 - Open follow-ups: 13 OPEN, none prioritized · [inbox](follow-ups/)
-- Deferred: UpdateModal error clarity · rate-limiting + body-size guards on contact/newsletter endpoints · EgoGraph restyle (still old gray styling; deferral noted in wave-31 plan) · thread customTypes into RelationshipGroup chips (map has it; FullEntry chips fall back)
+- Deferred: UpdateModal error clarity · rate-limiting + body-size guards on contact/newsletter endpoints · thread customTypes into RelationshipGroup chips (map has it; FullEntry chips fall back) — (EgoGraph restyle: done 2026-06-10, no longer deferred)
 
 ## Reference index
 - Project conventions: [CLAUDE.md](../CLAUDE.md) · push to master = marketing deploy (Cloudflare Pages)
