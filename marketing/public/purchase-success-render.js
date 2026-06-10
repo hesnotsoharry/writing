@@ -12,8 +12,66 @@
 //   { email, orderNumber, totalCents, productName, receiptUrl }
 //   or null on a direct / expired visit.
 // ============================================================================
+/* global URLSearchParams */
 
 import { formatPrice } from "./account-render.js";
+
+/**
+ * Parse URL query parameters into a normalized order object compatible with
+ * renderSuccess(). Used when the sessionStorage handoff from checkout.js is
+ * absent (direct link, incognito, different-tab redirect).
+ *
+ * Accepted params (all untrusted — rendered via textContent only):
+ *   order_id — maps to orderNumber (minimum required; returns null if absent)
+ *   email    — buyer email
+ *   total    — formatted price string, e.g. "$29.00" (LS link variable [total])
+ *
+ * Excluded params: license_key (never read; key reaches buyer via receiptUrl).
+ *
+ * @param {string} search — URL search string, e.g. "?order_id=123&email=..."
+ * @returns {{ email: string|null, orderNumber: string, totalCents: number|null, productName: string, receiptUrl: null }|null}
+ */
+export function parseOrderFromParams(search) {
+  const params = new URLSearchParams(search);
+  const orderId = params.get("order_id");
+  if (!orderId) return null; // order_id is the minimum required field
+
+  const email = params.get("email") || null;
+
+  let totalCents = null;
+  const totalStr = params.get("total");
+  if (totalStr) {
+    // Strip currency symbols / whitespace, keep digits and decimal point.
+    const numeric = parseFloat(totalStr.replace(/[^0-9.]/g, ""));
+    if (isFinite(numeric)) totalCents = Math.round(numeric * 100);
+  }
+
+  return {
+    email,
+    orderNumber: orderId,
+    totalCents,
+    productName: "Writers Nook",
+    receiptUrl: null,
+  };
+}
+
+/**
+ * Resolve the canonical order object from two sources, in priority order:
+ *   1. sessionStorage handoff (checkout.js writes this on Checkout.Success)
+ *   2. URL query parameters (Lemon Squeezy confirmation-button link variables)
+ *   3. null  →  renderSuccess() returns the graceful fallback
+ *
+ * Keeping this logic in the pure layer makes the priority rule unit-testable
+ * without a browser.
+ *
+ * @param {object|null} sessionOrder — parsed sessionStorage order, or null
+ * @param {string}      search       — window.location.search string
+ * @returns {object|null}
+ */
+export function resolveOrder(sessionOrder, search) {
+  if (sessionOrder) return sessionOrder;
+  return parseOrderFromParams(search);
+}
 
 /**
  * Map a captured order (or null) to a success-page display-value object.

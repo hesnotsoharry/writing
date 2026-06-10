@@ -10,7 +10,7 @@
 // ============================================================================
 import { describe, expect, it } from "vitest";
 
-import { renderSuccess } from "./purchase-success-render.js";
+import { renderSuccess, parseOrderFromParams, resolveOrder } from "./purchase-success-render.js";
 
 const ORDER = {
   email: "nina@writer.com",
@@ -49,6 +49,80 @@ describe("renderSuccess — in-session order handoff → success-page view", () 
   it("tolerates a missing receipt url (renders the order, no receipt link)", () => {
     const v = renderSuccess({ ...ORDER, receiptUrl: undefined });
     expect(v.hasOrder).toBe(true);
+    expect(v.receiptUrl).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseOrderFromParams — URL query-param fallback source
+// ---------------------------------------------------------------------------
+const PARAM_QUERY = "?order_id=999&email=buyer%40example.com&total=%2429.00";
+// %40 = "@", %24 = "$" — URLSearchParams auto-decodes these.
+
+describe("parseOrderFromParams — builds order object from LS link-variable params", () => {
+  it("returns null when order_id param is absent (insufficient for display)", () => {
+    expect(parseOrderFromParams("?email=buyer@example.com&total=$29.00")).toBeNull();
+    expect(parseOrderFromParams("")).toBeNull();
+  });
+
+  it("parses order_id, email, and URL-encoded formatted total into the order shape", () => {
+    const o = parseOrderFromParams(PARAM_QUERY);
+    expect(o.orderNumber).toBe("999");
+    expect(o.email).toBe("buyer@example.com");
+    expect(o.totalCents).toBe(2900);
+    expect(o.productName).toBe("Writers Nook");
+    expect(o.receiptUrl).toBeNull();
+  });
+
+  it("converts a bare dollar-sign total string to cents", () => {
+    const o = parseOrderFromParams("?order_id=1&total=$49.00");
+    expect(o.totalCents).toBe(4900);
+  });
+
+  it("leaves totalCents null when total param is absent", () => {
+    const o = parseOrderFromParams("?order_id=1&email=a@b.com");
+    expect(o.totalCents).toBeNull();
+  });
+
+  it("leaves email null when email param is absent", () => {
+    const o = parseOrderFromParams("?order_id=1");
+    expect(o.email).toBeNull();
+  });
+
+  it("does not expose a receiptUrl (no param source for it)", () => {
+    const o = parseOrderFromParams(PARAM_QUERY + "&receipt_url=https://evil.example.com");
+    expect(o.receiptUrl).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveOrder — priority: sessionStorage > query params > null
+// ---------------------------------------------------------------------------
+describe("resolveOrder — sessionStorage wins over query params; query params win over null", () => {
+  it("returns the sessionStorage order unchanged when it is present, ignoring query params", () => {
+    const result = resolveOrder(ORDER, PARAM_QUERY);
+    expect(result).toBe(ORDER); // strict identity — no copy
+  });
+
+  it("falls back to query-param order when sessionStorage is null", () => {
+    const result = resolveOrder(null, PARAM_QUERY);
+    expect(result).not.toBeNull();
+    expect(result.orderNumber).toBe("999");
+    expect(result.email).toBe("buyer@example.com");
+  });
+
+  it("returns null when both sessionStorage and query params lack an order_id", () => {
+    expect(resolveOrder(null, "")).toBeNull();
+    expect(resolveOrder(null, "?email=foo@bar.com")).toBeNull();
+  });
+
+  it("renders query-param order through renderSuccess with correct display values", () => {
+    const v = renderSuccess(resolveOrder(null, PARAM_QUERY));
+    expect(v.hasOrder).toBe(true);
+    expect(v.email).toBe("buyer@example.com");
+    expect(v.orderNumber).toBe("#999");
+    expect(v.amount).toBe("$29.00");
+    expect(v.product).toBe("Writers Nook");
     expect(v.receiptUrl).toBeNull();
   });
 });

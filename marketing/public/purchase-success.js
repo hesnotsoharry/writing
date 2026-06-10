@@ -12,7 +12,7 @@
 // ============================================================================
 /* global document, window, sessionStorage */
 
-import { renderSuccess } from "./purchase-success-render.js";
+import { renderSuccess, resolveOrder } from "./purchase-success-render.js";
 
 // --------------------------------------------------------------------------
 // Apply the renderSuccess view object to the DOM.
@@ -90,7 +90,7 @@ if (typeof document !== "undefined") {
       // sessionStorage unavailable or JSON parse failed — order stays null.
     }
 
-    var v = renderSuccess(order);
+    var v = renderSuccess(resolveOrder(order, window.location.search));
     applyViewToDom(v);
     wireDownloadButtons();
   });
