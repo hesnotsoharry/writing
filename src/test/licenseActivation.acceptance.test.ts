@@ -90,4 +90,25 @@ describe("activateLicense — consumer contract for the activate_license command
     expect(result).toMatchObject({ ok: false, kind: "network" });
     expect(result).not.toMatchObject({ kind: "invalid_key" });
   });
+
+  it("maps a wrong-product rejection (Rust product-identity guard) to kind rejected with the verbatim message", async () => {
+    // The Rust parse_activate_response flips activated:false and sets this
+    // specific error when meta.variant_id does not match WRITERSNOOK_APP_VARIANT_ID.
+    // The frontend must preserve the message and classify it as rejected, not invalid_key.
+    mockInvoke.mockResolvedValue({
+      activated: false,
+      error: "This license key is not for WritersNook.",
+      httpStatus: 200,
+      instanceId: null,
+      activationLimit: null,
+      activationUsage: null,
+      licenseStatus: null,
+    });
+    const result = await activateLicense("FOREIGN-KEY-123");
+    expect(result).toEqual({
+      ok: false,
+      kind: "rejected",
+      message: "This license key is not for WritersNook.",
+    });
+  });
 });

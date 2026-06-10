@@ -7,6 +7,14 @@
 /// failures (DNS, offline, timeout) become Err(String) — the frontend maps
 /// these to the "network" error kind (Decision D3).
 
+// ─── Product identity constant ─────────────────────────────────────────────
+
+/// Lemon Squeezy numeric variant ID for the WritersNook one-time app purchase.
+/// Source: marketing/public/ls-config.js — "numeric variant ID (1748920)".
+/// Any activated key whose `meta.variant_id` differs from this constant is
+/// from a different store or a different product and must be rejected.
+const WRITERSNOOK_APP_VARIANT_ID: u64 = 1748920;
+
 // ─── LS response shapes ────────────────────────────────────────────────────
 
 /// Internal: LS instance object inside a successful activate response.
@@ -23,6 +31,18 @@ struct LsLicenseKey {
     status: Option<String>,
 }
 
+/// Internal: metadata block present on activated responses — carries store_id,
+/// product_id, and variant_id that identify which product was activated.
+/// store_id and product_id are deserialized for completeness; validation today
+/// gates only on variant_id (the only numeric ID available in this codebase).
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct LsMeta {
+    store_id: Option<u64>,
+    product_id: Option<u64>,
+    variant_id: Option<u64>,
+}
+
 /// Internal: top-level LS activate response (success and error shapes share
 /// the same wrapper — `activated` is the discriminant).
 #[derive(serde::Deserialize)]
@@ -31,6 +51,7 @@ struct LsResponse {
     error: Option<String>,
     instance: Option<LsInstance>,
     license_key: Option<LsLicenseKey>,
+    meta: Option<LsMeta>,
 }
 
 // ─── Public output type ────────────────────────────────────────────────────
@@ -53,9 +74,35 @@ pub struct LicenseActivation {
 
 /// Map a raw LS response body + HTTP status to `LicenseActivation`.
 /// Returns `Err` only when the body is not valid JSON — never panics.
+///
+/// Product-identity guard: when LS reports `activated: true`, the response
+/// `meta.variant_id` must equal `WRITERSNOOK_APP_VARIANT_ID`.  Fail-closed:
+/// if `meta` or `variant_id` is absent the product cannot be confirmed, so
+/// activation is rejected rather than silently accepted.
 pub fn parse_activate_response(body: &str, http_status: u16) -> Result<LicenseActivation, String> {
     let ls: LsResponse = serde_json::from_str(body)
         .map_err(|e| format!("malformed response from license server: {e}"))?;
+
+    if ls.activated {
+        let variant_ok = ls
+            .meta
+            .as_ref()
+            .and_then(|m| m.variant_id)
+            .map(|vid| vid == WRITERSNOOK_APP_VARIANT_ID)
+            .unwrap_or(false);
+        if !variant_ok {
+            return Ok(LicenseActivation {
+                activated: false,
+                error: Some("This license key is not for WritersNook.".to_string()),
+                http_status,
+                instance_id: None,
+                activation_limit: None,
+                activation_usage: None,
+                license_status: None,
+            });
+        }
+    }
+
     Ok(LicenseActivation {
         activated: ls.activated,
         error: ls.error,
@@ -130,6 +177,8 @@ mod tests {
 
     #[test]
     fn parse_success_returns_activated_true_with_instance_and_usage() {
+        // meta.variant_id must match WRITERSNOOK_APP_VARIANT_ID (1748920) for
+        // activated=true to pass the product-identity guard.
         let body = r#"{
             "activated": true,
             "error": null,
@@ -138,6 +187,11 @@ mod tests {
                 "activation_limit": 3,
                 "activation_usage": 1,
                 "status": "active"
+            },
+            "meta": {
+                "store_id": 12345,
+                "product_id": 67890,
+                "variant_id": 1748920
             }
         }"#;
         let result = parse_activate_response(body, 200).expect("should parse success body");
@@ -204,6 +258,59 @@ mod tests {
         assert!(
             msg.contains("malformed"),
             "error message should mention 'malformed', got: {msg}"
+        );
+    }
+
+    #[test]
+    fn wrong_variant_id_on_activated_true_is_rejected_with_wrong_product_message() {
+        // A key from a different LS store or a different product activates
+        // successfully against LS but returns a different variant_id.  The
+        // product-identity guard must flip activated to false and return the
+        // user-facing wrong-product message.
+        let body = r#"{
+            "activated": true,
+            "error": null,
+            "instance": {"id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"},
+            "license_key": {
+                "activation_limit": 5,
+                "activation_usage": 1,
+                "status": "active"
+            },
+            "meta": {
+                "store_id": 99999,
+                "product_id": 99998,
+                "variant_id": 9999999
+            }
+        }"#;
+        let result = parse_activate_response(body, 200).expect("should parse without JSON error");
+        assert!(!result.activated, "wrong-variant key must not activate");
+        assert_eq!(
+            result.error,
+            Some("This license key is not for WritersNook.".to_string()),
+            "error message must identify the product mismatch"
+        );
+        assert!(result.instance_id.is_none(), "no instance_id on rejected response");
+    }
+
+    #[test]
+    fn missing_meta_on_activated_true_is_rejected_fail_closed() {
+        // If LS returns activated=true but omits the meta block, we cannot
+        // confirm the variant; fail-closed means we reject the activation.
+        let body = r#"{
+            "activated": true,
+            "error": null,
+            "instance": {"id": "47596ad9-a811-4ebf-ac8a-03fc7b6d2a17"},
+            "license_key": {
+                "activation_limit": 3,
+                "activation_usage": 1,
+                "status": "active"
+            }
+        }"#;
+        let result = parse_activate_response(body, 200).expect("should parse without JSON error");
+        assert!(!result.activated, "absent meta must not activate (fail-closed)");
+        assert_eq!(
+            result.error,
+            Some("This license key is not for WritersNook.".to_string()),
         );
     }
 }
