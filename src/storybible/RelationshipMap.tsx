@@ -1,29 +1,22 @@
 /**
- * RelationshipMap — full project-wide relationship graph view.
- * Phase 4 (Wave 27). All entities as force-positioned nodes with labelled
- * edges. Pan via mouse drag. Filter by entity type. Hover-focuses neighbours.
- * Uses d3-force for layout (tick-settled on mount, static SVG render).
+ * RelationshipMap — Direction B "Cartographer's key" design.
+ * Ported faithfully from design-reference/relmap.jsx (Wave 31 Phase 2).
+ * Run-once FR layout (no d3-force), degree-sized icon nodes, italic Literata
+ * labels with paper-halo stroke, ruled chart frame, in-canvas map-key card.
  */
 
-import {
-  forceCenter,
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceSimulation,
-  type SimulationLinkDatum,
-  type SimulationNodeDatum,
-} from "d3-force";
-import { useCallback, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { Icon } from "../components/Icon";
+import { Icon, ICON_PATHS } from "../components/Icon";
 import type { Entity, Relation } from "../db/storyBibleStore";
+import { resolveEntityTypeDef } from "./entityTypeDefs";
+import type { ExZone, LayoutConfig, Vec2 } from "./frLayout";
+import { declashLabels, frLayout } from "./frLayout";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface MapNode extends SimulationNodeDatum { id: string; type: string; degree: number; }
-interface MapLink extends SimulationLinkDatum<MapNode> { label: string; }
-export interface EdgeEntry { a: string; b: string; label: string; }
+export interface EdgeDef { a: string; b: string; label: string; }
 
 export interface RelationshipMapProps {
   entities: Entity[];
@@ -32,254 +25,263 @@ export interface RelationshipMapProps {
   onBack?: () => void;
 }
 
-// ── Color helpers ─────────────────────────────────────────────────────────────
+// ── Adapter: Relation[] → EdgeDef[] ──────────────────────────────────────────
 
-export function colorOf(type: string): string {
-  if (type === "character") return "var(--character)";
-  if (type === "location") return "var(--location)";
-  return "var(--ink-3)";
-}
-
-export function tintOf(type: string): string {
-  return `color-mix(in srgb, ${colorOf(type)} 16%, transparent)`;
-}
-
-function nodeRadius(degree: number): number { return 15 + Math.min(11, degree * 2); }
-
-// ── Layout ────────────────────────────────────────────────────────────────────
-
-function buildLayout(
-  nodes: MapNode[], links: MapLink[], W: number, H: number
-): Map<string, { x: number; y: number }> {
-  const sim = forceSimulation<MapNode>(nodes)
-    .force("link", forceLink<MapNode, MapLink>(links).id((d) => d.id).distance(90))
-    .force("charge", forceManyBody<MapNode>().strength(-220))
-    .force("center", forceCenter<MapNode>(W / 2, H / 2))
-    .force("collide", forceCollide<MapNode>((d) => nodeRadius(d.degree) + 14))
-    .stop();
-  for (let i = 0; i < 300; i++) sim.tick();
-  const result = new Map<string, { x: number; y: number }>();
-  for (const n of nodes) {
-    const r = nodeRadius(n.degree);
-    result.set(n.id, {
-      x: Math.max(r + 8, Math.min(W - r - 8, n.x ?? W / 2)),
-      y: Math.max(r + 14, Math.min(H - r - 22, n.y ?? H / 2)),
-    });
-  }
-  return result;
-}
-
-// ── Derived graph data ────────────────────────────────────────────────────────
-
-function buildGraphData(entities: Entity[], relations: Relation[]) {
-  const entityMap = new Map(entities.map((e) => [e.id, e]));
+/** Derives undirected edges from the relations prop. Exported for unit tests. */
+export function deriveEdges(
+  entities: Entity[], relations: Relation[],
+): { edges: EdgeDef[]; degree: Record<string, number>; involvedIds: Set<string> } {
+  const entityMap = new Map(entities.filter(e => e.type !== "theme").map(e => [e.id, e]));
   const seen = new Set<string>();
-  const edges: EdgeEntry[] = [];
-  const degMap: Record<string, number> = {};
+  const edges: EdgeDef[] = [];
+  const degree: Record<string, number> = {};
   for (const rel of relations) {
     if (!entityMap.has(rel.fromEntity) || !entityMap.has(rel.toEntity)) continue;
     const key = [rel.fromEntity, rel.toEntity].sort().join("|");
     if (seen.has(key)) continue;
     seen.add(key);
     edges.push({ a: rel.fromEntity, b: rel.toEntity, label: rel.label });
-    degMap[rel.fromEntity] = (degMap[rel.fromEntity] ?? 0) + 1;
-    degMap[rel.toEntity] = (degMap[rel.toEntity] ?? 0) + 1;
+    degree[rel.fromEntity] = (degree[rel.fromEntity] ?? 0) + 1;
+    degree[rel.toEntity] = (degree[rel.toEntity] ?? 0) + 1;
   }
-  const ids = new Set<string>();
-  edges.forEach((e) => { ids.add(e.a); ids.add(e.b); });
-  return { entityMap, edges, degree: degMap, involvedIds: ids };
+  const involvedIds = new Set<string>();
+  edges.forEach(e => { involvedIds.add(e.a); involvedIds.add(e.b); });
+  return { edges, degree, involvedIds };
 }
 
-// ── Pan hook ──────────────────────────────────────────────────────────────────
+// ── Pure helpers ───────────────────────────────────────────────────────────────
 
-function usePan() {
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const dragging = useRef(false);
-  const last = useRef<{ x: number; y: number } | null>(null);
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    dragging.current = true; last.current = { x: e.clientX, y: e.clientY };
-  }, []);
-  const onMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging.current || !last.current) return;
-    const dx = e.clientX - last.current.x; const dy = e.clientY - last.current.y;
-    last.current = { x: e.clientX, y: e.clientY };
-    setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
-  }, []);
-  const onMouseUp = useCallback(() => { dragging.current = false; last.current = null; }, []);
-  return { pan, onMouseDown, onMouseMove, onMouseUp };
+function buildNeighbors(hover: string | null, edges: EdgeDef[]): Set<string> | null {
+  if (!hover) return null;
+  const s = new Set([hover]);
+  edges.forEach(e => { if (e.a === hover) s.add(e.b); if (e.b === hover) s.add(e.a); });
+  return s;
 }
 
-// ── MapEdgeLayer ──────────────────────────────────────────────────────────────
+// ── Hooks ──────────────────────────────────────────────────────────────────────
 
-type EdgeGeom = { pa: { x: number; y: number }; pb: { x: number; y: number }; cx: number; cy: number; lx: number; ly: number };
-
-function edgeGeom(pa: { x: number; y: number }, pb: { x: number; y: number }): EdgeGeom {
-  const mx = (pa.x + pb.x) / 2; const my = (pa.y + pb.y) / 2;
-  const dx = pb.x - pa.x; const dy = pb.y - pa.y; const len = Math.hypot(dx, dy) || 1;
-  const cx = mx + (-dy / len) * len * 0.12; const cy = my + (dx / len) * len * 0.12;
-  const lx = 0.25 * pa.x + 0.5 * cx + 0.25 * pb.x;
-  const ly = 0.25 * pa.y + 0.5 * cy + 0.25 * pb.y;
-  return { pa, pb, cx, cy, lx, ly };
-}
-
-function MapEdge({ e, pos, N, hover, idx }: { e: EdgeEntry; pos: Map<string, { x: number; y: number }>; N: number; hover: string | null; idx: number }) {
-  const pa = pos.get(e.a); const pb = pos.get(e.b);
-  if (!pa || !pb) return null;
-  const { cx, cy, lx, ly } = edgeGeom(pa, pb);
-  const dimEdge = hover ? !(hover === e.a || hover === e.b) : false;
-  const showLabel = !dimEdge && (N <= 18 || hover !== null) && !!e.label;
-  return (
-    <g key={idx} style={{ opacity: dimEdge ? 0.1 : 1, transition: "opacity 0.15s" }}>
-      <path fill="none" stroke="var(--line)" strokeWidth={1.4} d={`M${pa.x} ${pa.y} Q${cx} ${cy} ${pb.x} ${pb.y}`} />
-      {showLabel ? <text x={lx} y={ly - 2} textAnchor="middle" fontSize={9} fill="var(--ink-3)">{e.label}</text> : null}
-    </g>
-  );
-}
-
-function MapEdgeLayer({ edges, pos, N, hover }: {
-  edges: EdgeEntry[];
-  pos: Map<string, { x: number; y: number }>;
-  N: number;
-  hover: string | null;
-}) {
-  return <>{edges.map((e, i) => <MapEdge key={i} e={e} pos={pos} N={N} hover={hover} idx={i} />)}</>;
-}
-
-// ── MapNodeItem ───────────────────────────────────────────────────────────────
-
-function MapNodeItem({ entity, p, r, hover, onHover, onOpenEntry }: {
-  entity: Entity;
-  p: { x: number; y: number };
-  r: number;
-  hover: string | null;
-  onHover: (id: string) => void;
-  onOpenEntry?: (id: string, kind: string) => void;
-}) {
-  const dim = hover !== null && hover !== entity.id;
-  const round = entity.type === "character";
-  const initial = entity.name.trim()[0]?.toUpperCase() ?? "?";
-  const kindForEntry = entity.type.charAt(0).toUpperCase() + entity.type.slice(1);
-  return (
-    <g style={{ cursor: "pointer", opacity: dim ? 0.18 : 1, transition: "opacity 0.15s" }}
-      onClick={() => onOpenEntry?.(entity.id, kindForEntry)}
-      onMouseEnter={() => onHover(entity.id)}>
-      {round
-        ? <circle cx={p.x} cy={p.y} r={r} fill={tintOf(entity.type)} stroke={colorOf(entity.type)} strokeWidth={1.6} />
-        : <rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} rx={7}
-            fill={tintOf(entity.type)} stroke={colorOf(entity.type)} strokeWidth={1.6} />}
-      <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central"
-        fontSize={Math.round(r * 0.82)} fontWeight="600" fill={colorOf(entity.type)}>
-        {initial}
-      </text>
-      <text x={p.x} y={p.y + r + 13} textAnchor="middle" fontSize={10} fill="var(--ink)">
-        {entity.name}
-      </text>
-    </g>
-  );
-}
-
-// ── RelationshipMap ───────────────────────────────────────────────────────────
-
-function useMapDerivedData(entities: Entity[], relations: Relation[], filter: string) {
-  const relKey = relations.map((r) => `${r.id}:${r.label}`).join(",");
+function useRmapData(entities: Entity[], relations: Relation[]) {
+  const relKey = relations.map(r => `${r.id}:${r.label}`).join(",");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const { edges, degree, involvedIds } = useMemo(() => buildGraphData(entities, relations), [entities.length, relKey]);
-  const nodes = entities.filter((e) => involvedIds.has(e.id));
+  const { edges, degree, involvedIds } = useMemo(() => deriveEdges(entities, relations), [entities.length, relKey]);
+  const nodes = entities.filter(e => e.type !== "theme" && involvedIds.has(e.id));
+  const unlinkedCount = entities.filter(e => e.type !== "theme" && !involvedIds.has(e.id)).length;
   const N = nodes.length;
-  const W = Math.round(Math.max(760, Math.min(1500, 250 * Math.sqrt(Math.max(1, N)))));
-  const H = Math.round(Math.max(520, W * 0.64));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const pos = useMemo(() => buildLayout(nodes.map((e) => ({ id: e.id, type: e.type, degree: degree[e.id] ?? 1 })), edges.map((e) => ({ source: e.a, target: e.b, label: e.label })), W, H), [N, edges.length, W, H]);
-  const filteredNodes = nodes.filter((e) => filter === "all" || e.type === filter);
-  const visibleIds = new Set(filteredNodes.map((e) => e.id));
-  const presentTypes = [...new Set(nodes.map((e) => e.type))];
-  const FILTERS = [["all", "All"], ...presentTypes.map((t) => [t, t.charAt(0).toUpperCase() + t.slice(1) + "s"])];
-  return { edges, degree, N, W, H, pos, filteredNodes, visibleIds, FILTERS };
+  const W = Math.round(Math.max(560, Math.min(1500, 250 * Math.sqrt(Math.max(1, N)))));
+  const H = Math.round(Math.max(420, W * 0.64));
+  const radii: Record<string, number> = {};
+  nodes.forEach(nd => { radii[nd.id] = 15 + Math.min(11, (degree[nd.id] ?? 1) * 2); });
+  const present = [...new Set(nodes.map(n => n.type))];
+  return { edges, degree, nodes, unlinkedCount, N, W, H, radii, present };
 }
+
+function useRmapMeasure(N: number) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [measuredW, setMeasuredW] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => { const w = el.clientWidth; if (w) setMeasuredW(w); };
+    update();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [N]);
+  return { wrapRef, measuredW };
+}
+
+function useRmapLayout(nodes: Entity[], edges: EdgeDef[], radii: Record<string, number>, cfg: LayoutConfig) {
+  const { W, ex } = cfg;
+  const sig = nodes.map(n => n.id).join(",") + "|" + edges.length + "|" + W + "|" + Math.round(ex.x) + "," + Math.round(ex.y);
+  return useMemo(() => {   
+    const p = frLayout(nodes, edges, radii, cfg);
+    declashLabels(p, nodes, radii, cfg);
+    return p;
+  }, [sig]);  // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// ── Subcomponents ──────────────────────────────────────────────────────────────
+
+function RmapBar({ onBack, N, edgeCount, filter, setFilter, filters }: {
+  onBack?: () => void; N: number; edgeCount: number;
+  filter: string; setFilter: (f: string) => void; filters: string[][];
+}) {
+  return (
+    <div className="relmap-bar">
+      <button className="fe-back" onClick={onBack} style={{ marginRight: 4 }}>
+        <Icon name="chevLeft" className="ic" /> Story Bible
+      </button>
+      <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)", fontFamily: "var(--font-prose)", whiteSpace: "nowrap" }}>
+        Relationship map
+      </span>
+      {N > 0 && <span style={{ fontSize: 12, color: "var(--ink-4)", whiteSpace: "nowrap" }}>{N} linked · {edgeCount} ties</span>}
+      {N > 0 && <div className="relmap-filter" style={{ marginLeft: "auto" }}>
+        {filters.map(([id, label]) => (
+          <button key={id} className={"rel-chip" + (filter === id ? " on" : "")} onClick={() => setFilter(id)}>{label}</button>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
+function RmapEmptyState({ onBack }: { onBack?: () => void }) {
+  return (
+    <div className="rmap-empty">
+      <svg width="170" height="104" viewBox="0 0 170 104" fill="none" aria-hidden="true">
+        <path d="M48 38 Q78 18 112 32" stroke="var(--ink-4)" strokeWidth="1.6" strokeDasharray="3 5" strokeLinecap="round" />
+        <path d="M44 48 Q60 72 76 80" stroke="var(--ink-4)" strokeWidth="1.6" strokeDasharray="3 5" strokeLinecap="round" />
+        <path d="M118 44 Q104 68 92 78" stroke="var(--ink-4)" strokeWidth="1.6" strokeDasharray="3 5" strokeLinecap="round" />
+        <circle cx="36" cy="36" r="15" stroke="var(--ink-4)" strokeWidth="1.6" strokeDasharray="4 5" />
+        <rect x="111" y="22" width="28" height="28" rx="9" stroke="var(--ink-4)" strokeWidth="1.6" strokeDasharray="4 5" />
+        <circle cx="84" cy="86" r="13" stroke="var(--ink-4)" strokeWidth="1.6" strokeDasharray="4 5" />
+      </svg>
+      <h3>No relationships yet</h3>
+      <p>Open any entry in the Story Bible and note who — or what — it&apos;s tied to. The map draws itself from there.</p>
+      <button className="btn btn-soft" onClick={onBack}><Icon name="book" className="ic" /> Open the Story Bible</button>
+    </div>
+  );
+}
+
+function RmapEdge({ edge, pos, dim, strong, N, hover }: {
+  edge: EdgeDef; pos: Record<string, Vec2>; dim: boolean; strong: boolean;
+  N: number; hover: string | null;
+}) {
+  const pa = pos[edge.a], pb = pos[edge.b];
+  if (!pa || !pb) return null;
+  const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
+  const dx = pb.x - pa.x, dy = pb.y - pa.y, len = Math.hypot(dx, dy) || 1;
+  const cx = mx + (-dy / len) * len * 0.12, cy = my + (dx / len) * len * 0.12;
+  const lx = 0.25 * pa.x + 0.5 * cx + 0.25 * pb.x, ly = 0.25 * pa.y + 0.5 * cy + 0.25 * pb.y;
+  const pct = strong ? 75 : 42;
+  const showLabel = !dim && (N <= 18 || hover !== null) && !!edge.label;
+  return (
+    <g className="rmap-edge" style={{ opacity: dim ? 0.08 : 1 }}>
+      <path fill="none" strokeLinecap="round" strokeWidth={1.8}
+        d={`M${pa.x} ${pa.y} Q${cx} ${cy} ${pb.x} ${pb.y}`}
+        stroke={`color-mix(in srgb, var(--ink-2) ${pct}%, transparent)`} />
+      {showLabel && <text className="rmap-elabel" x={lx} y={ly + 3}>{edge.label}</text>}
+    </g>
+  );
+}
+
+function RmapNode({ entity, p, r, dim, hot, onEnter, onOpenEntry }: {
+  entity: Entity; p: Vec2; r: number; dim: boolean; hot: boolean;
+  onEnter: (id: string) => void; onOpenEntry?: (id: string, kind: string) => void;
+}) {
+  const t = entity.type, round = t === "character";
+  const def = resolveEntityTypeDef(t, []);
+  const c = def.color;
+  const deep = `color-mix(in srgb, ${c} 78%, var(--ink))`;
+  const fill = `color-mix(in srgb, ${c} 15%, var(--paper))`;
+  const rx = Math.round(r * 0.36), s = Math.round(r * 1.06);
+  const kind = t.charAt(0).toUpperCase() + t.slice(1);
+  return (
+    <g className="rmap-node" style={{ opacity: dim ? 0.16 : 1 }}
+      onClick={() => onOpenEntry?.(entity.id, kind)} onMouseEnter={() => onEnter(entity.id)}>
+      <g className={hot ? "body hot" : "body"}>
+        {round
+          ? <circle cx={p.x} cy={p.y} r={r + 3.5} fill="none" stroke={c} strokeOpacity={0.4} strokeWidth={1} />
+          : <rect x={p.x - r - 3.5} y={p.y - r - 3.5} width={(r + 3.5) * 2} height={(r + 3.5) * 2} rx={rx + 3} fill="none" stroke={c} strokeOpacity={0.4} strokeWidth={1} />}
+        {round
+          ? <circle cx={p.x} cy={p.y} r={r} fill={fill} stroke={c} strokeWidth={hot ? 2.5 : 1.6} />
+          : <rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} rx={rx} fill={fill} stroke={c} strokeWidth={hot ? 2.5 : 1.6} />}
+        <svg x={p.x - s / 2} y={p.y - s / 2} width={s} height={s} viewBox="0 0 24 24"
+          fill="none" stroke={deep} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+          dangerouslySetInnerHTML={{ __html: ICON_PATHS[def.icon] ?? "" }} />
+      </g>
+      <text className="rmap-name" x={p.x} y={p.y + r + 17}>{entity.name}</text>
+    </g>
+  );
+}
+
+function RmapKeyCard({ present }: { present: string[] }) {
+  return (
+    <div className="rmap-key">
+      <h5>Map key</h5>
+      {present.map(t => {
+        const def = resolveEntityTypeDef(t, []);
+        return (
+          <div key={t} className="rmap-key-row" style={{ "--c": def.color } as CSSProperties}>
+            <span className={t === "character" ? "sw" : "sw sq"} />
+            {def.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+type RmapAreaProps = {
+  wrapRef: React.RefObject<HTMLDivElement | null>;
+  W: number; H: number; edges: EdgeDef[]; nodes: Entity[];
+  pos: Record<string, Vec2>; radii: Record<string, number>;
+  hover: string | null; setHover: (id: string | null) => void; N: number;
+  edgeShown: (e: EdgeDef) => boolean; nodeShown: (id: string) => boolean;
+  present: string[]; onOpenEntry?: (id: string, kind: string) => void;
+};
+
+function RmapMapArea({ wrapRef, W, H, edges, nodes, pos, radii, hover, setHover, N, edgeShown, nodeShown, present, onOpenEntry }: RmapAreaProps) {
+  return (
+    <div className="rmap-wrap" ref={wrapRef}>
+      <svg className="relgraph rmap" viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} onMouseLeave={() => setHover(null)}>
+        <rect x={11.5} y={11.5} width={W - 23} height={H - 23} fill="none" stroke="var(--line)" />
+        <rect x={16.5} y={16.5} width={W - 33} height={H - 33} fill="none" stroke="var(--line-soft)" />
+        {edges.map((e, i) => {
+          const dim = !edgeShown(e);
+          return <RmapEdge key={i} edge={e} pos={pos} dim={dim} strong={!dim && hover !== null && (e.a === hover || e.b === hover)} N={N} hover={hover} />;
+        })}
+        {nodes.map(e => {
+          const p = pos[e.id];
+          if (!p) return null;
+          return <RmapNode key={e.id} entity={e} p={p} r={radii[e.id]} dim={!nodeShown(e.id)} hot={hover === e.id} onEnter={setHover} onOpenEntry={onOpenEntry} />;
+        })}
+      </svg>
+      <RmapKeyCard present={present} />
+    </div>
+  );
+}
+
+// ── RelationshipMap ────────────────────────────────────────────────────────────
 
 export function RelationshipMap({ entities, relations, onOpenEntry, onBack }: RelationshipMapProps) {
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<string>("all");
   const [hover, setHover] = useState<string | null>(null);
-  const { pan, onMouseDown, onMouseMove, onMouseUp } = usePan();
-  const { edges, degree, N, W, H, pos, filteredNodes, visibleIds, FILTERS } = useMapDerivedData(entities, relations, filter);
+  const { edges, nodes, unlinkedCount, N, W, H, radii, present } = useRmapData(entities, relations);
+  const { wrapRef, measuredW } = useRmapMeasure(N);
+  const keyW = Math.max(96, present.reduce((m, t) => Math.max(m, resolveEntityTypeDef(t, []).label.length * 6.2 + 46), 0));
+  const rscale = Math.min(1, (measuredW ?? 820) / W);
+  const ex: ExZone = { x: Math.round((keyW + 46) / rscale), y: Math.round((34 + present.length * 21 + 46) / rscale) };
+  const pos = useRmapLayout(nodes, edges, radii, { W, H, ex });
+  const neighbors = useMemo(() => buildNeighbors(hover, edges), [hover, edges]);
+  const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
+  const FILTERS = [["all", "All"], ...present.map(t => [t, resolveEntityTypeDef(t, []).label])];
+  const nodeShown = (id: string) =>
+    (filter === "all" || nodeMap.get(id)?.type === filter) && (!neighbors || neighbors.has(id));
+  const edgeShown = (e: EdgeDef) => {
+    const ta = nodeMap.get(e.a)?.type, tb = nodeMap.get(e.b)?.type;
+    const typeOk = filter === "all" || (ta === filter && tb === filter);
+    return typeOk && (!neighbors || (neighbors.has(e.a) && neighbors.has(e.b) && (e.a === hover || e.b === hover)));
+  };
   return (
-    <div className="corkboard">
+    <div className="corkboard" data-screen-label="Relationship map">
       <div className="corkboard-inner" style={{ maxWidth: 1180 }}>
         <div style={{ maxWidth: W, margin: "0 auto" }}>
-          <MapHeader onBack={onBack} N={N} edgeCount={edges.length} filter={filter} setFilter={setFilter} filters={FILTERS} />
-          {N === 0
-            ? <div className="empty-hint" style={{ padding: 40, textAlign: "center" }}>No relationships yet. Link entities from their entries to see them here.</div>
-            : <MapCanvas W={W} H={H} pan={pan} edges={edges.filter((e) => visibleIds.has(e.a) && visibleIds.has(e.b))}
-                nodes={filteredNodes} pos={pos} degree={degree}
-                hover={hover} setHover={setHover} N={N} onOpenEntry={onOpenEntry}
-                onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} />}
+          <RmapBar onBack={onBack} N={N} edgeCount={edges.length} filter={filter} setFilter={setFilter} filters={FILTERS} />
+          {N === 0 ? <RmapEmptyState onBack={onBack} /> : (
+            <RmapMapArea wrapRef={wrapRef} W={W} H={H} edges={edges} nodes={nodes} pos={pos} radii={radii} hover={hover} setHover={setHover} N={N} edgeShown={edgeShown} nodeShown={nodeShown} present={present} onOpenEntry={onOpenEntry} />
+          )}
+          {N > 0 && unlinkedCount > 0 && (
+            <div className="rmap-foot">
+              <Icon name="link" className="ic" />
+              {`${unlinkedCount} more ${unlinkedCount === 1 ? "entity isn't" : "entities aren't"} on the map yet — add ties from their entries to draw them in.`}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-// ── MapHeader ─────────────────────────────────────────────────────────────────
-
-function MapHeader({ onBack, N, edgeCount, filter, setFilter, filters }: {
-  onBack?: () => void; N: number; edgeCount: number;
-  filter: string; setFilter: (f: string) => void; filters: string[][];
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0 10px" }}>
-      <button className="fe-back" onClick={onBack} style={{ marginRight: 4 }}>
-        <Icon name="chevLeft" className="ic" /> Story Bible
-      </button>
-      <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)", fontFamily: "var(--font-prose)" }}>
-        Relationship map
-      </span>
-      <span style={{ fontSize: 12, color: "var(--ink-4)" }}>
-        {N} linked · {edgeCount} connections
-      </span>
-      <div style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
-        {filters.map(([id, label]) => (
-          <button key={id} className={"rel-chip" + (filter === id ? " on" : "")}
-            onClick={() => setFilter(id)}>
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── MapCanvas ─────────────────────────────────────────────────────────────────
-
-function MapCanvas({ W, H, pan, edges, nodes, pos, degree, hover, setHover, N,
-  onOpenEntry, onMouseDown, onMouseMove, onMouseUp }: {
-  W: number; H: number; pan: { x: number; y: number };
-  edges: EdgeEntry[]; nodes: Entity[];
-  pos: Map<string, { x: number; y: number }>;
-  degree: Record<string, number>;
-  hover: string | null; setHover: (id: string | null) => void; N: number;
-  onOpenEntry?: (id: string, kind: string) => void;
-  onMouseDown: (e: React.MouseEvent) => void;
-  onMouseMove: (e: React.MouseEvent) => void;
-  onMouseUp: () => void;
-}) {
-  return (
-    <div style={{ overflow: "hidden", cursor: "grab", userSelect: "none" }}
-      onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%"
-        style={{ display: "block", transform: `translate(${pan.x}px, ${pan.y}px)` }}
-        onMouseLeave={() => setHover(null)}>
-        <MapEdgeLayer edges={edges} pos={pos} N={N} hover={hover} />
-        {nodes.map((entity) => {
-          const p = pos.get(entity.id);
-          if (!p) return null;
-          return (
-            <MapNodeItem key={entity.id} entity={entity} p={p}
-              r={nodeRadius(degree[entity.id] ?? 1)}
-              hover={hover} onHover={setHover} onOpenEntry={onOpenEntry} />
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
