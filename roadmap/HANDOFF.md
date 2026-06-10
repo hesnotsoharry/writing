@@ -4,51 +4,27 @@ updated: 2026-06-10
 ---
 
 ## Current state
-- Branch: master · wave-30 license-activation SHIPPED 2026-06-10 (commits 274b988..c43759e + wrap)
-- Tag: none yet — next release is v0.3.0 (minor: licensing feature) · **ROLLOUT PRECONDITION: do NOT publish until Cole + partner hold license keys (gate locks existing installs out of the UI until a key is entered; data untouched)**
-- Active wave: none
-- Status: SHIPPED (license-activation screen delivered)
-- v0.2.6 build: 1043+ tests pass · TypeScript clean · lint clean · ready to stage
-- Marketing: 73 own tests · gates: test + tsc only (no lint, for stack independence)
-- Marketing launch-prep assets LIVE 2026-06-10: OG/social cards + og-card.png, real-mark favicon, press.html — plan + owners in [marketing-execution-plan.md](marketing-execution-plan.md)
-- **CF Pages is git-connected: any push to master = production deploy of the marketing site.** `npm run deploy` (wrangler) fails in agent sessions — push IS the pipeline.
-- Updater verified: Cole ran v0.2.4→v0.2.5 auto-update successfully · clean restart · quiet install working
-- Wave-30 audit results: 13 follow-ups remain open (none prioritized) · 1 decision promoted to durable records · tauri.md vendor-gotcha +1 entry
-- Known friction: UpdateModal doesn't distinguish restart error vs install error — marked for follow-up clarity pass
-
-## Overnight session 2026-06-10 (post-dry-run fixes) — MORNING TEST CHECKLIST
-- **Provisioned & live:** Supabase (migrations + RLS), Cloudflare Pages (`writersnook.app`), `/api/health` green (real DB round-trip), LS test-mode webhook set. Lockfile dropped for `marketing/` (`.npmrc package-lock=false`) — npm cannot reconcile wrangler's esbuild 0.17 vs vitest's 0.28; Pages now plain-installs.
-- **Dry-run found 2 checkout bugs; both fixed + deployed + live-verified via browser:**
-  1. checkout.html shipped the design-mock card/CVC/name fields wired to nothing (the "two forms" complaint + trust hazard) — removed; step 2 is now an LS trust note. Email prefill confirmed reaching Stripe billing details.
-  2. purchase-success "—" summary: Checkout.Success sessionStorage handoff didn't arrive; page now ALSO reads `?order_id=&email=&total=` query params (LS confirmation-link template variables) before falling back.
-- **Morning actions (Cole):** (1) LS dashboard → product → Confirmation modal button link → set to `https://writersnook.app/purchase-success.html?order_id=[order_id]&email=[email]&total=[total]`. (2) Re-run the test purchase: expect NO card fields on our page, overlay prefilled email, and real order data on success page. (3) DevTools console during purchase: look for `[wn-checkout] lemon.js event: Checkout.Success` — tells us if the postMessage path works (if yes, summary fills even without the redirect params). (4) Continue E2E-TEST-PLAN: refund path + magic-link account + newsletter/contact. (5) Azure: retry cert profile if not done; send account name + region + profile name for publish.ps1 signing.
-- Adversarial hypothesis review correctly killed two wrong fixes tonight (bracket-encoding + embed-stripping theories); runtime browser smoke found the real causes.
+- Branch: master · wave-31 relationship-map-overhaul SHIPPED 2026-06-10 (4a1c066..c9b93dc; mechanical review PASS)
+- Map now renders the Claude Design "Cartographer's key" design: six-type colors/icons, key card, hover focus, empty state — CDP-smoke-verified both themes
+- v0.2.6 in use · 1089 tests green · next release v0.3.0 (licensing) — **ROLLOUT PRECONDITION: do NOT publish until Cole + partner hold license keys** (gate locks existing installs out of the UI until a key is entered; data untouched)
+- Marketing site (writersnook.app, auto-deploys on push to master): today shipped LS overlay branding (clay button), dark-mode email-input fix, founder-price labels (incl. hero + checkout), macOS claims pulled → "Windows today · macOS coming soon" (no Mac build exists; needs Apple Dev account + macOS CI when we do it)
+- Design-reference synced from Claude Design handoff bundle (relmap Direction B canon)
 
 ## Next 3 steps (launch sequence)
-1. **Cole provisioning:** Azure cert profile (validation approved; profile creation hit transient error — retry) · Supabase project create · Cloudflare Pages project on `marketing/` · then agent wires migrations/env/LS webhook per runbooks.
-2. **Wire Authenticode signing into publish.ps1** (needs Cole's Trusted Signing account name + region + cert profile name) → then E2E test-mode purchase dry run (`marketing/E2E-TEST-PLAN.md`) → LS test→live flip.
-3. **Generate Cole + partner license keys** (100%-off coupons, LIVE mode — doubles as live pipeline smoke) → THEN publish v0.3.0 (first gated + signed release). Installer hosting for downloads.writersnook.app still undecided (R2 recommended).
+1. **Cole:** LS dashboard — set product Confirmation-modal button link to `https://writersnook.app/purchase-success.html?order_id=[order_id]&email=[email]&total=[total]`; set store-level button colors `#b25a38` / `#ffffff`; re-run test purchase per `marketing/E2E-TEST-PLAN.md` (expect: no card fields on our page, prefilled overlay, real order data on success page)
+2. **Cole:** Azure Trusted Signing cert profile (retry after transient error) → send account name + region + profile name → agent wires Authenticode into publish.ps1 → LS test→live flip
+3. **Generate Cole + partner license keys** (100%-off coupons, LIVE mode — doubles as live pipeline smoke) → publish v0.3.0 (first gated + signed release) · installer hosting for downloads.writersnook.app still undecided (R2 recommended)
 
 ## Active work
-- Wave in flight: none
-- Completed wave: wave-30-license-activation (shipped, wrapped, audit done)
-- Open follow-ups: 13 items
-- Inbox: [roadmap/follow-ups/](follow-ups/)
-- Top item priority: none (audit found all 13 unrelated to license-activation scope)
-- Marketing launch sequence pending:
-  - **Provision:** Supabase migrations + Resend domain verification
-  - **E2E test:** Cole runs test-mode purchase → webhook delivery → email receipt → success page
-  - **Publish:** v0.2.6+ release to GitHub with signed installer
-  - **DNS cutover:** writersnook.app domain
-- Marketing build status: feature code complete (m1–m4 phases) · all gates green · runbooks documented
-- Marketing promo prep (2026-06-10): [marketing-execution-plan.md](marketing-execution-plan.md) (4 phases, Cole-vs-AI owners) + [show-hn-launch-kit.md](show-hn-launch-kit.md) drafted · **Cole:** answer the 4 [CONFIRM] items in the HN kit (open-source stance, exports, trial, offline activation) + 2-min analytics enable (CF dashboard → Pages project → Metrics → Enable Web Analytics) · next AI items: AuthorTube outreach list, "vs Scrivener" comparison page, demo shot list
-- Deferred tasks: UpdateModal error clarity · rate-limiting + body-size guards on contact + newsletter endpoints
+- Wave in flight: none · wave-31 wrapped (no follow-ups qualified, no decisions promoted, no vendor gotchas)
+- Marketing refresh pending: Claude Design brief for new features (auto-link, outliner, expanded story bible, relationship map) drafted in-session 2026-06-10 — Cole feeding it to Claude Design; relationship-map screenshots for the site should use the NEW map (shipped today)
+- Open follow-ups: 13 OPEN, none prioritized · [inbox](follow-ups/)
+- Deferred: UpdateModal error clarity · rate-limiting + body-size guards on contact/newsletter endpoints · EgoGraph restyle (still old gray styling; deferral noted in wave-31 plan) · thread customTypes into RelationshipGroup chips (map has it; FullEntry chips fall back)
 
 ## Reference index
-- **Project conventions:** [CLAUDE.md](../CLAUDE.md) — local-first Tauri desktop (no built-in AI) · marketing site under `marketing/`
-- **Durable decisions:** [roadmap/decisions/](decisions/) — [0001-local-first-architecture](decisions/0001-local-first-architecture.md) (relay-only, no server storage) · others
-- **Vendor-gotchas:** [.claude/vendor-gotchas/tauri.md](../../.claude/vendor-gotchas/tauri.md) (wave-30: +1 entry) · marketing (lemonsqueezy, resend, Supabase)
-- **Build commands:** `npm run tauri dev` (WebView2 CDP 9222 + tauri-devtools) · `npm run test` · `npm run lint:fix` · marketing: `cd marketing && npm test`
-- **Release pipeline:** [RELEASING.md](../../RELEASING.md) (version-anchored sync) · `.\publish.ps1` (Cole-only) · signed NSIS installer + GitHub release
-- **Key UI/docs:** [UpdateModal.tsx](../../src/features/updater/UpdateModal.tsx) · [go-to-market.md](go-to-market.md) · [launch-infra-checklist.md](launch-infra-checklist.md) · [marketing-execution-plan.md](marketing-execution-plan.md) · [show-hn-launch-kit.md](show-hn-launch-kit.md)
-- **Marketing provisioning:** [CHECKOUT-SETUP.md](../../marketing/CHECKOUT-SETUP.md) · [SUPABASE-AUTH-SETUP.md](../../marketing/SUPABASE-AUTH-SETUP.md)
+- Project conventions: [CLAUDE.md](../CLAUDE.md) · push to master = marketing deploy (Cloudflare Pages)
+- Durable decisions: [decisions/](decisions/) · design canon: `design-reference/RELATIONSHIPS-SPEC.md` (+ BATCH-HANDOFF porting index)
+- Vendor-gotchas: [.claude/vendor-gotchas/tauri.md](../.claude/vendor-gotchas/tauri.md) · marketing: `marketing/.claude/vendor-gotchas/` (lemonsqueezy, resend)
+- Build: `npm run tauri dev` (CDP 9222 + tauri-devtools MCP) · `npm run test` · marketing: `cd marketing && npm test`
+- Release: [RELEASING.md](../../RELEASING.md) · `.\publish.ps1` (Cole-only, interactive)
+- E2E/provisioning runbooks: `marketing/E2E-TEST-PLAN.md` · `marketing/CHECKOUT-SETUP.md` · `marketing/SUPABASE-AUTH-SETUP.md`
