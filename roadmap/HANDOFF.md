@@ -1,42 +1,43 @@
 ---
 project: writing
-updated: 2026-06-09
+updated: 2026-06-10
 ---
 
 ## Current state
-- Branch: master · Latest commit: a64c71c · Tag: v0.2.6 (released, pushed)
-- **Session (2026-06-09, afternoon):** Lane B bug-list (8 partner-reported bugs) + updater hardening · 9 commits: v0.2.2→v0.2.6 released
-- **Session (2026-06-09, evening):** `marketing-backend` branch (waves m1–m4) MERGED into master — marketing site + commerce backend now in-tree under `marketing/`
-- **Updater confirmed working end-to-end:** Cole installed v0.2.4 → auto-updated to v0.2.5 successfully
-- **Shipped fixes (afternoon):** responsive titlebar · editor focus on click · wordcount persistence backfill · app-styled UpdateModal · quiet NSIS install · live About version · ask() permission fix · version-anchored publish.ps1
-- **Gates:** 1043 app tests pass / TypeScript clean / lint clean (marketing adds 63 tests, own gates: test + tsc, no lint)
-- **v0.2.6 status:** Tagged (a64c71c) · NOT YET PUBLISHED (awaiting `.\publish.ps1`)
+- Branch: master · wave-30 license-activation SHIPPED 2026-06-10 (commits 274b988..c43759e + wrap)
+- Tag: none yet — next release is v0.3.0 (minor: licensing feature) · **ROLLOUT PRECONDITION: do NOT publish until Cole + partner hold license keys (gate locks existing installs out of the UI until a key is entered; data untouched)**
+- Active wave: none
+- Status: SHIPPED (license-activation screen delivered)
+- v0.2.6 build: 1043+ tests pass · TypeScript clean · lint clean · ready to stage
+- Marketing: 63+ own tests · gates: test + tsc only (no lint, for stack independence)
+- Updater verified: Cole ran v0.2.4→v0.2.5 auto-update successfully · clean restart · quiet install working
+- Wave-30 audit results: 13 follow-ups remain open (none prioritized) · 1 decision promoted to durable records · tauri.md vendor-gotcha +1 entry
+- Known friction: UpdateModal doesn't distinguish restart error vs install error — marked for follow-up clarity pass
 
 ## Next 3 steps (launch sequence)
-1. **License activation screen in the app** (wave): paste key → LS `activate` (key + machine ID, public API) → store local flag → never phone home again. App currently has NO licensing at all.
-2. **Provision + deploy + E2E purchase test** (see Marketing launch state below), then publish v0.2.6 and get partner onto ≥v0.2.4.
-3. **DONE 2026-06-09 — relay rewrite:** cloud storage REMOVED (LS compliance); Device Sync $5/mo reframed as E2E-encrypted relay, no server-side storage of user data. 18 files rewritten (privacy/pricing/features/index/checkout/account/email + terms/refunds/support/whats-new/purchase-success) + ADR 0001 & spec amended (y-sweet must be stateless relay). Adversarially reviewed (FLAG items fixed).
-
-## Marketing launch state (merged from marketing-backend)
-- **m1–m4 feature code DONE, gates green** — built against placeholders; provisioning + deploy remain:
-  - Provision: Supabase project + m1–m4 migrations → `.dev.vars` (server) + `supabase-config.js` (client); Resend key + verified domain
-  - LS dashboard: webhook → `order_created` + `order_refunded` + **`license_key_created`** (license-key source); test→live flip; signing secret → env
-  - Deploy: CF Pages on `marketing/` subdir, LS webhook callback `/api/webhooks/lemon-squeezy`, DNS cutover `writersnook.app`
-- **Pre-live E2E test required (Cole):** test-mode purchase → webhook→DB → license email delivered → success-page key + receipt link + download
-- **Gotchas:** lemon.js from `assets.lemonsqueezy.com/lemon.js` · license key arrives on `license_key_created`, NOT `order_created` · LS License API is public · Resend `from` must be verified domain
-- **Deferred:** rate-limiting + body-size guards on `/api/contact` + `/api/newsletter`
-- **Runbooks:** `marketing/CHECKOUT-SETUP.md` · `marketing/SUPABASE-AUTH-SETUP.md` · strategy: `roadmap/go-to-market.md`, `roadmap/launch-infra-checklist.md`
+1. **Cole provisioning:** Azure cert profile (validation approved; profile creation hit transient error — retry) · Supabase project create · Cloudflare Pages project on `marketing/` · then agent wires migrations/env/LS webhook per runbooks.
+2. **Wire Authenticode signing into publish.ps1** (needs Cole's Trusted Signing account name + region + cert profile name) → then E2E test-mode purchase dry run (`marketing/E2E-TEST-PLAN.md`) → LS test→live flip.
+3. **Generate Cole + partner license keys** (100%-off coupons, LIVE mode — doubles as live pipeline smoke) → THEN publish v0.3.0 (first gated + signed release). Installer hosting for downloads.writersnook.app still undecided (R2 recommended).
 
 ## Active work
-- **Wave in flight:** None
-- **Open follow-ups:** 2 — top: [2026-06-08-autolink-find-mentions-integration](follow-ups/2026-06-08-autolink-find-mentions-integration.md) (K3); ~11 prior items from waves 5–27 remain open
-- **Known mislead:** UpdateModal doesn't distinguish restart vs install failure; reports both as "Update found, but it couldn't be installed"
+- Wave in flight: none
+- Completed wave: wave-30-license-activation (shipped, wrapped, audit done)
+- Open follow-ups: 13 items
+- Inbox: [roadmap/follow-ups/](follow-ups/)
+- Top item priority: none (audit found all 13 unrelated to license-activation scope)
+- Marketing launch sequence pending:
+  - **Provision:** Supabase migrations + Resend domain verification
+  - **E2E test:** Cole runs test-mode purchase → webhook delivery → email receipt → success page
+  - **Publish:** v0.2.6+ release to GitHub with signed installer
+  - **DNS cutover:** writersnook.app domain
+- Marketing build status: feature code complete (m1–m4 phases) · all gates green · runbooks documented
+- Deferred tasks: UpdateModal error clarity · rate-limiting + body-size guards on contact + newsletter endpoints
 
 ## Reference index
-- **Project:** [CLAUDE.md](../CLAUDE.md) — local-first Tauri desktop app, zero built-in AI · marketing site decoupled under `marketing/`
-- **Process:** Lane A (features) + Lane B (bugs) per `~/.claude/rules/development-pipeline.md`
-- **Durable ADRs:** [decisions/](decisions/) — keystone: [0001-local-first-architecture.md](decisions/0001-local-first-architecture.md) (amended 2026-06-09: relay-only sync, no server-side storage) · [act-then-mark-webhook-idempotency.md](decisions/act-then-mark-webhook-idempotency.md)
-- **Updater pipeline:** [RELEASING.md](../../RELEASING.md) + `publish.ps1` (version-anchored) · UI: [UpdateModal.tsx](../../src/features/updater/UpdateModal.tsx) · `installMode=quiet`
-- **Build & test:** `npm run tauri dev` (WebView2 CDP 9222 + tauri-devtools MCP) · `npm run test` (Vitest) · `npm run lint:fix` · marketing: `cd marketing && npm test`
-- **Vendor-gotchas:** [.claude/vendor-gotchas/](../../.claude/vendor-gotchas/) (tauri) · `marketing/.claude/vendor-gotchas/{lemonsqueezy,resend}.md`
-- **Environment:** Node 20+ / Rust / VS Build Tools C++ · Cargo.lock IS committed
+- **Project conventions:** [CLAUDE.md](../CLAUDE.md) — local-first Tauri desktop (no built-in AI) · marketing site under `marketing/`
+- **Durable decisions:** [roadmap/decisions/](decisions/) — [0001-local-first-architecture](decisions/0001-local-first-architecture.md) (relay-only, no server storage) · others
+- **Vendor-gotchas:** [.claude/vendor-gotchas/tauri.md](../../.claude/vendor-gotchas/tauri.md) (wave-30: +1 entry) · marketing (lemonsqueezy, resend, Supabase)
+- **Build commands:** `npm run tauri dev` (WebView2 CDP 9222 + tauri-devtools) · `npm run test` · `npm run lint:fix` · marketing: `cd marketing && npm test`
+- **Release pipeline:** [RELEASING.md](../../RELEASING.md) (version-anchored sync) · `.\publish.ps1` (Cole-only) · signed NSIS installer + GitHub release
+- **Key UI/docs:** [UpdateModal.tsx](../../src/features/updater/UpdateModal.tsx) · [go-to-market.md](roadmap/go-to-market.md) · [launch-infra-checklist.md](roadmap/launch-infra-checklist.md)
+- **Marketing provisioning:** [CHECKOUT-SETUP.md](../../marketing/CHECKOUT-SETUP.md) · [SUPABASE-AUTH-SETUP.md](../../marketing/SUPABASE-AUTH-SETUP.md)

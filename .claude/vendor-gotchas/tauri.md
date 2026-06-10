@@ -2,7 +2,7 @@
 vendor: "Tauri 2.x"
 sdkVersion: "2"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-09
+lastVerified: 2026-06-10
 relatedPaths:
   - src/shell/WindowControls.tsx
   - src/shell/TitleBar.tsx
@@ -64,3 +64,9 @@ Source: recent session, commit a64c71c
 **Gotcha:** The progress callback from `downloadAndInstall()` emits events: `{event: 'Started'|'Progress'|'Finished', data:{contentLength?,chunkLength}}`. On 'Finished', the installation is ready but the app does NOT automatically restart. The update will not be applied without an explicit call to `relaunch()` from `@tauri-apps/plugin-process`.
 **Workaround:** Listen for the 'Finished' event and call `relaunch()` after a brief UI confirmation (e.g., "Update installed, restarting…"). Do NOT assume the NSIS installer or OS will auto-restart the app.
 **Why:** NSIS (the Windows installer format used by Tauri) unpacks and registers the update, then returns control to the app. Tauri expects the app to orchestrate the restart via the process plugin.
+
+## 2026-06-10 — Tauri `tauri://localhost` CORS behavior with external APIs is undocumented
+Source: wave-30-license-activation, commit 274b9887db0886be1d46693bba3c45ef7439001d
+**Gotcha:** The CORS behavior of the `tauri://localhost` origin when making requests to external APIs (e.g., Lemon Squeezy licensing) is undocumented. Whether cross-origin requests are allowed or denied cannot be determined without testing or source reading. This makes it risky to rely on webview fetch for external API calls.
+**Workaround:** Use `reqwest` (or another Rust HTTP client) to make the external API call from a Tauri command, rather than fetching from the webview. This sidesteps the CORS question entirely and keeps sensitive data (license keys) off the webview wire. Move the HTTP call to the Rust backend and return the parsed result to the frontend.
+**Why:** Tauri's webview security model isolates the frontend from the host, but the exact CORS rules for `tauri://localhost` are not formally documented. The origin may or may not be treated as same-origin by WebView2, and the behavior may vary across Tauri versions. Using the Rust backend for external API calls is more robust, more secure (no keys on the wire), and avoids documentation gaps.
