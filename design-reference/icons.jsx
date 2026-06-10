@@ -80,4 +80,4 @@ function StatusGlyph({ status, size = 13, onClick, title, className, style }) {
   );
 }
 
-Object.assign(window, { Icon, StatusGlyph });
+Object.assign(window, { Icon, StatusGlyph, ICON_PATHS });

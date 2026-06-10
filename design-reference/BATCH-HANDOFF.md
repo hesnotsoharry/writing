@@ -26,7 +26,7 @@ specs — read this first, then the relevant `*-SPEC.md`.
 | Goals (multi-goal, adaptive editor, per-type viz, manager) | full | `GOALS-SPEC.md` |
 | Snapshots / version history | full | `SNAPSHOTS-SPEC.md` |
 | Outliner + color labels | full | `OUTLINER-SPEC.md` |
-| Relationships (presets, reciprocal, ego-graph, map) | full | `RELATIONSHIPS-SPEC.md` |
+| Relationships (presets, reciprocal, ego-graph, map) | full · **map reskinned Jun 2026 ("Cartographer's key")** | `RELATIONSHIPS-SPEC.md` (incl. porting checklist) |
 | Entity types (tiered bible, Items/Factions/Lore/Themes, custom) | full | `ENTITY-TYPES-SPEC.md` |
 | Find & replace + focus/composition | core | `FIND-FOCUS-SPEC.md` |
 
@@ -45,7 +45,7 @@ surface, frozen here); the relationship **map's force layout → swap for
 | `snapshots.jsx` | Version history: `HistorySection` (inspector rail) + `VersionHistory` (overlay) + `diffWords` |
 | `outliner.jsx` | `Outliner` table + `LabelManager` + label assignment popover |
 | `findreplace.jsx` | `FindReplace` overlay + pure `frSearch`/`frRegex` |
-| `relmap.jsx` | `RelationshipMap` + hand-rolled `frLayout` (force-directed; → `d3-force` in prod) |
+| `relmap.jsx` | `RelationshipMap` + hand-rolled `frLayout` (force-directed; → `d3-force` in prod). **Visual overhaul Jun 2026** — chart frame, icon nodes, halo labels, map-key card; port checklist in `RELATIONSHIPS-SPEC.md` |
 | `customtype.jsx` | `CustomTypeCreator` modal |
 
 **Stylesheets (`writing-app-design/*.css`)** — linked in `index.html`:

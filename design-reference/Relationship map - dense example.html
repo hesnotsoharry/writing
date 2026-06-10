@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Relationship map — dense example (20 characters · 10 locations)</title>
+<link rel="stylesheet" href="writing-app-design/tokens.css" />
+<link rel="stylesheet" href="writing-app-design/app.css" />
+<link rel="stylesheet" href="writing-app-design/relationships.css" />
+<style>html,body{margin:0;height:100%;background:var(--parchment-deep)}#root{position:fixed;inset:0;overflow:auto}</style>
+</head>
+<body data-theme="light">
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="writing-app-design/icons.jsx"></script>
+<script type="text/babel" src="writing-app-design/relmap.jsx"></script>
+<script type="text/babel">
+  const QS = new URLSearchParams(location.search);
+  if (QS.get("theme")) document.body.setAttribute("data-theme", QS.get("theme"));
+  if (QS.get("zoom")) document.body.style.zoom = QS.get("zoom");
+  window.ENTITY_DETAILS = {};
+  window.ENTITY_TYPE_DEFS = { character: { label: "Characters" }, location: { label: "Locations" }, item: { label: "Items" }, faction: { label: "Factions" }, lore: { label: "Lore" } };
+  const NAMES = ["Maren","Edda","Tomas","Lia","Silas","Wenna","Bram","Cora","Halden","Iris","Joss","Karel","Lena","Mott","Nessa","Orrin","Pell","Quin","Rhea","Sten"];
+  const LOCS = ["Lighthouse","Causeway","Roe House","Old Jetty","Glass House","Harbour","North Reef","Salt Marsh","Spit","Keeper's Row"];
+  const ents = [];
+  NAMES.forEach((nm, i) => ents.push({ id: "c" + i, name: nm + " Vale", initial: nm[0], color: "character", type: "character" }));
+  LOCS.forEach((nm, i) => ents.push({ id: "l" + i, name: "The " + nm, initial: nm[0], color: "location", type: "location" }));
+  ents.push({ id: "i0", name: "Edda's Logbook", initial: "L", color: "gold", type: "item" });
+  ents.push({ id: "f0", name: "The Keepers", initial: "K", color: "plum", type: "faction" });
+  ents.push({ id: "o0", name: "The Maundy Wreck", initial: "M", color: "sea", type: "lore" });
+  const REL = ["Ally","Rival","Sibling","Parent","Friend","Mentor","Keeper","Visitor"];
+  const ED = {};
+  if (!QS.has("empty")) for (let i = 0; i < NAMES.length; i++) {
+    const ppl = [];
+    ppl.push({ id: "c" + ((i + 1) % NAMES.length), relation: REL[i % REL.length] });
+    if (i % 2 === 0) ppl.push({ id: "c" + ((i + 3) % NAMES.length), relation: REL[(i + 2) % REL.length] });
+    if (i % 3 === 0) ppl.push({ id: "l" + (i % LOCS.length), relation: "Keeper" });
+    if (i === 0) { ppl.push({ id: "i0", relation: "Inherited" }); ppl.push({ id: "f0", relation: "Initiate" }); }
+    if (i === 4) ppl.push({ id: "f0", relation: "Leader of" });
+    if (i === 7) ppl.push({ id: "o0", relation: "Survivor kin" });
+    ED["c" + i] = { people: ppl };
+  }
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <RelationshipMap entities={ents} edits={ED} onOpen={() => {}} onBack={() => {}} />
+  );
+</script>
+</body>
+</html>

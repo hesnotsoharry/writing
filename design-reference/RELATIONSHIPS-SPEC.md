@@ -3,6 +3,82 @@
 **Status:** partially built into the canon prototype (`index.html`). Wave
 feature 3. Exploration: `Relationships - explorations.html`.
 
+## Update (Jun 2026) — Relationship Map visual overhaul (Direction B committed)
+
+The map got a full restyle, explored in **`Relationship map - explorations.html`**
+(three directions; the user picked **B · "Cartographer's key"**) and committed
+into `relmap.jsx` + `relationships.css` (`.rmap-*` block). Mechanics unchanged
+(static FR layout, degree sizing, type filter, hover-focus, click-to-open).
+What changed visually + structurally:
+
+- **Six-type color system** from the existing `--label-*` palette: clay
+  characters · moss locations · gold items · plum factions · sea lore (themes
+  stay off the map). No more flat-gray non-character types.
+- **Nodes:** 15% type-tint body on paper, 1.6px type ring + a faint outer
+  double ring (chart voice), **type icon** in the node (single-person glyph for
+  characters; `ENTITY_TYPE_DEFS[t].icon` for the rest — custom types carry
+  their own icon). Hover: ring thickens to 2.5px, +7% scale, warm drop-shadow.
+  Dim state 0.16 opacity. `icons.jsx` now exports `window.ICON_PATHS` (the raw
+  path strings) so SVG nodes can embed glyphs via nested `<svg>`.
+- **Name labels:** italic Literata 12.5px with a paper-halo stroke
+  (`paint-order: stroke`) — legible over edges, place-name-on-a-chart feel.
+- **Edges:** 1.8px `color-mix(ink-2 42%)` quiet strokes (75% when adjacent to
+  the hovered node); labels are italic serif with the same halo, shown for
+  ≤18-node casts or on hover.
+- **Canvas:** ruled double-line chart frame on paper; the canvas now also
+  **shrinks around sparse casts** (min 560×420 instead of 760+) so 2–3 nodes
+  sit in a considered frame.
+- **Map key card** (`.rmap-key`) bottom-left inside the canvas — lists the
+  types present with color/shape swatches. The layout reserves that corner
+  (exclusion zone in `frLayout`) and a **label de-clash pass** separates name
+  labels that share a band.
+- **Footer hint** when linked entities exist but others don't: "N more
+  entities aren't on the map yet — add ties from their entries…".
+- **Empty state** (`.rmap-empty`): ghost dashed mini-graph, "No relationships
+  yet", one line of guidance, and an "Open the Story Bible" action (`onBack`).
+- **Both themes** via tokens only; dark gets its own drop-shadow values.
+- Fixture: `Relationship map - dense example.html` now seeds all five types and
+  supports `?theme=dark`, `?empty=1`, `?zoom=0.6` for quick visual checks.
+
+### Porting checklist (map overhaul → production)
+
+1. **Copy `relmap.jsx` → TSX.** It's self-contained except four globals to swap
+   for imports/store reads: `window.ENTITY_DETAILS` (authored `people` links),
+   `window.ENTITY_TYPE_DEFS` (`{label, icon, color}` per type, incl. custom
+   types), `window.ICON_PATHS` (raw SVG path strings — see #3), `window.Icon`.
+2. **Copy `relationships.css` verbatim** (the `.rmap-*` block is the new skin;
+   keep the old `.relgraph` rules — the Full-Entry ego graph still uses them).
+   External classes it leans on: `.corkboard`/`.corkboard-inner`, `.btn`/
+   `.btn-soft` (app.css), `.fe-back` (full-entry.css), `.relmap-bar`/`.rel-chip`
+   (same file). All colors/motion come from `tokens.css` — copy unmodified.
+3. **Expose raw icon paths.** `icons.jsx` now exports `ICON_PATHS` because the
+   node glyphs are nested `<svg>` with `dangerouslySetInnerHTML` — production
+   needs the same raw-path access (or render Lucide components into the nested
+   svg). Glyphs used: `user`, `mapPin`, `box`, `flag`, `globe`, `circleOpen`
+   (fallback), plus `chevLeft`, `link`, `book` in the chrome.
+4. **Data contract unchanged:** entities `{id, name, initial, type, color}`;
+   undirected edges derived from `people: [{id, relation}]`, deduped by sorted
+   id pair; **themes excluded**. Custom types appear automatically (icon +
+   palette color from their type def).
+5. **Behaviors to keep exactly:**
+   - layout runs ONCE in `useMemo` (sig = node ids + edge count + W + rscale);
+     no continuous simulation;
+   - degree sizing `r = 15 + min(11, deg*2)`;
+   - canvas `W = clamp(560, 250√N, 1500)`, `H = max(420, 0.64W)` — the small
+     minimum is the sparse-cast framing, don't raise it;
+   - edge labels at rest only when N ≤ 18, otherwise hover-only;
+   - hover dims non-neighbours (nodes 0.16, edges 0.08), adjacent edges go 75%;
+   - **the ResizeObserver on `.rmap-wrap` is load-bearing**: the key card is a
+     fixed-px overlay, so the layout's corner exclusion is sized from the card's
+     px size ÷ the measured render scale (`clientWidth / W`). Drop it and nodes
+     land behind the card on narrow panes;
+   - label de-clash pass after layout (est. width `name.length * 6.8 + 12`).
+6. **Fonts:** the name/edge labels are *italic* Literata 500 — make sure the
+   italic axis ships in the self-hosted Tauri fonts (see HANDOFF.md).
+7. **QA parity:** reproduce the fixture checks — ~30 nodes default zoom (key
+   card corner clear), `?theme=dark`, `?empty=1` (empty state + CTA), filter
+   chips, click-to-open, footer hint when unlinked entities exist.
+
 ## Built into canon now
 
 The Full Entry (`entry.jsx`) already had a working relationship list
