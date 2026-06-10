@@ -142,4 +142,19 @@ decision-review cell.)*
 
 ## Result
 
-*(filled at ship by wrap team)*
+### Mechanical review
+
+**Inputs resolved:** Plan: roadmap/wave-31-relationship-map-overhaul.md · Diff range: 755388b..c31c8f4 (4 commits) · Graph: fallback (grep traces) · Run: 2026-06-10
+
+## Mechanical review: PASS
+## Checks N/A: 4-6 (no schema removal, no cross-boundary phases, no stryker config)
+
+Check 1 (forward-trace): all changed symbols reach production consumers — RelationshipMap → StoryBibleView render; entityTypeDefs → map nodes/key/filters + RelationshipGroup chips; relationships.css → main.tsx import; customTypes threaded StoryBibleView → props → all 4 resolver sites. No silent drops. Check 2 (universals): "all five mapped types distinct" (smoke-verified, all five observed), "themes never appear" (double-guarded, tested), "all values through tokens" (one rgba() verbatim from design, justified in phase report) — all covered. Check 3 (exports): no dead exports; frLayout's LayoutNode/LayoutEdge are parameter types of its consumed public functions (structural typing at RelationshipMap call sites), not dead.
+
+### Wave-end adversarial review
+
+attack-diff at wave granularity (single tier): PASS on 7 of 8 angles; 1 FLAG — resolveEntityTypeDef called with [] everywhere (custom types rendered generic). Addressed in c31c8f4: optional customTypes prop threaded from StoryBibleView to all 4 map resolver sites. RelationshipGroup chips intentionally keep [] (custom-type chips fall back to neutral; FullEntry threading is out of wave scope).
+
+### Telemetry summary
+
+Wave executed via run-phase Workflow (runs wf_d66244f8-13e, wf_22996ee3-8d9) + orchestrator-driven CDP smoke for phase 3. Per-phase reviewer verdicts: P1 FLAG_UNCERTAIN (fixed), P2 FLAG (fixed), each adjudicated same-turn. Diagnosis cell ran once (item-relation false alarm): sonnet-diagnostician + attack-hypothesis review → no app bug; surfaced 1 real adjacent defect (avatar chip class), fixed in-wave. No project-local telemetry MCP instrumentation for this repo beyond workflow logs.
