@@ -9,11 +9,11 @@
 
 // ─── Product identity constant ─────────────────────────────────────────────
 
-/// Lemon Squeezy numeric variant ID for the WritersNook one-time app purchase.
-/// Source: marketing/public/ls-config.js — "numeric variant ID (1748920)".
-/// Any activated key whose `meta.variant_id` differs from this constant is
-/// from a different store or a different product and must be rejected.
-const WRITERSNOOK_APP_VARIANT_ID: u64 = 1748920;
+/// Lemon Squeezy numeric variant IDs for the WritersNook one-time app purchase.
+/// 1773908 = live store; 1748920 = test-mode store.
+/// Any activated key whose `meta.variant_id` is not in this array is from a
+/// different store or a different product and must be rejected.
+const WRITERSNOOK_APP_VARIANT_IDS: [u64; 2] = [1773908, 1748920];
 
 // ─── LS response shapes ────────────────────────────────────────────────────
 
@@ -76,7 +76,7 @@ pub struct LicenseActivation {
 /// Returns `Err` only when the body is not valid JSON — never panics.
 ///
 /// Product-identity guard: when LS reports `activated: true`, the response
-/// `meta.variant_id` must equal `WRITERSNOOK_APP_VARIANT_ID`.  Fail-closed:
+/// `meta.variant_id` must be in `WRITERSNOOK_APP_VARIANT_IDS`.  Fail-closed:
 /// if `meta` or `variant_id` is absent the product cannot be confirmed, so
 /// activation is rejected rather than silently accepted.
 pub fn parse_activate_response(body: &str, http_status: u16) -> Result<LicenseActivation, String> {
@@ -88,7 +88,7 @@ pub fn parse_activate_response(body: &str, http_status: u16) -> Result<LicenseAc
             .meta
             .as_ref()
             .and_then(|m| m.variant_id)
-            .map(|vid| vid == WRITERSNOOK_APP_VARIANT_ID)
+            .map(|vid| WRITERSNOOK_APP_VARIANT_IDS.contains(&vid))
             .unwrap_or(false);
         if !variant_ok {
             return Ok(LicenseActivation {
@@ -177,8 +177,8 @@ mod tests {
 
     #[test]
     fn parse_success_returns_activated_true_with_instance_and_usage() {
-        // meta.variant_id must match WRITERSNOOK_APP_VARIANT_ID (1748920) for
-        // activated=true to pass the product-identity guard.
+        // meta.variant_id must be in WRITERSNOOK_APP_VARIANT_IDS (test-mode 1748920)
+        // for activated=true to pass the product-identity guard.
         let body = r#"{
             "activated": true,
             "error": null,
@@ -206,6 +206,35 @@ mod tests {
         assert_eq!(result.license_status, Some("active".to_string()));
         assert_eq!(result.http_status, 200);
         assert!(result.error.is_none(), "error should be None on success");
+    }
+
+    #[test]
+    fn parse_success_with_live_variant_id_1773908_also_activates() {
+        // meta.variant_id 1773908 (live store) must also be accepted.
+        let body = r#"{
+            "activated": true,
+            "error": null,
+            "instance": {"id": "b1234567-89ab-cdef-0123-456789abcdef"},
+            "license_key": {
+                "activation_limit": 5,
+                "activation_usage": 2,
+                "status": "active"
+            },
+            "meta": {
+                "store_id": 12345,
+                "product_id": 67890,
+                "variant_id": 1773908
+            }
+        }"#;
+        let result = parse_activate_response(body, 200).expect("should parse success body");
+        assert!(result.activated, "activated should be true for live-store variant");
+        assert_eq!(
+            result.instance_id,
+            Some("b1234567-89ab-cdef-0123-456789abcdef".to_string())
+        );
+        assert_eq!(result.activation_limit, Some(5));
+        assert_eq!(result.activation_usage, Some(2));
+        assert_eq!(result.http_status, 200);
     }
 
     #[test]
