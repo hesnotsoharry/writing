@@ -10,6 +10,7 @@ import {
   markCardGraduated,
   removeCard,
   removeConnection,
+  removeConnectionsForCard,
   updateCardPosition,
 } from "../../../features/brainstorm/boardDoc";
 import { applyEncoded, encodeDoc } from "../../../yjs/serialize";
@@ -271,6 +272,29 @@ describe("boardDoc", () => {
       expect(metadata.x).toBe(75);
       expect(metadata.y).toBe(125);
     });
+
+    it("preserves graduation fields when updating position", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-grad-update";
+      createBoardCard(doc, cardId, { x: 100, y: 200 });
+
+      // Mark card as graduated with destination
+      markCardGraduated(doc, cardId, { kind: "scene" as const, id: "scene-9" });
+
+      // Act: Update position after graduation
+      updateCardPosition(doc, cardId, { x: 555, y: 666 });
+
+      // Assert: Graduation fields are preserved along with new position
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).toEqual({
+        x: 555,
+        y: 666,
+        graduated: true,
+        destinationKind: "scene",
+        destinationId: "scene-9",
+      });
+    });
   });
 
   describe("removeCard (Phase 2)", () => {
@@ -462,6 +486,41 @@ describe("boardDoc", () => {
         from: "card-e",
         to: "card-f",
       });
+    });
+  });
+
+  describe("removeConnectionsForCard (Phase 3 cascade)", () => {
+    it("removes only the card's outgoing and incoming connections", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      createBoardCard(doc, "A", { x: 0, y: 0 });
+      createBoardCard(doc, "B", { x: 100, y: 100 });
+      createBoardCard(doc, "C", { x: 200, y: 200 });
+
+      addConnection(doc, "c1", "A", "B");
+      addConnection(doc, "c2", "B", "C");
+      addConnection(doc, "c3", "A", "C");
+
+      // Verify setup
+      expect(doc.getMap("connections").get("c1")).toBeDefined();
+      expect(doc.getMap("connections").get("c2")).toBeDefined();
+      expect(doc.getMap("connections").get("c3")).toBeDefined();
+
+      // Act: Remove connections for card A
+      removeConnectionsForCard(doc, "A");
+
+      // Assert: c1 and c3 (involving A) are gone; c2 (B→C) remains
+      expect(doc.getMap("connections").get("c1")).toBeUndefined();
+      expect(doc.getMap("connections").get("c3")).toBeUndefined();
+      expect(doc.getMap("connections").get("c2")).toEqual({
+        from: "B",
+        to: "C",
+      });
+
+      // Assert: Cards map is untouched
+      expect(doc.getMap("cards").get("A")).toEqual({ x: 0, y: 0 });
+      expect(doc.getMap("cards").get("B")).toEqual({ x: 100, y: 100 });
+      expect(doc.getMap("cards").get("C")).toEqual({ x: 200, y: 200 });
     });
   });
 
