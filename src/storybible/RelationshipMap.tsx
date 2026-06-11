@@ -10,9 +10,10 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Icon, ICON_PATHS } from "../components/Icon";
 import type { CustomEntityType, Entity, Relation } from "../db/storyBibleStore";
+import { useSettings } from "../features/settings/settings.store";
 import { resolveEntityTypeDef } from "./entityTypeDefs";
 import type { ExZone, LayoutConfig, Vec2 } from "./frLayout";
-import { declashLabels, frLayout } from "./frLayout";
+import { computeEdgeLabelAnchor, declashEdgeLabels, declashLabels, frLayout } from "./frLayout";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,20 @@ function useRmapMeasure(N: number) {
   return { wrapRef, measuredW };
 }
 
+function useEdgeLabelPositions(
+  edges: EdgeDef[], pos: Record<string, Vec2>,
+): { lx: number; ly: number }[] {
+  return useMemo(
+    () => declashEdgeLabels(edges.map(e => {
+      const pa = pos[e.a], pb = pos[e.b];
+      if (!pa || !pb) return { lx: 0, ly: 0, label: e.label };
+      const { x: lx, y: ly } = computeEdgeLabelAnchor(pa, pb);
+      return { lx, ly, label: e.label };
+    })),
+    [edges, pos],
+  );
+}
+
 function useRmapLayout(nodes: Entity[], edges: EdgeDef[], radii: Record<string, number>, cfg: LayoutConfig) {
   const { W, ex } = cfg;
   const sig = nodes.map(n => n.id).join(",") + "|" + edges.length + "|" + W + "|" + Math.round(ex.x) + "," + Math.round(ex.y);
@@ -129,9 +144,10 @@ function chipStyle(active: boolean, color: string | null): CSSProperties | undef
   return { borderColor: color, color, background: `color-mix(in srgb, ${color} 12%, transparent)` };
 }
 
-function RmapBar({ onBack, N, edgeCount, filter, setFilter, filters }: {
+function RmapBar({ onBack, N, edgeCount, filter, setFilter, filters, labelsAlways, onToggleLabels }: {
   onBack?: () => void; N: number; edgeCount: number;
   filter: string; setFilter: (f: string) => void; filters: [string, string, string | null][];
+  labelsAlways: boolean; onToggleLabels: () => void;
 }) {
   return (
     <div className="relmap-bar">
@@ -143,6 +159,7 @@ function RmapBar({ onBack, N, edgeCount, filter, setFilter, filters }: {
       </span>
       {N > 0 && <span style={{ fontSize: 12, color: "var(--ink-4)", whiteSpace: "nowrap" }}>{N} linked · {edgeCount} ties</span>}
       {N > 0 && <div className="relmap-filter" style={{ marginLeft: "auto" }}>
+        <button className={"rel-chip" + (labelsAlways ? " on" : "")} onClick={onToggleLabels}>Labels</button>
         {filters.map(([id, label, color]) => (
           <button key={id} className={"rel-chip" + (filter === id ? " on" : "")}
             style={chipStyle(filter === id, color)} onClick={() => setFilter(id)}>{label}</button>
@@ -170,24 +187,23 @@ function RmapEmptyState({ onBack }: { onBack?: () => void }) {
   );
 }
 
-function RmapEdge({ edge, pos, dim, strong, N, hover }: {
+function RmapEdge({ edge, pos, dim, strong, labelsAlways, labelAnchor, hover }: {
   edge: EdgeDef; pos: Record<string, Vec2>; dim: boolean; strong: boolean;
-  N: number; hover: string | null;
+  labelsAlways: boolean; labelAnchor: Vec2; hover: string | null;
 }) {
   const pa = pos[edge.a], pb = pos[edge.b];
   if (!pa || !pb) return null;
   const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
   const dx = pb.x - pa.x, dy = pb.y - pa.y, len = Math.hypot(dx, dy) || 1;
   const cx = mx + (-dy / len) * len * 0.12, cy = my + (dx / len) * len * 0.12;
-  const lx = 0.25 * pa.x + 0.5 * cx + 0.25 * pb.x, ly = 0.25 * pa.y + 0.5 * cy + 0.25 * pb.y;
   const pct = strong ? 75 : 42;
-  const showLabel = !dim && (N <= 18 || hover !== null) && !!edge.label;
+  const showLabel = !dim && (labelsAlways || hover !== null) && !!edge.label;
   return (
     <g className="rmap-edge" style={{ opacity: dim ? 0.08 : 1 }}>
       <path fill="none" strokeLinecap="round" strokeWidth={1.8}
         d={`M${pa.x} ${pa.y} Q${cx} ${cy} ${pb.x} ${pb.y}`}
         stroke={`color-mix(in srgb, var(--ink-2) ${pct}%, transparent)`} />
-      {showLabel && <text className="rmap-elabel" x={lx} y={ly + 3}>{edge.label}</text>}
+      {showLabel && <text className="rmap-elabel" x={labelAnchor.x} y={labelAnchor.y + 3}>{edge.label}</text>}
     </g>
   );
 }
@@ -245,13 +261,14 @@ type RmapAreaProps = {
   wrapRef: React.RefObject<HTMLDivElement | null>;
   W: number; H: number; edges: EdgeDef[]; nodes: Entity[];
   pos: Record<string, Vec2>; radii: Record<string, number>;
-  hover: string | null; setHover: (id: string | null) => void; N: number;
+  hover: string | null; setHover: (id: string | null) => void;
+  labelsAlways: boolean; labelPositions: { lx: number; ly: number }[];
   edgeShown: (e: EdgeDef) => boolean; nodeShown: (id: string) => boolean;
   present: string[]; customTypes?: Pick<CustomEntityType, "name" | "icon" | "color">[];
   onOpenEntry?: (id: string, kind: string) => void;
 };
 
-function RmapMapArea({ wrapRef, W, H, edges, nodes, pos, radii, hover, setHover, N, edgeShown, nodeShown, present, customTypes, onOpenEntry }: RmapAreaProps) {
+function RmapMapArea({ wrapRef, W, H, edges, nodes, pos, radii, hover, setHover, labelsAlways, labelPositions, edgeShown, nodeShown, present, customTypes, onOpenEntry }: RmapAreaProps) {
   return (
     <div className="rmap-wrap" ref={wrapRef}>
       <svg className="relgraph rmap" viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }} onMouseLeave={() => setHover(null)}>
@@ -259,7 +276,8 @@ function RmapMapArea({ wrapRef, W, H, edges, nodes, pos, radii, hover, setHover,
         <rect x={16.5} y={16.5} width={W - 33} height={H - 33} fill="none" stroke="var(--line-soft)" />
         {edges.map((e, i) => {
           const dim = !edgeShown(e);
-          return <RmapEdge key={i} edge={e} pos={pos} dim={dim} strong={!dim && hover !== null && (e.a === hover || e.b === hover)} N={N} hover={hover} />;
+          const lp = labelPositions[i] ?? { lx: 0, ly: 0 };
+          return <RmapEdge key={i} edge={e} pos={pos} dim={dim} strong={!dim && hover !== null && (e.a === hover || e.b === hover)} labelsAlways={labelsAlways} labelAnchor={{ x: lp.lx, y: lp.ly }} hover={hover} />;
         })}
         {nodes.map(e => {
           const p = pos[e.id];
@@ -278,17 +296,18 @@ export function RelationshipMap({ entities, relations, customTypes, onOpenEntry,
   const ct = customTypes ?? [];
   const [filter, setFilter] = useState<string>("all");
   const [hover, setHover] = useState<string | null>(null);
+  const { tweaks, setTweak } = useSettings();
   const { edges, nodes, unlinkedCount, N, W, H, radii, present } = useRmapData(entities, relations);
   const { wrapRef, measuredW } = useRmapMeasure(N);
   const keyW = Math.max(96, present.reduce((m, t) => Math.max(m, resolveEntityTypeDef(t, ct).label.length * 6.2 + 46), 0));
   const rscale = Math.min(1, (measuredW ?? 820) / W);
   const ex: ExZone = { x: Math.round((keyW + 46) / rscale), y: Math.round((34 + present.length * 21 + 46) / rscale) };
   const pos = useRmapLayout(nodes, edges, radii, { W, H, ex });
+  const labelPositions = useEdgeLabelPositions(edges, pos);
   const neighbors = useMemo(() => buildNeighbors(hover, edges), [hover, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
   const FILTERS = buildFilters(present, ct);
-  const nodeShown = (id: string) =>
-    (filter === "all" || nodeMap.get(id)?.type === filter) && (!neighbors || neighbors.has(id));
+  const nodeShown = (id: string) => (filter === "all" || nodeMap.get(id)?.type === filter) && (!neighbors || neighbors.has(id));
   const edgeShown = (e: EdgeDef) => {
     const ta = nodeMap.get(e.a)?.type, tb = nodeMap.get(e.b)?.type;
     const typeOk = filter === "all" || (ta === filter && tb === filter);
@@ -298,9 +317,9 @@ export function RelationshipMap({ entities, relations, customTypes, onOpenEntry,
     <div className="corkboard" data-screen-label="Relationship map">
       <div className="corkboard-inner" style={{ maxWidth: 1180 }}>
         <div style={{ maxWidth: W, margin: "0 auto" }}>
-          <RmapBar onBack={onBack} N={N} edgeCount={edges.length} filter={filter} setFilter={setFilter} filters={FILTERS} />
+          <RmapBar onBack={onBack} N={N} edgeCount={edges.length} filter={filter} setFilter={setFilter} filters={FILTERS} labelsAlways={tweaks.rmapLabelsAlways} onToggleLabels={() => setTweak("rmapLabelsAlways", !tweaks.rmapLabelsAlways)} />
           {N === 0 ? <RmapEmptyState onBack={onBack} /> : (
-            <RmapMapArea wrapRef={wrapRef} W={W} H={H} edges={edges} nodes={nodes} pos={pos} radii={radii} hover={hover} setHover={setHover} N={N} edgeShown={edgeShown} nodeShown={nodeShown} present={present} customTypes={ct} onOpenEntry={onOpenEntry} />
+            <RmapMapArea wrapRef={wrapRef} W={W} H={H} edges={edges} nodes={nodes} pos={pos} radii={radii} hover={hover} setHover={setHover} labelsAlways={tweaks.rmapLabelsAlways} labelPositions={labelPositions} edgeShown={edgeShown} nodeShown={nodeShown} present={present} customTypes={ct} onOpenEntry={onOpenEntry} />
           )}
           {N > 0 && unlinkedCount > 0 && (
             <div className="rmap-foot">

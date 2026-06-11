@@ -28,6 +28,13 @@ interface LabelCtx {
   H: number;
 }
 
+/** Input anchor used by the edge-label declash pass. */
+export interface EdgeLabelAnchor { lx: number; ly: number; label: string; }
+
+const EDGE_CHAR_W = 6.2;
+const EDGE_LABEL_H = 13;
+const EDGE_MAX_DISP = 28;
+
 // ── Force helpers ──────────────────────────────────────────────────────────────
 
 function frApplyRepulsion(P: Pos, disp: Pos, n: number, k: number): void {
@@ -109,6 +116,68 @@ function frFinalSeparate(P: Pos, R: number[], cfg: LayoutConfig): void {
     frClampAndExclude(P, R, cfg);
     if (!moved) break;
   }
+}
+
+// ── Edge-label helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Computes the quadratic-bezier label anchor for an edge.
+ * Mirror of the inline formula in RmapEdge — kept here so callers can pre-compute
+ * all anchors before running the declash pass. Pure, no side effects.
+ */
+export function computeEdgeLabelAnchor(pa: Vec2, pb: Vec2): Vec2 {
+  const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2;
+  const dx = pb.x - pa.x, dy = pb.y - pa.y, len = Math.hypot(dx, dy) || 1;
+  const cx = mx + (-dy / len) * len * 0.12, cy = my + (dx / len) * len * 0.12;
+  return { x: 0.25 * pa.x + 0.5 * cx + 0.25 * pb.x, y: 0.25 * pa.y + 0.5 * cy + 0.25 * pb.y };
+}
+
+interface EdgeDeclashCtx {
+  pts: { lx: number; ly: number }[];
+  orig: { lx: number; ly: number }[];
+  halfW: number[];
+}
+
+function clampToOrigin(origin: number, next: number, maxD: number): number {
+  const d = next - origin;
+  return Math.abs(d) <= maxD ? next : origin + Math.sign(d) * maxD;
+}
+
+function declashEdgePair(ctx: EdgeDeclashCtx, i: number, j: number): boolean {
+  const { pts, orig, halfW } = ctx;
+  const overlapX = halfW[i] + halfW[j] - Math.abs(pts[i].lx - pts[j].lx);
+  const overlapY = EDGE_LABEL_H + 2 - Math.abs(pts[i].ly - pts[j].ly);
+  if (overlapX <= 0 || overlapY <= 0) return false;
+  const push = overlapY / 2;
+  const sg = pts[i].ly <= pts[j].ly ? -1 : 1;
+  pts[i].ly = clampToOrigin(orig[i].ly, pts[i].ly + sg * push, EDGE_MAX_DISP);
+  pts[j].ly = clampToOrigin(orig[j].ly, pts[j].ly - sg * push, EDGE_MAX_DISP);
+  return true;
+}
+
+/**
+ * Post-layout edge-label declash: iteratively separates overlapping edge labels
+ * by pushing anchors vertically, clamped to 28 px from their original position.
+ * Pure — does not mutate input; returns a new array of adjusted positions.
+ */
+export function declashEdgeLabels(
+  anchors: EdgeLabelAnchor[],
+): { lx: number; ly: number }[] {
+  const ctx: EdgeDeclashCtx = {
+    pts: anchors.map(a => ({ lx: a.lx, ly: a.ly })),
+    orig: anchors.map(a => ({ lx: a.lx, ly: a.ly })),
+    halfW: anchors.map(a => (a.label.length * EDGE_CHAR_W + 8) / 2),
+  };
+  for (let pass = 0; pass < 30; pass++) {
+    let moved = 0;
+    for (let i = 0; i < ctx.pts.length; i++) {
+      for (let j = i + 1; j < ctx.pts.length; j++) {
+        moved += declashEdgePair(ctx, i, j) ? 1 : 0;
+      }
+    }
+    if (!moved) break;
+  }
+  return ctx.pts;
 }
 
 // ── Label de-clash ─────────────────────────────────────────────────────────────

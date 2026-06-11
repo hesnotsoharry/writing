@@ -43,6 +43,10 @@ describe("TWEAK_DEFAULTS", () => {
   it("styleHints defaults to false", () => {
     expect(TWEAK_DEFAULTS.styleHints).toBe(false);
   });
+
+  it("rmapLabelsAlways defaults to false (hover-only is the safe default)", () => {
+    expect(TWEAK_DEFAULTS.rmapLabelsAlways).toBe(false);
+  });
 });
 
 describe("getTweak", () => {

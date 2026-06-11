@@ -43,6 +43,9 @@ export interface Tweaks {
   // ── Snapshot retention (Fix 4) ──────────────────────────────────────────────
   /** 0 = unlimited; positive = keep the N newest auto-snapshots per scene. */
   snapshotAutoLimit: number;
+  // ── Relationship map (Wave 33) ────────────────────────────────────────────
+  /** true = edge labels always visible; false = hover-only (default). */
+  rmapLabelsAlways: boolean;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -63,6 +66,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   autolinkScope: "all",
   autolinkTypes: ["character", "location", "item", "faction", "lore"],
   snapshotAutoLimit: 25,
+  rmapLabelsAlways: false,
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
