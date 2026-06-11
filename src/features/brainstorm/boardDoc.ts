@@ -132,3 +132,39 @@ export function createEntityCard(
   doc.getMap("cards").set(cardId, { x: pos.x, y: pos.y, entityRef: entityId });
   doc.getXmlFragment(`card-${cardId}`);
 }
+
+/**
+ * Return the plain text of a card by joining paragraph content with newlines (Phase 6).
+ *
+ * - If the card has no fragment or fragment is empty, returns empty string.
+ * - Extracts text from XmlText nodes within each paragraph and joins with '\n'.
+ *
+ * Idempotent — multiple calls return the same result.
+ */
+export function getCardText(_doc: Y.Doc, _cardId: string): string {
+  throw new Error("not implemented");
+}
+
+/**
+ * Mark a card as graduated and record its destination (Phase 6).
+ *
+ * MERGES the graduated flag and destination into the card's existing metadata
+ * so that x, y, and (for entity cards) entityRef are preserved.
+ *
+ * Schema (Decision 2):
+ *   - graduated: true (boolean flag)
+ *   - destinationKind: 'scene' | 'entity' (string)
+ *   - destinationId: string (the target scene or entity ID)
+ *   - plain JSON in doc.getMap('cards')[cardId] (not a Y.Map or Y.XmlFragment)
+ *
+ * Idempotent-ish: calling again with a different destination overwrites the destination
+ * fields (last write wins), but still produces one cards-map entry per cardId.
+ * The card's text fragment is NOT cleared — provenance is preserved.
+ */
+export function markCardGraduated(
+  _doc: Y.Doc,
+  _cardId: string,
+  _destination: { kind: "scene" | "entity"; id: string }
+): void {
+  throw new Error("not implemented");
+}

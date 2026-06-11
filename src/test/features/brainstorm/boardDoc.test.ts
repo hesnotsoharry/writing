@@ -6,6 +6,8 @@ import {
   createBoardCard,
   createEntityCard,
   getCardFragment,
+  getCardText,
+  markCardGraduated,
   removeCard,
   removeConnection,
   updateCardPosition,
@@ -705,6 +707,378 @@ describe("boardDoc", () => {
       // Assert: Fragment remains empty (or is still empty if it was touched).
       const fragAfter = doc.getXmlFragment(`card-${cardId}`);
       expect(fragAfter.length).toBe(0);
+    });
+  });
+
+  describe("getCardText (Phase 6)", () => {
+    it("returns empty string for card with no fragment content", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-empty-text";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Act
+      const text = getCardText(doc, cardId);
+
+      // Assert: Empty fragment yields empty string.
+      expect(text).toBe("");
+    });
+
+    it("returns empty string for card with absent fragment", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-nonexistent-text";
+
+      // Act: Do NOT create the card. Just call getCardText on a non-existent cardId.
+      const text = getCardText(doc, cardId);
+
+      // Assert: Absent fragment yields empty string (safe default).
+      expect(text).toBe("");
+    });
+
+    it("returns single paragraph text as-is", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-single-para";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Add a single paragraph with text.
+      const frag = getCardFragment(doc, cardId);
+      const para = new Y.XmlElement("paragraph");
+      const text = new Y.XmlText();
+      text.insert(0, "Single paragraph content");
+      para.insert(0, [text]);
+      frag.push([para]);
+
+      // Act
+      const result = getCardText(doc, cardId);
+
+      // Assert: Single paragraph is returned as-is.
+      expect(result).toBe("Single paragraph content");
+    });
+
+    it("joins multiple paragraphs with newline", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-multi-para";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Add three paragraphs.
+      const frag = getCardFragment(doc, cardId);
+
+      const para1 = new Y.XmlElement("paragraph");
+      const text1 = new Y.XmlText();
+      text1.insert(0, "First paragraph");
+      para1.insert(0, [text1]);
+      frag.push([para1]);
+
+      const para2 = new Y.XmlElement("paragraph");
+      const text2 = new Y.XmlText();
+      text2.insert(0, "Second paragraph");
+      para2.insert(0, [text2]);
+      frag.push([para2]);
+
+      const para3 = new Y.XmlElement("paragraph");
+      const text3 = new Y.XmlText();
+      text3.insert(0, "Third paragraph");
+      para3.insert(0, [text3]);
+      frag.push([para3]);
+
+      // Act
+      const result = getCardText(doc, cardId);
+
+      // Assert: Paragraphs are joined with '\n'.
+      expect(result).toBe("First paragraph\nSecond paragraph\nThird paragraph");
+    });
+
+    it("extracts text from XmlText nodes within paragraphs", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-xml-text";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Add a paragraph with text content.
+      const frag = getCardFragment(doc, cardId);
+      const para = new Y.XmlElement("paragraph");
+      const text = new Y.XmlText();
+      text.insert(0, "Text inside XmlText");
+      para.insert(0, [text]);
+      frag.push([para]);
+
+      // Act
+      const result = getCardText(doc, cardId);
+
+      // Assert: XmlText content is extracted.
+      expect(result).toBe("Text inside XmlText");
+    });
+
+    it("handles paragraphs with multiple XmlText nodes", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-multi-text-nodes";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Add a paragraph with multiple text nodes.
+      const frag = getCardFragment(doc, cardId);
+      const para = new Y.XmlElement("paragraph");
+      const text1 = new Y.XmlText();
+      text1.insert(0, "Part one");
+      const text2 = new Y.XmlText();
+      text2.insert(0, " Part two");
+      para.insert(0, [text1, text2]);
+      frag.push([para]);
+
+      // Act
+      const result = getCardText(doc, cardId);
+
+      // Assert: Multiple text nodes are concatenated.
+      expect(result).toBe("Part one Part two");
+    });
+  });
+
+  describe("markCardGraduated (Phase 6)", () => {
+    it("marks a regular card as graduated with destination (scene)", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-grad-1";
+      createBoardCard(doc, cardId, { x: 100, y: 200 });
+
+      const destination = { kind: "scene" as const, id: "scene-123" };
+
+      // Act
+      markCardGraduated(doc, cardId, destination);
+
+      // Assert: Metadata now contains graduated flag and destination.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).toEqual({
+        x: 100,
+        y: 200,
+        graduated: true,
+        destinationKind: "scene",
+        destinationId: "scene-123",
+      });
+    });
+
+    it("marks an entity card as graduated while preserving entityRef", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "entity-card-grad";
+      const entityId = "entity-linked";
+      createEntityCard(doc, cardId, entityId, { x: 50, y: 75 });
+
+      const destination = { kind: "entity" as const, id: "entity-target" };
+
+      // Act
+      markCardGraduated(doc, cardId, destination);
+
+      // Assert: Metadata preserves entityRef and adds graduated + destination.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).toEqual({
+        x: 50,
+        y: 75,
+        entityRef: entityId,
+        graduated: true,
+        destinationKind: "entity",
+        destinationId: "entity-target",
+      });
+    });
+
+    it("stores graduated metadata as plain JSON, not a Y.Map", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-plain-grad";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      const destination = { kind: "scene" as const, id: "scene-abc" };
+
+      // Act
+      markCardGraduated(doc, cardId, destination);
+
+      // Assert: Metadata is plain JSON, not a Y type.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).not.toBeInstanceOf(Y.Map);
+      expect(metadata).not.toBeInstanceOf(Y.XmlFragment);
+      expect(typeof metadata).toBe("object");
+      expect(metadata.graduated).toBe(true);
+    });
+
+    it("calling markCardGraduated again overwrites destination (last write wins)", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-idempotent";
+      createBoardCard(doc, cardId, { x: 100, y: 200 });
+
+      const dest1 = { kind: "scene" as const, id: "scene-first" };
+      const dest2 = { kind: "entity" as const, id: "entity-second" };
+
+      // Act: Mark graduated twice with different destinations.
+      markCardGraduated(doc, cardId, dest1);
+      markCardGraduated(doc, cardId, dest2);
+
+      // Assert: Second destination wins; position is preserved; only one entry.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).toEqual({
+        x: 100,
+        y: 200,
+        graduated: true,
+        destinationKind: "entity",
+        destinationId: "entity-second",
+      });
+
+      // Assert: Still only one card entry (not duplicated).
+      const cardCount = doc.getMap("cards").size;
+      expect(cardCount).toBe(1);
+    });
+
+    it("preserves card text fragment after graduation", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-text-preserved";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Add text to the card.
+      const frag = getCardFragment(doc, cardId);
+      const para = new Y.XmlElement("paragraph");
+      const text = new Y.XmlText();
+      text.insert(0, "Original card text");
+      para.insert(0, [text]);
+      frag.push([para]);
+
+      const textBefore = getCardText(doc, cardId);
+
+      // Act
+      markCardGraduated(doc, cardId, { kind: "scene" as const, id: "scene-xyz" });
+
+      // Assert: Text content is unchanged.
+      const textAfter = getCardText(doc, cardId);
+      expect(textAfter).toBe(textBefore);
+      expect(textAfter).toBe("Original card text");
+    });
+
+    it("preserves position metadata after graduation", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-pos-preserved";
+      const pos = { x: 250, y: 350 };
+      createBoardCard(doc, cardId, pos);
+
+      // Act
+      markCardGraduated(doc, cardId, { kind: "scene" as const, id: "scene-new" });
+
+      // Assert: Position x, y are unchanged.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata.x).toBe(250);
+      expect(metadata.y).toBe(350);
+    });
+
+    it("does not affect other cards when marking one as graduated", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      createBoardCard(doc, "card-a", { x: 0, y: 0 });
+      createBoardCard(doc, "card-b", { x: 100, y: 100 });
+
+      // Act: Mark only card-a as graduated.
+      markCardGraduated(doc, "card-a", {
+        kind: "scene" as const,
+        id: "scene-target",
+      });
+
+      // Assert: card-a is graduated; card-b is untouched.
+      const metaA = doc.getMap("cards").get("card-a");
+      const metaB = doc.getMap("cards").get("card-b");
+
+      expect(metaA.graduated).toBe(true);
+      expect(metaB.graduated).toBeUndefined();
+      expect(metaB).toEqual({ x: 100, y: 100 });
+    });
+
+    it("preserves graduated state through encode-decode round-trip", () => {
+      // Arrange: Create a card, mark it graduated, encode it.
+      const doc1 = new Y.Doc();
+      const cardId = "card-grad-persist";
+      createBoardCard(doc1, cardId, { x: 200, y: 300 });
+
+      markCardGraduated(doc1, cardId, {
+        kind: "entity" as const,
+        id: "entity-target",
+      });
+
+      const base64 = encodeDoc(doc1);
+
+      // Act: Decode into a new doc.
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: Graduated state and destination are preserved.
+      const metadata = doc2.getMap("cards").get(cardId);
+      expect(metadata).toEqual({
+        x: 200,
+        y: 300,
+        graduated: true,
+        destinationKind: "entity",
+        destinationId: "entity-target",
+      });
+    });
+
+    it("preserves graduated entity cards through encode-decode", () => {
+      // Arrange: Create an entity card, mark it graduated, encode it.
+      const doc1 = new Y.Doc();
+      const cardId = "entity-grad-persist";
+      const entityId = "entity-source";
+      createEntityCard(doc1, cardId, entityId, { x: 75, y: 125 });
+
+      markCardGraduated(doc1, cardId, {
+        kind: "scene" as const,
+        id: "scene-target",
+      });
+
+      const base64 = encodeDoc(doc1);
+
+      // Act: Decode.
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: Entity card with graduation is fully preserved.
+      const metadata = doc2.getMap("cards").get(cardId);
+      expect(metadata).toEqual({
+        x: 75,
+        y: 125,
+        entityRef: entityId,
+        graduated: true,
+        destinationKind: "scene",
+        destinationId: "scene-target",
+      });
+    });
+
+    it("graduated and regular cards coexist without interference", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardGrad = "card-graduated";
+      const cardRegular = "card-regular";
+
+      createBoardCard(doc, cardGrad, { x: 0, y: 0 });
+      createBoardCard(doc, cardRegular, { x: 50, y: 50 });
+
+      // Act
+      markCardGraduated(doc, cardGrad, {
+        kind: "scene" as const,
+        id: "scene-target",
+      });
+
+      // Encode and decode.
+      const base64 = encodeDoc(doc);
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: Graduated card has graduation flag; regular card does not.
+      const metaGrad = doc2.getMap("cards").get(cardGrad);
+      const metaReg = doc2.getMap("cards").get(cardRegular);
+
+      expect(metaGrad.graduated).toBe(true);
+      expect(metaGrad.destinationKind).toBe("scene");
+
+      expect(metaReg.graduated).toBeUndefined();
+      expect(metaReg).toEqual({ x: 50, y: 50 });
     });
   });
 });
