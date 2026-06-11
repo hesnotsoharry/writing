@@ -294,6 +294,10 @@ function useSendToScene(
 ): SendToSceneState {
   const [pendingSendCardId, setPendingSendCardId] = useState<string | null>(null);
   const handleSendToScene = useCallback((cardId: string) => setPendingSendCardId(cardId), []);
+  // Init-only ref is safe here: handleSendToScene is useCallback([], stable identity
+  // forever) and the project's react-hooks/refs lint rule forbids render-body ref
+  // writes. If deps are ever added to handleSendToScene, switch to an effect-based
+  // ref update.
   const onSendToSceneRef = useRef<((cardId: string) => void) | undefined>(handleSendToScene);
   const handlePickScene = useCallback((cardId: string, sceneId: string) => {
     const isHot = sceneId === selectedSceneId && liveDoc != null;

@@ -16,7 +16,7 @@
 import * as Y from "yjs";
 
 import type { SceneDocStore } from "../../db/sceneDocStore";
-import { applyEncoded, encodeDoc } from "../../yjs/serialize";
+import { applyEncoded, encodeDoc, extractPlainText } from "../../yjs/serialize";
 
 export interface SendCardToSceneOpts {
   boardDoc: Y.Doc;
@@ -79,7 +79,7 @@ export async function sendCardToScene({
     const tmpDoc = new Y.Doc();
     applyEncoded(tmpDoc, stored ?? "");
     appendCardParagraphs(boardDoc, cardId, tmpDoc.getXmlFragment("content"));
-    await store.save(sceneId, encodeDoc(tmpDoc), null);
+    await store.save(sceneId, encodeDoc(tmpDoc), extractPlainText(tmpDoc));
   }
 
   return { sceneId };

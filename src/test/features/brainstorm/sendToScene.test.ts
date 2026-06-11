@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
+import { InMemorySceneDocStore } from "../../../db/sceneDocStore";
 import { createBoardCard } from "../../../features/brainstorm/boardDoc";
 import { sendCardToScene } from "../../../features/brainstorm/sendToScene";
-import { InMemorySceneDocStore } from "../../../db/sceneDocStore";
 import { applyEncoded, encodeDoc } from "../../../yjs/serialize";
 
 /**
