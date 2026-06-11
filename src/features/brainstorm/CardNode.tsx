@@ -20,7 +20,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
@@ -47,9 +47,37 @@ export interface CardNodeData extends Record<string, unknown> {
   destinationId?: string;
   /** Phase 6: human-readable destination label resolved at BoardCanvas level. */
   destinationLabel?: string;
+  /** F7: restore a graduated card to editable state (keeps created scene/entity). */
+  onClearGraduation?: (cardId: string) => void;
 }
 
 export type CardNodeType = Node<CardNodeData, "card">;
+
+// ── BorderHandles — four invisible full-side strips (F6) ─────────────────────
+// Shared by CardNode (all states) and imported by EntityCardNode.
+// Each strip spans the full side and extends 6 px beyond the card edge so any
+// drag starting near the border initiates a connection, not a card move.
+// Inline styles override React Flow's default centred-dot positioning.
+
+const STRIP_STYLE_TOP: CSSProperties =
+  { width: "100%", height: 12, top: -6, left: 0, transform: "none", borderRadius: 0, background: "transparent", border: "none", opacity: 1 };
+const STRIP_STYLE_RIGHT: CSSProperties =
+  { height: "100%", width: 12, right: -6, top: 0, transform: "none", borderRadius: 0, background: "transparent", border: "none", opacity: 1 };
+const STRIP_STYLE_BOTTOM: CSSProperties =
+  { width: "100%", height: 12, bottom: -6, left: 0, transform: "none", borderRadius: 0, background: "transparent", border: "none", opacity: 1 };
+const STRIP_STYLE_LEFT: CSSProperties =
+  { height: "100%", width: 12, left: -6, top: 0, transform: "none", borderRadius: 0, background: "transparent", border: "none", opacity: 1 };
+
+export function BorderHandles() {
+  return (
+    <>
+      <Handle type="source" position={Position.Top}    id="top"    style={STRIP_STYLE_TOP} />
+      <Handle type="source" position={Position.Right}  id="right"  style={STRIP_STYLE_RIGHT} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={STRIP_STYLE_BOTTOM} />
+      <Handle type="source" position={Position.Left}   id="left"   style={STRIP_STYLE_LEFT} />
+    </>
+  );
+}
 
 // ── Built-in entity types for promote picker ──────────────────────────────────
 
@@ -194,16 +222,20 @@ interface GraduatedProps {
   destinationId?: string;
   destinationLabel?: string;
   onNavigate?: (kind: "scene" | "entity", id: string) => void;
+  /** F7: restore card to editable (keeps the created scene/entity). */
+  onClearGraduation?: () => void;
 }
 
-function GraduatedCardView({ displayText, destinationKind, destinationId, destinationLabel, onNavigate }: GraduatedProps) {
+function GraduatedCardView({ displayText, destinationKind, destinationId, destinationLabel, onNavigate, onClearGraduation }: GraduatedProps) {
   const destLabel = destinationLabel ?? (destinationKind === "scene" ? "Scene" : "Entity");
   return (
     <div className="card-node card-node--graduated">
-      <Handle type="source" position={Position.Top} id="top" />
-      <Handle type="source" position={Position.Right} id="right" />
-      <Handle type="source" position={Position.Bottom} id="bottom" />
-      <Handle type="source" position={Position.Left} id="left" />
+      <BorderHandles />
+      {onClearGraduation && (
+        <button type="button" className="card-grad-restore nodrag"
+          onClick={(e) => { e.stopPropagation(); onClearGraduation(); }}
+          title="Restore card — keeps the created scene/entity">↺</button>
+      )}
       <span className="card-node-text">
         {displayText || <em className="card-node-empty">—</em>}
       </span>
@@ -236,10 +268,7 @@ function CardReadonlyView({ cardId, displayText, handleDelete, onEdit, onSendToS
   return (
     <div className="card-node card-node--readonly" onClick={onEdit} role="button" tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onEdit(); }}>
-      <Handle type="source" position={Position.Top} id="top" />
-      <Handle type="source" position={Position.Right} id="right" />
-      <Handle type="source" position={Position.Bottom} id="bottom" />
-      <Handle type="source" position={Position.Left} id="left" />
+      <BorderHandles />
       <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
         title="Delete card" aria-label="Delete card">×</button>
       {onSendToScene && (
@@ -272,7 +301,8 @@ function CardReadonlyView({ cardId, displayText, handleDelete, onEdit, onSendToS
 
 export function CardNode({ data }: NodeProps<CardNodeType>) {
   const { doc, cardId, onSendToScene, onPromoteToScene, onPromoteToEntity,
-    onNavigateToDestination, graduated, destinationKind, destinationId, destinationLabel } = data;
+    onNavigateToDestination, graduated, destinationKind, destinationId, destinationLabel,
+    onClearGraduation } = data;
   const { isEditing, setIsEditing, displayText, handleDone, handleDelete } = useCardState(doc, cardId);
 
   if (graduated) {
@@ -281,6 +311,7 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
         displayText={displayText}
         destinationKind={destinationKind} destinationId={destinationId}
         destinationLabel={destinationLabel} onNavigate={onNavigateToDestination}
+        onClearGraduation={onClearGraduation ? () => onClearGraduation(cardId) : undefined}
       />
     );
   }
@@ -288,10 +319,7 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
   if (isEditing) {
     return (
       <div className="nodrag card-node card-node--editing">
-        <Handle type="source" position={Position.Top} id="top" />
-        <Handle type="source" position={Position.Right} id="right" />
-        <Handle type="source" position={Position.Bottom} id="bottom" />
-        <Handle type="source" position={Position.Left} id="left" />
+        <BorderHandles />
         <CardEditor doc={doc} cardId={cardId} onDone={handleDone} />
       </div>
     );

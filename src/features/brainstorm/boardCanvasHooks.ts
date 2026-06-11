@@ -17,7 +17,7 @@ import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
 import type { Entity, StoryBibleStore } from "../../db/storyBibleStore";
 import { noteBodyToSceneDoc } from "../quickcapture/promoteNoteToScene";
-import { getCardText, markCardGraduated } from "./boardDoc";
+import { clearCardGraduation, getCardText, markCardGraduated } from "./boardDoc";
 
 // ── Module-level promote store ─────────────────────────────────────────────────
 
@@ -36,6 +36,8 @@ export interface DocToNodesCallbacks {
   onPromoteToScene?: (cardId: string) => void;
   onPromoteToEntity?: (cardId: string, entityType: string) => void;
   onNavigateToDestination?: (kind: "scene" | "entity", id: string) => void;
+  /** F7: restore a graduated card to editable state. */
+  onClearGraduation?: (cardId: string) => void;
 }
 
 // ── resolveDestLabel ──────────────────────────────────────────────────────────
@@ -147,6 +149,10 @@ export function useBoardCallbacks({
     },
     [onSelectScene, onViewChange, onOpenEntry, entitiesRef],
   );
+  const handleClearGraduation = useCallback(
+    (cardId: string) => { clearCardGraduation(doc, cardId); },
+    [doc],
+  );
   useEffect(() => {
     callbacksRef.current = {
       tree,
@@ -154,7 +160,9 @@ export function useBoardCallbacks({
       onPromoteToScene: handlePromoteToScene,
       onPromoteToEntity: handlePromoteToEntity,
       onNavigateToDestination: handleNavigateToDestination,
+      onClearGraduation: handleClearGraduation,
     };
-  }, [tree, onSendToSceneRef, handlePromoteToScene, handlePromoteToEntity, handleNavigateToDestination]);
+  }, [tree, onSendToSceneRef, handlePromoteToScene, handlePromoteToEntity,
+    handleNavigateToDestination, handleClearGraduation]);
   return { callbacksRef };
 }

@@ -1459,11 +1459,15 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: none; border: none; text-align: left;
 }
 .board-row:hover { background: var(--parchment-deep); }
+/* F2: active = board is currently open in brainstorm view */
+.board-row--active { background: var(--parchment-deep); color: var(--ink); }
 .board-row-title {
   font-size: var(--text-sm); color: var(--ink-3);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-style: italic;
+  padding-right: 2px; /* F3: prevents italic overhang of final glyph from being clipped */
 }
+.board-row--active .board-row-title { color: var(--ink); } /* F2: title matches active row ink */
 
 /* ── Board view ─────────────────────────────────────────────────────────────── */
 .board-view {
@@ -1486,6 +1490,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: color-mix(in srgb, var(--parchment) 80%, var(--paper));
   backdrop-filter: blur(6px);
   font-family: var(--font-ui);
+  z-index: 1; /* F1: backdrop-filter creates a stacking context; z-index lifts toolbar above canvas */
 }
 .board-add-card, .board-add-entity {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1671,18 +1676,16 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   stroke: var(--accent-ring); stroke-width: 1.75px; fill: none;
 }
 
-/* ── Handles — INVISIBLE, generous hit area for floating attachment (spec §6) ── */
+/* ── Handles — F6: invisible full-side border strips (replaces dot handles) ────
+   Cursor alias on all handles; strips visually nothing (transparent, no border).
+   Four strips per card: top/bottom span full width, left/right span full height,
+   each extends 6 px outside the card edge for an easy drag target zone. ─────── */
+.react-flow__handle,
+.react-flow__handle.connectionindicator { cursor: alias; }
 .card-node .react-flow__handle {
-  width: 14px; height: 14px;
-  min-width: unset; min-height: unset;
-  border-radius: 50%;
-  background: transparent; border: none;
-  opacity: 0;
+  background: transparent; border: none; border-radius: 0;
+  min-width: unset; min-height: unset; opacity: 1;
 }
-/* Floating attachment: keep opacity 0 in all states */
-.card-node:hover .react-flow__handle,
-.card-node .react-flow__handle.connectionindicator,
-.card-node .react-flow__handle-connecting { opacity: 0; }
 
 /* ── Empty board state (spec §8) ──────────────────────────────────────────────── */
 .board-empty {
@@ -1737,3 +1740,29 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .board-scene-picker-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-scene-picker-chapter { font-size: var(--text-2xs); color: var(--ink-4); white-space: nowrap; flex-shrink: 0; }
 .board-scene-picker-empty { padding: 8px 10px; font-size: var(--text-sm); color: var(--ink-4); }
+
+/* ── F6: ensure absolutely-positioned card buttons sit above handle strips ───── */
+.card-node-delete, .card-node-send, .card-node-promote, .card-grad-restore { z-index: 3; }
+
+/* ── F7: restore button on graduated card (furniture tier — neutral hover) ───── */
+.card-grad-restore {
+  position: absolute; top: 4px; right: 4px;
+  width: 18px; height: 18px; border-radius: var(--r-xs);
+  display: grid; place-items: center;
+  font-size: 13px; line-height: 1; color: var(--ink-4);
+  background: none; border: none; cursor: pointer;
+  opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+}
+.card-node--graduated:hover .card-grad-restore { opacity: 1; }
+.card-grad-restore:hover { background: var(--parchment-deep); color: var(--ink); }
+
+/* ── F5: hover-connectivity highlight ────────────────────────────────────────── */
+/* Hot edge: connected to hovered card — accent stroke */
+.react-flow__edge.is-connected-hot .react-flow__edge-path {
+  stroke: var(--accent); stroke-width: 1.75px;
+}
+/* Neighbour card: soft accent emphasis (lighter than direct hover) */
+.react-flow__node.is-neighbor-hot .card-node {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 2px var(--accent-wash);
+}

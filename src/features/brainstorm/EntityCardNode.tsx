@@ -7,7 +7,6 @@
  * Deleted entity → calm "Missing entity" placeholder; no crash.
  */
 import type { Node, NodeProps } from "@xyflow/react";
-import { Handle, Position } from "@xyflow/react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { useCallback } from "react";
 import type * as Y from "yjs";
@@ -15,6 +14,7 @@ import type * as Y from "yjs";
 import type { CustomEntityType, Entity } from "../../db/storyBibleStore";
 import { resolveEntityTypeDef } from "../../storybible/entityTypeDefs";
 import { removeCard, removeConnectionsForCard } from "./boardDoc";
+import { BorderHandles } from "./CardNode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,19 +38,6 @@ function etypeTint(colorVar: string): string {
   return "transparent";
 }
 
-// ── Handles — four per card (invisible, floating attachment) ──────────────────
-
-function CardHandles() {
-  return (
-    <>
-      <Handle type="source" position={Position.Top} id="top" />
-      <Handle type="source" position={Position.Right} id="right" />
-      <Handle type="source" position={Position.Bottom} id="bottom" />
-      <Handle type="source" position={Position.Left} id="left" />
-    </>
-  );
-}
-
 // ── EntityCardPresent — renders a matched entity card ─────────────────────────
 
 interface EntityPresentProps {
@@ -65,7 +52,7 @@ function EntityCardPresent({ entity, customTypes, onDelete }: EntityPresentProps
   const style = { "--etype": def.color, "--etype-tint": etypeTint(def.color) } as CSSProperties;
   return (
     <div className="card-node card-node--entity" style={style}>
-      <CardHandles />
+      <BorderHandles />
       <button type="button" className="card-node-delete nodrag"
         onClick={onDelete} title="Delete card" aria-label="Delete card">×</button>
       <span className="ent-spine" />
@@ -94,7 +81,7 @@ export function EntityCardNode({ data }: NodeProps<EntityCardNodeType>) {
   if (!entity) {
     return (
       <div className="card-node card-node--entity entity-card-node--missing">
-        <CardHandles />
+        <BorderHandles />
         <button type="button" className="card-node-delete nodrag"
           onClick={handleDelete} title="Delete card" aria-label="Delete card">×</button>
         <span className="entity-card-missing">Missing entity</span>

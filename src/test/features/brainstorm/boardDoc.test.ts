@@ -3,6 +3,7 @@ import * as Y from "yjs";
 
 import {
   addConnection,
+  clearCardGraduation,
   createBoardCard,
   createEntityCard,
   getCardFragment,
@@ -1109,7 +1110,7 @@ describe("boardDoc", () => {
       });
     });
 
-    it("graduated and regular cards coexist without interference", () => {
+    it("graduated and regular cards coexist without interference (markCardGraduated)", () => {
       // Arrange
       const doc = new Y.Doc();
       const cardGrad = "card-graduated";
@@ -1138,6 +1139,60 @@ describe("boardDoc", () => {
 
       expect(metaReg.graduated).toBeUndefined();
       expect(metaReg).toEqual({ x: 50, y: 50 });
+    });
+  });
+
+  describe("clearCardGraduation (F7 — un-promote)", () => {
+    it("removes graduated flag and destination fields, restoring plain card metadata", () => {
+      // Arrange: create a card and mark it graduated.
+      const doc = new Y.Doc();
+      const cardId = "card-clear-1";
+      createBoardCard(doc, cardId, { x: 100, y: 200 });
+      markCardGraduated(doc, cardId, { kind: "scene" as const, id: "scene-abc" });
+
+      // Pre-condition: card is graduated.
+      expect(doc.getMap("cards").get(cardId)).toMatchObject({ graduated: true, destinationKind: "scene" });
+
+      // Act
+      clearCardGraduation(doc, cardId);
+
+      // Assert: graduation fields removed; position preserved.
+      const meta = doc.getMap("cards").get(cardId);
+      expect(meta).toEqual({ x: 100, y: 200 });
+      expect(meta.graduated).toBeUndefined();
+      expect(meta.destinationKind).toBeUndefined();
+      expect(meta.destinationId).toBeUndefined();
+    });
+
+    it("preserves x, y, and entityRef when clearing graduation from an entity card", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "entity-card-clear-grad";
+      const entityId = "entity-xyz";
+      createEntityCard(doc, cardId, entityId, { x: 30, y: 60 });
+      markCardGraduated(doc, cardId, { kind: "entity" as const, id: "entity-target" });
+
+      // Act
+      clearCardGraduation(doc, cardId);
+
+      // Assert: entityRef and position survive; graduation fields are gone.
+      const meta = doc.getMap("cards").get(cardId);
+      expect(meta).toEqual({ x: 30, y: 60, entityRef: entityId });
+      expect(meta.graduated).toBeUndefined();
+    });
+
+    it("is a no-op on a non-graduated card (idempotent — plain metadata unchanged)", () => {
+      // Arrange: regular card, never graduated.
+      const doc = new Y.Doc();
+      const cardId = "card-noop-clear";
+      createBoardCard(doc, cardId, { x: 10, y: 20 });
+
+      // Act
+      clearCardGraduation(doc, cardId);
+
+      // Assert: metadata unchanged.
+      const meta = doc.getMap("cards").get(cardId);
+      expect(meta).toEqual({ x: 10, y: 20 });
     });
   });
 });

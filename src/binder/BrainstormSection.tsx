@@ -76,13 +76,15 @@ interface BoardRowItemProps {
   onOpen: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
+  /** F2: true when this board is currently open in the brainstorm view. */
+  isActive?: boolean;
 }
 
 /**
  * One board row: click to open, double-click or right-click context menu to
  * rename/delete. Matches binder's SceneRow interaction pattern.
  */
-function BoardRowItem({ board, onOpen, onRename, onDelete }: BoardRowItemProps) {
+function BoardRowItem({ board, onOpen, onRename, onDelete, isActive }: BoardRowItemProps) {
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
 
@@ -107,8 +109,8 @@ function BoardRowItem({ board, onOpen, onRename, onDelete }: BoardRowItemProps) 
 
   return (
     <>
-      <button type="button" className="board-row" onClick={onOpen}
-        onContextMenu={openMenu}
+      <button type="button" className={`board-row${isActive ? " board-row--active" : ""}`}
+        onClick={onOpen} onContextMenu={openMenu}
         onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
         title={board.title}>
         <span className="board-row-title">{board.title}</span>
@@ -123,9 +125,11 @@ function BoardRowItem({ board, onOpen, onRename, onDelete }: BoardRowItemProps) 
 export interface BrainstormSectionProps {
   activeProjectId: string | null;
   onOpenBoard: (boardId: string) => void;
+  /** F2: id of the board currently open in brainstorm view (null when not in brainstorm view). */
+  activeBoardId?: string | null;
 }
 
-export function BrainstormSection({ activeProjectId, onOpenBoard }: BrainstormSectionProps) {
+export function BrainstormSection({ activeProjectId, onOpenBoard, activeBoardId }: BrainstormSectionProps) {
   const { boards, createBoard, renameBoard, deleteBoard } = useBoardsList(activeProjectId);
 
   function handleDelete(board: BoardRow) {
@@ -146,7 +150,8 @@ export function BrainstormSection({ activeProjectId, onOpenBoard }: BrainstormSe
         <BoardRowItem key={board.id} board={board}
           onOpen={() => onOpenBoard(board.id)}
           onRename={(title) => renameBoard(board.id, title)}
-          onDelete={() => handleDelete(board)} />
+          onDelete={() => handleDelete(board)}
+          isActive={activeBoardId === board.id} />
       ))}
     </section>
   );

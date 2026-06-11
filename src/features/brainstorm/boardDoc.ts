@@ -172,6 +172,25 @@ export function getCardText(doc: Y.Doc, cardId: string): string {
 }
 
 /**
+ * Restore a graduated card to editable state (F7 — un-promote).
+ *
+ * Removes `graduated`, `destinationKind`, and `destinationId` from the card's
+ * metadata, preserving x, y, and entityRef. Does NOT delete the created
+ * scene or entity. Safe to call on a non-graduated card (no-op).
+ *
+ * Idempotent: calling again on an already-restored card rewrites the same
+ * plain metadata (still no graduation fields).
+ */
+export function clearCardGraduation(doc: Y.Doc, cardId: string): void {
+  const cards = doc.getMap("cards");
+  const existing = (cards.get(cardId) as Record<string, unknown> | undefined) ?? {};
+  // Destructure out the three graduation fields; keep everything else.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { graduated: _g, destinationKind: _dk, destinationId: _di, ...rest } = existing;
+  cards.set(cardId, rest);
+}
+
+/**
  * Mark a card as graduated and record its destination (Phase 6).
  *
  * MERGES the graduated flag and destination into the card's existing metadata

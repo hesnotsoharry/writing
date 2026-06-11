@@ -1,26 +1,13 @@
 /**
  * BoardCanvas — React Flow wrapper for the brainstorm board.
- *
- * Phase 2: Add card / drag positioning / keyboard delete.
- * Phase 3: Connection lines (handle-drag create, keyboard delete, cascade on card delete).
- * Phase 4:
- *   - Entity card node type ("entityCard") rendered by EntityCardNode.
- *   - Entity loading from storyBibleStore on mount + window-focus (rename propagation for
- *     v1 — entity reads are non-reactive outside the Story Bible view; re-read on focus
- *     is the accepted v1 approach per task brief).
- *   - "Add entity card" toolbar button opens EntityPicker.
- * Phase 5:
- *   - "Send to scene" button on text cards (not entity cards) — opens ScenePicker.
- *   - Hot/cold routing: if the chosen scene is the currently-open editor scene,
- *     sends to the live Y.Doc (bindPersistence owns the save); otherwise cold
- *     load/append/save via sceneDocStore.
- *
- * @xyflow/react dist CSS is imported once in main.tsx.
+ * Phases 2–6: card CRUD, drag positioning, connections, entity cards, send-to-scene,
+ * promotion + graduation. F5: hover-connectivity highlight.
+ * @xyflow/react dist CSS imported once in main.tsx.
  */
 import type { Edge, EdgeChange, EdgeTypes, Node, NodeChange, NodeTypes, OnConnect, OnNodeDrag } from "@xyflow/react";
 import { applyEdgeChanges, applyNodeChanges, Background, BackgroundVariant, ConnectionMode, ReactFlow } from "@xyflow/react";
-import type { Dispatch, RefObject, SetStateAction } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, MouseEvent as ReactMouseEvent, RefObject, SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import type { AppView } from "../../App.state";
@@ -70,12 +57,8 @@ interface ConnectionMeta { from: string; to: string; }
 
 type CustomTypePick = Pick<CustomEntityType, "name" | "icon" | "color">;
 
-function docToNodes(
-  doc: Y.Doc,
-  entities: Entity[],
-  customTypes: CustomTypePick[],
-  cbs: DocToNodesCallbacks,
-): Node<AnyCardData>[] {
+function docToNodes(doc: Y.Doc, entities: Entity[], customTypes: CustomTypePick[],
+  cbs: DocToNodesCallbacks): Node<AnyCardData>[] {
   const cards = doc.getMap<CardMeta>("cards");
   return Array.from(cards.entries()).map(([id, meta]) => {
     if (meta.entityRef) {
@@ -94,6 +77,7 @@ function docToNodes(
         onPromoteToScene: meta.graduated ? undefined : cbs.onPromoteToScene,
         onPromoteToEntity: meta.graduated ? undefined : cbs.onPromoteToEntity,
         onNavigateToDestination: cbs.onNavigateToDestination,
+        onClearGraduation: meta.graduated ? cbs.onClearGraduation : undefined,
         graduated: meta.graduated,
         destinationKind: meta.destinationKind,
         destinationId: meta.destinationId,
@@ -122,17 +106,9 @@ interface EntityLoaderParams {
   entitiesRef: { current: Entity[] }; customTypesRef: { current: CustomTypePick[] };
 }
 
-/**
- * Loads the project's entity list on mount and window-focus.
- * Calls setNodes directly from the async .then() callback (not synchronously in
- * the effect body) so the ESLint react-hooks/set-state-in-effect rule is satisfied.
- */
-function useEntityLoader(
-  doc: Y.Doc,
-  storyBibleStore: StoryBibleStore | undefined,
-  projectId: string | undefined,
-  { setNodes, callbacksRef, entitiesRef, customTypesRef }: EntityLoaderParams,
-): { entities: Entity[] } {
+/** Loads the project's entity list on mount and window-focus. setNodes called from .then() (not sync in effect body) to satisfy react-hooks/set-state-in-effect. */
+function useEntityLoader(doc: Y.Doc, storyBibleStore: StoryBibleStore | undefined,
+  projectId: string | undefined, { setNodes, callbacksRef, entitiesRef, customTypesRef }: EntityLoaderParams): { entities: Entity[] } {
   const [entities, setEntities] = useState<Entity[]>([]);
 
   useEffect(() => {
@@ -160,19 +136,16 @@ function useEntityLoader(
 // ── useCanvasHandlers ─────────────────────────────────────────────────────────
 
 interface CanvasRefs {
-  entitiesRef: { current: Entity[] };
-  customTypesRef: { current: CustomTypePick[] };
-  /** callbacksRef.current.tree has the latest binder tree (owned by useBoardCallbacks). */
-  callbacksRef: { current: DocToNodesCallbacks };
+  entitiesRef: { current: Entity[] }; customTypesRef: { current: CustomTypePick[] };
+  callbacksRef: { current: DocToNodesCallbacks }; // tree owned by useBoardCallbacks
 }
 
 /** Yjs observer: rebuilds node list whenever the cards map changes. */
 function useCardObserver(doc: Y.Doc, setNodes: NodeSetter, refs: CanvasRefs) {
   useEffect(() => {
     const cards = doc.getMap<CardMeta>("cards");
-    const sync = () => setNodes(
-      docToNodes(doc, refs.entitiesRef.current, refs.customTypesRef.current, refs.callbacksRef.current)
-    );
+    const sync = () => setNodes(docToNodes(
+      doc, refs.entitiesRef.current, refs.customTypesRef.current, refs.callbacksRef.current));
     cards.observe(sync);
     return () => cards.unobserve(sync);
   }, [doc, setNodes, refs]);
@@ -242,6 +215,31 @@ function useEdgeHandlers(doc: Y.Doc, setEdges: EdgeSetter) {
   );
 
   return { onEdgesChange, onConnect, onEdgesDelete };
+}
+
+// ── useHoverHighlight — F5 connectivity highlight ─────────────────────────────
+/** Derive display-only node/edge arrays with hot-highlight classNames on enter/leave. */
+function useHoverHighlight(nodes: Node<AnyCardData>[], edges: Edge[]) {
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const onNodeMouseEnter = useCallback((_evt: ReactMouseEvent, node: Node) => { setHoveredNodeId(node.id); }, []);
+  const onNodeMouseLeave = useCallback(() => setHoveredNodeId(null), []);
+  const displayNodes = useMemo(() => {
+    if (!hoveredNodeId) return nodes;
+    const neighborIds = new Set<string>();
+    for (const e of edges) {
+      if (e.source === hoveredNodeId) neighborIds.add(e.target);
+      else if (e.target === hoveredNodeId) neighborIds.add(e.source);
+    }
+    return nodes.map((n) => neighborIds.has(n.id) ? { ...n, className: "is-neighbor-hot" } : n);
+  }, [hoveredNodeId, nodes, edges]);
+  const displayEdges = useMemo(() => {
+    if (!hoveredNodeId) return edges;
+    return edges.map((e) =>
+      (e.source === hoveredNodeId || e.target === hoveredNodeId)
+        ? { ...e, className: "is-connected-hot" } : e
+    );
+  }, [hoveredNodeId, edges]);
+  return { displayNodes, displayEdges, onNodeMouseEnter, onNodeMouseLeave };
 }
 
 // ── useEntityPicker ───────────────────────────────────────────────────────────
@@ -329,9 +327,7 @@ function BoardEmptyState() {
   return (
     <div className="board-empty">
       <div className="board-empty-ghost">Click to write…</div>
-      <p className="board-empty-hint">
-        A blank table for half-formed ideas. <b>Add a card</b>, or just start typing.
-      </p>
+      <p className="board-empty-hint">A blank table for half-formed ideas. <b>Add a card</b>, or just start typing.</p>
     </div>
   );
 }
@@ -354,6 +350,7 @@ export function BoardCanvas({
   const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } = useCanvasHandlers(doc, setNodes, nodes.length, { entitiesRef, customTypesRef, callbacksRef });
   const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
   const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length);
+  const { displayNodes, displayEdges, onNodeMouseEnter, onNodeMouseLeave } = useHoverHighlight(nodes, edges);
   const toggleBtnRef = useRef<HTMLButtonElement>(null);
   return (
     <div className="board-canvas-wrap">
@@ -362,9 +359,10 @@ export function BoardCanvas({
         onClosePicker={() => setShowPicker(false)} toggleBtnRef={toggleBtnRef}
         boardName={boardName} />
       <div className="board-canvas">
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+        <ReactFlow nodes={displayNodes} edges={displayEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
           onNodesChange={onNodesChange} onNodeDragStop={onNodeDragStop} onNodesDelete={handleNodesDelete}
           onEdgesChange={onEdgesChange} onConnect={onConnect} onEdgesDelete={onEdgesDelete}
+          onNodeMouseEnter={onNodeMouseEnter} onNodeMouseLeave={onNodeMouseLeave}
           connectionMode={ConnectionMode.Loose} connectionRadius={40} fitView proOptions={{ hideAttribution: false }}>
           <Background variant={BackgroundVariant.Dots} gap={22} size={1.6} color="var(--board-dot)" />
         </ReactFlow>

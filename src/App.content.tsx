@@ -188,8 +188,7 @@ interface SideSlotsProps {
   onOpenEntry: (id: string, kind: string) => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
   onInsertAtCaret?: (name: string) => void;
-  /** Navigate to a specific brainstorm board (switches main view stage). */
-  onOpenBrainstorm?: (boardId: string) => void;
+  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null; // F2: board id; null outside brainstorm
 }
 
 function buildSideSlots(p: SideSlotsProps) {
@@ -201,7 +200,7 @@ function buildSideSlots(p: SideSlotsProps) {
         dragCallbacks={p.dragCallbacks} quickCount={p.quickCount} archivedCount={p.archivedCount}
         manuscriptTotal={p.manuscriptTotal} onOpenQuickNotes={() => p.overlays.setShowInbox(true)}
         onOpenArchive={() => p.overlays.setShowArchive(true)}
-        onOpenBrainstorm={p.onOpenBrainstorm} />
+        onOpenBrainstorm={p.onOpenBrainstorm} activeBoardId={p.view === "brainstorm" ? (p.selectedBoardId ?? null) : null} />
     : null;
   const inspectorSlot = (p.showSidePanels && p.view === "editor" && p.activeProjectId)
     ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId}
@@ -278,20 +277,20 @@ function useAppContentSlots(props: AppContentProps) {
   const focusSettingsHook = useFocusSettings();
   const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };
   const { menu: goalMenu, openGoalMenu, closeGoalMenu, editGoalId, setEditGoalId } = useGoalMenu(setShowGoals);
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);  const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";  const insertAtCaretRef = useRef<((text: string) => void) | null>(null);  const onRegisterInsert = useCallback((fn: (text: string) => void) => { insertAtCaretRef.current = fn; }, []);  const onInsertAtCaret = useCallback((name: string) => { insertAtCaretRef.current?.(name); }, []);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);  const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";  const insertAtCaretRef = useRef<((text: string) => void) | null>(null);  const onRegisterInsert = useCallback((fn: (text: string) => void) => { insertAtCaretRef.current = fn; }, []);  const onInsertAtCaret = useCallback((name: string) => { insertAtCaretRef.current?.(name); }, []);  const selectSceneWithViewReset = useCallback((id: string) => { if (view === "brainstorm") onViewChange("editor"); onSelectScene(id); }, [view, onViewChange, onSelectScene]);
   // eslint-disable-next-line react-hooks/refs
   const { binderSlot, inspectorSlot } = buildSideSlots({
-    tree, selectedSceneId, onSelectScene, callbacks, projects, activeProjectId,
+    tree, selectedSceneId, onSelectScene: selectSceneWithViewReset, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
     showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
-    onInsertAtCaret, onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
+    onInsertAtCaret, selectedBoardId, onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
   const { onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };
   // eslint-disable-next-line react-hooks/refs
   const viewStageContent = makeViewStage({
-    view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene,
+    view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene: selectSceneWithViewReset,
     onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
     onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
     onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onDeleteEntity, labelStore, ls, onTakeSnapshot: callbacks.onTakeSnapshot, onOpenHistory: callbacks.onOpenHistory, editorFocus, onFindMentions, onRegisterInsert, brainstormBoardId: selectedBoardId,

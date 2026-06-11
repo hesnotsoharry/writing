@@ -41,6 +41,8 @@ interface BinderProps extends BinderContentProps {
   manuscriptTotal?: number;
   /** Open a brainstorm board by id (switches main view stage to "brainstorm"). */
   onOpenBrainstorm?: (boardId: string) => void;
+  /** F2: id of the board currently open (gated on view === "brainstorm" by the caller). */
+  activeBoardId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +301,7 @@ export function Binder(props: BinderProps) {
     tree, selectedSceneId, onSelectScene, callbacks,
     projects, activeProjectId, onSwitchProject, onCreateProject, dragCallbacks,
     quickCount, archivedCount, onOpenQuickNotes, onOpenArchive, manuscriptTotal,
-    onOpenBrainstorm,
+    onOpenBrainstorm, activeBoardId,
   } = props;
   const items = buildItemsMap(tree);
   const sceneById = buildSceneById(tree);
@@ -321,7 +323,7 @@ export function Binder(props: BinderProps) {
             {onOpenBrainstorm && (
               <BrainstormSection
                 activeProjectId={activeProjectId}
-                onOpenBoard={onOpenBrainstorm}
+                onOpenBoard={onOpenBrainstorm} activeBoardId={activeBoardId}
               />
             )}
           </div>
