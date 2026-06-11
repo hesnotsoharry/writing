@@ -22,6 +22,8 @@ import "@fontsource/hanken-grotesk/700.css";
 // IBM Plex Mono — monospace: 400/500 normal
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
+// React Flow — board canvas (import once here; BoardCanvas.tsx uses it)
+import "@xyflow/react/dist/style.css";
 // Design-system stylesheets (tokens first — app.css consumes the vars)
 import "./styles/tokens.css";
 import "./styles/app.css";

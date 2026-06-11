@@ -112,12 +112,12 @@ describe("migration 14 — app_meta table", () => {
     }
   });
 
-  it("fresh path: stamps LATEST user_version (14) after runMigrations", async () => {
+  it("fresh path: stamps LATEST user_version (15) after runMigrations", async () => {
     const db = await makeSqlJsDb();
     try {
       await runMigrations(db);
       expect(await readUserVersion(db)).toBe(LATEST);
-      expect(LATEST).toBe(14);
+      expect(LATEST).toBe(15);
     } finally {
       db.close();
     }
@@ -138,8 +138,8 @@ describe("migration 14 — app_meta table", () => {
       // Run migrations — should only apply migration 14
       await runMigrations(db);
 
-      // Assert: version is now 14
-      expect(await readUserVersion(db)).toBe(14);
+      // Assert: version is now LATEST (migrations from v13 run through to the end)
+      expect(await readUserVersion(db)).toBe(LATEST);
 
       // Assert: app_meta table exists
       expect(await tableExists(db, "app_meta")).toBe(true);

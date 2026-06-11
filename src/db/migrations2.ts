@@ -136,5 +136,32 @@ export async function migration_014_app_meta(db: DbHandle): Promise<void> {
   );
 }
 
+/**
+ * Create the boards and board_docs tables for the Brainstorm Boards feature.
+ *
+ * boards — one row per user-created brainstorm board, project-scoped.
+ * board_docs — one row per board; state_base64 is TEXT (never BLOB) per the
+ * tauri-plugin-sql round-trip gotcha (project CLAUDE.md).
+ */
+export async function migration_015_boards(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS boards (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      sort INTEGER NOT NULL DEFAULT 0
+    )`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_boards_project_id ON boards (project_id)`
+  );
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS board_docs (
+      board_id TEXT PRIMARY KEY,
+      state_base64 TEXT NOT NULL
+    )`
+  );
+}
+
 // ensureColumn is re-exported so callers that import from migrations2 can use it.
 export { ensureColumn };

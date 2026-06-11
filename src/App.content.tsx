@@ -186,7 +186,10 @@ interface SideSlotsProps {
   onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
   showSidePanels: boolean; view: AppView;
   onOpenEntry: (id: string, kind: string) => void;
-  historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;  onInsertAtCaret?: (name: string) => void;
+  historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
+  onInsertAtCaret?: (name: string) => void;
+  /** Navigate to the brainstorm view (switches main view stage). */
+  onOpenBrainstorm?: () => void;
 }
 
 function buildSideSlots(p: SideSlotsProps) {
@@ -197,7 +200,8 @@ function buildSideSlots(p: SideSlotsProps) {
         onSwitchProject={p.onSwitchProject} onCreateProject={p.onCreateProject}
         dragCallbacks={p.dragCallbacks} quickCount={p.quickCount} archivedCount={p.archivedCount}
         manuscriptTotal={p.manuscriptTotal} onOpenQuickNotes={() => p.overlays.setShowInbox(true)}
-        onOpenArchive={() => p.overlays.setShowArchive(true)} />
+        onOpenArchive={() => p.overlays.setShowArchive(true)}
+        onOpenBrainstorm={p.onOpenBrainstorm} />
     : null;
   const inspectorSlot = (p.showSidePanels && p.view === "editor" && p.activeProjectId)
     ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId}
@@ -281,8 +285,8 @@ function useAppContentSlots(props: AppContentProps) {
     onSwitchProject, onCreateProject, dragCallbacks, quickCount, archivedCount,
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
-    showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot, onInsertAtCaret,
-  });
+    showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
+    onInsertAtCaret, onOpenBrainstorm: () => onViewChange("brainstorm") });
   const { onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };
   // eslint-disable-next-line react-hooks/refs

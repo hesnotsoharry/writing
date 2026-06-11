@@ -15,6 +15,7 @@ import type { Scene } from "./db/binderStore";
 import type { Label, LabelStore } from "./db/labelStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import type { EditorFocusProps } from "./editor/Editor";
+import { BoardView } from "./features/brainstorm/BoardView";
 import { Corkboard } from "./features/corkboard/Corkboard";
 import { type OtlSort, Outliner } from "./features/outliner/Outliner";
 import { STATUS_ORDER } from "./lib/status";
@@ -204,6 +205,9 @@ export function buildViewStage(
   if (view === "bible" && activeProjectId) {
     return <StoryBibleView store={ctx.storyBibleStore} projectId={activeProjectId}
       onEntitiesChanged={ctx.onEntitiesChanged} onOpenEntry={ctx.onOpenEntry} />;
+  }
+  if (view === "brainstorm") {
+    return <BoardView />;
   }
   if (view === "entry") {
     return <EntryViewStage

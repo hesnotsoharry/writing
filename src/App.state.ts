@@ -22,7 +22,7 @@ export interface ExportTarget {
   chapterId: string | null;
 }
 
-export type AppView = "editor" | "bible" | "cork" | "outline" | "entry";
+export type AppView = "editor" | "bible" | "cork" | "outline" | "entry" | "brainstorm";
 
 /**
  * A single frame on the entry navigation stack.

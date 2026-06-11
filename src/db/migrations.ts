@@ -5,6 +5,7 @@ import {
   migration_012_entity_relations,
   migration_013_entity_types,
   migration_014_app_meta,
+  migration_015_boards,
 } from "./migrations2";
 import type { DbHandle } from "./schema";
 import { ensureColumn } from "./schema";
@@ -372,6 +373,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 12, name: "entity-relations", up: migration_012_entity_relations },
   { version: 13, name: "entity-types", up: migration_013_entity_types },
   { version: 14, name: "app-meta", up: migration_014_app_meta },
+  { version: 15, name: "boards", up: migration_015_boards },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
