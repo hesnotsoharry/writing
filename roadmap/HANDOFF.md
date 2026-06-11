@@ -8,11 +8,12 @@ updated: 2026-06-11
 - **Brainstorm Boards v1 live in the app**: Brainstorm binder section → topic boards (React Flow canvas) → rich-text cards (lazy TipTap), connections, entity-reference cards (live names + custom-type colors), send-to-scene (hot/cold safe — appending to an OPEN scene can't be overwritten by the next keystroke), promote → new scene/entity, graduated cards dim with a working "→ destination" link
 - Bonus root-cause fix: `bindPersistence` unbind now FLUSHES pending debounced saves (was silently dropping writes made within 500ms of unmount — affected scenes too)
 - Released app still v0.3.0 / installed base unaffected — **v0.4.0 release pending**: bump 4 version files + tag + Cole runs `.\publish.ps1` when ready to ship boards to users
+- **Board design makeover SHIPPED 2026-06-11 (7861ce9)**: Direction B "drafting table" from the Claude Design bundle (now at `design-reference/brainstorm/`) — parchment + dot grid, spine entity cards, graduated dim + destination pill, floating continuous edge attachment (new `FloatingEdge.tsx`, 4 invisible handles/card), empty-state ghost card. A* edge routing (around-cards/no-overlap) deliberately NOT ported (buggy in harness — Cole's call). Adversarial review FLAG-all-addressed; CDP-smoked both themes.
 - Concurrent-session note (2026-06-10): editor multicolor highlight + relmap label toggle shipped separately (08fe6ba/a860242/ce102a6) by the other session; tree was shared — see memory `concurrent-sessions-shared-tree-2026-06-10`
 
 ## Next 3 steps
 1. **Cole human-verify pass on boards** (CDP can't drive these): card drag + handle-drag connection creation by mouse; entity rename → refocus board shows new name; real-use feel of send/promote. Dev DB's "Untitled Board" holds the smoke artifacts — delete it when done.
-2. **Brainstorm board design makeover**: Claude Design prompt already drafted in-session (2026-06-10 chat) — Cole feeds it to Claude Design, drops the bundle in `design-reference/`, then a styling-only follow-up phase ports it (wiring untouched).
+2. ~~Brainstorm board design makeover~~ DONE 2026-06-11 (7861ce9). Residue: dev DB now has TWO smoke boards ("Untitled Board" ×2) + Default Board's smoke card — delete during the human-verify pass.
 3. **Lane B candidate**: `ActivationGate.test.tsx` — 7 pre-existing failures (stale copy expectations vs UUID-format messages); predates wave-32, stash-verified.
 
 ## Active work
