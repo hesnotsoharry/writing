@@ -29,6 +29,8 @@ export interface MenuItemAction {
   right?: string;
   /** Whether this is a destructive/danger action (red styling). */
   danger?: boolean;
+  /** Render the item in a visually muted, non-interactive state. */
+  disabled?: boolean;
   onClick?: () => void;
   submenu?: MenuItem[];
 }
@@ -85,6 +87,7 @@ function ActionItem({ item, index, openSub, onOpenSub, onClose }: ActionItemProp
   return (
     <button
       className={"cm-item" + (item.danger ? " danger" : "")}
+      disabled={item.disabled}
       onMouseEnter={() => onOpenSub(hasSub ? index : -1)}
       onClick={handleClick}
     >
@@ -169,7 +172,9 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
       <div
         className="cm-backdrop"
         onMouseDown={onClose}
-        onContextMenu={(e) => { e.preventDefault(); onClose(); }}
+        // stopPropagation: else the event bubbles (React tree, despite the
+        // portal) to canvas-wrap's onContextMenu and reopens a fresh menu.
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
       />
       <div
         className="cm"

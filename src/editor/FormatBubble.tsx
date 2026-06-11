@@ -50,6 +50,49 @@ function formatActions(editor: Editor): FormatAction[] {
 }
 
 // ---------------------------------------------------------------------------
+// Highlight swatches — 4 muted rgba washes derived from the label-color palette
+// ---------------------------------------------------------------------------
+
+export const HIGHLIGHT_SWATCHES: { color: string; label: string }[] = [
+  { color: "rgba(176,125,46,0.28)", label: "Highlight amber" },
+  { color: "rgba(78,124,107,0.28)", label: "Highlight teal" },
+  { color: "rgba(63,111,158,0.28)", label: "Highlight blue" },
+  { color: "rgba(168,86,122,0.28)", label: "Highlight rose" },
+];
+
+const swatchBtn: React.CSSProperties = {
+  width: 16, height: 16, borderRadius: "50%",
+  border: "1.5px solid rgba(255,255,255,0.18)", cursor: "pointer",
+  padding: 0, flexShrink: 0,
+};
+
+const swatchBtnActive: React.CSSProperties = {
+  border: "1.5px solid rgba(255,255,255,0.85)",
+  boxShadow: "0 0 0 1.5px rgba(255,255,255,0.25)",
+};
+
+function HighlightSwatches({ editor }: { editor: Editor }) {
+  return (
+    <>
+      <span style={separatorStyle} />
+      {HIGHLIGHT_SWATCHES.map(({ color, label }) => {
+        const active = editor.isActive("highlight", { color });
+        return (
+          <button key={color} aria-label={label} aria-pressed={active}
+            style={active ? { ...swatchBtn, ...swatchBtnActive, background: color } : { ...swatchBtn, background: color }}
+            onClick={() => { editor.chain().focus().toggleHighlight({ color }).run(); }}
+          />
+        );
+      })}
+      <button aria-label="Remove highlight" style={{ ...btnBase, opacity: 0.65 }}
+        onClick={() => { editor.chain().focus().unsetHighlight().run(); }}>
+        <Icon name="x" style={{ width: 12, height: 12 }} />
+      </button>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FormatButtons — presentational dark-pill toolbar (testable without selection)
 // ---------------------------------------------------------------------------
 
@@ -133,6 +176,7 @@ export function FormatButtons({ editor }: { editor: Editor }) {
           <Icon name={a.icon} style={{ width: 14, height: 14 }} />
         </button>
       ))}
+      <HighlightSwatches editor={editor} />
       <span style={caretStyle} />
     </span>
   );

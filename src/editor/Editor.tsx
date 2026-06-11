@@ -1,6 +1,7 @@
 import "./proofread.css";
 
 import Collaboration from "@tiptap/extension-collaboration";
+import Highlight from "@tiptap/extension-highlight";
 import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -17,6 +18,7 @@ import { alBuildIndex } from "../lib/alBuildIndex";
 import { normalizeStatus, STATUS_META } from "../lib/status";
 import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
 import { makeCanvasFocusHandler } from "./canvasFocus";
+import { buildAlLinkMenu, buildEditorContextMenu } from "./EditorContextMenu";
 import { EditorHeader } from "./EditorHeader";
 import AutoLinkExtension, { type AutoLinkConfig, autolinkKey } from "./extensions/AutoLink";
 import DropCapGate from "./extensions/DropCapGate";
@@ -95,6 +97,7 @@ function buildExtensions(doc: Y.Doc, alCfg: AutoLinkConfig, flags: FocusFlags) {
   return [
     StarterKit.configure({ undoRedo: false }),
     Collaboration.configure({ document: doc, field: "content" }),
+    Highlight.configure({ multicolor: true }),
     // Placeholder applies the `is-editor-empty` class when the doc is empty; the
     // typing-cue itself is styled in app.css (.is-editor-empty::before). StarterKit v3
     // does NOT bundle Placeholder, so without this extension that class never lands
@@ -208,38 +211,6 @@ function useAutoLinkHover() {
 }
 
 // ---------------------------------------------------------------------------
-// buildAlLinkMenu — assembles the right-click ContextMenu for an .al-link span.
-// "Open full entry" is real; others are mock-toasts (documented TODOs).
-// ---------------------------------------------------------------------------
-
-interface AlLinkMenuArgs {
-  el: HTMLElement;
-  x: number;
-  y: number;
-  onOpenEntry: (id: string, kind: string) => void;
-  onNotice: (msg: string) => void;
-  onFindMentions: (entityName: string) => void;
-}
-
-function buildAlLinkMenu({ el, x, y, onOpenEntry, onNotice, onFindMentions }: AlLinkMenuArgs): MenuDescriptor {
-  const entityId = el.getAttribute("data-entity-id") ?? "";
-  const entityType = el.getAttribute("data-entity-type") ?? "";
-  const entityName = el.getAttribute("data-entity-name") ?? "";
-  const kind = entityType.charAt(0).toUpperCase() + entityType.slice(1);
-  return {
-    x, y,
-    items: [
-      { label: "Open full entry", icon: "feather", onClick: () => onOpenEntry(entityId, kind) },
-      { type: "sep" },
-      { label: "Find mentions", onClick: () => onFindMentions(entityName) },
-      { label: "Unlink here", onClick: () => onNotice("Unlink here — coming soon") },
-      { label: `Never link "${entityName}"`, onClick: () => onNotice(`Never link — coming soon`) },
-      { label: "Manage aliases…", onClick: () => onNotice("Aliases — coming soon") },
-    ],
-  };
-}
-
-// ---------------------------------------------------------------------------
 // AlNotice — transient mock-toast for al-link actions not yet fully implemented.
 // ---------------------------------------------------------------------------
 
@@ -277,18 +248,26 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
   visible, popoverProps, storyBibleStore, onOpenEntry, onFindMentions }: CanvasWrapProps) {
   const { peek, handleMouseOver, handleMouseOut, closePeek } = useAutoLinkHover();
   const [alMenu, setAlMenu] = useState<MenuDescriptor | null>(null);
+  const [editorMenu, setEditorMenu] = useState<MenuDescriptor | null>(null);
   const [mockNotice, setMockNotice] = useState<string | null>(null);
   const fireNotice = (msg: string) => { setMockNotice(msg); setTimeout(() => setMockNotice(null), 2200); };
   const handleFind = (name: string) => onFindMentions?.(name) ?? fireNotice(`Find mentions: ${name} — coming soon`);
-  function handleAlLinkContext(e: React.MouseEvent<HTMLDivElement>): void {
-    const el = (e.target as HTMLElement).closest<HTMLElement>(".al-link");
-    if (!el) return;
-    setAlMenu(buildAlLinkMenu({ el, x: e.clientX, y: e.clientY, onOpenEntry, onNotice: fireNotice, onFindMentions: handleFind }));
+  function handleEditorContextMenu(e: React.MouseEvent<HTMLDivElement>): void {
+    const target = e.target as HTMLElement;
+    const alEl = target.closest<HTMLElement>(".al-link");
+    if (alEl) {
+      setAlMenu(buildAlLinkMenu({ el: alEl, x: e.clientX, y: e.clientY, onOpenEntry, onNotice: fireNotice, onFindMentions: handleFind }));
+      return;
+    }
+    // Proofread decorations are handled by the SpellCheckPopover native listener.
+    if (target.closest(".spell-error, .grammar-error")) return;
+    if (!editor) return;
+    setEditorMenu(buildEditorContextMenu(editor, e.clientX, e.clientY));
   }
   return (
     <div className="canvas-wrap"
       onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}
-      onContextMenu={handleAlLinkContext}>
+      onContextMenu={handleEditorContextMenu}>
       {activeScene && (
         <EditorHeader chapterTitle={activeScene.chapterTitle} title={activeScene.scene.title}
           status={normalizeStatus(activeScene.scene.status)}
@@ -300,6 +279,7 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
       {peek && createPortal(<AutoLinkPeek entityId={peek.entityId} entityType={peek.entityType}
         store={storyBibleStore} anchorEl={peek.anchorEl} onOpenEntry={onOpenEntry} onFindMentions={() => handleFind(peek.entityName)} onClose={closePeek} />, document.body)}
       {alMenu && <ContextMenu menu={alMenu} onClose={() => setAlMenu(null)} />}
+      {editorMenu && <ContextMenu menu={editorMenu} onClose={() => setEditorMenu(null)} />}
       <AlNotice msg={mockNotice} />
     </div>
   );

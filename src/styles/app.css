@@ -328,6 +328,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   cursor: pointer; transition: background var(--dur-fast); padding: 0 1px; border-radius: 2px; }
 .prose .entity:hover { background: var(--accent-wash); }
 .prose .entity.loc { border-bottom-color: var(--location); }
+/* Reset browser UA yellow default on <mark>; TipTap's inline style="background-color:…"
+   takes precedence over this rule, so highlight colors render correctly. */
+.prose mark { background-color: transparent; color: inherit; }
 
 /* ---- TipTap editor-content-mount wrapper + ProseMirror reset ------------- */
 /* EditorContent renders an outer wrapper div (no class), then TipTap mounts  */
@@ -934,6 +937,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   position: relative; transition: background var(--dur-fast), color var(--dur-fast);
 }
 .cm-item:hover { background: var(--parchment-deep); color: var(--ink); }
+.cm-item:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .cm-item .ic { width: 15px; height: 15px; color: var(--ink-3); flex: none; }
 .cm-item:hover .ic { color: var(--ink-2); }
 .cm-item.danger { color: var(--danger); }
@@ -1443,3 +1447,50 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   padding: 0; font: inherit; cursor: pointer; text-decoration: underline;
 }
 .gate-buy-link:hover { color: var(--accent-deep); }
+
+/* ── Brainstorm section in binder ──────────────────────────────────────────── */
+/* Neutral furniture hover (two-tier hover doctrine: parchment for nav items). */
+.brainstorm-section { margin-top: 2px; }
+
+.board-row {
+  display: flex; align-items: center; width: 100%;
+  padding: 6px 9px 6px 16px; border-radius: var(--r-sm);
+  cursor: pointer; transition: background var(--dur-fast);
+  background: none; border: none; text-align: left;
+}
+.board-row:hover { background: var(--parchment-deep); }
+.board-row-title {
+  font-size: var(--text-sm); color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-style: italic;
+}
+
+/* ── Board view ─────────────────────────────────────────────────────────────── */
+.board-view {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  height: 100%;
+}
+.board-view--loading {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-4); font-size: var(--text-sm);
+}
+
+/* React Flow canvas container — must fill the board-view height */
+.board-canvas { flex: 1; height: 100%; }
+
+/* ── Card node ──────────────────────────────────────────────────────────────── */
+.card-node {
+  min-width: 180px; max-width: 280px;
+  background: var(--parchment); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 10px 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.card-node--readonly { cursor: pointer; }
+.card-node--readonly:hover { border-color: var(--ink-4); }
+.card-node-text { font-size: var(--text-sm); color: var(--ink-2); white-space: pre-wrap; }
+.card-node-empty { color: var(--ink-4); font-style: italic; }
+.card-node-editor .ProseMirror {
+  font-size: var(--text-sm); color: var(--ink); outline: none;
+  min-height: 40px;
+}
+.card-node--editing { padding-bottom: 6px; }

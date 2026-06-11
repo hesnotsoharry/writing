@@ -31,6 +31,9 @@ function makeMockEditor(isActiveFn?: (...args: unknown[]) => boolean) {
     toggleHeading: vi.fn(() => chain),
     toggleBlockquote: vi.fn(() => chain),
     toggleBulletList: vi.fn(() => chain),
+    toggleHighlight: vi.fn(() => chain),
+    setHighlight: vi.fn(() => chain),
+    unsetHighlight: vi.fn(() => chain),
     run,
   };
   const editor = {
@@ -117,11 +120,11 @@ describe("FormatButtons — active-state consultation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Structure: all 5 buttons and the separator are rendered
+// Structure: all 10 buttons are rendered (5 format + 4 swatches + 1 clear)
 // ---------------------------------------------------------------------------
 
 describe("FormatButtons — rendered structure", () => {
-  it("renders exactly 5 buttons: Bold, Italic, Heading, Quote, List", () => {
+  it("renders exactly 10 buttons: 5 format + 4 highlight swatches + Remove highlight", () => {
     const { editor } = makeMockEditor();
     render(<FormatButtons editor={editor} />);
     expect(screen.getByRole("button", { name: "Bold" })).toBeDefined();
@@ -129,6 +132,52 @@ describe("FormatButtons — rendered structure", () => {
     expect(screen.getByRole("button", { name: "Heading" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Quote" })).toBeDefined();
     expect(screen.getByRole("button", { name: "List" })).toBeDefined();
-    expect(screen.getAllByRole("button")).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Highlight amber" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Highlight teal" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Highlight blue" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Highlight rose" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Remove highlight" })).toBeDefined();
+    expect(screen.getAllByRole("button")).toHaveLength(10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Highlight swatches: command wiring and active-state
+// ---------------------------------------------------------------------------
+
+describe("FormatButtons — highlight swatch wiring", () => {
+  it("clicking 'Highlight amber' calls toggleHighlight with amber color then run", () => {
+    const { editor, chain, run } = makeMockEditor();
+    render(<FormatButtons editor={editor} />);
+    fireEvent.click(screen.getByRole("button", { name: "Highlight amber" }));
+    expect(chain.toggleHighlight).toHaveBeenCalledWith({ color: "rgba(176,125,46,0.28)" });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("clicking 'Remove highlight' calls unsetHighlight then run", () => {
+    const { editor, chain, run } = makeMockEditor();
+    render(<FormatButtons editor={editor} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove highlight" }));
+    expect(chain.unsetHighlight).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("amber swatch aria-pressed is true when isActive returns true for amber color", () => {
+    const AMBER = "rgba(176,125,46,0.28)";
+    const { editor } = makeMockEditor(
+      (...args) => args[0] === "highlight" && (args[1] as { color?: string })?.color === AMBER,
+    );
+    render(<FormatButtons editor={editor} />);
+    expect(screen.getByRole("button", { name: "Highlight amber" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Highlight teal" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("isActive is consulted with 'highlight' and color for each swatch", () => {
+    const { editor } = makeMockEditor();
+    render(<FormatButtons editor={editor} />);
+    expect(editor.isActive).toHaveBeenCalledWith("highlight", { color: "rgba(176,125,46,0.28)" });
+    expect(editor.isActive).toHaveBeenCalledWith("highlight", { color: "rgba(78,124,107,0.28)" });
+    expect(editor.isActive).toHaveBeenCalledWith("highlight", { color: "rgba(63,111,158,0.28)" });
+    expect(editor.isActive).toHaveBeenCalledWith("highlight", { color: "rgba(168,86,122,0.28)" });
   });
 });
