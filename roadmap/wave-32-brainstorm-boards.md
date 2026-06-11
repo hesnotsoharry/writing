@@ -119,7 +119,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-10 (run-phase `wf_922aadda-401`, panel tier, smoke=probe; prior SHA f47b0f6; oracle tests pre-authored at `src/test/db/boardDocStore.test.ts` + `src/test/features/brainstorm/boardDoc.test.ts`) | — | — | — |
+| 1 | 2026-06-10 (run-phase `wf_922aadda-401`, panel tier, smoke=probe; prior SHA f47b0f6; oracle tests pre-authored at `src/test/db/boardDocStore.test.ts` + `src/test/features/brainstorm/boardDoc.test.ts`) | 2026-06-10 | 9342a97 | YES — CDP smoke: Brainstorm section → Default Board → card click mounts TipTap → typed text survives full webview reload (migrations + SQLite reload). Caveat: webview reload, not process restart (dev app shared with concurrent session). Panel BLOCK adjudicated: out-of-scope findings were the concurrent session's already-committed work (08fe6ba/a860242/ce102a6), not this phase's diff; brainstorm code PASSed all reviewers on contract/correctness/acceptance; constructive seat 7/7 FIT. behavioralCoverageGap: UI components smoke-covered by design (jsdom can't test PM surfaces). |
 
 ## Follow-up candidates
 
