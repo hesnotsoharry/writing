@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
 import {
+  addConnection,
   createBoardCard,
   getCardFragment,
   removeCard,
+  removeConnection,
   updateCardPosition,
 } from "../../../features/brainstorm/boardDoc";
 import { applyEncoded, encodeDoc } from "../../../yjs/serialize";
@@ -355,6 +357,190 @@ describe("boardDoc", () => {
       const frag2 = doc2.getXmlFragment("card-card-y");
       expect(frag2.length).toBe(1);
       expect((frag2.get(0) as Y.XmlText)?.toString()).toContain("Y text");
+    });
+  });
+
+  describe("addConnection (Phase 3)", () => {
+    it("stores connection as plain JSON { from, to } in doc.getMap('connections')", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const connectionId = "conn-1";
+      const from = "card-a";
+      const to = "card-b";
+
+      // Act
+      addConnection(doc, connectionId, from, to);
+
+      // Assert: Connection is stored in doc.getMap('connections')[connectionId].
+      const connection = doc.getMap("connections").get(connectionId);
+      expect(connection).toEqual({ from, to });
+    });
+
+    it("stores connection metadata as plain JSON, not a Y.Map or Y.XmlFragment", () => {
+      // This asserts Decision 2's schema requirement: connection metadata must be plain JSON
+      // so that it is safe to merge in a CRDT environment without nested Y types.
+      const doc = new Y.Doc();
+      const connectionId = "conn-plain";
+      const from = "card-x";
+      const to = "card-y";
+
+      addConnection(doc, connectionId, from, to);
+
+      const connection = doc.getMap("connections").get(connectionId);
+
+      // Assert the connection is NOT a Y type.
+      expect(connection).not.toBeInstanceOf(Y.Map);
+      expect(connection).not.toBeInstanceOf(Y.XmlFragment);
+      expect(connection).not.toBeInstanceOf(Y.XmlElement);
+      expect(connection).not.toBeInstanceOf(Y.XmlText);
+
+      // Assert it is plain JSON with from and to fields.
+      expect(typeof connection).toBe("object");
+      expect(connection.from).toBe("card-x");
+      expect(connection.to).toBe("card-y");
+    });
+
+    it("does not affect other connections in the map", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      addConnection(doc, "conn-1", "card-a", "card-b");
+      addConnection(doc, "conn-2", "card-c", "card-d");
+
+      // Act: Add a third connection.
+      addConnection(doc, "conn-3", "card-e", "card-f");
+
+      // Assert: All three exist and are unchanged.
+      expect(doc.getMap("connections").get("conn-1")).toEqual({
+        from: "card-a",
+        to: "card-b",
+      });
+      expect(doc.getMap("connections").get("conn-2")).toEqual({
+        from: "card-c",
+        to: "card-d",
+      });
+      expect(doc.getMap("connections").get("conn-3")).toEqual({
+        from: "card-e",
+        to: "card-f",
+      });
+    });
+  });
+
+  describe("removeConnection (Phase 3)", () => {
+    it("removes connection from doc.getMap('connections')", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const connectionId = "conn-remove-1";
+      addConnection(doc, connectionId, "card-a", "card-b");
+
+      // Act
+      removeConnection(doc, connectionId);
+
+      // Assert: Connection is gone.
+      expect(doc.getMap("connections").get(connectionId)).toBeUndefined();
+    });
+
+    it("does not affect other connections in the map", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      addConnection(doc, "conn-1", "card-a", "card-b");
+      addConnection(doc, "conn-2", "card-c", "card-d");
+      addConnection(doc, "conn-3", "card-e", "card-f");
+
+      // Act: Remove conn-2.
+      removeConnection(doc, "conn-2");
+
+      // Assert: conn-1 and conn-3 are intact; conn-2 is gone.
+      expect(doc.getMap("connections").get("conn-1")).toEqual({
+        from: "card-a",
+        to: "card-b",
+      });
+      expect(doc.getMap("connections").get("conn-2")).toBeUndefined();
+      expect(doc.getMap("connections").get("conn-3")).toEqual({
+        from: "card-e",
+        to: "card-f",
+      });
+    });
+  });
+
+  describe("Schema round-trip: connections (Phase 3)", () => {
+    it("preserves connections through a full encode-decode cycle", () => {
+      // Arrange: Create a board with cards and connections, encode it.
+      const doc1 = new Y.Doc();
+      createBoardCard(doc1, "card-a", { x: 0, y: 0 });
+      createBoardCard(doc1, "card-b", { x: 100, y: 100 });
+
+      addConnection(doc1, "conn-1", "card-a", "card-b");
+
+      const base64 = encodeDoc(doc1);
+
+      // Act: Decode into a new doc.
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: Connection is preserved.
+      const connection = doc2.getMap("connections").get("conn-1");
+      expect(connection).toEqual({ from: "card-a", to: "card-b" });
+    });
+
+    it("preserves multiple connections and cards through encode-decode", () => {
+      // Arrange
+      const doc1 = new Y.Doc();
+      createBoardCard(doc1, "card-1", { x: 0, y: 0 });
+      createBoardCard(doc1, "card-2", { x: 100, y: 100 });
+      createBoardCard(doc1, "card-3", { x: 200, y: 200 });
+
+      addConnection(doc1, "conn-a", "card-1", "card-2");
+      addConnection(doc1, "conn-b", "card-2", "card-3");
+      addConnection(doc1, "conn-c", "card-1", "card-3");
+
+      const base64 = encodeDoc(doc1);
+
+      // Act: Decode.
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: All cards and connections are preserved.
+      expect(doc2.getMap("cards").get("card-1")).toEqual({ x: 0, y: 0 });
+      expect(doc2.getMap("cards").get("card-2")).toEqual({ x: 100, y: 100 });
+      expect(doc2.getMap("cards").get("card-3")).toEqual({ x: 200, y: 200 });
+
+      expect(doc2.getMap("connections").get("conn-a")).toEqual({
+        from: "card-1",
+        to: "card-2",
+      });
+      expect(doc2.getMap("connections").get("conn-b")).toEqual({
+        from: "card-2",
+        to: "card-3",
+      });
+      expect(doc2.getMap("connections").get("conn-c")).toEqual({
+        from: "card-1",
+        to: "card-3",
+      });
+    });
+
+    it("preserves connection deletions through encode-decode", () => {
+      // Arrange
+      const doc1 = new Y.Doc();
+      createBoardCard(doc1, "card-x", { x: 0, y: 0 });
+      createBoardCard(doc1, "card-y", { x: 100, y: 100 });
+
+      addConnection(doc1, "conn-1", "card-x", "card-y");
+      addConnection(doc1, "conn-2", "card-y", "card-x");
+
+      removeConnection(doc1, "conn-1");
+
+      const base64 = encodeDoc(doc1);
+
+      // Act: Decode.
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: conn-1 is gone; conn-2 persists.
+      expect(doc2.getMap("connections").get("conn-1")).toBeUndefined();
+      expect(doc2.getMap("connections").get("conn-2")).toEqual({
+        from: "card-y",
+        to: "card-x",
+      });
     });
   });
 });

@@ -60,3 +60,31 @@ export function removeCard(doc: Y.Doc, cardId: string): void {
     frag.delete(0, frag.length);
   }
 }
+
+/**
+ * Add a connection between two cards (Phase 3).
+ *
+ * Schema (Decision 2 — wave 32):
+ *   - connection metadata (from/to) is a plain JSON value in doc.getMap('connections')[connectionId]
+ *   - each connection stores { from: cardId, to: cardId } as plain JSON
+ *
+ * Plain JSON in Y.Map (not a Y type) ensures CRDT safety and matches card metadata pattern.
+ */
+export function addConnection(
+  _doc: Y.Doc,
+  _connectionId: string,
+  _from: string,
+  _to: string
+): void {
+  throw new Error("not implemented");
+}
+
+/**
+ * Remove a connection between two cards (Phase 3).
+ *
+ * Deletes the connection's entry from doc.getMap('connections').
+ * Other connections are unaffected.
+ */
+export function removeConnection(_doc: Y.Doc, _connectionId: string): void {
+  throw new Error("not implemented");
+}
