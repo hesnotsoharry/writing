@@ -190,29 +190,28 @@ function PromoteMenu({ step, onPromoteScene, onShowEntityTypes, onPickEntityType
 
 interface GraduatedProps {
   displayText: string;
-  handleDelete: (e: ReactMouseEvent) => void;
   destinationKind?: "scene" | "entity";
   destinationId?: string;
   destinationLabel?: string;
   onNavigate?: (kind: "scene" | "entity", id: string) => void;
 }
 
-function GraduatedCardView({ displayText, handleDelete, destinationKind, destinationId, destinationLabel, onNavigate }: GraduatedProps) {
+function GraduatedCardView({ displayText, destinationKind, destinationId, destinationLabel, onNavigate }: GraduatedProps) {
   const destLabel = destinationLabel ?? (destinationKind === "scene" ? "Scene" : "Entity");
   return (
     <div className="card-node card-node--graduated">
-      <Handle type="source" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Top} id="top" />
       <Handle type="source" position={Position.Right} id="right" />
-      <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
-        title="Delete card" aria-label="Delete card">×</button>
-      <span className="card-node-text card-node-text--graduated">
+      <Handle type="source" position={Position.Bottom} id="bottom" />
+      <Handle type="source" position={Position.Left} id="left" />
+      <span className="card-node-text">
         {displayText || <em className="card-node-empty">—</em>}
       </span>
       {destinationKind && destinationId && (
-        <button type="button" className="card-node-destination nodrag"
+        <button type="button" className="card-grad-link nodrag"
           onClick={(e) => { e.stopPropagation(); onNavigate?.(destinationKind, destinationId); }}
           title={`Open ${destLabel}`}>
-          → {destLabel}
+          <span className="arr">→</span> {destLabel}
         </button>
       )}
     </div>
@@ -237,8 +236,10 @@ function CardReadonlyView({ cardId, displayText, handleDelete, onEdit, onSendToS
   return (
     <div className="card-node card-node--readonly" onClick={onEdit} role="button" tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onEdit(); }}>
-      <Handle type="source" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Top} id="top" />
       <Handle type="source" position={Position.Right} id="right" />
+      <Handle type="source" position={Position.Bottom} id="bottom" />
+      <Handle type="source" position={Position.Left} id="left" />
       <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
         title="Delete card" aria-label="Delete card">×</button>
       {onSendToScene && (
@@ -277,7 +278,7 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
   if (graduated) {
     return (
       <GraduatedCardView
-        displayText={displayText} handleDelete={handleDelete}
+        displayText={displayText}
         destinationKind={destinationKind} destinationId={destinationId}
         destinationLabel={destinationLabel} onNavigate={onNavigateToDestination}
       />
@@ -287,8 +288,10 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
   if (isEditing) {
     return (
       <div className="nodrag card-node card-node--editing">
-        <Handle type="source" position={Position.Left} id="left" />
+        <Handle type="source" position={Position.Top} id="top" />
         <Handle type="source" position={Position.Right} id="right" />
+        <Handle type="source" position={Position.Bottom} id="bottom" />
+        <Handle type="source" position={Position.Left} id="left" />
         <CardEditor doc={doc} cardId={cardId} onDone={handleDone} />
       </div>
     );

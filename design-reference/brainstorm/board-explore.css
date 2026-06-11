@@ -1,0 +1,482 @@
+/* ============================================================================
+   Brainstorm Boards — makeover exploration styles
+   Written against writing/src/styles/tokens.css (real token names, light+dark).
+   Three intensity directions on the SAME markup, gated by a board-level class:
+     .bx-board--a  "Margin notes"   — barely there
+     .bx-board--b  "Drafting table" — recommended middle
+     .bx-board--c  "Scratch pad"    — clearly looser
+   Production class names are used verbatim where they exist
+   (.card-node, .card-node--readonly/-editing, .card-node-text, .card-node-delete,
+    .board-toolbar, .board-add-card, .react-flow__node/__edge/__handle) so the
+   CSS ports straight in. New surfaces introduce new modifier classes
+   (.card-node--entity, .card-node--graduated, .board-add-entity).
+   ============================================================================ */
+
+/* ── Mock scaffold (stands in for React Flow's transformed DOM) ───────────────
+   .bx-canvas == the board canvas (.react-flow viewport)
+   .react-flow__node == absolutely-positioned node wrapper (RF gives it transform)
+   In production these positions come from React Flow; here they're inline.       */
+.bx-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+.bx-canvas .react-flow__node {
+  position: absolute;
+  /* transform: translate(x,y) supplied inline, mirroring React Flow */
+}
+.bx-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+
+/* ============================================================================
+   1 · CANVAS BACKGROUND  — "thinking space, not a document"
+   The editor/manuscript sits on --paper (brightest warm white). The board reads
+   as a recessed drafting surface: a tone step toward --parchment + a faint dot
+   grid. Direction A keeps it near-paper; B drops to the chrome tone; C to the
+   deepest well. Dots use the warm neutral ramp, never accent.
+   In production: container tone via CSS here; dots via React Flow
+   <Background variant="dots" gap={22} size={1.6} color="var(--bx-dot)" />.
+   ============================================================================ */
+.bx-canvas { --bx-dot-gap: 22px; }
+
+/* A — Margin notes: same page, just gridded. Minimal tone shift. */
+.bx-board--a .bx-canvas {
+  background-color: color-mix(in srgb, var(--paper) 92%, var(--parchment));
+  background-image: radial-gradient(var(--bx-dot-a) 1.4px, transparent 1.5px);
+  background-size: var(--bx-dot-gap) var(--bx-dot-gap);
+  background-position: -11px -11px;
+  --bx-dot-a: color-mix(in srgb, var(--ink-4) 26%, transparent);
+}
+/* B — Drafting table: clear step to the chrome tone, legible dot grid. */
+.bx-board--b .bx-canvas {
+  background-color: var(--parchment);
+  background-image: radial-gradient(var(--bx-dot-b) 1.5px, transparent 1.6px);
+  background-size: var(--bx-dot-gap) var(--bx-dot-gap);
+  background-position: -11px -11px;
+  --bx-dot-b: color-mix(in srgb, var(--ink-4) 42%, transparent);
+}
+/* C — Scratch pad: deepest well + a faint cross-hatch (two layered dot grids). */
+.bx-board--c .bx-canvas {
+  background-color: var(--parchment-deep);
+  background-image:
+    radial-gradient(var(--bx-dot-c) 1.5px, transparent 1.6px),
+    radial-gradient(var(--bx-dot-c2) 1px, transparent 1.1px);
+  background-size: var(--bx-dot-gap) var(--bx-dot-gap), calc(var(--bx-dot-gap) / 2) calc(var(--bx-dot-gap) / 2);
+  background-position: -11px -11px, -6px -6px;
+  --bx-dot-c: color-mix(in srgb, var(--ink-4) 50%, transparent);
+  --bx-dot-c2: color-mix(in srgb, var(--ink-4) 22%, transparent);
+}
+
+/* ============================================================================
+   2 · CARD NODE  — text cards ("pencil on scratch paper")
+   Resting / hover / selected / editing. Cards are the BRIGHT thing on the dim
+   table (always --paper) so the surface reads recessed and the card reads as a
+   loose scrap. Less elevation + softer/looser corners + slightly lighter ink =
+   "less final" than a scene. Content text is serif (Literata) — it's still prose.
+   Hover doctrine: accent ring/wash on the CARD (content surface); neutral on
+   furniture (delete, handles, toolbar).
+   ============================================================================ */
+.card-node {
+  position: relative;
+  min-width: 168px;
+  max-width: 264px;
+  background: var(--paper);
+  color: var(--ink-2);
+  padding: 11px 13px;
+  transition:
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.card-node-text {
+  font-family: var(--font-prose);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+.card-node-text .ttl {            /* optional first-line emphasis */
+  display: block;
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.card-node-empty { color: var(--ink-4); font-style: italic; }
+
+/* —— Direction A · Margin notes ————————————————————————————————————————————— */
+.bx-board--a .card-node {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-xs);
+}
+.bx-board--a .card-node--readonly:hover {
+  border-color: var(--accent-ring);
+  box-shadow: var(--shadow-sm);
+}
+.bx-board--a .card-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash), var(--shadow-sm);
+}
+
+/* —— Direction B · Drafting table  (recommended) ——————————————————————————————
+   Softer, very slightly asymmetric corners (hand-cut, not crooked); the lightest
+   lift; a "pencil" hairline a touch lighter than --line. */
+.bx-board--b .card-node {
+  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--paper));
+  border-radius: 10px 9px 11px 9px;     /* whisper of irregularity */
+  box-shadow: 0 1px 2px rgba(58, 46, 28, 0.05);
+}
+.bx-board--b .card-node--readonly:hover {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 3px var(--accent-wash), 0 2px 8px rgba(58, 46, 28, 0.08);
+  transform: translateY(-1px);
+}
+.bx-board--b .card-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring), 0 2px 10px rgba(58, 46, 28, 0.10);
+}
+
+/* —— Direction C · Scratch pad ————————————————————————————————————————————————
+   Loosest legible end: more irregular corners, pencil-light ink, near-flat
+   (border carries it), a 0.4° whisper of rotation alternating by nth-child. */
+.bx-board--c .card-node {
+  border: 1px solid color-mix(in srgb, var(--line) 64%, var(--paper));
+  border-radius: 12px 9px 13px 10px;
+  box-shadow: none;
+}
+.bx-board--c .card-node-text { color: var(--ink-3); }
+.bx-board--c .card-node-text .ttl { color: var(--ink-2); }
+.bx-board--c .react-flow__node:nth-child(odd) .card-node  { transform: rotate(-0.5deg); }
+.bx-board--c .react-flow__node:nth-child(even) .card-node { transform: rotate(0.4deg); }
+.bx-board--c .card-node--readonly:hover {
+  border-color: var(--accent-ring);
+  background: color-mix(in srgb, var(--paper) 96%, var(--accent));
+}
+.bx-board--c .card-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+/* —— Editing state (shared) ——————————————————————————————————————————————————
+   "Now I'm really writing": paper stays bright, an accent ring confirms focus,
+   ink goes full --ink. The card lifts very slightly above the table.            */
+.card-node--editing,
+.card-node.is-editing {
+  background: var(--paper) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-wash), var(--shadow-md) !important;
+  transform: none !important;
+}
+.card-node--editing .card-node-text,
+.card-node.is-editing .card-node-text { color: var(--ink); }
+.card-node-editor .ProseMirror {
+  font-family: var(--font-prose);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--ink);
+  outline: none;
+  min-height: 38px;
+}
+.card-node-caret {                /* mock-only blinking caret */
+  display: inline-block; width: 1.5px; height: 1.1em; vertical-align: text-bottom;
+  background: var(--accent); margin-left: 1px; animation: bx-blink 1.05s step-end infinite;
+}
+@keyframes bx-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+/* —— Delete affordance (FURNITURE — neutral hover) ———————————————————————————— */
+.card-node-delete {
+  position: absolute; top: 4px; right: 4px;
+  width: 18px; height: 18px; border-radius: var(--r-xs);
+  display: grid; place-items: center;
+  font-size: 14px; line-height: 1; color: var(--ink-4);
+  background: none; border: none; cursor: pointer;
+  opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+}
+.card-node:hover .card-node-delete { opacity: 1; }
+.card-node-delete:hover { background: var(--parchment-deep); color: var(--ink); }
+
+/* ============================================================================
+   3 · ENTITY CARD  — a reference token, a different species
+   References a Story Bible entity (live name + type color from --label-*).
+   No free text. Sans-serif (it's a reference, not prose). Tinted body so it
+   never looks writable. Three species shown in the specimen panel; the board
+   uses the default (spine).  Type color is injected as --etype on the element.
+   ============================================================================ */
+.card-node--entity {
+  min-width: 0;
+  width: max-content;
+  max-width: 232px;
+  background: var(--etype-tint, var(--label-clay-tint));
+  border: 1px solid color-mix(in srgb, var(--etype, var(--label-clay)) 45%, var(--line));
+  border-radius: var(--r-md);
+  padding: 7px 12px 7px 13px;
+  display: flex; align-items: center; gap: 9px;
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+}
+.bx-board--b .card-node--entity { border-radius: 9px 8px 9px 8px; }
+.bx-board--c .card-node--entity { box-shadow: none; }
+.card-node--entity:hover {
+  border-color: var(--etype, var(--label-clay));
+  box-shadow: var(--shadow-sm);
+}
+.ent-spine {                       /* species default: left type-color bar */
+  position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+  border-radius: var(--r-pill);
+  background: var(--etype, var(--label-clay));
+}
+.ent-name {
+  font-family: var(--font-ui); font-weight: var(--w-semi);
+  font-size: var(--text-sm); color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ent-type {
+  font-family: var(--font-ui); font-size: var(--text-2xs);
+  font-weight: var(--w-medium); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--etype, var(--label-clay));
+}
+.ent-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--etype, var(--label-clay)); }
+.ent-glyph {
+  width: 20px; height: 20px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--etype, var(--label-clay)) 18%, var(--paper));
+  color: var(--etype, var(--label-clay));
+  font-family: var(--font-prose); font-style: italic; font-weight: var(--w-semi); font-size: 12px;
+}
+
+/* Species variants (specimen panel) */
+.card-node--entity.ent--pill {                /* E1 · pill: dot + name only */
+  padding: 5px 12px 5px 11px; border-radius: var(--r-pill);
+}
+.card-node--entity.ent--ring {                /* E3 · ring: outline token, no tint fill */
+  background: var(--paper); border: 1.6px solid var(--etype, var(--label-clay));
+  padding: 6px 13px; border-radius: var(--r-pill);
+}
+.card-node--entity.ent--ring .ent-name { color: var(--ink); }
+
+/* ============================================================================
+   4 · GRADUATED CARD  — promoted into a real scene/entity, now "spent"
+   The thinking record stays legible but clearly retired: dimmed + desaturated,
+   ink steps back, the delete is replaced by a quiet destination link
+   ("→ Chapter 5"). Not removable noise — a breadcrumb of where the thought went.
+   ============================================================================ */
+.card-node--graduated {
+  opacity: 0.62;
+  filter: saturate(0.8);
+  cursor: default;
+}
+.card-node--graduated .card-node-text { color: var(--ink-3); }
+.card-node--graduated:hover { opacity: 0.78; }      /* recover legibility on hover */
+.card-grad-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 9px; padding: 3px 9px 3px 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  font-family: var(--font-ui); font-size: var(--text-2xs); font-weight: var(--w-semi);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  text-decoration: none; cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.card-grad-link:hover { background: var(--accent-tint); }
+.card-grad-link .arr { font-size: 12px; line-height: 1; }
+.card-grad-seal {                  /* variant G2: a faint "moved" wash stripe */
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: repeating-linear-gradient(
+    -18deg, transparent 0 13px,
+    color-mix(in srgb, var(--ink-4) 8%, transparent) 13px 14px);
+}
+
+/* ============================================================================
+   5 · CONNECTIONS + HANDLES
+   Plain calm lines, no labels/arrowheads. Pencil-soft stroke, round caps.
+   Handles are FURNITURE: hidden until node hover, neutral resting, a touch
+   darker on hover. In production set the stroke from CSS — drop the inline
+   style in docToEdges() so .react-flow__edge path wins without !important.
+   ============================================================================ */
+.react-flow__edge path,
+.bx-edge {
+  fill: none;
+  stroke: var(--bx-edge, color-mix(in srgb, var(--ink-4) 85%, transparent));
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  transition: stroke var(--dur-fast);
+}
+.react-flow__edge.is-selected path,
+.bx-edge.is-selected { stroke: var(--accent); stroke-width: 1.75px; }
+.bx-board--c .react-flow__edge path,
+.bx-board--c .bx-edge { stroke-width: 1.6px; }
+
+/* Handles — FURNITURE. Four per card (top/right/bottom/left) so a writer can
+   link from any side; ConnectionMode.Loose makes every handle both source and
+   target, which is what enables many-to-many wiring. Hidden until node hover. */
+.card-node .react-flow__handle,
+.bx-handle {
+  position: absolute;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--ink-4);
+  border: 1.5px solid var(--paper);
+  opacity: 0;
+  transition: opacity var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+}
+.bx-handle.top    { top: -5px;  left: 50%; transform: translateX(-50%); }
+.bx-handle.bottom { bottom: -5px; left: 50%; transform: translateX(-50%); }
+.bx-handle.left   { left: -5px; top: 50%;  transform: translateY(-50%); }
+.bx-handle.right  { right: -5px; top: 50%;  transform: translateY(-50%); }
+.card-node:hover .react-flow__handle,
+.react-flow__node:hover .bx-handle,
+.bx-show-handles .bx-handle { opacity: 1; }
+.bx-handle:hover {
+  background: var(--ink-2);
+}
+.bx-handle.top:hover, .bx-handle.bottom:hover { transform: translateX(-50%) scale(1.25); }
+.bx-handle.left:hover, .bx-handle.right:hover { transform: translateY(-50%) scale(1.25); }
+
+/* ============================================================================
+   6 · TOOLBAR  — Add card / Add entity card (FURNITURE — neutral hover)
+   ============================================================================ */
+.board-toolbar {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--parchment-edge);
+  background: color-mix(in srgb, var(--parchment) 80%, var(--paper));
+  backdrop-filter: blur(6px);
+  font-family: var(--font-ui);
+}
+.board-add-card, .board-add-entity {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-sm); color: var(--ink-3);
+  padding: 5px 10px; border-radius: var(--r-sm);
+  background: none; border: none; cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.board-add-card:hover, .board-add-entity:hover { background: var(--parchment-deep); color: var(--ink); }
+.board-add-card svg, .board-add-entity svg { width: 14px; height: 14px; }
+.board-add-entity .ic-ent {                 /* tiny type-dot cue on the entity button */
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--label-moss); box-shadow: 0 0 0 2px color-mix(in srgb, var(--label-moss) 22%, transparent);
+}
+.board-tool-sep { width: 1px; height: 18px; background: var(--parchment-edge); margin: 0 2px; }
+.board-tool-spacer { flex: 1; }
+.board-title {
+  font-family: var(--font-prose); font-style: italic;
+  font-size: var(--text-sm); color: var(--ink-3);
+}
+
+/* ============================================================================
+   7 · EMPTY BOARD STATE  — invite a brain-dump, don't look broken
+   A faint ghost card ("Click to write…") plus one quiet line. Calm, not empty.
+   ============================================================================ */
+.board-empty {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; text-align: center; pointer-events: none;
+}
+.board-empty-ghost {
+  width: 196px; padding: 14px 15px;
+  border: 1.5px dashed color-mix(in srgb, var(--ink-4) 55%, transparent);
+  border-radius: 11px 9px 12px 9px;
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  color: var(--ink-4); font-family: var(--font-prose); font-style: italic;
+  font-size: var(--text-base); line-height: 1.5; text-align: left;
+}
+.board-empty-hint {
+  font-family: var(--font-ui); font-size: var(--text-sm); color: var(--ink-3);
+  max-width: 280px; line-height: 1.5;
+}
+.board-empty-hint b { color: var(--ink-2); font-weight: var(--w-semi); }
+
+/* Empty variant 2 — quiet centered prompt, no ghost card */
+.board-empty--line .board-empty-ghost { display: none; }
+
+/* ── small UI bits used in the specimens ──────────────────────────────────── */
+.bx-tag {
+  position: absolute; top: 8px; left: 10px; z-index: 4;
+  font-family: var(--font-ui); font-size: var(--text-2xs); font-weight: var(--w-semi);
+  letter-spacing: .03em; text-transform: uppercase;
+  color: var(--ink-4); background: color-mix(in srgb, var(--paper) 70%, transparent);
+  padding: 2px 7px; border-radius: var(--r-pill); pointer-events: none;
+}
+.bx-statelabel {
+  font-family: var(--font-ui); font-size: var(--text-2xs); font-weight: var(--w-semi);
+  letter-spacing: .04em; text-transform: uppercase; color: var(--ink-4);
+  text-align: center; margin-top: 8px;
+}
+
+/* ============================================================================
+   LIVE HARNESS MAPPING  — makes a real @xyflow/react surface wear Direction B.
+   These rules bridge the real React Flow DOM to the makeover; the same handful
+   port into app.css. (Direction B is committed here.)
+   ============================================================================ */
+.bx-board { position: relative; width: 100%; height: 100%; }
+.bx-board .react-flow { background: var(--board-surface, var(--parchment)); }
+.bx-board .react-flow__background { color: var(--board-dot, color-mix(in srgb, var(--ink-4) 42%, transparent)); }
+
+/* Handle dots are hidden — lines attach anywhere on the border (computed by the
+   planner). The handles stay in the DOM (invisible) so you can still drag from a
+   card's edge to create a link; RF's connectionRadius catches the nearby drag. */
+.bx-board .react-flow__handle {
+  width: 14px; height: 14px;
+  background: transparent;
+  border: none;
+  opacity: 0;
+}
+.bx-board .react-flow__node:hover .react-flow__handle,
+.bx-board .react-flow__handle.connectionindicator:hover,
+.bx-board .react-flow__handle-connecting { opacity: 0; }
+
+/* Selection comes from React Flow's .selected on the node wrapper. */
+.bx-board .react-flow__node.selected .card-node:not(.card-node--entity):not(.card-node--graduated) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring), 0 2px 10px rgba(58, 46, 28, 0.10);
+}
+.bx-board .react-flow__node.selected .card-node--entity { border-color: var(--etype, var(--accent)); }
+
+/* Curved edges (RF default bezier). Stroke from CSS — no inline style. */
+.bx-board .react-flow__edge-path { stroke: color-mix(in srgb, var(--ink-4) 85%, transparent); stroke-width: 1.5px; stroke-linecap: round; }
+.bx-board .react-flow__edge.selected .react-flow__edge-path,
+.bx-board .react-flow__edge:hover .react-flow__edge-path { stroke: var(--accent); stroke-width: 1.75px; }
+.bx-board .react-flow__connectionline .react-flow__connection-path,
+.bx-board .react-flow__connection-path { stroke: var(--accent-ring); stroke-width: 1.75px; }
+
+/* RF node reset so our .card-node fully owns the look. */
+.bx-board .react-flow__node-card,
+.bx-board .react-flow__node-entity { background: none; border: none; padding: 0; border-radius: 0; width: auto; font-family: var(--font-ui); }
+.bx-board .react-flow__node.dragging .card-node { box-shadow: var(--shadow-md); }
+
+/* contentEditable editor in the live harness */
+.bx-board .card-node-editor .ProseMirror {
+  font-family: var(--font-prose); font-size: var(--text-base); line-height: 1.55;
+  color: var(--ink); outline: none; min-height: 38px; white-space: pre-wrap;
+}
+.bx-board .react-flow__attribution { background: transparent; font-size: 9px; opacity: .35; }
+
+/* App chrome for the standalone harness page */
+.bx-app { display: flex; flex-direction: column; height: 100vh; background: var(--paper); }
+.bx-app .board-toolbar { flex: none; }
+.bx-app .bx-board { flex: 1; min-height: 0; }
+.bx-theme-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-ui); font-size: var(--text-sm); color: var(--ink-3);
+  padding: 5px 10px; border-radius: var(--r-sm); border: none; background: none; cursor: pointer;
+}
+.bx-theme-toggle:hover { background: var(--parchment-deep); color: var(--ink); }
+.bx-toggle {
+  font-family: var(--font-ui); font-size: var(--text-xs); font-weight: var(--w-medium);
+  color: var(--ink-3); background: none; cursor: pointer;
+  padding: 5px 10px; border-radius: var(--r-pill);
+  border: 1px solid var(--parchment-edge);
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.bx-toggle:hover { background: var(--parchment-deep); color: var(--ink); }
+.bx-toggle.on {
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border-color: var(--accent-ring);
+}
+.bx-hint {
+  font-family: var(--font-ui); font-size: var(--text-xs); color: var(--ink-4);
+  display: inline-flex; align-items: center; gap: 6px;
+}

@@ -17,8 +17,8 @@
  *
  * @xyflow/react dist CSS is imported once in main.tsx.
  */
-import type { Edge, EdgeChange, Node, NodeChange, NodeTypes, OnConnect, OnNodeDrag } from "@xyflow/react";
-import { applyEdgeChanges, applyNodeChanges, Background, ConnectionMode, ReactFlow } from "@xyflow/react";
+import type { Edge, EdgeChange, EdgeTypes, Node, NodeChange, NodeTypes, OnConnect, OnNodeDrag } from "@xyflow/react";
+import { applyEdgeChanges, applyNodeChanges, Background, BackgroundVariant, ConnectionMode, ReactFlow } from "@xyflow/react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
@@ -42,6 +42,7 @@ import {
 import { CardNode, type CardNodeData } from "./CardNode";
 import { EntityCardNode, type EntityCardNodeData } from "./EntityCardNode";
 import { EntityPicker } from "./EntityPicker";
+import { FloatingEdge } from "./FloatingEdge";
 import { ScenePicker } from "./ScenePicker";
 import { sendCardToScene } from "./sendToScene";
 
@@ -54,9 +55,10 @@ const sceneDocStore = new SqliteSceneDocStore();
 type AnyCardData = CardNodeData | EntityCardNodeData;
 type NodeSetter = Dispatch<SetStateAction<Node<AnyCardData>[]>>;
 
-// ── nodeTypes (stable reference — must be defined outside the component) ──────
+// ── nodeTypes + edgeTypes (stable refs — must be outside the component) ───────
 
 const nodeTypes: NodeTypes = { card: CardNode, entityCard: EntityCardNode };
+const edgeTypes: EdgeTypes = { floating: FloatingEdge };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -104,8 +106,7 @@ function docToNodes(
 function docToEdges(doc: Y.Doc): Edge[] {
   const connections = doc.getMap<ConnectionMeta>("connections");
   return Array.from(connections.entries()).map(([id, meta]) => ({
-    id, source: meta.from, target: meta.to, type: "straight" as const,
-    style: { stroke: "var(--ink-4)", strokeWidth: 1.5 },
+    id, source: meta.from, target: meta.to, type: "floating" as const,
   }));
 }
 
@@ -117,12 +118,8 @@ function nextCardPosition(count: number): { x: number; y: number } {
 // ── useEntityLoader ───────────────────────────────────────────────────────────
 
 interface EntityLoaderParams {
-  setNodes: NodeSetter;
-  /** callbacksRef.current.tree holds the latest binder tree (set by useBoardCallbacks). */
-  callbacksRef: { current: DocToNodesCallbacks };
-  /** Pre-created by BoardCanvas so useBoardCallbacks can read entity types at nav time. */
-  entitiesRef: { current: Entity[] };
-  customTypesRef: { current: CustomTypePick[] };
+  setNodes: NodeSetter; callbacksRef: { current: DocToNodesCallbacks };
+  entitiesRef: { current: Entity[] }; customTypesRef: { current: CustomTypePick[] };
 }
 
 /**
@@ -181,12 +178,7 @@ function useCardObserver(doc: Y.Doc, setNodes: NodeSetter, refs: CanvasRefs) {
   }, [doc, setNodes, refs]);
 }
 
-function useCanvasHandlers(
-  doc: Y.Doc,
-  setNodes: NodeSetter,
-  nodeCount: number,
-  refs: CanvasRefs,
-) {
+function useCanvasHandlers(doc: Y.Doc, setNodes: NodeSetter, nodeCount: number, refs: CanvasRefs) {
   useCardObserver(doc, setNodes, refs);
 
 
@@ -271,29 +263,31 @@ function useEntityPicker(doc: Y.Doc, nodeCount: number) {
 // ── BoardToolbar ──────────────────────────────────────────────────────────────
 
 interface ToolbarProps {
-  onAddCard: () => void;
-  entities: Entity[];
-  showPicker: boolean;
-  onTogglePicker: () => void;
-  onEntityPick: (entity: Entity) => void;
-  onClosePicker: () => void;
-  toggleBtnRef: RefObject<HTMLButtonElement | null>;
+  onAddCard: () => void; entities: Entity[]; showPicker: boolean;
+  onTogglePicker: () => void; onEntityPick: (entity: Entity) => void;
+  onClosePicker: () => void; toggleBtnRef: RefObject<HTMLButtonElement | null>; boardName?: string;
 }
 
-function BoardToolbar({ onAddCard, entities, showPicker, onTogglePicker, onEntityPick, onClosePicker, toggleBtnRef }: ToolbarProps) {
+function BoardToolbar({
+  onAddCard, entities, showPicker, onTogglePicker, onEntityPick,
+  onClosePicker, toggleBtnRef, boardName,
+}: ToolbarProps) {
   return (
     <div className="board-toolbar">
       <button type="button" className="board-add-card" onClick={onAddCard} title="Add card">
         <Icon name="plus" style={{ width: 13, height: 13 }} /> Add card
       </button>
       <div className="board-entity-btn-wrap">
-        <button ref={toggleBtnRef} type="button" className="board-add-card" onClick={onTogglePicker} title="Add entity card">
-          <Icon name="link" style={{ width: 13, height: 13 }} /> Add entity card
+        <button ref={toggleBtnRef} type="button" className="board-add-entity"
+          onClick={onTogglePicker} title="Add entity card">
+          <span className="ic-ent" />
+          Add entity card
         </button>
         {showPicker && (
           <EntityPicker entities={entities} onPick={onEntityPick} onClose={onClosePicker} excludeRef={toggleBtnRef} />
         )}
       </div>
+      {boardName && <span className="board-title">{boardName}</span>}
     </div>
   );
 }
@@ -301,31 +295,20 @@ function BoardToolbar({ onAddCard, entities, showPicker, onTogglePicker, onEntit
 // ── useSendToScene ────────────────────────────────────────────────────────────
 
 interface SendToSceneState {
-  pendingSendCardId: string | null;
-  onSendToSceneRef: { current: ((cardId: string) => void) | undefined };
-  handlePickScene: (cardId: string, sceneId: string) => void;
-  closePicker: () => void;
+  pendingSendCardId: string | null; onSendToSceneRef: { current: ((cardId: string) => void) | undefined };
+  handlePickScene: (cardId: string, sceneId: string) => void; closePicker: () => void;
 }
 
-function useSendToScene(
-  doc: Y.Doc,
-  selectedSceneId: string | null | undefined,
-  liveDoc: Y.Doc | null | undefined,
-): SendToSceneState {
+function useSendToScene(doc: Y.Doc, selectedSceneId: string | null | undefined,
+  liveDoc: Y.Doc | null | undefined): SendToSceneState {
   const [pendingSendCardId, setPendingSendCardId] = useState<string | null>(null);
   const handleSendToScene = useCallback((cardId: string) => setPendingSendCardId(cardId), []);
-  // Init-only ref is safe here: handleSendToScene is useCallback([], stable identity
-  // forever) and the project's react-hooks/refs lint rule forbids render-body ref
-  // writes. If deps are ever added to handleSendToScene, switch to an effect-based
-  // ref update.
+  // Init-only ref: handleSendToScene has stable identity; react-hooks/refs forbids render-body writes.
   const onSendToSceneRef = useRef<((cardId: string) => void) | undefined>(handleSendToScene);
   const handlePickScene = useCallback((cardId: string, sceneId: string) => {
     const isHot = sceneId === selectedSceneId && liveDoc != null;
     sendCardToScene({ boardDoc: doc, cardId, sceneId, store: sceneDocStore, liveDoc: isHot ? liveDoc : null })
-      .then(({ sceneId: sid }) => {
-        // Phase 6 graduation hook: send-to-scene also graduates the card.
-        markCardGraduated(doc, cardId, { kind: "scene", id: sid });
-      })
+      .then(({ sceneId: sid }) => { markCardGraduated(doc, cardId, { kind: "scene", id: sid }); })
       .catch((e: unknown) => console.error("[BoardCanvas] sendCardToScene failed", e));
   }, [doc, selectedSceneId, liveDoc]);
   return { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker: () => setPendingSendCardId(null) };
@@ -334,28 +317,30 @@ function useSendToScene(
 // ── BoardCanvas ───────────────────────────────────────────────────────────────
 
 interface BoardCanvasProps {
-  doc: Y.Doc;
-  storyBibleStore?: StoryBibleStore;
-  projectId?: string;
-  /** Phase 5: sceneId currently open in the editor (used for hot/cold routing). */
-  selectedSceneId?: string | null;
-  /** Phase 5: live Y.Doc for the open scene (hot path — bypasses cold save). */
-  liveDoc?: Y.Doc | null;
-  /** Phase 5: binder tree used to populate the ScenePicker. */
-  tree?: BinderTree;
-  /** Phase 6: navigate to a scene (switch to editor view). */
-  onSelectScene?: (sceneId: string) => void;
-  /** Phase 6: open an entity entry (kind = specific entity type string). */
-  onOpenEntry?: (id: string, kind: string) => void;
-  /** Phase 6: switch views (e.g. to "editor" after promote-to-scene). */
-  onViewChange?: (view: AppView) => void;
-  /** Phase 6: reload the binder tree after a new scene is created via promote. */
-  onTreeChanged?: () => void;
+  doc: Y.Doc; storyBibleStore?: StoryBibleStore; projectId?: string;
+  selectedSceneId?: string | null; liveDoc?: Y.Doc | null; tree?: BinderTree;
+  onSelectScene?: (sceneId: string) => void; onOpenEntry?: (id: string, kind: string) => void;
+  onViewChange?: (view: AppView) => void; onTreeChanged?: () => void; boardName?: string;
 }
+
+// ── BoardEmptyState ───────────────────────────────────────────────────────────
+
+function BoardEmptyState() {
+  return (
+    <div className="board-empty">
+      <div className="board-empty-ghost">Click to write…</div>
+      <p className="board-empty-hint">
+        A blank table for half-formed ideas. <b>Add a card</b>, or just start typing.
+      </p>
+    </div>
+  );
+}
+
+// ── BoardCanvas ───────────────────────────────────────────────────────────────
 
 export function BoardCanvas({
   doc, storyBibleStore, projectId, selectedSceneId, liveDoc, tree,
-  onSelectScene, onOpenEntry, onViewChange, onTreeChanged,
+  onSelectScene, onOpenEntry, onViewChange, onTreeChanged, boardName,
 }: BoardCanvasProps) {
   const entitiesRef = useRef<Entity[]>([]);
   const customTypesRef = useRef<CustomTypePick[]>([]);
@@ -364,11 +349,9 @@ export function BoardCanvas({
   const { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker } = useSendToScene(doc, selectedSceneId, liveDoc);
   const { callbacksRef } = useBoardCallbacks({ doc, sceneDocStore, storyBibleStore, projectId,
     tree, onSendToSceneRef, entitiesRef, onSelectScene, onOpenEntry, onViewChange, onTreeChanged });
-  const { entities } = useEntityLoader(
-    doc, storyBibleStore, projectId, { setNodes, callbacksRef, entitiesRef, customTypesRef },
-  );
-  const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } =
-    useCanvasHandlers(doc, setNodes, nodes.length, { entitiesRef, customTypesRef, callbacksRef });
+  const { entities } = useEntityLoader(doc, storyBibleStore, projectId,
+    { setNodes, callbacksRef, entitiesRef, customTypesRef });
+  const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } = useCanvasHandlers(doc, setNodes, nodes.length, { entitiesRef, customTypesRef, callbacksRef });
   const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
   const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length);
   const toggleBtnRef = useRef<HTMLButtonElement>(null);
@@ -376,20 +359,20 @@ export function BoardCanvas({
     <div className="board-canvas-wrap">
       <BoardToolbar onAddCard={handleAddCard} entities={entities} showPicker={showPicker}
         onTogglePicker={() => setShowPicker((v) => !v)} onEntityPick={handleEntityPick}
-        onClosePicker={() => setShowPicker(false)} toggleBtnRef={toggleBtnRef} />
+        onClosePicker={() => setShowPicker(false)} toggleBtnRef={toggleBtnRef}
+        boardName={boardName} />
       <div className="board-canvas">
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
           onNodesChange={onNodesChange} onNodeDragStop={onNodeDragStop} onNodesDelete={handleNodesDelete}
           onEdgesChange={onEdgesChange} onConnect={onConnect} onEdgesDelete={onEdgesDelete}
-          connectionMode={ConnectionMode.Loose} fitView proOptions={{ hideAttribution: false }}>
-          <Background />
+          connectionMode={ConnectionMode.Loose} connectionRadius={40} fitView proOptions={{ hideAttribution: false }}>
+          <Background variant={BackgroundVariant.Dots} gap={22} size={1.6} color="var(--board-dot)" />
         </ReactFlow>
+        {nodes.length === 0 && <BoardEmptyState />}
       </div>
-      {pendingSendCardId && tree && (
-        <ScenePicker tree={tree}
-          onPick={(sceneId) => { closePicker(); handlePickScene(pendingSendCardId, sceneId); }}
-          onClose={closePicker} />
-      )}
+      {pendingSendCardId && tree &&
+        <ScenePicker tree={tree} onClose={closePicker}
+          onPick={(sid) => { closePicker(); handlePickScene(pendingSendCardId, sid); }} />}
     </div>
   );
 }

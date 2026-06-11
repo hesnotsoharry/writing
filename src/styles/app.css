@@ -1475,57 +1475,99 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   color: var(--ink-4); font-size: var(--text-sm);
 }
 
-/* Board canvas layout: toolbar + canvas stacked in a column */
+/* ── Board layout ────────────────────────────────────────────────────────────── */
 .board-canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.board-canvas { flex: 1; min-height: 0; position: relative; background: var(--board-surface, var(--parchment)); }
 
-/* React Flow canvas container — must fill remaining height */
-.board-canvas { flex: 1; min-height: 0; }
-
-/* ── Board toolbar ───────────────────────────────────────────────────────────── */
+/* ── Board toolbar (translucent parchment — FURNITURE tier) ──────────────────── */
 .board-toolbar {
   flex: none; display: flex; align-items: center; gap: var(--s-2);
-  padding: 6px 12px; border-bottom: 1px solid var(--parchment-edge);
-  background: var(--paper);
+  padding: 7px 12px; border-bottom: 1px solid var(--parchment-edge);
+  background: color-mix(in srgb, var(--parchment) 80%, var(--paper));
+  backdrop-filter: blur(6px);
+  font-family: var(--font-ui);
 }
-.board-add-card {
-  display: flex; align-items: center; gap: 4px;
+.board-add-card, .board-add-entity {
+  display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--text-sm); color: var(--ink-3);
-  padding: 4px 8px; border-radius: var(--r-xs);
+  padding: 5px 10px; border-radius: var(--r-sm);
+  background: none; border: none; cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
 }
-.board-add-card:hover { background: var(--parchment-deep); color: var(--ink); }
+.board-add-card:hover, .board-add-entity:hover { background: var(--parchment-deep); color: var(--ink); }
+.board-add-card svg, .board-add-entity svg { width: 14px; height: 14px; }
+.board-add-entity .ic-ent {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: var(--label-moss);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--label-moss) 22%, transparent);
+}
+.board-title {
+  font-family: var(--font-prose); font-style: italic;
+  font-size: var(--text-sm); color: var(--ink-3);
+  margin-left: auto;
+}
 
-/* ── Card node ──────────────────────────────────────────────────────────────── */
+/* ── Card node (Direction B — Drafting table) ────────────────────────────────── */
 .card-node {
   position: relative;
-  min-width: 180px; max-width: 280px;
-  background: var(--parchment); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 10px 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  min-width: 168px; max-width: 264px;
+  background: var(--card-surface, var(--paper));
+  color: var(--ink-2);
+  padding: 11px 13px;
+  border: 1px solid var(--card-line, color-mix(in srgb, var(--line) 78%, var(--paper)));
+  border-radius: 10px 9px 11px 9px;
+  box-shadow: 0 1px 2px rgba(58, 46, 28, 0.05);
+  transition:
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
-.card-node--readonly { cursor: pointer; }
-.card-node--readonly:hover { border-color: var(--ink-4); }
-.card-node-text { font-size: var(--text-sm); color: var(--ink-2); white-space: pre-wrap; }
+.card-node-text {
+  font-family: var(--font-prose); font-size: var(--text-base);
+  line-height: 1.55; color: var(--ink-2); white-space: pre-wrap; text-wrap: pretty;
+}
+.card-node-text .ttl { display: block; font-weight: var(--w-medium); color: var(--ink); margin-bottom: 2px; }
 .card-node-empty { color: var(--ink-4); font-style: italic; }
-.card-node-editor .ProseMirror {
-  font-size: var(--text-sm); color: var(--ink); outline: none;
-  min-height: 40px;
-}
-.card-node--editing { padding-bottom: 6px; }
+.card-node--readonly { cursor: pointer; }
 
-/* Delete button: shown on hover, absolute top-right */
+/* Hover: accent ring/wash on the card content surface (spec §2) */
+.card-node--readonly:hover {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 3px var(--accent-wash), 0 2px 8px rgba(58, 46, 28, 0.08);
+  transform: translateY(-1px);
+}
+/* Selected: React Flow adds .selected on the node wrapper */
+.react-flow__node.selected .card-node:not(.card-node--entity):not(.card-node--graduated) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring), var(--shadow-sm);
+}
+/* Editing */
+.card-node--editing {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-wash), var(--shadow-md) !important;
+  transform: none !important;
+}
+.card-node--editing .card-node-text { color: var(--ink); }
+.card-node-editor .ProseMirror {
+  font-family: var(--font-prose); font-size: var(--text-base);
+  line-height: 1.55; color: var(--ink); outline: none; min-height: 38px;
+}
+
+/* ── Delete affordance (FURNITURE — neutral hover) ───────────────────────────── */
 .card-node-delete {
-  position: absolute; top: 3px; right: 3px;
+  position: absolute; top: 4px; right: 4px;
   width: 18px; height: 18px; border-radius: var(--r-xs);
   display: grid; place-items: center;
   font-size: 14px; line-height: 1; color: var(--ink-4);
-  opacity: 0; transition: opacity var(--dur-fast);
+  background: none; border: none; cursor: pointer;
+  opacity: 0; transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
 }
 .card-node:hover .card-node-delete { opacity: 1; }
 .card-node-delete:hover { background: var(--parchment-deep); color: var(--ink); }
 
-/* Send-to-scene button: shown on hover, absolute top-right (left of delete button) */
+/* Send-to-scene button (furniture tier) */
 .card-node-send {
-  position: absolute; top: 3px; right: 24px;
+  position: absolute; top: 4px; right: 26px;
   width: 18px; height: 18px; border-radius: var(--r-xs);
   display: grid; place-items: center;
   font-size: 13px; line-height: 1; color: var(--ink-4);
@@ -1534,11 +1576,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .card-node:hover .card-node-send { opacity: 1; }
 .card-node-send:hover { background: var(--parchment-deep); color: var(--ink); }
 
-/* ── Phase 6: promote button (↑), graduated state, destination link, promote menu ── */
-
-/* Promote button: shown on hover, left of send button */
+/* Promote button (furniture tier) */
 .card-node-promote {
-  position: absolute; top: 3px; right: 48px;
+  position: absolute; top: 4px; right: 48px;
   width: 18px; height: 18px; border-radius: var(--r-xs);
   display: grid; place-items: center;
   font-size: 13px; line-height: 1; color: var(--ink-4);
@@ -1547,25 +1587,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .card-node:hover .card-node-promote { opacity: 1; }
 .card-node-promote:hover { background: var(--parchment-deep); color: var(--ink); }
 
-/* Graduated card: dimmed appearance */
-.card-node--graduated { opacity: 0.55; }
-.card-node-text--graduated { color: var(--ink-4); }
-
-/* Destination navigation link inside graduated card */
-.card-node-destination {
-  display: block; margin-top: 4px;
-  font-size: var(--text-xs); color: var(--ink-4);
-  text-align: left; padding: 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  opacity: 0; transition: opacity var(--dur-fast);
-}
-.card-node--graduated:hover .card-node-destination { opacity: 1; }
-.card-node-destination:hover { color: var(--ink-2); }
-
 /* Promote two-step menu */
 .card-promote-menu {
   position: absolute; top: 26px; right: 3px; z-index: 10;
-  background: var(--parchment); border: 1px solid var(--parchment-edge);
+  background: var(--paper); border: 1px solid var(--parchment-edge);
   border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
   display: flex; flex-direction: column; gap: 2px; padding: 4px;
   min-width: 120px;
@@ -1576,81 +1601,127 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 }
 .card-promote-option:hover { background: var(--parchment-deep); color: var(--ink); }
 
-/* ── Connection handles (furniture-tier — two-tier hover doctrine) ───────────
-   Handles are small circles at card edges, hidden by default, visible on node
-   hover. Neutral (ink-4) resting, slightly darker (ink-2) on hover — furniture,
-   not accent ring. React Flow positions them absolutely at the node boundary.   */
+/* ── Entity card — new species (spec §4) ─────────────────────────────────────── */
+.card-node--entity {
+  min-width: 0; width: max-content; max-width: 232px;
+  background: var(--etype-tint, var(--label-clay-tint));
+  border: 1px solid color-mix(in srgb, var(--etype, var(--label-clay)) 45%, var(--line));
+  border-radius: 9px 8px 9px 8px;
+  padding: 7px 12px 7px 13px;
+  display: flex; align-items: center; gap: 9px;
+  box-shadow: var(--shadow-xs); cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.card-node--entity:hover {
+  border-color: var(--etype, var(--label-clay)); box-shadow: var(--shadow-sm);
+}
+.react-flow__node.selected .card-node--entity {
+  border-color: var(--etype, var(--accent));
+}
+.ent-spine {
+  position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+  border-radius: var(--r-pill); background: var(--etype, var(--label-clay));
+}
+.ent-glyph {
+  width: 20px; height: 20px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--etype, var(--label-clay)) 18%, var(--paper));
+  color: var(--etype, var(--label-clay));
+  font-family: var(--font-prose); font-style: italic;
+  font-weight: var(--w-semi); font-size: 12px;
+}
+.ent-name {
+  font-family: var(--font-ui); font-weight: var(--w-semi);
+  font-size: var(--text-sm); color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ent-type {
+  font-family: var(--font-ui); font-size: var(--text-2xs);
+  font-weight: var(--w-medium); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--etype, var(--label-clay));
+}
+.entity-card-missing { font-size: var(--text-sm); color: var(--ink-4); font-style: italic; }
+.card-node--entity.entity-card-node--missing { opacity: 0.55; }
+
+/* ── Graduated card (spec §5) ────────────────────────────────────────────────── */
+.card-node--graduated { opacity: 0.62; filter: saturate(0.8); cursor: default; }
+.card-node--graduated .card-node-text { color: var(--ink-3); }
+.card-node--graduated:hover { opacity: 0.78; }
+.card-grad-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 9px; padding: 3px 9px 3px 8px; border-radius: var(--r-pill);
+  background: var(--accent-wash); color: var(--accent-deep);
+  font-family: var(--font-ui); font-size: var(--text-2xs); font-weight: var(--w-semi);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  cursor: pointer; transition: background var(--dur-fast);
+}
+.card-grad-link:hover { background: var(--accent-tint); }
+.card-grad-link .arr { font-size: 12px; line-height: 1; }
+
+/* ── Connection edges — stroke from CSS, no inline style (spec §6) ───────────── */
+.react-flow__edge-path {
+  stroke: color-mix(in srgb, var(--ink-4) 85%, transparent);
+  stroke-width: 1.5px; stroke-linecap: round; fill: none;
+  transition: stroke var(--dur-fast);
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path { stroke: var(--accent); stroke-width: 1.75px; }
+.react-flow__connection-path,
+.react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--accent-ring); stroke-width: 1.75px; fill: none;
+}
+
+/* ── Handles — INVISIBLE, generous hit area for floating attachment (spec §6) ── */
 .card-node .react-flow__handle {
-  width: 8px; height: 8px;
+  width: 14px; height: 14px;
   min-width: unset; min-height: unset;
   border-radius: 50%;
-  background: var(--ink-4);
-  border: 1.5px solid var(--parchment-edge);
+  background: transparent; border: none;
   opacity: 0;
-  transition: opacity var(--dur-fast), background var(--dur-fast);
 }
-.card-node:hover .react-flow__handle { opacity: 1; }
-.card-node .react-flow__handle:hover,
-.card-node .react-flow__handle-connecting { background: var(--ink-2); opacity: 1; }
+/* Floating attachment: keep opacity 0 in all states */
+.card-node:hover .react-flow__handle,
+.card-node .react-flow__handle.connectionindicator,
+.card-node .react-flow__handle-connecting { opacity: 0; }
 
-/* ── Entity card node (Phase 4) ──────────────────────────────────────────────
-   Inherits .card-node base (border, shadow, position: relative).
-   The left border is widened and its color is set inline to the entity type color.
-   No click-to-edit (cursor default, no hover border shift).                    */
-.card-node.entity-card-node {
-  min-width: 160px; max-width: 240px;
-  border-left-width: 3px;
-  padding: 8px 28px 8px 9px;
-  cursor: default;
+/* ── Empty board state (spec §8) ──────────────────────────────────────────────── */
+.board-empty {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; text-align: center; pointer-events: none;
 }
-.entity-card-name {
-  display: block;
-  font-size: var(--text-sm); font-weight: var(--w-semi); color: var(--ink);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.board-empty-ghost {
+  width: 196px; padding: 14px 15px;
+  border: 1.5px dashed color-mix(in srgb, var(--ink-4) 55%, transparent);
+  border-radius: 10px 9px 11px 9px;
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  color: var(--ink-4); font-family: var(--font-prose); font-style: italic;
+  font-size: var(--text-base); line-height: 1.5; text-align: left;
 }
-.entity-card-type {
-  display: block;
-  font-size: var(--text-2xs); color: var(--ink-4);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-top: 2px;
+.board-empty-hint {
+  font-family: var(--font-ui); font-size: var(--text-sm); color: var(--ink-3);
+  max-width: 280px; line-height: 1.5;
 }
-.entity-card-missing {
-  font-size: var(--text-sm); color: var(--ink-4); font-style: italic;
-}
-.entity-card-node--missing { opacity: 0.55; }
+.board-empty-hint b { color: var(--ink-2); font-weight: var(--w-semi); }
 
-/* ── Board entity picker ──────────────────────────────────────────────────────
-   Floating popover below the "Add entity card" toolbar button.
-   InspPicker renders its own border + border-radius inside here.               */
+/* ── Board entity picker ──────────────────────────────────────────────────────── */
 .board-entity-btn-wrap { position: relative; }
 .board-entity-picker {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 100;
-  width: 240px;
-  background: var(--paper);
-  box-shadow: var(--shadow-md);
+  position: absolute; top: calc(100% + 4px); left: 0;
+  z-index: 100; width: 240px;
+  background: var(--paper); box-shadow: var(--shadow-md);
 }
 
-/* ── Board scene picker (Phase 5: send-to-scene) ──────────────────────────────
-   Absolute-positioned within .board-canvas-wrap (which carries position:relative)
-   so it floats above the React Flow canvas, unaffected by canvas transforms.    */
+/* ── Board scene picker (send-to-scene) ───────────────────────────────────────── */
 .board-scene-picker {
-  position: absolute;
-  top: 48px; right: 16px;
-  z-index: 200;
-  width: 260px;
-  background: var(--paper);
-  border: 1px solid var(--parchment-edge);
-  border-radius: var(--r-sm);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
+  position: absolute; top: 48px; right: 16px;
+  z-index: 200; width: 260px;
+  background: var(--paper); border: 1px solid var(--parchment-edge);
+  border-radius: var(--r-sm); box-shadow: var(--shadow-md); overflow: hidden;
 }
 .board-scene-picker-search {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--parchment-edge);
+  padding: 8px 10px; border-bottom: 1px solid var(--parchment-edge);
 }
 .board-scene-picker-input {
   flex: 1; font-size: var(--text-sm); color: var(--ink);

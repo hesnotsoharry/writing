@@ -128,12 +128,6 @@
   --dur-fast: 120ms;
   --dur: 200ms;
   --dur-slow: 360ms;
-
-  /* ---- Brainstorm board surface ----------------------------------------- */
-  --board-surface: var(--parchment);                               /* the table */
-  --board-dot: color-mix(in srgb, var(--ink-4) 42%, transparent); /* grid dots */
-  --card-surface: var(--paper);                                    /* cards stay bright */
-  --card-line: color-mix(in srgb, var(--line) 78%, var(--paper)); /* pencil hairline */
 }
 
 /* ---------------------------------------------------------------------------

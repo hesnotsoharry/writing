@@ -20,6 +20,7 @@ import type { AppView } from "../../App.state";
 import type { BinderTree } from "../../binder/buildTree";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBoardDocStore } from "../../db/sqliteBoardDocStore";
+import { SqliteBoardsStore } from "../../db/sqliteBoardsStore";
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { bindPersistence } from "../../yjs/bindPersistence";
 import { applyEncoded } from "../../yjs/serialize";
@@ -34,9 +35,10 @@ const LEGACY_DEFAULT_ID = "brainstorm-default";
 /** Starter card id — created on the legacy board if the doc is empty. */
 const STARTER_CARD_ID = "starter";
 
-// ── Module-level store singleton (mirrors sceneDocStore in App.tsx) ───────────
+// ── Module-level store singletons ─────────────────────────────────────────────
 
 const boardDocStore = new SqliteBoardDocStore();
+const boardsStore = new SqliteBoardsStore();
 
 // ── BoardDocStore → SceneDocStore adapter for bindPersistence ─────────────────
 
@@ -47,6 +49,24 @@ function makePersistenceAdapter(boardId: string): SceneDocStore {
     loadProjection: () => Promise.resolve(null),
     delete: () => Promise.resolve(),
   };
+}
+
+// ── useBoardName ──────────────────────────────────────────────────────────────
+
+/** Resolves the board's display title from the boards table for the toolbar. */
+function useBoardName(boardId: string, projectId: string | undefined): string {
+  const [name, setName] = useState("");
+  useEffect(() => {
+    if (!projectId) return;
+    boardsStore
+      .list(projectId)
+      .then((boards) => {
+        const found = boards.find((b) => b.id === boardId);
+        setName(found?.title ?? "");
+      })
+      .catch(() => { /* silent — toolbar title is non-critical */ });
+  }, [boardId, projectId]);
+  return name;
 }
 
 // ── useBoardDoc ───────────────────────────────────────────────────────────────
@@ -119,6 +139,7 @@ export function BoardView({
   onSelectScene, onOpenEntry, onViewChange, onTreeChanged,
 }: BoardViewProps) {
   const doc = useBoardDoc(boardId);
+  const boardName = useBoardName(boardId, projectId);
 
   if (!doc) {
     return (
@@ -141,6 +162,7 @@ export function BoardView({
         onOpenEntry={onOpenEntry}
         onViewChange={onViewChange}
         onTreeChanged={onTreeChanged}
+        boardName={boardName}
       />
     </div>
   );

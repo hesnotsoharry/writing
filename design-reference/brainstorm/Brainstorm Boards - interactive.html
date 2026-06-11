@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- This preview sandbox's native ResizeObserver never delivers callbacks, and
+     React Flow measures nodes/handles ONLY via ResizeObserver. Replace it with a
+     rAF-polling polyfill that actually fires. In a normal browser RF uses the
+     native one; this just guarantees the harness renders everywhere. -->
+<script>
+(function () {
+  var ROs = new Set();
+  function Entry(t, r) {
+    return { target: t, contentRect: r,
+      borderBoxSize: [{ inlineSize: r.width, blockSize: r.height }],
+      contentBoxSize: [{ inlineSize: r.width, blockSize: r.height }],
+      devicePixelContentBoxSize: [{ inlineSize: r.width, blockSize: r.height }] };
+  }
+  function RO(cb) { this._cb = cb; this._t = new Map(); ROs.add(this); }
+  RO.prototype.observe = function (t) { if (t) this._t.set(t, null); };
+  RO.prototype.unobserve = function (t) { this._t.delete(t); };
+  RO.prototype.disconnect = function () { this._t.clear(); ROs.delete(this); };
+  RO.prototype._poll = function () {
+    var entries = [], self = this;
+    this._t.forEach(function (prev, t) {
+      if (!t.isConnected) return;
+      var r = t.getBoundingClientRect();
+      if (!prev || prev.w !== r.width || prev.h !== r.height) {
+        self._t.set(t, { w: r.width, h: r.height });
+        entries.push(Entry(t, r));
+      }
+    });
+    if (entries.length) { try { this._cb(entries, this); } catch (e) {} }
+  };
+  function loop() { ROs.forEach(function (ro) { ro._poll(); }); }
+  setInterval(loop, 100);
+  window.ResizeObserver = RO;
+
+  // requestAnimationFrame is also throttled-to-never in this sandbox; React Flow
+  // batches measurement on it. Back it with a timer so it actually runs. (Real
+  // browsers never hit this path — rAF works there; this only patches the env
+  // where it's frozen.)
+  var _raf = window.requestAnimationFrame, _probed = false;
+  window.requestAnimationFrame = function (cb) { return setTimeout(function () { cb(performance.now()); }, 16); };
+  window.cancelAnimationFrame = function (id) { clearTimeout(id); };
+})();
+</script>
+<title>Brainstorm Boards — interactive (Drafting table)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/@xyflow/react@12.8.1/dist/style.css" />
+<link rel="stylesheet" href="tokens.css" />
+<link rel="stylesheet" href="board-explore.css" />
+<style>
+  html, body, #root { margin: 0; height: 100%; }
+  body { font-family: var(--font-ui); background: var(--paper); }
+  .bx-board .react-flow__node.selected { outline: none; }
+  .bx-board .react-flow__node:focus, .bx-board .react-flow__node:focus-visible { outline: none; }
+  #boot { position: fixed; inset: 0; display: grid; place-items: center; color: var(--ink-4); font-family: var(--font-ui); font-size: 13px; }
+</style>
+<!-- UMD React/ReactDOM/Babel: same React instance the importmap shims hand to React Flow.
+     Production builds so React Flow's internal dev-only key warnings stay silent. -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "./react-window-shim.js",
+    "react/jsx-runtime": "./jsx-shim.js",
+    "react/jsx-dev-runtime": "./jsx-shim.js",
+    "react-dom": "./react-dom-window-shim.js",
+    "@xyflow/react": "https://esm.sh/@xyflow/react@12.8.1?external=react,react-dom"
+  }
+}
+</script>
+</head>
+<body>
+<div id="root"><div id="boot">Loading board…</div></div>
+
+<!-- expose React Flow as a global for the Babel app, bound to the UMD React -->
+<script type="module">
+import * as XY from "@xyflow/react";
+window.XYFlow = XY;
+document.dispatchEvent(new Event("xyflow-ready"));
+</script>
+
+<script type="text/babel" data-presets="react">
+/* ── obstacle-avoiding edge routing ───────────────────────────────────────────
+   React Flow draws an edge straight/bezier between two handles; if a third card
+   sits in the path, the line crosses it. routeAround() pathfinds a route that
+   bends AROUND every other card. Strategy: if the direct line is clear, return
+   null (caller draws the normal calm bezier); otherwise run a coarse grid A*
+   over the canvas with each other card as an inflated obstacle, then smooth the
+   result with rounded corners so it still reads hand-drawn, not circuit-board. */
+function _segSeg(a, b, c, d, e, f, g, h) {
+  function ccw(ax, ay, bx, by, cx, cy) { return (cy - ay) * (bx - ax) > (by - ay) * (cx - ax); }
+  return ccw(a, b, e, f, g, h) !== ccw(c, d, e, f, g, h) && ccw(a, b, c, d, e, f) !== ccw(a, b, c, d, g, h);
+}
+function _segRect(x1, y1, x2, y2, r) {
+  const inside = (x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  if (inside(x1, y1) || inside(x2, y2)) return true;
+  const X = r.x + r.w, Y = r.y + r.h;
+  return _segSeg(x1, y1, x2, y2, r.x, r.y, X, r.y) || _segSeg(x1, y1, x2, y2, X, r.y, X, Y) ||
+         _segSeg(x1, y1, x2, y2, X, Y, r.x, Y) || _segSeg(x1, y1, x2, y2, r.x, Y, r.x, r.y);
+}
+function routeAround(sx, sy, tx, ty, obstacles, used, force) {
+  const M = 18;
+  const rects = obstacles.map((o) => ({ x: o.x - M, y: o.y - M, w: o.w + 2 * M, h: o.h + 2 * M }));
+  if (!force && !rects.some((r) => _segRect(sx, sy, tx, ty, r))) return null;   // clear → bezier
+  const cell = 16;
+  let minX = Math.min(sx, tx), minY = Math.min(sy, ty), maxX = Math.max(sx, tx), maxY = Math.max(sy, ty);
+  rects.forEach((r) => { minX = Math.min(minX, r.x); minY = Math.min(minY, r.y); maxX = Math.max(maxX, r.x + r.w); maxY = Math.max(maxY, r.y + r.h); });
+  const pad = cell * 3; minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const cols = Math.ceil((maxX - minX) / cell), rows = Math.ceil((maxY - minY) / cell);
+  if (cols * rows > 12000 || cols < 2 || rows < 2) return null;       // too big → bezier
+  const cX = (c) => minX + c * cell + cell / 2, cY = (r) => minY + r * cell + cell / 2;
+  const blocked = (c, r) => { const px = cX(c), py = cY(r); for (const R of rects) if (px >= R.x && px <= R.x + R.w && py >= R.y && py <= R.y + R.h) return true; return false; };
+  const clamp = (x, y) => [Math.max(0, Math.min(cols - 1, Math.round((x - minX - cell / 2) / cell))), Math.max(0, Math.min(rows - 1, Math.round((y - minY - cell / 2) / cell)))];
+  const free = (c, r) => { if (!blocked(c, r)) return [c, r]; for (let rad = 1; rad < 24; rad++) for (let dc = -rad; dc <= rad; dc++) for (let dr = -rad; dr <= rad; dr++) { const nc = c + dc, nr = r + dr; if (nc >= 0 && nr >= 0 && nc < cols && nr < rows && !blocked(nc, nr)) return [nc, nr]; } return [c, r]; };
+  const s = free(...clamp(sx, sy)), t = free(...clamp(tx, ty));
+  const key = (c, r) => r * cols + c, tk = key(t[0], t[1]);
+  const H = (c, r) => { const dx = Math.abs(c - t[0]), dy = Math.abs(r - t[1]); return (dx + dy) + (Math.SQRT2 - 2) * Math.min(dx, dy); };
+  const open = new Map(), g = new Map(), came = new Map();
+  g.set(key(s[0], s[1]), 0); open.set(key(s[0], s[1]), { c: s[0], r: s[1], f: H(s[0], s[1]) });
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  let found = false, guard = 0;
+  while (open.size && guard++ < 40000) {
+    let bk = null, bf = Infinity, bn = null;
+    open.forEach((v, k) => { if (v.f < bf) { bf = v.f; bk = k; bn = v; } });
+    open.delete(bk);
+    if (bk === tk) { found = true; break; }
+    const cg = g.get(bk);
+    for (const [dx, dy] of dirs) {
+      const nc = bn.c + dx, nr = bn.r + dy;
+      if (nc < 0 || nr < 0 || nc >= cols || nr >= rows || blocked(nc, nr)) continue;
+      if (dx && dy && (blocked(bn.c + dx, bn.r) || blocked(bn.c, bn.r + dy))) continue;
+      const nk = key(nc, nr), pen = used && used.has(Math.round(cX(nc) / 16) + "," + Math.round(cY(nr) / 16)) ? 3 : 0, ng = cg + (dx && dy ? Math.SQRT2 : 1) + pen;
+      if (ng < (g.has(nk) ? g.get(nk) : Infinity)) { g.set(nk, ng); came.set(nk, bk); open.set(nk, { c: nc, r: nr, f: ng + H(nc, nr) }); }
+    }
+  }
+  if (!found) return null;
+  let pts = [], k = tk;
+  while (k !== undefined) { const c = k % cols, r = (k - c) / cols; pts.unshift({ x: cX(c), y: cY(r) }); k = came.get(k); if (k === undefined && !(c === s[0] && r === s[1])) break; }
+  pts[0] = { x: sx, y: sy }; pts[pts.length - 1] = { x: tx, y: ty };
+  // drop near-collinear points
+  const simp = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = simp[simp.length - 1], b = pts[i], c = pts[i + 1];
+    const cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    if (Math.abs(cross) > 1) simp.push(b);
+  }
+  simp.push(pts[pts.length - 1]);
+  return simp;
+}
+function roundedPath(p, rad) {
+  if (p.length < 3) return `M ${p[0].x} ${p[0].y} L ${p[p.length - 1].x} ${p[p.length - 1].y}`;
+  const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+  let d = `M ${p[0].x} ${p[0].y}`;
+  for (let i = 1; i < p.length - 1; i++) {
+    const a = p[i - 1], b = p[i], c = p[i + 1];
+    const r1 = Math.min(rad, dist(a, b) / 2), r2 = Math.min(rad, dist(b, c) / 2);
+    const u1 = { x: (a.x - b.x) / dist(a, b), y: (a.y - b.y) / dist(a, b) };
+    const u2 = { x: (c.x - b.x) / dist(b, c), y: (c.y - b.y) / dist(b, c) };
+    d += ` L ${(b.x + u1.x * r1).toFixed(1)} ${(b.y + u1.y * r1).toFixed(1)} Q ${b.x} ${b.y} ${(b.x + u2.x * r2).toFixed(1)} ${(b.y + u2.y * r2).toFixed(1)}`;
+  }
+  d += ` L ${p[p.length - 1].x} ${p[p.length - 1].y}`;
+  return d;
+}
+
+/* ── multi-edge planning: route every edge so it avoids cards AND the lines
+   already placed (so lines don't overlap or touch). Plans edges in order,
+   accumulating an occupancy set; each later edge pays a cost to reuse a corridor
+   another line already took. ───────────────────────────────────────────────── */
+function _uk(x, y) { return Math.round(x / 16) + "," + Math.round(y / 16); }
+function _markLine(pts, used) {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], L = Math.hypot(b.x - a.x, b.y - a.y), steps = Math.max(1, Math.ceil(L / 8));
+    for (let s = 0; s <= steps; s++) {
+      const x = a.x + (b.x - a.x) * s / steps, y = a.y + (b.y - a.y) * s / steps, cx = Math.round(x / 16), cy = Math.round(y / 16);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) used.add((cx + dx) + "," + (cy + dy));
+    }
+  }
+}
+function _sampleLine(a, b, n) { const out = []; for (let i = 0; i <= n; i++) out.push({ x: a.x + (b.x - a.x) * i / n, y: a.y + (b.y - a.y) * i / n }); return out; }
+function _countUsed(pts, used) { let c = 0; for (const p of pts) if (used.has(_uk(p.x, p.y))) c++; return c; }
+function _clearOfCards(sp, tp, obs) { return !obs.some((o) => _segRect(sp.x, sp.y, tp.x, tp.y, { x: o.x - 18, y: o.y - 18, w: o.w + 36, h: o.h + 36 })); }
+function _sideAnchor(o, side) {
+  if (side === "top") return { x: o.x + o.w / 2, y: o.y };
+  if (side === "bottom") return { x: o.x + o.w / 2, y: o.y + o.h };
+  if (side === "left") return { x: o.x, y: o.y + o.h / 2 };
+  return { x: o.x + o.w, y: o.y + o.h / 2 };
+}
+function _handlePoint(node, hid) {
+  const hb = node.handles;
+  if (hb) { const all = (hb.source || []).concat(hb.target || []); const h = all.find((x) => x.id === hid) || all[0]; if (h) return { x: node.x + h.x + h.width / 2, y: node.y + h.y + h.height / 2, side: h.position }; }
+  return Object.assign(_sideAnchor(node, hid || "right"), { side: hid || "right" });
+}
+function _norm(s) { return s === "top" ? [0, -1] : s === "bottom" ? [0, 1] : s === "left" ? [-1, 0] : [1, 0]; }
+// floating attachment: each card attaches on the side that faces the other card,
+// recomputed every time a card moves.
+function _bestSides(a, b) {
+  const dx = (b.x + b.w / 2) - (a.x + a.w / 2), dy = (b.y + b.h / 2) - (a.y + a.h / 2);
+  if (Math.abs(dx) >= Math.abs(dy)) return { s: dx >= 0 ? "right" : "left", t: dx >= 0 ? "left" : "right" };
+  return { s: dy >= 0 ? "bottom" : "top", t: dy >= 0 ? "top" : "bottom" };
+}
+// continuous attachment: the exact point where the center→center line exits this
+// card's border — lines attach anywhere around a card, wherever is most direct.
+function _borderPoint(node, toward) {
+  const cx = node.x + node.w / 2, cy = node.y + node.h / 2;
+  let dx = toward.x - cx, dy = toward.y - cy;
+  if (dx === 0 && dy === 0) dx = 1;
+  const hw = node.w / 2, hh = node.h / 2;
+  const tx = Math.abs(dx) < 1e-6 ? Infinity : hw / Math.abs(dx);
+  const ty = Math.abs(dy) < 1e-6 ? Infinity : hh / Math.abs(dy);
+  const t = Math.min(tx, ty);
+  const side = tx < ty ? (dx > 0 ? "right" : "left") : (dy > 0 ? "bottom" : "top");
+  return { x: cx + dx * t, y: cy + dy * t, side };
+}
+function _sideBezier(sp, tp) {
+  const k = Math.min(90, Math.max(36, Math.hypot(tp.x - sp.x, tp.y - sp.y) * 0.4));
+  const [ax, ay] = _norm(sp.side), [bx, by] = _norm(tp.side);
+  return `M ${sp.x} ${sp.y} C ${sp.x + ax * k} ${sp.y + ay * k}, ${tp.x + bx * k} ${tp.y + by * k}, ${tp.x} ${tp.y}`;
+}
+function planEdges(edges, nodeMap, opts) {
+  const cards = opts.cards, lines = opts.lines, floating = opts.floating;
+  const used = new Set(), out = {};
+  for (const e of edges) {
+    const sn = nodeMap[e.source], tn = nodeMap[e.target];
+    if (!sn || !tn) { out[e.id] = null; continue; }
+    let sp, tp;
+    if (floating) {                                        // attach anywhere on the border, facing the other card
+      const ca = { x: sn.x + sn.w / 2, y: sn.y + sn.h / 2 }, cb = { x: tn.x + tn.w / 2, y: tn.y + tn.h / 2 };
+      sp = _borderPoint(sn, cb);
+      tp = _borderPoint(tn, ca);
+    } else {                                               // snap to the facing side's midpoint
+      const sd = _bestSides(sn, tn);
+      sp = Object.assign(_sideAnchor(sn, sd.s), { side: sd.s });
+      tp = Object.assign(_sideAnchor(tn, sd.t), { side: sd.t });
+    }
+    const others = [];
+    for (const id in nodeMap) if (id !== e.source && id !== e.target) others.push(nodeMap[id]);
+    const blockedByCard = cards && !_clearOfCards(sp, tp, others);
+    const grazesLine = lines && _countUsed(_sampleLine(sp, tp, 22), used) > 2;
+    let d, markPts;
+    if (blockedByCard || grazesLine) {                     // detour around cards and/or other lines
+      const pts = routeAround(sp.x, sp.y, tp.x, tp.y, cards ? others : [], lines ? used : null, true);
+      if (pts) { d = roundedPath(pts, 16); markPts = pts; }
+      else { d = _sideBezier(sp, tp); markPts = [sp, tp]; }
+    } else { d = _sideBezier(sp, tp); markPts = [sp, tp]; }
+    if (lines) _markLine(markPts, used);                   // only accumulate occupancy when avoiding lines
+    out[e.id] = d;
+  }
+  return out;
+}
+
+function start() {
+  const {
+    ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls,
+    Handle, Position, ConnectionMode, useNodesState, useEdgesState, addEdge,
+    useStore, useStoreApi, BaseEdge, getBezierPath,
+  } = window.XYFlow;
+  const { useState, useEffect, useRef, useCallback, useMemo, useContext, createContext } = React;
+
+  const SIDES = ["top", "right", "bottom", "left"];
+  const POS = { top: Position.Top, right: Position.Right, bottom: Position.Bottom, left: Position.Left };
+  const TYPE_COLORS = [
+    ["clay", "Character"], ["moss", "Location"], ["gold", "Item"],
+    ["plum", "Faction"], ["sea", "Lore"], ["slate", "Theme"],
+  ];
+  const BoardCtx = createContext({ onText: () => {}, onDelete: () => {} });
+
+  // Four source handles per card → ConnectionMode.Loose makes each both source
+  // and target, enabling link-from-any-side and many-to-many wiring.
+  function FourHandles() {
+    return SIDES.map((s) => <Handle key={s} id={s} type="source" position={POS[s]} />);
+  }
+
+  function CardNode({ id, data }) {
+    const { onText, onDelete } = useContext(BoardCtx);
+    const [editing, setEditing] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+      if (editing && ref.current) {
+        ref.current.textContent = data.text || "";
+        ref.current.focus();
+        const r = document.createRange(); r.selectNodeContents(ref.current); r.collapse(false);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      }
+    }, [editing]);
+    const finish = () => { onText(id, ref.current ? ref.current.textContent : ""); setEditing(false); };
+
+    if (data.graduated) {
+      return (
+        <div className="card-node card-node--readonly card-node--graduated">
+          <FourHandles />
+          <span className="card-node-text">{data.text}</span>
+          <a className="card-grad-link" onClick={(e) => e.stopPropagation()}><span className="arr">→</span>{data.dest}</a>
+        </div>
+      );
+    }
+    return (
+      <div className={"card-node " + (editing ? "card-node--editing is-editing nodrag" : "card-node--readonly")}>
+        <FourHandles />
+        <button className="card-node-delete nodrag" title="Delete card"
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}>×</button>
+        {editing
+          ? <div className="card-node-editor"><div className="ProseMirror" contentEditable suppressContentEditableWarning
+              ref={ref} onBlur={finish} onKeyDown={(e) => { if (e.key === "Escape") finish(); }} /></div>
+          : <span className="card-node-text" onClick={() => setEditing(true)}>
+              {data.text || <em className="card-node-empty">Click to write…</em>}</span>}
+      </div>
+    );
+  }
+
+  function EntityNode({ id, data }) {
+    const { onDelete } = useContext(BoardCtx);
+    const styleVars = { "--etype": `var(--label-${data.color})`, "--etype-tint": `var(--label-${data.color}-tint)` };
+    return (
+      <div className="card-node card-node--entity" style={styleVars}>
+        <FourHandles />
+        <span className="ent-spine" />
+        <span className="ent-glyph">{(data.name || "?")[0]}</span>
+        <span className="ent-name">{data.name}</span>
+        <span className="ent-type">{data.type}</span>
+        <button className="card-node-delete nodrag" title="Remove reference"
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}>×</button>
+      </div>
+    );
+  }
+
+  const nodeTypes = { card: CardNode, entity: EntityNode };
+
+  // Custom edge: renders the path the planner computed (avoids cards + other
+  // lines). Falls back to a plain bezier before measurement lands.
+  function RoutedEdge({ id, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }) {
+    const d = (data && data.d) || getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })[0];
+    return <BaseEdge id={id} path={d} />;
+  }
+  const edgeTypes = { routed: RoutedEdge };
+
+  const seedNodes = [
+    { id: "n1", type: "card", position: { x: 120, y: 90 }, data: { text: "What if she never left? The keeper's daughter stays through the storm season." } },
+    { id: "n2", type: "card", position: { x: 560, y: 90 }, data: { text: "a fragment — the foghorn as a character, the only voice that answers her back across the water" } },
+    { id: "n3", type: "card", position: { x: 340, y: 250 }, data: { text: "Open on the lamp room at 4am." } },
+    { id: "n4", type: "entity", position: { x: 640, y: 330 }, data: { name: "Maren Vald", type: "Character", color: "clay" } },
+    { id: "n5", type: "card", position: { x: 120, y: 370 }, data: { graduated: true, text: "The storm-season vow", dest: "Chapter 5" } },
+  ];
+  const seedEdges = [
+    { id: "e1", source: "n1", target: "n2", sourceHandle: "right", targetHandle: "left" },
+    { id: "e2", source: "n1", target: "n4", sourceHandle: "right", targetHandle: "left" },
+    { id: "e3", source: "n2", target: "n4", sourceHandle: "bottom", targetHandle: "top" },
+    { id: "e4", source: "n1", target: "n3", sourceHandle: "bottom", targetHandle: "top" },
+    { id: "e5", source: "n3", target: "n4", sourceHandle: "right", targetHandle: "left" },
+  ];
+
+  let idc = 100;
+  const nextId = () => "n" + (++idc);
+
+  function Board() {
+    const [theme, setTheme] = useState("light");
+    const [nodes, setNodes, onNodesChange] = useNodesState(seedNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(seedEdges);
+    const [entityIdx, setEntityIdx] = useState(1);
+
+    const onText = useCallback((id, text) =>
+      setNodes((nds) => nds.map((n) => n.id === id ? { ...n, data: { ...n.data, text } } : n)), [setNodes]);
+    const onDelete = useCallback((id) => {
+      setNodes((nds) => nds.filter((n) => n.id !== id));
+      setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+    }, [setNodes, setEdges]);
+    const ctx = useMemo(() => ({ onText, onDelete }), [onText, onDelete]);
+    const storeApi = useStoreApi();
+    const [avoidCards, setAvoidCards] = useState(true);
+    const [avoidLines, setAvoidLines] = useState(true);
+    const [floatAttach, setFloatAttach] = useState(true);
+    const plannedEdges = useMemo(() => {
+      const { nodeLookup } = storeApi.getState();
+      const nodeMap = {};
+      nodeLookup.forEach((n, id) => {
+        const p = n.internals && n.internals.positionAbsolute, m = n.measured;
+        if (p && m && m.width) nodeMap[id] = { id, x: p.x, y: p.y, w: m.width, h: m.height, handles: n.internals.handleBounds };
+      });
+      const dmap = planEdges(edges, nodeMap, { cards: avoidCards, lines: avoidLines, floating: floatAttach });
+      return edges.map((e) => ({ ...e, type: "routed", data: { ...e.data, d: dmap[e.id] } }));
+    }, [nodes, edges, avoidCards, avoidLines, floatAttach]);
+
+    const onConnect = useCallback((c) => {
+      if (c.source === c.target) return;
+      setEdges((eds) => addEdge({ ...c, id: "e" + nextId() }, eds));
+    }, [setEdges]);
+
+    const addCard = () => {
+      const id = nextId();
+      setNodes((nds) => [...nds, {
+        id, type: "card",
+        position: { x: 260 + (nds.length % 5) * 26, y: 200 + (nds.length % 5) * 22 },
+        data: { text: "" },
+      }]);
+    };
+    const addEntity = () => {
+      const id = nextId();
+      const [color, type] = TYPE_COLORS[entityIdx % TYPE_COLORS.length];
+      setEntityIdx((i) => i + 1);
+      setNodes((nds) => [...nds, {
+        id, type: "entity",
+        position: { x: 300 + (nds.length % 5) * 24, y: 150 + (nds.length % 5) * 20 },
+        data: { name: type === "Character" ? "New character" : "New " + type.toLowerCase(), type, color },
+      }]);
+    };
+
+    const dotColor = theme === "dark" ? "#3a352d" : "#d3c6ac";
+    const empty = nodes.length === 0;
+
+    return (
+      <div className="bx-app" data-theme={theme === "dark" ? "dark" : undefined}>
+        <div className="board-toolbar">
+          <button className="board-add-card" onClick={addCard}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            Add card
+          </button>
+          <button className="board-add-entity" onClick={addEntity}>
+            <span className="ic-ent" /> Add entity card
+          </button>
+          <span className="board-tool-sep" />
+          <span className="bx-hint">Drag from a card's edge onto another card to link.</span>
+          <span className="board-tool-spacer" />
+          <button className={"bx-toggle" + (avoidCards ? " on" : "")} onClick={() => setAvoidCards((v) => !v)} title="Lines bend around cards instead of crossing them">Around cards</button>
+          <button className={"bx-toggle" + (avoidLines ? " on" : "")} onClick={() => setAvoidLines((v) => !v)} title="Lines avoid overlapping each other">No overlap</button>
+          <button className={"bx-toggle" + (floatAttach ? " on" : "")} onClick={() => setFloatAttach((v) => !v)} title="Lines attach anywhere on a card's border, following it as you move">Floating ends</button>
+          <span className="board-tool-sep" />
+          <button className="bx-theme-toggle" onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? "☀ Day" : "☾ Night"}
+          </button>
+          <span className="board-title">Lighthouse — drafts</span>
+        </div>
+        <div className="bx-board bx-board--b">
+          <BoardCtx.Provider value={ctx}>
+            <ReactFlow
+              nodes={nodes} edges={plannedEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+              onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
+              connectionMode={ConnectionMode.Loose}
+              connectionRadius={40}
+              defaultEdgeOptions={{ type: "routed" }}
+              fitView fitViewOptions={{ padding: 0.25 }}
+              onInit={(inst) => { window.__rf = inst; }}
+              proOptions={{ hideAttribution: true }}
+              minZoom={0.3} maxZoom={2}>
+              <Background variant={BackgroundVariant.Dots} gap={22} size={1.7} color={dotColor} />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          </BoardCtx.Provider>
+          {empty ? (
+            <div className="board-empty">
+              <div className="board-empty-ghost">Click to write…</div>
+              <div className="board-empty-hint">A blank table for half-formed ideas. <b>Add a card</b>, or just start typing — nothing here is final.</div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <ReactFlowProvider><Board /></ReactFlowProvider>
+  );
+}
+
+if (window.XYFlow) start();
+else document.addEventListener("xyflow-ready", start);
+</script>
+</body>
+</html>
