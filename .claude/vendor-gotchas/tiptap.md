@@ -2,7 +2,7 @@
 vendor: "tiptap + yjs"
 sdkVersion: "TipTap v3 + Yjs"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-08
+lastVerified: 2026-06-11
 relatedPaths:
   - src/yjs/serialize.ts
   - src/yjs/bindPersistence.ts
@@ -84,4 +84,15 @@ editor.view.dispatch(tr.setMeta(focusModeKey, { focused: true, paraIndex: n }));
 Never nest one extension's state update inside another's plugin apply method.
 
 **Why:** ProseMirror's plugin architecture assumes each plugin owns its decoration set independently. Shared state or overlapping decoration updates violate this contract. Extensions using the same PluginKey or trying to coordinate decorations at the state pool level will have their updates race, causing one to overwrite the other. Isolation via distinct keys guarantees each extension's visual state is stable across document changes and other extensions' updates.
+
+## 2026-06-11 — TipTap Collaboration cannot reach Y.XmlFragment nested inside Y.Map; store metadata separately
+Source: wave-32-brainstorm-boards, commit 0c1784a
+
+**Gotcha:** When designing a Yjs doc schema for TipTap-backed content, storing card text as a nested Y.XmlFragment inside a Y.Map value (e.g., `doc.getMap('cards').get(cardId).text = new Y.XmlFragment()`) makes the fragment unreachable by TipTap's Collaboration extension. TipTap's `field:` parameter only reaches **top-level** doc fragments (e.g., `doc.getXmlFragment('card-<id>')`, not `.get('cards').get(cardId).text`). Attempting to bind a nested fragment silently fails or produces a blank editor.
+
+**Workaround:** Store card **metadata** (position, id, references, timestamps) as plain JSON values in the Y.Map (e.g., `doc.getMap('cards').set(cardId, { x, y, w, entityRef, graduated })`). Store card **content** (rich text) as **top-level** Y.XmlFragments with a key derived from the card id (e.g., `doc.getXmlFragment('card-<id>')` for a card with id `<id>`). This separates the metadata layer (accessed via Y.Map iteration) from the content layer (accessed via TipTap's Collaboration `field:` parameter). Example schema:
+- `doc.getMap('cards')` = `{ cardId1: { x: 100, y: 200, ... }, cardId2: { ... } }`
+- `doc.getXmlFragment('card-cardId1')` = card text content (bound to TipTap editor with `field: 'card-cardId1'`)
+
+**Why:** TipTap's Collaboration extension binds to a Y.XmlFragment at initialization time, using the `field:` parameter to look it up in the doc root. The lookup is a simple `doc.getXmlFragment(fieldName)` call, not a recursive key path; nested fragments are outside the protocol. Separating metadata from content respects this boundary and keeps the schema simple and sync-ready (Phase 2 forward).
 

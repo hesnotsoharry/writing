@@ -2,7 +2,7 @@
 vendor: "Yjs"
 sdkVersion: "13.x"
 firstWritten: 2026-06-05
-lastVerified: 2026-06-08
+lastVerified: 2026-06-11
 relatedPaths:
   - src/storybible/fullEntry/EgoGraph.tsx
   - src/db/storyBibleStore.ts
@@ -46,4 +46,22 @@ useEffect(() => {
 This ties the component's render cycle to the store's business-logic mutations, not just Y.Doc changes. If using Yjs for the relationships themselves (not SQLite), use `Y.Array.observe` on the relations array and update state in the observer.
 
 **Why:** Yjs subscriptions are document-scoped; a Y.Doc only fires events for mutations to that doc's contents. When data is split across a Yjs doc (the entity's text/facts) and an external store (the relationships table), the component must subscribe to both. Relying on the Yjs observer alone creates a silent inconsistency where the component is technically "subscribed to updates" but never sees the ones that matter for the derived view.
+
+## 2026-06-11 — Yjs Y.Map overwrites cause tombstone accumulation; per-pointer-move writes bloat state_base64 monotonically
+Source: wave-32-brainstorm-boards, commit 0c1784a
+
+**Gotcha:** When a Y.Map value is updated frequently (e.g., on every `pointermove` event while dragging a card across a canvas), each `set()` call creates a tombstone entry in the Yjs operation log. The encoded state (`encodeState()` / `state_base64` serialization) includes all tombstones, growing monotonically with each update. A 100px drag with per-pixel position writes can triple the persisted doc size, bloating SQLite and slowing encode/decode operations. This is a CRDT characteristic — not a bug, but a load-bearing performance gotcha.
+
+**Workaround:** Defer position writes to high-level events (e.g., drag END, not drag MOVE). Use local, non-persisted state (e.g., React component state or a Zustand store outside the Y.Doc) to track in-flight drag coordinates. Only commit the final position to the Y.Map on `dragend` or `pointerup`. For the boards feature, this reduced a single drag from ~50 Y.Map updates to exactly 1. Verify in smoke tests: one position update per card per drag by inspecting the Y.Doc update count or the final `state_base64` size.
+
+**Why:** Yjs's CRDT model requires recording every operation so concurrent edits can be merged correctly. Frequent overwrites of the same key create many intermediate states that don't affect the final value but do persist in the history. At-event-conclusion writes avoid this bloat.
+
+## 2026-06-11 — bindPersistence unbind was dropping pending debounced saves; any write within 500ms of unmount was silently lost
+Source: wave-32-brainstorm-boards, commit 0c1784a
+
+**Gotcha:** The `bindPersistence` helper (in `src/yjs/bindPersistence.ts`) binds a Y.Doc to SQLite storage with a 500ms debounced save-on-change. When the component unmounts or the feature switches away, the unbind handler fires but did **not** flush the pending debounced write. Any content typed within 500ms before switching scenes / views / boards would be silently dropped on save (the component unmount happened before the debounce timer fired). This affected scene-editor Ctrl+S autosave AND board view switches, creating data-loss scenarios when users switched between boards quickly.
+
+**Workaround:** The unbind handler now explicitly flushes any pending debounced save before detaching the persistence listener. If `bindPersistence` is called elsewhere (e.g., new features with Yjs storage), ensure the cleanup function is: `return () => { flushPendingSave(); doc.off('update', handler); }` — the flush MUST run before the 'update' listener is removed, so the final dirty state is written to the DB.
+
+**Why:** Debounced saves are an optimization to batch frequent writes (typing, positioning) into fewer DB round-trips. But if unmount happens before the debounce window closes, the optimization becomes data loss. The fix ensures the final state is always persisted, even on rapid scene switches. Test this by: (1) making a change to a board/scene, (2) immediately switching away, (3) reloading the app and verifying the change persists.
 
