@@ -14,12 +14,12 @@
  */
 import type { Edge, EdgeChange, Node, NodeChange, NodeTypes, OnConnect, OnNodeDrag } from "@xyflow/react";
 import { applyEdgeChanges, applyNodeChanges, Background, ConnectionMode, ReactFlow } from "@xyflow/react";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import { Icon } from "../../components/Icon";
-import type { Entity, StoryBibleStore } from "../../db/storyBibleStore";
+import type { CustomEntityType, Entity, StoryBibleStore } from "../../db/storyBibleStore";
 import {
   addConnection,
   createBoardCard,
@@ -47,14 +47,20 @@ const nodeTypes: NodeTypes = { card: CardNode, entityCard: EntityCardNode };
 interface CardMeta { x: number; y: number; entityRef?: string; }
 interface ConnectionMeta { from: string; to: string; }
 
-function docToNodes(doc: Y.Doc, entities: Entity[]): Node<AnyCardData>[] {
+type CustomTypePick = Pick<CustomEntityType, "name" | "icon" | "color">;
+
+function docToNodes(
+  doc: Y.Doc,
+  entities: Entity[],
+  customTypes: CustomTypePick[],
+): Node<AnyCardData>[] {
   const cards = doc.getMap<CardMeta>("cards");
   return Array.from(cards.entries()).map(([id, meta]) => {
     if (meta.entityRef) {
       return {
         id, type: "entityCard" as const,
         position: { x: meta.x, y: meta.y },
-        data: { doc, cardId: id, entityRef: meta.entityRef, entities } as EntityCardNodeData,
+        data: { doc, cardId: id, entityRef: meta.entityRef, entities, customTypes } as EntityCardNodeData,
       };
     }
     return {
@@ -90,17 +96,23 @@ function useEntityLoader(
   storyBibleStore: StoryBibleStore | undefined,
   projectId: string | undefined,
   setNodes: NodeSetter,
-): { entities: Entity[]; entitiesRef: { current: Entity[] } } {
+): { entities: Entity[]; entitiesRef: { current: Entity[] }; customTypesRef: { current: CustomTypePick[] } } {
   const [entities, setEntities] = useState<Entity[]>([]);
   const entitiesRef = useRef<Entity[]>([]);
+  const customTypesRef = useRef<CustomTypePick[]>([]);
 
   useEffect(() => {
     if (!storyBibleStore || !projectId) return;
     const load = () => {
-      storyBibleStore.listEntities(projectId).then((ents) => {
+      Promise.all([
+        storyBibleStore.listEntities(projectId),
+        storyBibleStore.listCustomTypes(projectId),
+      ]).then(([ents, cts]) => {
+        const ctPicks: CustomTypePick[] = cts.map(({ name, icon, color }) => ({ name, icon, color }));
         entitiesRef.current = ents;
+        customTypesRef.current = ctPicks;
         setEntities(ents);
-        setNodes(docToNodes(doc, ents));
+        setNodes(docToNodes(doc, ents, ctPicks));
       }).catch((e: unknown) => console.error("[BoardCanvas] loadEntities failed", e));
     };
     load();
@@ -108,24 +120,33 @@ function useEntityLoader(
     return () => window.removeEventListener("focus", load);
   }, [doc, storyBibleStore, projectId, setNodes]);
 
-  return { entities, entitiesRef };
+  return { entities, entitiesRef, customTypesRef };
 }
 
 // ── useCanvasHandlers ─────────────────────────────────────────────────────────
+
+interface CanvasRefs {
+  entitiesRef: { current: Entity[] };
+  customTypesRef: { current: CustomTypePick[] };
+}
+
+/** Yjs observer: rebuilds node list whenever the cards map changes. */
+function useCardObserver(doc: Y.Doc, setNodes: NodeSetter, refs: CanvasRefs) {
+  useEffect(() => {
+    const cards = doc.getMap<CardMeta>("cards");
+    const sync = () => setNodes(docToNodes(doc, refs.entitiesRef.current, refs.customTypesRef.current));
+    cards.observe(sync);
+    return () => cards.unobserve(sync);
+  }, [doc, setNodes, refs]);
+}
 
 function useCanvasHandlers(
   doc: Y.Doc,
   setNodes: NodeSetter,
   nodeCount: number,
-  entitiesRef: { current: Entity[] },
+  refs: CanvasRefs,
 ) {
-  // Yjs observer: rebuild node list when cards map changes (add/delete/position).
-  useEffect(() => {
-    const cards = doc.getMap<CardMeta>("cards");
-    const sync = () => setNodes(docToNodes(doc, entitiesRef.current));
-    cards.observe(sync);
-    return () => cards.unobserve(sync);
-  }, [doc, setNodes, entitiesRef]);
+  useCardObserver(doc, setNodes, refs);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
@@ -214,20 +235,21 @@ interface ToolbarProps {
   onTogglePicker: () => void;
   onEntityPick: (entity: Entity) => void;
   onClosePicker: () => void;
+  toggleBtnRef: RefObject<HTMLButtonElement | null>;
 }
 
-function BoardToolbar({ onAddCard, entities, showPicker, onTogglePicker, onEntityPick, onClosePicker }: ToolbarProps) {
+function BoardToolbar({ onAddCard, entities, showPicker, onTogglePicker, onEntityPick, onClosePicker, toggleBtnRef }: ToolbarProps) {
   return (
     <div className="board-toolbar">
       <button type="button" className="board-add-card" onClick={onAddCard} title="Add card">
         <Icon name="plus" style={{ width: 13, height: 13 }} /> Add card
       </button>
       <div className="board-entity-btn-wrap">
-        <button type="button" className="board-add-card" onClick={onTogglePicker} title="Add entity card">
+        <button ref={toggleBtnRef} type="button" className="board-add-card" onClick={onTogglePicker} title="Add entity card">
           <Icon name="link" style={{ width: 13, height: 13 }} /> Add entity card
         </button>
         {showPicker && (
-          <EntityPicker entities={entities} onPick={onEntityPick} onClose={onClosePicker} />
+          <EntityPicker entities={entities} onPick={onEntityPick} onClose={onClosePicker} excludeRef={toggleBtnRef} />
         )}
       </div>
     </div>
@@ -243,13 +265,15 @@ interface BoardCanvasProps {
 }
 
 export function BoardCanvas({ doc, storyBibleStore, projectId }: BoardCanvasProps) {
-  const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, []));
+  const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, [], []));
   const [edges, setEdges] = useState<Edge[]>(() => docToEdges(doc));
-  const { entities, entitiesRef } = useEntityLoader(doc, storyBibleStore, projectId, setNodes);
+  const { entities, entitiesRef, customTypesRef } = useEntityLoader(doc, storyBibleStore, projectId, setNodes);
+  const canvasRefs: CanvasRefs = { entitiesRef, customTypesRef };
   const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } =
-    useCanvasHandlers(doc, setNodes, nodes.length, entitiesRef);
+    useCanvasHandlers(doc, setNodes, nodes.length, canvasRefs);
   const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
   const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length);
+  const toggleBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="board-canvas-wrap">
@@ -257,6 +281,7 @@ export function BoardCanvas({ doc, storyBibleStore, projectId }: BoardCanvasProp
         onAddCard={handleAddCard} entities={entities}
         showPicker={showPicker} onTogglePicker={() => setShowPicker((v) => !v)}
         onEntityPick={handleEntityPick} onClosePicker={() => setShowPicker(false)}
+        toggleBtnRef={toggleBtnRef}
       />
       <div className="board-canvas">
         <ReactFlow

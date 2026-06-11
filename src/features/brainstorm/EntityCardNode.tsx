@@ -15,7 +15,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "re
 import { useCallback } from "react";
 import type * as Y from "yjs";
 
-import type { Entity } from "../../db/storyBibleStore";
+import type { CustomEntityType, Entity } from "../../db/storyBibleStore";
 import { resolveEntityTypeDef } from "../../storybible/entityTypeDefs";
 import { removeCard, removeConnectionsForCard } from "./boardDoc";
 
@@ -26,6 +26,7 @@ export interface EntityCardNodeData extends Record<string, unknown> {
   cardId: string;
   entityRef: string;
   entities: Entity[];
+  customTypes: Pick<CustomEntityType, "name" | "icon" | "color">[];
 }
 
 export type EntityCardNodeType = Node<EntityCardNodeData, "entityCard">;
@@ -54,7 +55,7 @@ function EntityCardShell({ onDelete, children }: ShellProps) {
 // ── EntityCardNode ────────────────────────────────────────────────────────────
 
 export function EntityCardNode({ data }: NodeProps<EntityCardNodeType>) {
-  const { doc, cardId, entityRef, entities } = data;
+  const { doc, cardId, entityRef, entities, customTypes } = data;
   const entity = (entities as Entity[]).find((e) => e.id === entityRef) ?? null;
 
   const handleDelete = useCallback(
@@ -76,7 +77,10 @@ export function EntityCardNode({ data }: NodeProps<EntityCardNodeType>) {
     );
   }
 
-  const def = resolveEntityTypeDef(entity.type, []);
+  const def = resolveEntityTypeDef(
+    entity.type,
+    customTypes as Pick<CustomEntityType, "name" | "icon" | "color">[],
+  );
   return (
     <div className="card-node entity-card-node" style={{ borderLeftColor: def.color } as CSSProperties}>
       <EntityCardShell onDelete={handleDelete}>

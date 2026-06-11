@@ -6,6 +6,7 @@
  * absolute-positioned popover below the "Add entity card" toolbar button.
  * Closes on Escape (via InspPicker) and on clicks outside the picker.
  */
+import type React from "react";
 import { useEffect, useRef } from "react";
 
 import type { Entity } from "../../db/storyBibleStore";
@@ -17,20 +18,22 @@ interface EntityPickerProps {
   entities: Entity[];
   onPick: (entity: Entity) => void;
   onClose: () => void;
+  excludeRef?: React.RefObject<HTMLElement | null>;
 }
 
-export function EntityPicker({ entities, onPick, onClose }: EntityPickerProps) {
+export function EntityPicker({ entities, onPick, onClose, excludeRef }: EntityPickerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
+      if (excludeRef?.current?.contains(e.target as Node)) return;
       if (!wrapRef.current?.contains(e.target as Node)) {
         onClose();
       }
     };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
-  }, [onClose]);
+  }, [onClose, excludeRef]);
 
   return (
     <div ref={wrapRef} className="board-entity-picker">
