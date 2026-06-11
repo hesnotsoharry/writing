@@ -62,13 +62,13 @@ export const HIGHLIGHT_SWATCHES: { color: string; label: string }[] = [
 
 const swatchBtn: React.CSSProperties = {
   width: 16, height: 16, borderRadius: "50%",
-  border: "1.5px solid rgba(255,255,255,0.18)", cursor: "pointer",
+  border: "1.5px solid var(--parchment-edge)", cursor: "pointer",
   padding: 0, flexShrink: 0,
 };
 
 const swatchBtnActive: React.CSSProperties = {
-  border: "1.5px solid rgba(255,255,255,0.85)",
-  boxShadow: "0 0 0 1.5px rgba(255,255,255,0.25)",
+  border: "1.5px solid var(--ink)",
+  boxShadow: "0 0 0 1.5px var(--parchment-edge)",
 };
 
 function HighlightSwatches({ editor }: { editor: Editor }) {
@@ -96,14 +96,18 @@ function HighlightSwatches({ editor }: { editor: Editor }) {
 // FormatButtons — presentational dark-pill toolbar (testable without selection)
 // ---------------------------------------------------------------------------
 
+// Theme-token surface (NOT --ink: that's the primary *text* token, so a pill
+// painted with it inverts against the theme — light pill in dark mode).
+// Mirrors the .cm context-menu surface: paper + parchment edge + shadow.
 const pillStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 2,
   padding: 4,
-  background: "var(--ink)",
+  background: "var(--paper)",
+  border: "1px solid var(--parchment-edge)",
   borderRadius: 8,
-  boxShadow: "var(--shadow-md)",
+  boxShadow: "var(--shadow-lg)",
   fontFamily: "var(--font-ui)",
   whiteSpace: "nowrap",
   position: "relative",
@@ -115,7 +119,7 @@ const btnBase: React.CSSProperties = {
   borderRadius: 5,
   display: "grid",
   placeItems: "center",
-  color: "rgba(255,255,255,0.85)",
+  color: "var(--ink-2)",
   background: "transparent",
   border: "none",
   cursor: "pointer",
@@ -123,14 +127,14 @@ const btnBase: React.CSSProperties = {
 };
 
 const btnActive: React.CSSProperties = {
-  color: "rgba(255,255,255,1)",
-  background: "rgba(255,255,255,0.14)",
+  color: "var(--ink)",
+  background: "var(--parchment)",
 };
 
 const separatorStyle: React.CSSProperties = {
   width: 1,
   height: 16,
-  background: "rgba(255,255,255,0.18)",
+  background: "var(--parchment-edge)",
   margin: "0 2px",
 };
 
@@ -143,7 +147,7 @@ const caretStyle: React.CSSProperties = {
   height: 0,
   borderLeft: "5px solid transparent",
   borderRight: "5px solid transparent",
-  borderTop: "5px solid var(--ink)",
+  borderTop: "5px solid var(--paper)",
 };
 
 export function FormatButtons({ editor }: { editor: Editor }) {
