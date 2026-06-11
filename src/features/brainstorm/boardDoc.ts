@@ -107,3 +107,24 @@ export function removeConnectionsForCard(doc: Y.Doc, cardId: string): void {
     removeConnection(doc, connId);
   }
 }
+
+/**
+ * Add an entity card to the board doc (Phase 4).
+ *
+ * Schema (Decision 2/4):
+ *   - entity card metadata is a plain JSON value in doc.getMap('cards')[cardId]
+ *     with fields { x, y, entityRef } — entityRef stores the entity ID only,
+ *     never copied name/type/title
+ *   - the top-level fragment at doc.getXmlFragment('card-<cardId>') is created
+ *     but remains empty (entity cards have no free text in v1)
+ *
+ * Regular cards (from createBoardCard) do NOT have an entityRef key.
+ */
+export function createEntityCard(
+  _doc: Y.Doc,
+  _cardId: string,
+  _entityId: string,
+  _pos: { x: number; y: number }
+): void {
+  throw new Error("not implemented");
+}

@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import {
   addConnection,
   createBoardCard,
+  createEntityCard,
   getCardFragment,
   removeCard,
   removeConnection,
@@ -541,6 +542,169 @@ describe("boardDoc", () => {
         from: "card-y",
         to: "card-x",
       });
+    });
+  });
+
+  describe("createEntityCard (Phase 4)", () => {
+    it("creates an entity card with plain JSON metadata including entityRef", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "entity-card-1";
+      const entityId = "entity-123";
+      const pos = { x: 150, y: 200 };
+
+      // Act
+      createEntityCard(doc, cardId, entityId, pos);
+
+      // Assert: Metadata is stored in doc.getMap('cards')[cardId] with entityRef.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).toEqual({ x: 150, y: 200, entityRef: entityId });
+    });
+
+    it("stores entity card metadata as plain JSON, not a Y.Map or Y.XmlFragment", () => {
+      // This asserts Decision 2/4: entity card metadata must be plain JSON
+      // with entityRef field only — no name/type/title copied in.
+      const doc = new Y.Doc();
+      const cardId = "entity-card-plain";
+      const entityId = "entity-456";
+      const pos = { x: 50, y: 100 };
+
+      createEntityCard(doc, cardId, entityId, pos);
+
+      const metadata = doc.getMap("cards").get(cardId);
+
+      // Assert the metadata is NOT a Y type.
+      expect(metadata).not.toBeInstanceOf(Y.Map);
+      expect(metadata).not.toBeInstanceOf(Y.XmlFragment);
+      expect(metadata).not.toBeInstanceOf(Y.XmlElement);
+      expect(metadata).not.toBeInstanceOf(Y.XmlText);
+
+      // Assert it is plain JSON with only x, y, entityRef — no name/type/title.
+      expect(typeof metadata).toBe("object");
+      expect(metadata.x).toBe(50);
+      expect(metadata.y).toBe(100);
+      expect(metadata.entityRef).toBe("entity-456");
+      expect(metadata.name).toBeUndefined();
+      expect(metadata.type).toBeUndefined();
+      expect(metadata.title).toBeUndefined();
+    });
+
+    it("does not create content in the card's text fragment (or creates empty fragment)", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "entity-card-no-text";
+      const entityId = "entity-789";
+
+      // Act
+      createEntityCard(doc, cardId, entityId, { x: 0, y: 0 });
+
+      // Assert: The fragment exists but has no content (length 0).
+      // Entity cards in v1 have no free text.
+      const fragment = doc.getXmlFragment(`card-${cardId}`);
+      expect(fragment).toBeInstanceOf(Y.XmlFragment);
+      expect(fragment.length).toBe(0);
+    });
+
+    it("regular cards (via createBoardCard) do NOT have entityRef", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "regular-card-1";
+      const pos = { x: 100, y: 200 };
+
+      // Act: Create a regular card.
+      createBoardCard(doc, cardId, pos);
+
+      // Assert: Metadata has no entityRef key.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).toEqual({ x: 100, y: 200 });
+      expect(metadata.entityRef).toBeUndefined();
+    });
+
+    it("removeCard works on entity cards (removes metadata entry)", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "entity-card-remove";
+      const entityId = "entity-remove-test";
+      createEntityCard(doc, cardId, entityId, { x: 50, y: 75 });
+
+      // Verify it was created.
+      expect(doc.getMap("cards").get(cardId)).toEqual({
+        x: 50,
+        y: 75,
+        entityRef: entityId,
+      });
+
+      // Act
+      removeCard(doc, cardId);
+
+      // Assert: Entity card metadata is gone.
+      expect(doc.getMap("cards").get(cardId)).toBeUndefined();
+    });
+
+    it("preserves entityRef through a full encode-decode round-trip", () => {
+      // Arrange: Create an entity card, encode it.
+      const doc1 = new Y.Doc();
+      const cardId = "entity-persist";
+      const entityId = "entity-persistent-123";
+      const pos = { x: 300, y: 400 };
+
+      createEntityCard(doc1, cardId, entityId, pos);
+
+      const base64 = encodeDoc(doc1);
+
+      // Act: Decode into a new doc.
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: Entity card metadata (including entityRef) is preserved.
+      const metadata = doc2.getMap("cards").get(cardId);
+      expect(metadata).toEqual({ x: 300, y: 400, entityRef: entityId });
+      expect(metadata.entityRef).toBe(entityId);
+    });
+
+    it("entity and regular cards can coexist without interference", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const regularCardId = "regular-mixed";
+      const entityCardId = "entity-mixed";
+      const entityId = "entity-mixed-ref";
+
+      createBoardCard(doc, regularCardId, { x: 0, y: 0 });
+      createEntityCard(doc, entityCardId, entityId, { x: 100, y: 100 });
+
+      // Act: Encode and decode.
+      const base64 = encodeDoc(doc);
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: Regular card has no entityRef; entity card has entityRef.
+      const regularMeta = doc2.getMap("cards").get(regularCardId);
+      const entityMeta = doc2.getMap("cards").get(entityCardId);
+
+      expect(regularMeta).toEqual({ x: 0, y: 0 });
+      expect(regularMeta.entityRef).toBeUndefined();
+
+      expect(entityMeta).toEqual({ x: 100, y: 100, entityRef: entityId });
+      expect(entityMeta.entityRef).toBe(entityId);
+    });
+
+    it("removeCard clears entity card's fragment (if touched)", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "entity-card-clear";
+      const entityId = "entity-clear-test";
+      createEntityCard(doc, cardId, entityId, { x: 0, y: 0 });
+
+      // Verify fragment exists but is empty.
+      const fragBefore = doc.getXmlFragment(`card-${cardId}`);
+      expect(fragBefore.length).toBe(0);
+
+      // Act
+      removeCard(doc, cardId);
+
+      // Assert: Fragment remains empty (or is still empty if it was touched).
+      const fragAfter = doc.getXmlFragment(`card-${cardId}`);
+      expect(fragAfter.length).toBe(0);
     });
   });
 });
