@@ -1539,3 +1539,43 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .card-node:hover .react-flow__handle { opacity: 1; }
 .card-node .react-flow__handle:hover,
 .card-node .react-flow__handle-connecting { background: var(--ink-2); opacity: 1; }
+
+/* ── Entity card node (Phase 4) ──────────────────────────────────────────────
+   Inherits .card-node base (border, shadow, position: relative).
+   The left border is widened and its color is set inline to the entity type color.
+   No click-to-edit (cursor default, no hover border shift).                    */
+.card-node.entity-card-node {
+  min-width: 160px; max-width: 240px;
+  border-left-width: 3px;
+  padding: 8px 28px 8px 9px;
+  cursor: default;
+}
+.entity-card-name {
+  display: block;
+  font-size: var(--text-sm); font-weight: var(--w-semi); color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.entity-card-type {
+  display: block;
+  font-size: var(--text-2xs); color: var(--ink-4);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.entity-card-missing {
+  font-size: var(--text-sm); color: var(--ink-4); font-style: italic;
+}
+.entity-card-node--missing { opacity: 0.55; }
+
+/* ── Board entity picker ──────────────────────────────────────────────────────
+   Floating popover below the "Add entity card" toolbar button.
+   InspPicker renders its own border + border-radius inside here.               */
+.board-entity-btn-wrap { position: relative; }
+.board-entity-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  width: 240px;
+  background: var(--paper);
+  box-shadow: var(--shadow-md);
+}

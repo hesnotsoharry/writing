@@ -210,7 +210,7 @@ export function buildViewStage(
   }
   if (view === "brainstorm") {
     const boardId = ctx.brainstormBoardId ?? "brainstorm-default";
-    return <BoardView key={boardId} boardId={boardId} />;
+    return <BoardView key={boardId} boardId={boardId} storyBibleStore={ctx.storyBibleStore} projectId={activeProjectId ?? undefined} />;
   }
   if (view === "entry") {
     return <EntryViewStage

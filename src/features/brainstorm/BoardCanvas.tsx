@@ -1,57 +1,74 @@
 /**
  * BoardCanvas — React Flow wrapper for the brainstorm board.
  *
- * Phase 2 additions:
- *   - Toolbar: "Add card" button creates a new card in the Yjs doc.
- *   - onNodeDragStop: writes the final position to the Yjs doc ONCE per drag
- *     (Decision 5 — no per-pointer-move Y.Map writes).
- *   - onNodesDelete: removes selected cards via the Delete key.
- *   - onNodesChange: handles local drag-in-flight position updates (React state
- *     only; no Yjs writes during the drag move).
+ * Phase 2: Add card / drag positioning / keyboard delete.
+ * Phase 3: Connection lines (handle-drag create, keyboard delete, cascade on card delete).
+ * Phase 4:
+ *   - Entity card node type ("entityCard") rendered by EntityCardNode.
+ *   - Entity loading from storyBibleStore on mount + window-focus (rename propagation for
+ *     v1 — entity reads are non-reactive outside the Story Bible view; re-read on focus
+ *     is the accepted v1 approach per task brief).
+ *   - "Add entity card" toolbar button opens EntityPicker.
  *
  * @xyflow/react dist CSS is imported once in main.tsx.
  */
 import type { Edge, EdgeChange, Node, NodeChange, NodeTypes, OnConnect, OnNodeDrag } from "@xyflow/react";
 import { applyEdgeChanges, applyNodeChanges, Background, ConnectionMode, ReactFlow } from "@xyflow/react";
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import { Icon } from "../../components/Icon";
+import type { Entity, StoryBibleStore } from "../../db/storyBibleStore";
 import {
   addConnection,
   createBoardCard,
+  createEntityCard,
   removeCard,
   removeConnection,
   removeConnectionsForCard,
   updateCardPosition,
 } from "./boardDoc";
 import { CardNode, type CardNodeData } from "./CardNode";
+import { EntityCardNode, type EntityCardNodeData } from "./EntityCardNode";
+import { EntityPicker } from "./EntityPicker";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type AnyCardData = CardNodeData | EntityCardNodeData;
+type NodeSetter = Dispatch<SetStateAction<Node<AnyCardData>[]>>;
 
 // ── nodeTypes (stable reference — must be defined outside the component) ──────
 
-const nodeTypes: NodeTypes = { card: CardNode };
+const nodeTypes: NodeTypes = { card: CardNode, entityCard: EntityCardNode };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-interface CardMeta { x: number; y: number; }
+interface CardMeta { x: number; y: number; entityRef?: string; }
 interface ConnectionMeta { from: string; to: string; }
 
-function docToNodes(doc: Y.Doc): Node<CardNodeData>[] {
+function docToNodes(doc: Y.Doc, entities: Entity[]): Node<AnyCardData>[] {
   const cards = doc.getMap<CardMeta>("cards");
-  return Array.from(cards.entries()).map(([id, meta]) => ({
-    id, type: "card" as const,
-    position: { x: meta.x, y: meta.y },
-    data: { doc, cardId: id },
-  }));
+  return Array.from(cards.entries()).map(([id, meta]) => {
+    if (meta.entityRef) {
+      return {
+        id, type: "entityCard" as const,
+        position: { x: meta.x, y: meta.y },
+        data: { doc, cardId: id, entityRef: meta.entityRef, entities } as EntityCardNodeData,
+      };
+    }
+    return {
+      id, type: "card" as const,
+      position: { x: meta.x, y: meta.y },
+      data: { doc, cardId: id } as CardNodeData,
+    };
+  });
 }
 
 function docToEdges(doc: Y.Doc): Edge[] {
   const connections = doc.getMap<ConnectionMeta>("connections");
   return Array.from(connections.entries()).map(([id, meta]) => ({
-    id,
-    source: meta.from,
-    target: meta.to,
-    type: "straight" as const,
+    id, source: meta.from, target: meta.to, type: "straight" as const,
     style: { stroke: "var(--ink-4)", strokeWidth: 1.5 },
   }));
 }
@@ -61,33 +78,66 @@ function nextCardPosition(count: number): { x: number; y: number } {
   return { x: 100 + (count % 4) * 220, y: 100 + Math.floor(count / 4) * 160 };
 }
 
+// ── useEntityLoader ───────────────────────────────────────────────────────────
+
+/**
+ * Loads the project's entity list on mount and window-focus.
+ * Calls setNodes directly from the async .then() callback (not synchronously in
+ * the effect body) so the ESLint react-hooks/set-state-in-effect rule is satisfied.
+ */
+function useEntityLoader(
+  doc: Y.Doc,
+  storyBibleStore: StoryBibleStore | undefined,
+  projectId: string | undefined,
+  setNodes: NodeSetter,
+): { entities: Entity[]; entitiesRef: { current: Entity[] } } {
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const entitiesRef = useRef<Entity[]>([]);
+
+  useEffect(() => {
+    if (!storyBibleStore || !projectId) return;
+    const load = () => {
+      storyBibleStore.listEntities(projectId).then((ents) => {
+        entitiesRef.current = ents;
+        setEntities(ents);
+        setNodes(docToNodes(doc, ents));
+      }).catch((e: unknown) => console.error("[BoardCanvas] loadEntities failed", e));
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, [doc, storyBibleStore, projectId, setNodes]);
+
+  return { entities, entitiesRef };
+}
+
 // ── useCanvasHandlers ─────────────────────────────────────────────────────────
 
-type NodeSetter = Dispatch<SetStateAction<Node<CardNodeData>[]>>;
-
-function useCanvasHandlers(doc: Y.Doc, setNodes: NodeSetter, nodeCount: number) {
-  // Yjs observer: rebuild node list when cards map changes (add / delete / position).
+function useCanvasHandlers(
+  doc: Y.Doc,
+  setNodes: NodeSetter,
+  nodeCount: number,
+  entitiesRef: { current: Entity[] },
+) {
+  // Yjs observer: rebuild node list when cards map changes (add/delete/position).
   useEffect(() => {
     const cards = doc.getMap<CardMeta>("cards");
-    const sync = () => setNodes(docToNodes(doc));
+    const sync = () => setNodes(docToNodes(doc, entitiesRef.current));
     cards.observe(sync);
     return () => cards.unobserve(sync);
-  }, [doc, setNodes]);
+  }, [doc, setNodes, entitiesRef]);
 
-  // Local drag-state updates — React-only, no Yjs writes during drag move.
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
-      setNodes((nds) => applyNodeChanges(changes, nds) as Node<CardNodeData>[]),
+      setNodes((nds) => applyNodeChanges(changes, nds) as Node<AnyCardData>[]),
     [setNodes]
   );
 
-  // Drag end → single Yjs write (Decision 5).
-  const onNodeDragStop: OnNodeDrag<Node<CardNodeData>> = useCallback(
+  const onNodeDragStop: OnNodeDrag<Node<AnyCardData>> = useCallback(
     (_event, node) => { updateCardPosition(doc, node.id, node.position); },
     [doc]
   );
 
-  // Keyboard delete → cascade connections, then Yjs remove.
   const handleNodesDelete = useCallback(
     (deleted: Node[]) => {
       for (const node of deleted) {
@@ -110,7 +160,6 @@ function useCanvasHandlers(doc: Y.Doc, setNodes: NodeSetter, nodeCount: number) 
 type EdgeSetter = Dispatch<SetStateAction<Edge[]>>;
 
 function useEdgeHandlers(doc: Y.Doc, setEdges: EdgeSetter) {
-  // Yjs observer: rebuild edge list when connections map changes.
   useEffect(() => {
     const connections = doc.getMap<ConnectionMeta>("connections");
     const sync = () => setEdges(docToEdges(doc));
@@ -118,13 +167,11 @@ function useEdgeHandlers(doc: Y.Doc, setEdges: EdgeSetter) {
     return () => connections.unobserve(sync);
   }, [doc, setEdges]);
 
-  // Local edge state for selection / transient changes.
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
     [setEdges]
   );
 
-  // Handle drag between card handles → addConnection.
   const onConnect: OnConnect = useCallback(
     (connection) => {
       if (!connection.source || !connection.target) return;
@@ -134,7 +181,6 @@ function useEdgeHandlers(doc: Y.Doc, setEdges: EdgeSetter) {
     [doc]
   );
 
-  // Edge deleted via keyboard Delete → remove from Yjs.
   const onEdgesDelete = useCallback(
     (deleted: Edge[]) => { for (const edge of deleted) removeConnection(doc, edge.id); },
     [doc]
@@ -143,27 +189,75 @@ function useEdgeHandlers(doc: Y.Doc, setEdges: EdgeSetter) {
   return { onEdgesChange, onConnect, onEdgesDelete };
 }
 
+// ── useEntityPicker ───────────────────────────────────────────────────────────
+
+function useEntityPicker(doc: Y.Doc, nodeCount: number) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const handleEntityPick = useCallback(
+    (entity: Entity) => {
+      createEntityCard(doc, crypto.randomUUID(), entity.id, nextCardPosition(nodeCount));
+      setShowPicker(false);
+    },
+    [doc, nodeCount]
+  );
+
+  return { showPicker, setShowPicker, handleEntityPick };
+}
+
+// ── BoardToolbar ──────────────────────────────────────────────────────────────
+
+interface ToolbarProps {
+  onAddCard: () => void;
+  entities: Entity[];
+  showPicker: boolean;
+  onTogglePicker: () => void;
+  onEntityPick: (entity: Entity) => void;
+  onClosePicker: () => void;
+}
+
+function BoardToolbar({ onAddCard, entities, showPicker, onTogglePicker, onEntityPick, onClosePicker }: ToolbarProps) {
+  return (
+    <div className="board-toolbar">
+      <button type="button" className="board-add-card" onClick={onAddCard} title="Add card">
+        <Icon name="plus" style={{ width: 13, height: 13 }} /> Add card
+      </button>
+      <div className="board-entity-btn-wrap">
+        <button type="button" className="board-add-card" onClick={onTogglePicker} title="Add entity card">
+          <Icon name="link" style={{ width: 13, height: 13 }} /> Add entity card
+        </button>
+        {showPicker && (
+          <EntityPicker entities={entities} onPick={onEntityPick} onClose={onClosePicker} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── BoardCanvas ───────────────────────────────────────────────────────────────
 
-interface BoardCanvasProps { doc: Y.Doc; }
+interface BoardCanvasProps {
+  doc: Y.Doc;
+  storyBibleStore?: StoryBibleStore;
+  projectId?: string;
+}
 
-export function BoardCanvas({ doc }: BoardCanvasProps) {
-  const initialNodes = useMemo(() => docToNodes(doc), [doc]);
-  const [nodes, setNodes] = useState<Node<CardNodeData>[]>(initialNodes);
-  const initialEdges = useMemo(() => docToEdges(doc), [doc]);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
-
+export function BoardCanvas({ doc, storyBibleStore, projectId }: BoardCanvasProps) {
+  const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, []));
+  const [edges, setEdges] = useState<Edge[]>(() => docToEdges(doc));
+  const { entities, entitiesRef } = useEntityLoader(doc, storyBibleStore, projectId, setNodes);
   const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } =
-    useCanvasHandlers(doc, setNodes, nodes.length);
+    useCanvasHandlers(doc, setNodes, nodes.length, entitiesRef);
   const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
+  const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length);
 
   return (
     <div className="board-canvas-wrap">
-      <div className="board-toolbar">
-        <button type="button" className="board-add-card" onClick={handleAddCard} title="Add card">
-          <Icon name="plus" style={{ width: 13, height: 13 }} /> Add card
-        </button>
-      </div>
+      <BoardToolbar
+        onAddCard={handleAddCard} entities={entities}
+        showPicker={showPicker} onTogglePicker={() => setShowPicker((v) => !v)}
+        onEntityPick={handleEntityPick} onClosePicker={() => setShowPicker(false)}
+      />
       <div className="board-canvas">
         <ReactFlow
           nodes={nodes} edges={edges} nodeTypes={nodeTypes}

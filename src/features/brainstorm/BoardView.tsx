@@ -18,6 +18,7 @@ import * as Y from "yjs";
 
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBoardDocStore } from "../../db/sqliteBoardDocStore";
+import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { bindPersistence } from "../../yjs/bindPersistence";
 import { applyEncoded } from "../../yjs/serialize";
 import { BoardCanvas } from "./BoardCanvas";
@@ -91,9 +92,13 @@ function useBoardDoc(boardId: string): Y.Doc | null {
 interface BoardViewProps {
   /** The board to display. Provided by the binder when a board row is clicked. */
   boardId: string;
+  /** Story Bible store — supplied by the view-stage for entity card resolution. */
+  storyBibleStore?: StoryBibleStore;
+  /** Active project id — required alongside storyBibleStore for entity loading. */
+  projectId?: string;
 }
 
-export function BoardView({ boardId }: BoardViewProps) {
+export function BoardView({ boardId, storyBibleStore, projectId }: BoardViewProps) {
   const doc = useBoardDoc(boardId);
 
   if (!doc) {
@@ -106,7 +111,7 @@ export function BoardView({ boardId }: BoardViewProps) {
 
   return (
     <div className="board-view">
-      <BoardCanvas doc={doc} />
+      <BoardCanvas doc={doc} storyBibleStore={storyBibleStore} projectId={projectId} />
     </div>
   );
 }

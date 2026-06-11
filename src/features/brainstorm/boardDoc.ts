@@ -33,16 +33,19 @@ export function getCardFragment(doc: Y.Doc, cardId: string): Y.XmlFragment {
 /**
  * Update a card's position metadata (Phase 2).
  *
- * Overwrites the card's entry in doc.getMap('cards') with new x, y coordinates.
- * The position is stored as plain JSON, never a Y type. Exactly one Y.Map.set()
- * call is made per invocation — tombs are managed on drag end only (Decision 5).
+ * Merges the new x, y into the card's existing metadata so that extra fields
+ * (e.g. entityRef on entity cards) are preserved across drag operations.
+ * Exactly one Y.Map.set() call is made per invocation — tombs are managed on
+ * drag end only (Decision 5).
  */
 export function updateCardPosition(
   doc: Y.Doc,
   cardId: string,
   pos: { x: number; y: number }
 ): void {
-  doc.getMap("cards").set(cardId, { x: pos.x, y: pos.y });
+  const cards = doc.getMap("cards");
+  const existing = (cards.get(cardId) as Record<string, unknown> | undefined) ?? {};
+  cards.set(cardId, { ...existing, x: pos.x, y: pos.y });
 }
 
 /**
@@ -121,10 +124,11 @@ export function removeConnectionsForCard(doc: Y.Doc, cardId: string): void {
  * Regular cards (from createBoardCard) do NOT have an entityRef key.
  */
 export function createEntityCard(
-  _doc: Y.Doc,
-  _cardId: string,
-  _entityId: string,
-  _pos: { x: number; y: number }
+  doc: Y.Doc,
+  cardId: string,
+  entityId: string,
+  pos: { x: number; y: number }
 ): void {
-  throw new Error("not implemented");
+  doc.getMap("cards").set(cardId, { x: pos.x, y: pos.y, entityRef: entityId });
+  doc.getXmlFragment(`card-${cardId}`);
 }
