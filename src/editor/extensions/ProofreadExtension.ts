@@ -261,7 +261,10 @@ function pluginApply(tr: Transaction, old: DecorationSet): DecorationSet {
 // ---------------------------------------------------------------------------
 
 function makePluginView(debounce: number) {
-  return () => {
+  // ProseMirror calls this factory with the EditorView when the plugin is first
+  // associated with an editor. Named `initialView` (not `view`) to avoid shadowing
+  // the `view` parameter used in the `update` method body below.
+  return (initialView: EditorView) => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let seq = 0;
     let destroyed = false;
@@ -287,10 +290,17 @@ function makePluginView(debounce: number) {
 
     window.addEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged);
 
+    // Cold-start: the initial document (Yjs-hydrated from SQLite) is the plugin's
+    // baseline state — no doc-change delta fires for it, so `update` never calls
+    // `schedule`. This kick is the only trigger for pre-existing text. In React
+    // StrictMode dev, each mount schedules independently (redundant but harmless).
+    schedule(initialView);
+
     return {
       update(view: EditorView, prev: EditorState) {
         latestView = view;
-        if (!view.state.doc.eq(prev.doc)) schedule(view);
+        const docChanged = !view.state.doc.eq(prev.doc);
+        if (docChanged) schedule(view);
       },
       destroy() {
         destroyed = true;
