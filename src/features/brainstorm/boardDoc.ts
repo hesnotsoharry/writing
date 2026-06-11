@@ -29,3 +29,34 @@ export function createBoardCard(
 export function getCardFragment(doc: Y.Doc, cardId: string): Y.XmlFragment {
   return doc.getXmlFragment(`card-${cardId}`);
 }
+
+/**
+ * Update a card's position metadata (Phase 2).
+ *
+ * Overwrites the card's entry in doc.getMap('cards') with new x, y coordinates.
+ * The position is stored as plain JSON, never a Y type. Exactly one Y.Map.set()
+ * call is made per invocation — tombs are managed on drag end only (Decision 5).
+ */
+export function updateCardPosition(
+  doc: Y.Doc,
+  cardId: string,
+  pos: { x: number; y: number }
+): void {
+  doc.getMap("cards").set(cardId, { x: pos.x, y: pos.y });
+}
+
+/**
+ * Remove a card from the board (Phase 2).
+ *
+ * Deletes the card's metadata entry from doc.getMap('cards') and clears
+ * the card's top-level XmlFragment (doc.getXmlFragment('card-<cardId>')).
+ * Other cards are unaffected. Note: Yjs has no fragment delete — the key
+ * is retained in the doc's intrinsics but its content is cleared (empty length).
+ */
+export function removeCard(doc: Y.Doc, cardId: string): void {
+  doc.getMap("cards").delete(cardId);
+  const frag = doc.getXmlFragment(`card-${cardId}`);
+  if (frag.length > 0) {
+    frag.delete(0, frag.length);
+  }
+}

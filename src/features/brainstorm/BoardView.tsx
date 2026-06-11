@@ -1,13 +1,17 @@
 /**
  * BoardView — loads/hydrates the board Y.Doc and renders the BoardCanvas.
  *
+ * Phase 2: accepts any boardId as a prop (replaces the Phase 1 hardcoded
+ * DEFAULT_BOARD_ID). The useBoardDoc effect re-runs when boardId changes,
+ * cleaning up the old doc and binding the new one.
+ *
  * Persistence: uses SqliteBoardDocStore + a thin SceneDocStore adapter so
  * existing bindPersistence (UNCHANGED) can be reused. extractPlainText reads
  * the 'content' fragment (absent on board docs) → wordCount 0; this is
  * accepted — no consumer reads board word counts.
  *
- * Phase 1: single default board per session. Board/project association and
- * multi-board CRUD are Phase 2+.
+ * Starter-card creation: only for the legacy "brainstorm-default" board so
+ * Phase 1 users don't see an empty canvas; newly created boards start empty.
  */
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
@@ -21,10 +25,10 @@ import { createBoardCard } from "./boardDoc";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Walking-skeleton default board id (Phase 1). Phase 2 derives from project. */
-const DEFAULT_BOARD_ID = "brainstorm-default";
+/** Legacy board id from Phase 1 — used only for starter-card back-compat. */
+const LEGACY_DEFAULT_ID = "brainstorm-default";
 
-/** Starter card created on a fresh board so the canvas is never empty. */
+/** Starter card id — created on the legacy board if the doc is empty. */
 const STARTER_CARD_ID = "starter";
 
 // ── Module-level store singleton (mirrors sceneDocStore in App.tsx) ───────────
@@ -44,14 +48,13 @@ function makePersistenceAdapter(boardId: string): SceneDocStore {
 
 // ── useBoardDoc ───────────────────────────────────────────────────────────────
 
-/** Loads, hydrates, and persists the board Y.Doc. Returns null until ready. */
-function useBoardDoc(): Y.Doc | null {
+/** Loads, hydrates, and persists the board Y.Doc for the given boardId. */
+function useBoardDoc(boardId: string): Y.Doc | null {
   const [doc, setDoc] = useState<Y.Doc | null>(null);
   const unbindRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    const boardId = DEFAULT_BOARD_ID;
     const d = new Y.Doc();
 
     boardDocStore
@@ -59,30 +62,39 @@ function useBoardDoc(): Y.Doc | null {
       .then((base64) => {
         if (!mounted) return;
         applyEncoded(d, base64 ?? "");
+        // Starter card: only for the legacy default board so Phase 1 data is
+        // preserved; newly-created boards start empty per the task spec.
         const cards = d.getMap("cards");
-        if (!cards.has(STARTER_CARD_ID)) {
+        if (boardId === LEGACY_DEFAULT_ID && !cards.has(STARTER_CARD_ID)) {
           createBoardCard(d, STARTER_CARD_ID, { x: 120, y: 120 });
         }
         const adapter = makePersistenceAdapter(boardId);
         unbindRef.current = bindPersistence(d, boardId, adapter, { debounceMs: 500 });
         setDoc(d);
       })
-      .catch((e: unknown) => { console.error("[BoardView] load failed", e); });
+      .catch((e: unknown) => {
+        console.error("[BoardView] load failed", e);
+      });
 
     return () => {
       mounted = false;
       unbindRef.current?.();
       unbindRef.current = null;
     };
-  }, []);
+  }, [boardId]);
 
   return doc;
 }
 
 // ── BoardView ─────────────────────────────────────────────────────────────────
 
-export function BoardView() {
-  const doc = useBoardDoc();
+interface BoardViewProps {
+  /** The board to display. Provided by the binder when a board row is clicked. */
+  boardId: string;
+}
+
+export function BoardView({ boardId }: BoardViewProps) {
+  const doc = useBoardDoc(boardId);
 
   if (!doc) {
     return (

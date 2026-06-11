@@ -4,6 +4,8 @@ import * as Y from "yjs";
 import {
   createBoardCard,
   getCardFragment,
+  removeCard,
+  updateCardPosition,
 } from "../../../features/brainstorm/boardDoc";
 import { applyEncoded, encodeDoc } from "../../../yjs/serialize";
 
@@ -196,6 +198,163 @@ describe("boardDoc", () => {
 
       expect(t1).toContain("Card A text");
       expect(t2).toContain("Card B text");
+    });
+  });
+
+  describe("updateCardPosition (Phase 2)", () => {
+    it("overwrites card metadata with new x, y position", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-drag-1";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Act
+      updateCardPosition(doc, cardId, { x: 150, y: 250 });
+
+      // Assert: Metadata is updated.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).toEqual({ x: 150, y: 250 });
+    });
+
+    it("updates only the target card, leaving other cards untouched", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      createBoardCard(doc, "card-a", { x: 0, y: 0 });
+      createBoardCard(doc, "card-b", { x: 100, y: 100 });
+
+      // Act
+      updateCardPosition(doc, "card-a", { x: 50, y: 75 });
+
+      // Assert: Only card-a is updated; card-b is unchanged.
+      expect(doc.getMap("cards").get("card-a")).toEqual({ x: 50, y: 75 });
+      expect(doc.getMap("cards").get("card-b")).toEqual({ x: 100, y: 100 });
+    });
+
+    it("performs exactly one Y.Map set per call (no per-move writes)", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-single-set";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Observe changes to the cards map.
+      let changeCount = 0;
+      doc.getMap("cards").observe(() => {
+        changeCount += 1;
+      });
+
+      // Act: Update position once.
+      updateCardPosition(doc, cardId, { x: 200, y: 300 });
+
+      // Assert: Exactly one change event fired (one set call).
+      expect(changeCount).toBe(1);
+    });
+
+    it("preserves position as plain JSON, not a Y type", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-plain-json";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Act
+      updateCardPosition(doc, cardId, { x: 75, y: 125 });
+
+      // Assert: Metadata is still plain JSON.
+      const metadata = doc.getMap("cards").get(cardId);
+      expect(metadata).not.toBeInstanceOf(Y.Map);
+      expect(metadata).not.toBeInstanceOf(Y.XmlFragment);
+      expect(typeof metadata).toBe("object");
+      expect(metadata.x).toBe(75);
+      expect(metadata.y).toBe(125);
+    });
+  });
+
+  describe("removeCard (Phase 2)", () => {
+    it("removes card metadata from cards map", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-remove-1";
+      createBoardCard(doc, cardId, { x: 100, y: 200 });
+
+      // Act
+      removeCard(doc, cardId);
+
+      // Assert: Card metadata is gone.
+      expect(doc.getMap("cards").get(cardId)).toBeUndefined();
+    });
+
+    it("clears the card's top-level XmlFragment content", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      const cardId = "card-clear-frag";
+      createBoardCard(doc, cardId, { x: 0, y: 0 });
+
+      // Add some text to the fragment.
+      const frag = getCardFragment(doc, cardId);
+      const text = new Y.XmlText();
+      text.insert(0, "Temporary content");
+      frag.push([text]);
+
+      expect(frag.length).toBe(1);
+
+      // Act
+      removeCard(doc, cardId);
+
+      // Assert: Fragment is cleared.
+      const fragAfter = doc.getXmlFragment(`card-${cardId}`);
+      expect(fragAfter.length).toBe(0);
+    });
+
+    it("does not affect other cards' metadata or fragments", () => {
+      // Arrange
+      const doc = new Y.Doc();
+      createBoardCard(doc, "card-1", { x: 0, y: 0 });
+      createBoardCard(doc, "card-2", { x: 100, y: 100 });
+
+      // Add content to both.
+      const frag1 = getCardFragment(doc, "card-1");
+      const text1 = new Y.XmlText();
+      text1.insert(0, "Card 1 content");
+      frag1.push([text1]);
+
+      const frag2 = getCardFragment(doc, "card-2");
+      const text2 = new Y.XmlText();
+      text2.insert(0, "Card 2 content");
+      frag2.push([text2]);
+
+      // Act: Remove card-1.
+      removeCard(doc, "card-1");
+
+      // Assert: Card-2 is unaffected.
+      expect(doc.getMap("cards").get("card-2")).toEqual({ x: 100, y: 100 });
+      const frag2After = doc.getXmlFragment("card-card-2");
+      expect(frag2After.length).toBe(1);
+      expect((frag2After.get(0) as Y.XmlText)?.toString()).toContain("Card 2 content");
+    });
+
+    it("survives encode-decode round-trip (removes card and preserves other cards)", () => {
+      // Arrange
+      const doc1 = new Y.Doc();
+      createBoardCard(doc1, "card-x", { x: 10, y: 20 });
+      createBoardCard(doc1, "card-y", { x: 30, y: 40 });
+
+      getCardFragment(doc1, "card-x").push([new Y.XmlText("X text")]);
+      getCardFragment(doc1, "card-y").push([new Y.XmlText("Y text")]);
+
+      removeCard(doc1, "card-x");
+
+      const base64 = encodeDoc(doc1);
+
+      // Act: Decode.
+      const doc2 = new Y.Doc();
+      applyEncoded(doc2, base64);
+
+      // Assert: card-x is gone; card-y persists.
+      expect(doc2.getMap("cards").get("card-x")).toBeUndefined();
+      expect(doc2.getMap("cards").get("card-y")).toEqual({ x: 30, y: 40 });
+
+      const frag2 = doc2.getXmlFragment("card-card-y");
+      expect(frag2.length).toBe(1);
+      expect((frag2.get(0) as Y.XmlText)?.toString()).toContain("Y text");
     });
   });
 });

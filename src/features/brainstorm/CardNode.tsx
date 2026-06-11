@@ -18,8 +18,11 @@ import { Collaboration } from "@tiptap/extension-collaboration";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Node, NodeProps } from "@xyflow/react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 import * as Y from "yjs";
+
+import { removeCard } from "./boardDoc";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,11 +66,7 @@ function fragmentText(doc: Y.Doc, cardId: string): string {
 
 // ── Inner editor (lazy — only mounted when isEditing) ────────────────────────
 
-interface CardEditorProps {
-  doc: Y.Doc;
-  cardId: string;
-  onDone: () => void;
-}
+interface CardEditorProps { doc: Y.Doc; cardId: string; onDone: () => void; }
 
 function CardEditor({ doc, cardId, onDone }: CardEditorProps) {
   const editor = useEditor({
@@ -83,22 +82,18 @@ function CardEditor({ doc, cardId, onDone }: CardEditorProps) {
     if (!editor) return;
     const handleBlur = () => onDone();
     editor.on("blur", handleBlur);
-    return () => {
-      editor.off("blur", handleBlur);
-    };
+    return () => { editor.off("blur", handleBlur); };
   }, [editor, onDone]);
 
   return <EditorContent editor={editor} className="card-node-editor" />;
 }
 
-// ── CardNode ──────────────────────────────────────────────────────────────────
+// ── useCardState — state + observers + handlers for CardNode ─────────────────
 
-export function CardNode({ data }: NodeProps<CardNodeType>) {
-  const { doc, cardId } = data;
+function useCardState(doc: Y.Doc, cardId: string) {
   const [isEditing, setIsEditing] = useState(false);
   const [displayText, setDisplayText] = useState(() => fragmentText(doc, cardId));
 
-  // Keep display text in sync with Yjs fragment changes
   useEffect(() => {
     const frag = doc.getXmlFragment(`card-${cardId}`);
     const sync = () => setDisplayText(fragmentText(doc, cardId));
@@ -111,6 +106,21 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
     setIsEditing(false);
   }, [doc, cardId]);
 
+  const handleDelete = useCallback(
+    (e: ReactMouseEvent) => { e.stopPropagation(); removeCard(doc, cardId); },
+    [doc, cardId]
+  );
+
+  return { isEditing, setIsEditing, displayText, handleDone, handleDelete };
+}
+
+// ── CardNode ──────────────────────────────────────────────────────────────────
+
+export function CardNode({ data }: NodeProps<CardNodeType>) {
+  const { doc, cardId } = data;
+  const { isEditing, setIsEditing, displayText, handleDone, handleDelete } =
+    useCardState(doc, cardId);
+
   if (isEditing) {
     return (
       <div className="nodrag card-node card-node--editing">
@@ -120,13 +130,13 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
   }
 
   return (
-    <div
-      className="card-node card-node--readonly"
-      onClick={() => setIsEditing(true)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsEditing(true); }}
-    >
+    <div className="card-node card-node--readonly" onClick={() => setIsEditing(true)}
+      role="button" tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsEditing(true); }}>
+      <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
+        title="Delete card" aria-label="Delete card">
+        ×
+      </button>
       <span className="card-node-text">
         {displayText || <em className="card-node-empty">Click to write…</em>}
       </span>

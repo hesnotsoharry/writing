@@ -1475,11 +1475,28 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   color: var(--ink-4); font-size: var(--text-sm);
 }
 
-/* React Flow canvas container — must fill the board-view height */
-.board-canvas { flex: 1; height: 100%; }
+/* Board canvas layout: toolbar + canvas stacked in a column */
+.board-canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+/* React Flow canvas container — must fill remaining height */
+.board-canvas { flex: 1; min-height: 0; }
+
+/* ── Board toolbar ───────────────────────────────────────────────────────────── */
+.board-toolbar {
+  flex: none; display: flex; align-items: center; gap: var(--s-2);
+  padding: 6px 12px; border-bottom: 1px solid var(--parchment-edge);
+  background: var(--paper);
+}
+.board-add-card {
+  display: flex; align-items: center; gap: 4px;
+  font-size: var(--text-sm); color: var(--ink-3);
+  padding: 4px 8px; border-radius: var(--r-xs);
+}
+.board-add-card:hover { background: var(--parchment-deep); color: var(--ink); }
 
 /* ── Card node ──────────────────────────────────────────────────────────────── */
 .card-node {
+  position: relative;
   min-width: 180px; max-width: 280px;
   background: var(--parchment); border: 1px solid var(--line);
   border-radius: var(--r-sm); padding: 10px 12px;
@@ -1494,3 +1511,14 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   min-height: 40px;
 }
 .card-node--editing { padding-bottom: 6px; }
+
+/* Delete button: shown on hover, absolute top-right */
+.card-node-delete {
+  position: absolute; top: 3px; right: 3px;
+  width: 18px; height: 18px; border-radius: var(--r-xs);
+  display: grid; place-items: center;
+  font-size: 14px; line-height: 1; color: var(--ink-4);
+  opacity: 0; transition: opacity var(--dur-fast);
+}
+.card-node:hover .card-node-delete { opacity: 1; }
+.card-node-delete:hover { background: var(--parchment-deep); color: var(--ink); }

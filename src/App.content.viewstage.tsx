@@ -62,6 +62,8 @@ export interface ViewStageCtx {
   onFindMentions?: (entityName: string) => void;
   /** Registers the editor inserter fn so the inspector can insert entity names at caret. */
   onRegisterInsert?: (fn: (text: string) => void) => void;
+  /** The board id selected in the binder (set when switching to brainstorm view). */
+  brainstormBoardId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +209,8 @@ export function buildViewStage(
       onEntitiesChanged={ctx.onEntitiesChanged} onOpenEntry={ctx.onOpenEntry} />;
   }
   if (view === "brainstorm") {
-    return <BoardView />;
+    const boardId = ctx.brainstormBoardId ?? "brainstorm-default";
+    return <BoardView key={boardId} boardId={boardId} />;
   }
   if (view === "entry") {
     return <EntryViewStage

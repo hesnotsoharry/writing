@@ -15,6 +15,7 @@ import {
 } from "./BinderDrag";
 import { BinderFooter } from "./BinderFooter";
 import { BinderToastProvider } from "./binderToast";
+import { BrainstormSection } from "./BrainstormSection";
 import type { BinderTree } from "./buildTree";
 import { useChapterOpen } from "./chapterOpenState";
 import { ProjectSwitcher } from "./ProjectSwitcher";
@@ -38,8 +39,8 @@ interface BinderProps extends BinderContentProps {
   onOpenArchive?: () => void;
   /** Real whole-manuscript word total from useManuscriptWordCount (Phase 1). */
   manuscriptTotal?: number;
-  /** Open the brainstorm view (switches main view stage to "brainstorm"). */
-  onOpenBrainstorm?: () => void;
+  /** Open a brainstorm board by id (switches main view stage to "brainstorm"). */
+  onOpenBrainstorm?: (boardId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,33 +215,6 @@ function ShortPiecesSection({ scenes, selectedSceneId, onSelectScene, callbacks 
 }
 
 // ---------------------------------------------------------------------------
-// BrainstormSection — calm, visibly-less-final section below manuscript
-// ---------------------------------------------------------------------------
-
-/**
- * Walking-skeleton Brainstorm section: one default board.
- * Hover uses neutral parchment (furniture tier, per two-tier hover doctrine).
- * Phase 2 adds multi-board CRUD; Phase 1 shows the single default board only.
- */
-function BrainstormSection({ onOpen }: { onOpen: () => void }) {
-  return (
-    <section className="brainstorm-section">
-      <div className="bsection-head" style={{ marginTop: 14 }}>
-        <span>Brainstorm</span>
-      </div>
-      <button
-        type="button"
-        className="board-row"
-        onClick={onOpen}
-        title="Open brainstorm board"
-      >
-        <span className="board-row-title">Default Board</span>
-      </button>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // buildItemsMap — derives ItemsMap from the binder tree
 // ---------------------------------------------------------------------------
 
@@ -345,7 +319,10 @@ export function Binder(props: BinderProps) {
               onSelectScene={onSelectScene} callbacks={callbacks}
             />
             {onOpenBrainstorm && (
-              <BrainstormSection onOpen={onOpenBrainstorm} />
+              <BrainstormSection
+                activeProjectId={activeProjectId}
+                onOpenBoard={onOpenBrainstorm}
+              />
             )}
           </div>
         </BinderDragProvider>
