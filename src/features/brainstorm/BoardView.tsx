@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import type { BinderTree } from "../../binder/buildTree";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBoardDocStore } from "../../db/sqliteBoardDocStore";
 import type { StoryBibleStore } from "../../db/storyBibleStore";
@@ -96,9 +97,15 @@ interface BoardViewProps {
   storyBibleStore?: StoryBibleStore;
   /** Active project id — required alongside storyBibleStore for entity loading. */
   projectId?: string;
+  /** Phase 5: scene currently open in the editor (hot/cold routing for send-to-scene). */
+  selectedSceneId?: string | null;
+  /** Phase 5: live Y.Doc for the open editor scene (hot path bypasses cold save). */
+  liveDoc?: Y.Doc | null;
+  /** Phase 5: binder tree used to populate the ScenePicker scene list. */
+  tree?: BinderTree;
 }
 
-export function BoardView({ boardId, storyBibleStore, projectId }: BoardViewProps) {
+export function BoardView({ boardId, storyBibleStore, projectId, selectedSceneId, liveDoc, tree }: BoardViewProps) {
   const doc = useBoardDoc(boardId);
 
   if (!doc) {
@@ -111,7 +118,14 @@ export function BoardView({ boardId, storyBibleStore, projectId }: BoardViewProp
 
   return (
     <div className="board-view">
-      <BoardCanvas doc={doc} storyBibleStore={storyBibleStore} projectId={projectId} />
+      <BoardCanvas
+        doc={doc}
+        storyBibleStore={storyBibleStore}
+        projectId={projectId}
+        selectedSceneId={selectedSceneId}
+        liveDoc={liveDoc}
+        tree={tree}
+      />
     </div>
   );
 }

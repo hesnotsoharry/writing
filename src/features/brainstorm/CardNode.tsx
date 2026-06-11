@@ -30,6 +30,8 @@ import { removeCard, removeConnectionsForCard } from "./boardDoc";
 export interface CardNodeData extends Record<string, unknown> {
   doc: Y.Doc;
   cardId: string;
+  /** Phase 5: when provided, a "Send to scene" button appears on hover. */
+  onSendToScene?: (cardId: string) => void;
 }
 
 export type CardNodeType = Node<CardNodeData, "card">;
@@ -122,7 +124,7 @@ function useCardState(doc: Y.Doc, cardId: string) {
 // ── CardNode ──────────────────────────────────────────────────────────────────
 
 export function CardNode({ data }: NodeProps<CardNodeType>) {
-  const { doc, cardId } = data;
+  const { doc, cardId, onSendToScene } = data;
   const { isEditing, setIsEditing, displayText, handleDone, handleDelete } =
     useCardState(doc, cardId);
 
@@ -146,6 +148,13 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
         title="Delete card" aria-label="Delete card">
         ×
       </button>
+      {onSendToScene && (
+        <button type="button" className="card-node-send nodrag"
+          title="Send to scene" aria-label="Send to scene"
+          onClick={(e) => { e.stopPropagation(); onSendToScene(cardId); }}>
+          →
+        </button>
+      )}
       <span className="card-node-text">
         {displayText || <em className="card-node-empty">Click to write…</em>}
       </span>

@@ -1476,7 +1476,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 }
 
 /* Board canvas layout: toolbar + canvas stacked in a column */
-.board-canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.board-canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
 
 /* React Flow canvas container — must fill remaining height */
 .board-canvas { flex: 1; min-height: 0; }
@@ -1522,6 +1522,17 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 }
 .card-node:hover .card-node-delete { opacity: 1; }
 .card-node-delete:hover { background: var(--parchment-deep); color: var(--ink); }
+
+/* Send-to-scene button: shown on hover, absolute top-right (left of delete button) */
+.card-node-send {
+  position: absolute; top: 3px; right: 24px;
+  width: 18px; height: 18px; border-radius: var(--r-xs);
+  display: grid; place-items: center;
+  font-size: 13px; line-height: 1; color: var(--ink-4);
+  opacity: 0; transition: opacity var(--dur-fast);
+}
+.card-node:hover .card-node-send { opacity: 1; }
+.card-node-send:hover { background: var(--parchment-deep); color: var(--ink); }
 
 /* ── Connection handles (furniture-tier — two-tier hover doctrine) ───────────
    Handles are small circles at card edges, hidden by default, visible on node
@@ -1579,3 +1590,37 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: var(--paper);
   box-shadow: var(--shadow-md);
 }
+
+/* ── Board scene picker (Phase 5: send-to-scene) ──────────────────────────────
+   Absolute-positioned within .board-canvas-wrap (which carries position:relative)
+   so it floats above the React Flow canvas, unaffected by canvas transforms.    */
+.board-scene-picker {
+  position: absolute;
+  top: 48px; right: 16px;
+  z-index: 200;
+  width: 260px;
+  background: var(--paper);
+  border: 1px solid var(--parchment-edge);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.board-scene-picker-search {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--parchment-edge);
+}
+.board-scene-picker-input {
+  flex: 1; font-size: var(--text-sm); color: var(--ink);
+  background: none; border: none; outline: none;
+}
+.board-scene-picker-list { max-height: 240px; overflow-y: auto; }
+.board-scene-picker-row {
+  display: flex; align-items: baseline; gap: 6px;
+  width: 100%; padding: 7px 10px; text-align: left;
+  font-size: var(--text-sm); color: var(--ink-2);
+}
+.board-scene-picker-row:hover { background: var(--parchment-deep); color: var(--ink); }
+.board-scene-picker-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-scene-picker-chapter { font-size: var(--text-2xs); color: var(--ink-4); white-space: nowrap; flex-shrink: 0; }
+.board-scene-picker-empty { padding: 8px 10px; font-size: var(--text-sm); color: var(--ink-4); }

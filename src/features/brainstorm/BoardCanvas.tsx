@@ -9,6 +9,11 @@
  *     v1 — entity reads are non-reactive outside the Story Bible view; re-read on focus
  *     is the accepted v1 approach per task brief).
  *   - "Add entity card" toolbar button opens EntityPicker.
+ * Phase 5:
+ *   - "Send to scene" button on text cards (not entity cards) — opens ScenePicker.
+ *   - Hot/cold routing: if the chosen scene is the currently-open editor scene,
+ *     sends to the live Y.Doc (bindPersistence owns the save); otherwise cold
+ *     load/append/save via sceneDocStore.
  *
  * @xyflow/react dist CSS is imported once in main.tsx.
  */
@@ -18,7 +23,9 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
+import { SqliteSceneDocStore } from "../../db/sqliteSceneDocStore";
 import type { CustomEntityType, Entity, StoryBibleStore } from "../../db/storyBibleStore";
 import {
   addConnection,
@@ -32,6 +39,12 @@ import {
 import { CardNode, type CardNodeData } from "./CardNode";
 import { EntityCardNode, type EntityCardNodeData } from "./EntityCardNode";
 import { EntityPicker } from "./EntityPicker";
+import { ScenePicker } from "./ScenePicker";
+import { sendCardToScene } from "./sendToScene";
+
+// ── Module-level store (cold path sends — thin SQL wrapper, no shared state) ──
+
+const sceneDocStore = new SqliteSceneDocStore();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,6 +66,7 @@ function docToNodes(
   doc: Y.Doc,
   entities: Entity[],
   customTypes: CustomTypePick[],
+  onSendToScene?: (cardId: string) => void,
 ): Node<AnyCardData>[] {
   const cards = doc.getMap<CardMeta>("cards");
   return Array.from(cards.entries()).map(([id, meta]) => {
@@ -66,7 +80,7 @@ function docToNodes(
     return {
       id, type: "card" as const,
       position: { x: meta.x, y: meta.y },
-      data: { doc, cardId: id } as CardNodeData,
+      data: { doc, cardId: id, onSendToScene } as CardNodeData,
     };
   });
 }
@@ -86,6 +100,11 @@ function nextCardPosition(count: number): { x: number; y: number } {
 
 // ── useEntityLoader ───────────────────────────────────────────────────────────
 
+interface EntityLoaderParams {
+  setNodes: NodeSetter;
+  onSendToSceneRef?: { current: ((cardId: string) => void) | undefined };
+}
+
 /**
  * Loads the project's entity list on mount and window-focus.
  * Calls setNodes directly from the async .then() callback (not synchronously in
@@ -95,7 +114,7 @@ function useEntityLoader(
   doc: Y.Doc,
   storyBibleStore: StoryBibleStore | undefined,
   projectId: string | undefined,
-  setNodes: NodeSetter,
+  { setNodes, onSendToSceneRef }: EntityLoaderParams,
 ): { entities: Entity[]; entitiesRef: { current: Entity[] }; customTypesRef: { current: CustomTypePick[] } } {
   const [entities, setEntities] = useState<Entity[]>([]);
   const entitiesRef = useRef<Entity[]>([]);
@@ -112,13 +131,13 @@ function useEntityLoader(
         entitiesRef.current = ents;
         customTypesRef.current = ctPicks;
         setEntities(ents);
-        setNodes(docToNodes(doc, ents, ctPicks));
+        setNodes(docToNodes(doc, ents, ctPicks, onSendToSceneRef?.current));
       }).catch((e: unknown) => console.error("[BoardCanvas] loadEntities failed", e));
     };
     load();
     window.addEventListener("focus", load);
     return () => window.removeEventListener("focus", load);
-  }, [doc, storyBibleStore, projectId, setNodes]);
+  }, [doc, storyBibleStore, projectId, setNodes, onSendToSceneRef]);
 
   return { entities, entitiesRef, customTypesRef };
 }
@@ -128,13 +147,16 @@ function useEntityLoader(
 interface CanvasRefs {
   entitiesRef: { current: Entity[] };
   customTypesRef: { current: CustomTypePick[] };
+  onSendToSceneRef: { current: ((cardId: string) => void) | undefined };
 }
 
 /** Yjs observer: rebuilds node list whenever the cards map changes. */
 function useCardObserver(doc: Y.Doc, setNodes: NodeSetter, refs: CanvasRefs) {
   useEffect(() => {
     const cards = doc.getMap<CardMeta>("cards");
-    const sync = () => setNodes(docToNodes(doc, refs.entitiesRef.current, refs.customTypesRef.current));
+    const sync = () => setNodes(
+      docToNodes(doc, refs.entitiesRef.current, refs.customTypesRef.current, refs.onSendToSceneRef.current)
+    );
     cards.observe(sync);
     return () => cards.unobserve(sync);
   }, [doc, setNodes, refs]);
@@ -256,25 +278,57 @@ function BoardToolbar({ onAddCard, entities, showPicker, onTogglePicker, onEntit
   );
 }
 
+// ── useSendToScene ────────────────────────────────────────────────────────────
+
+interface SendToSceneState {
+  pendingSendCardId: string | null;
+  onSendToSceneRef: { current: ((cardId: string) => void) | undefined };
+  handlePickScene: (cardId: string, sceneId: string) => void;
+  closePicker: () => void;
+}
+
+function useSendToScene(
+  doc: Y.Doc,
+  selectedSceneId: string | null | undefined,
+  liveDoc: Y.Doc | null | undefined,
+): SendToSceneState {
+  const [pendingSendCardId, setPendingSendCardId] = useState<string | null>(null);
+  const handleSendToScene = useCallback((cardId: string) => setPendingSendCardId(cardId), []);
+  const onSendToSceneRef = useRef<((cardId: string) => void) | undefined>(handleSendToScene);
+  const handlePickScene = useCallback((cardId: string, sceneId: string) => {
+    const isHot = sceneId === selectedSceneId && liveDoc != null;
+    sendCardToScene({ boardDoc: doc, cardId, sceneId, store: sceneDocStore, liveDoc: isHot ? liveDoc : null })
+      .catch((e: unknown) => console.error("[BoardCanvas] sendCardToScene failed", e));
+  }, [doc, selectedSceneId, liveDoc]);
+  return { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker: () => setPendingSendCardId(null) };
+}
+
 // ── BoardCanvas ───────────────────────────────────────────────────────────────
 
 interface BoardCanvasProps {
   doc: Y.Doc;
   storyBibleStore?: StoryBibleStore;
   projectId?: string;
+  /** Phase 5: sceneId currently open in the editor (used for hot/cold routing). */
+  selectedSceneId?: string | null;
+  /** Phase 5: live Y.Doc for the open scene (hot path — bypasses cold save). */
+  liveDoc?: Y.Doc | null;
+  /** Phase 5: binder tree used to populate the ScenePicker. */
+  tree?: BinderTree;
 }
 
-export function BoardCanvas({ doc, storyBibleStore, projectId }: BoardCanvasProps) {
-  const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, [], []));
+export function BoardCanvas({ doc, storyBibleStore, projectId, selectedSceneId, liveDoc, tree }: BoardCanvasProps) {
+  const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, [], [], undefined));
   const [edges, setEdges] = useState<Edge[]>(() => docToEdges(doc));
-  const { entities, entitiesRef, customTypesRef } = useEntityLoader(doc, storyBibleStore, projectId, setNodes);
-  const canvasRefs: CanvasRefs = { entitiesRef, customTypesRef };
+  const { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker } = useSendToScene(doc, selectedSceneId, liveDoc);
+  const { entities, entitiesRef, customTypesRef } = useEntityLoader(
+    doc, storyBibleStore, projectId, { setNodes, onSendToSceneRef },
+  );
   const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } =
-    useCanvasHandlers(doc, setNodes, nodes.length, canvasRefs);
+    useCanvasHandlers(doc, setNodes, nodes.length, { entitiesRef, customTypesRef, onSendToSceneRef });
   const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
   const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length);
   const toggleBtnRef = useRef<HTMLButtonElement>(null);
-
   return (
     <div className="board-canvas-wrap">
       <BoardToolbar
@@ -295,6 +349,11 @@ export function BoardCanvas({ doc, storyBibleStore, projectId }: BoardCanvasProp
           <Background />
         </ReactFlow>
       </div>
+      {pendingSendCardId && tree && (
+        <ScenePicker tree={tree}
+          onPick={(sceneId) => { closePicker(); handlePickScene(pendingSendCardId, sceneId); }}
+          onClose={closePicker} />
+      )}
     </div>
   );
 }
