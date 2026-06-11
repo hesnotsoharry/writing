@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
+import { useDismissOnOutside } from "./boardCanvasHooks";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,16 +54,8 @@ export function ScenePicker({ tree, onPick, onClose }: ScenePickerProps) {
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-
+  useDismissOnOutside(wrapRef, onClose, true);
   useEffect(() => { inputRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    const handle = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [onClose]);
 
   const allRows: SceneRow[] = [
     ...tree.chapters.flatMap((ch) =>

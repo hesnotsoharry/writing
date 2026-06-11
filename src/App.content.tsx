@@ -194,7 +194,7 @@ interface SideSlotsProps {
 function buildSideSlots(p: SideSlotsProps) {
   const callbacksWithGoal = { ...p.callbacks, onAddGoal: p.onAddGoal, onExport: p.onExport };
   const binderSlot = p.showSidePanels
-    ? <Binder tree={p.tree} selectedSceneId={p.selectedSceneId} onSelectScene={p.onSelectScene}
+    ? <Binder tree={p.tree} selectedSceneId={p.view === "brainstorm" ? null : p.selectedSceneId} onSelectScene={p.onSelectScene}
         callbacks={callbacksWithGoal} projects={p.projects} activeProjectId={p.activeProjectId}
         onSwitchProject={p.onSwitchProject} onCreateProject={p.onCreateProject}
         dragCallbacks={p.dragCallbacks} quickCount={p.quickCount} archivedCount={p.archivedCount}

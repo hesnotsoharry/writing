@@ -7,10 +7,11 @@
  * Closes on Escape (via InspPicker) and on clicks outside the picker.
  */
 import type React from "react";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 import type { Entity } from "../../db/storyBibleStore";
 import { InspPicker } from "../../inspector/InspPicker";
+import { useDismissOnOutside } from "./boardCanvasHooks";
 
 // ── EntityPicker ──────────────────────────────────────────────────────────────
 
@@ -23,17 +24,7 @@ interface EntityPickerProps {
 
 export function EntityPicker({ entities, onPick, onClose, excludeRef }: EntityPickerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handle = (e: MouseEvent) => {
-      if (excludeRef?.current?.contains(e.target as Node)) return;
-      if (!wrapRef.current?.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [onClose, excludeRef]);
+  useDismissOnOutside(wrapRef, onClose, true, excludeRef);
 
   return (
     <div ref={wrapRef} className="board-entity-picker">

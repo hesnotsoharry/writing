@@ -8,7 +8,9 @@
  *   - BoardCallbacksParams (interface for useBoardCallbacks)
  *   - useBoardCallbacks    (hook — wires promote + navigation into callbacksRef)
  */
-import { useCallback, useEffect, useRef } from "react";
+import type { Edge, Node } from "@xyflow/react";
+import type { MouseEvent as ReactMouseEvent, RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import type { AppView } from "../../App.state";
@@ -17,7 +19,11 @@ import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
 import type { Entity, StoryBibleStore } from "../../db/storyBibleStore";
 import { noteBodyToSceneDoc } from "../quickcapture/promoteNoteToScene";
+import type { ContextNodeKind } from "./BoardContextMenu";
+import { removeCard, removeConnection, removeConnectionsForCard } from "./boardDoc";
 import { clearCardGraduation, getCardText, markCardGraduated } from "./boardDoc";
+import type { CardNodeData } from "./CardNode";
+import type { EntityCardNodeData } from "./EntityCardNode";
 
 // ── Module-level promote store ─────────────────────────────────────────────────
 
@@ -165,4 +171,150 @@ export function useBoardCallbacks({
   }, [tree, onSendToSceneRef, handlePromoteToScene, handlePromoteToEntity,
     handleNavigateToDestination, handleClearGraduation]);
   return { callbacksRef };
+}
+
+// ── AnyCardData (local union shared across context-menu hooks) ────────────────
+
+export type AnyCardData = CardNodeData | EntityCardNodeData;
+
+// ── nextCardFlowPosition ──────────────────────────────────────────────────────
+
+export type ScreenToFlowPos = (p: { x: number; y: number }) => { x: number; y: number };
+
+/**
+ * Resolve the position for a new card centered in the visible canvas area.
+ * Falls back to a simple stagger grid when the wrapper element is unmeasured.
+ */
+export function nextCardFlowPosition(
+  screenToFlowPos: ScreenToFlowPos,
+  wrapEl: HTMLDivElement | null,
+  count: number,
+): { x: number; y: number } {
+  const CASCADE = 24;
+  if (!wrapEl) return { x: 100 + (count % 4) * CASCADE, y: 100 + Math.floor(count / 4) * CASCADE };
+  const rect = wrapEl.getBoundingClientRect();
+  const center = screenToFlowPos({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+  const cascade = count % 5;
+  return { x: center.x - 100 + cascade * CASCADE, y: center.y - 60 + cascade * CASCADE };
+}
+
+// ── useDismissOnOutside ───────────────────────────────────────────────────────
+
+/**
+ * Closes a popover on outside pointerdown or Escape.
+ * `active` gates the listeners so inactive popovers pay no runtime cost.
+ * `excludeRef` (optional) exempts one element — e.g. a toggle button that
+ * opens the popover, so clicking it doesn't immediately re-close it.
+ */
+export function useDismissOnOutside(
+  ref: RefObject<Element | null>,
+  onClose: () => void,
+  active: boolean,
+  excludeRef?: RefObject<Element | null>,
+): void {
+  useEffect(() => {
+    if (!active) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (excludeRef?.current?.contains(target)) return;
+      if (!ref.current?.contains(target)) onClose();
+    };
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [ref, onClose, active, excludeRef]);
+}
+
+// ── Context menu state + hooks ────────────────────────────────────────────────
+
+/** Discriminated union: node context menu OR edge context menu. */
+export type NodeContextMenuState = {
+  kind: "node"; nodeId: string; nodeKind: ContextNodeKind; x: number; y: number;
+  destKind?: "scene" | "entity"; destId?: string; entityRef?: string;
+};
+export type EdgeContextMenuState = { kind: "edge"; edgeId: string; x: number; y: number };
+export type ContextMenuState = NodeContextMenuState | EdgeContextMenuState;
+
+/** Merge transient editRequestId into display nodes for programmatic edit trigger (T1). */
+export function mergeEditRequests(nodes: Node<AnyCardData>[], editMap: Record<string, string>): Node<AnyCardData>[] {
+  if (Object.keys(editMap).length === 0) return nodes;
+  return nodes.map((n) =>
+    editMap[n.id] ? { ...n, data: { ...n.data, editRequestId: editMap[n.id] } } : n
+  );
+}
+
+export function useEditRequests() {
+  const [editRequestMap, setEditRequestMap] = useState<Record<string, string>>({});
+  const requestEdit = useCallback((cardId: string) => {
+    setEditRequestMap((m) => ({ ...m, [cardId]: crypto.randomUUID() }));
+  }, []);
+  return { editRequestMap, requestEdit };
+}
+
+export function useContextMenu({ doc }: { doc: Y.Doc }) {
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  useDismissOnOutside(menuRef, closeContextMenu, contextMenu !== null);
+  const handleDeleteCard = useCallback((cardId: string) => {
+    removeConnectionsForCard(doc, cardId);
+    removeCard(doc, cardId);
+    closeContextMenu();
+  }, [doc, closeContextMenu]);
+  const handleDeleteEdge = useCallback((edgeId: string) => {
+    removeConnection(doc, edgeId);
+    closeContextMenu();
+  }, [doc, closeContextMenu]);
+  const handleNodeContextMenu = useCallback(
+    (e: ReactMouseEvent, node: Node<AnyCardData>) => {
+      e.preventDefault();
+      const rect = wrapRef.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 9999, height: 9999 };
+      const x = Math.min(Math.max(0, e.clientX - rect.left), rect.width - 180);
+      const y = Math.min(Math.max(0, e.clientY - rect.top), rect.height - 200);
+      const data = node.data as CardNodeData;
+      const nodeKind: ContextNodeKind = node.type === "entityCard" ? "entityCard"
+        : data.graduated ? "graduated" : "card";
+      const entRef = node.type === "entityCard" ? (node.data as EntityCardNodeData).entityRef : undefined;
+      setContextMenu({ kind: "node", nodeId: node.id, nodeKind, x, y,
+        destKind: data.destinationKind, destId: data.destinationId, entityRef: entRef });
+    },
+    []
+  );
+  const handleEdgeContextMenu = useCallback((e: ReactMouseEvent, edge: Edge) => {
+    e.preventDefault();
+    const rect = wrapRef.current?.getBoundingClientRect() ?? { left: 0, top: 0, width: 9999, height: 9999 };
+    const x = Math.min(Math.max(0, e.clientX - rect.left), rect.width - 180);
+    const y = Math.min(Math.max(0, e.clientY - rect.top), rect.height - 60);
+    setContextMenu({ kind: "edge", edgeId: edge.id, x, y });
+  }, []);
+  return { contextMenu, menuRef, wrapRef, closeContextMenu, handleDeleteCard, handleDeleteEdge, handleNodeContextMenu, handleEdgeContextMenu };
+}
+
+// ── useZOrderByArea ───────────────────────────────────────────────────────────
+
+/**
+ * Assign zIndex to measured nodes by inverse area: smaller cards → higher zIndex
+ * so they stay reachable when overlapped by larger cards.
+ * Unmeasured nodes (not yet rendered) receive no zIndex (RF default).
+ * React Flow's built-in selected-node elevation still applies on top of this.
+ */
+export function useZOrderByArea(nodes: Node<AnyCardData>[]): Node<AnyCardData>[] {
+  return useMemo(() => {
+    const measured = nodes
+      .map((n, origIdx) => ({ n, origIdx, area: (n.measured?.width ?? 0) * (n.measured?.height ?? 0) }))
+      .filter(({ area }) => area > 0);
+    if (measured.length === 0) return nodes;
+    // Rank descending by area: largest → rank 0 (lowest z), smallest → rank n-1 (highest z)
+    measured.sort((a, b) => b.area - a.area);
+    const zById = new Map<string, number>(measured.map(({ n }, rank) => [n.id, rank]));
+    return nodes.map((n) => {
+      const z = zById.get(n.id);
+      return z === undefined ? n : { ...n, zIndex: z };
+    });
+  }, [nodes]);
 }

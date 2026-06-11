@@ -20,11 +20,10 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as Y from "yjs";
 
-import { removeCard, removeConnectionsForCard } from "./boardDoc";
+// (boardDoc imports removed — delete is now context-menu-only at BoardCanvas level)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +48,11 @@ export interface CardNodeData extends Record<string, unknown> {
   destinationLabel?: string;
   /** F7: restore a graduated card to editable state (keeps created scene/entity). */
   onClearGraduation?: (cardId: string) => void;
+  /**
+   * T1: programmatic edit trigger — set to a new UUID to imperatively enter edit
+   * mode (used by the context menu "Edit" action in BoardCanvas).
+   */
+  editRequestId?: string;
 }
 
 export type CardNodeType = Node<CardNodeData, "card">;
@@ -58,6 +62,8 @@ export type CardNodeType = Node<CardNodeData, "card">;
 // Each strip spans the full side and extends 6 px beyond the card edge so any
 // drag starting near the border initiates a connection, not a card move.
 // Inline styles override React Flow's default centred-dot positioning.
+
+import type { CSSProperties } from "react";
 
 const STRIP_STYLE_TOP: CSSProperties =
   { width: "100%", height: 12, top: -6, left: 0, transform: "none", borderRadius: 0, background: "transparent", border: "none", opacity: 1 };
@@ -78,19 +84,6 @@ export function BorderHandles() {
     </>
   );
 }
-
-// ── Built-in entity types for promote picker ──────────────────────────────────
-
-const BUILT_IN_ENTITY_TYPES = [
-  { type: "character", label: "Character" },
-  { type: "location", label: "Location" },
-  { type: "item", label: "Item" },
-  { type: "faction", label: "Faction" },
-  { type: "lore", label: "Lore" },
-  { type: "theme", label: "Theme" },
-] as const;
-
-type PromoteStep = "menu" | "entity-type";
 
 // ── Fragment text extraction ──────────────────────────────────────────────────
 
@@ -165,53 +158,7 @@ function useCardState(doc: Y.Doc, cardId: string) {
     setIsEditing(false);
   }, [doc, cardId]);
 
-  const handleDelete = useCallback(
-    (e: ReactMouseEvent) => {
-      e.stopPropagation();
-      removeConnectionsForCard(doc, cardId);
-      removeCard(doc, cardId);
-    },
-    [doc, cardId]
-  );
-
-  return { isEditing, setIsEditing, displayText, handleDone, handleDelete };
-}
-
-// ── PromoteMenu — two-step inline promote picker ─────────────────────────────
-
-interface PromoteMenuProps {
-  step: PromoteStep;
-  onPromoteScene: () => void;
-  onShowEntityTypes: () => void;
-  onPickEntityType: (type: string) => void;
-  onClose: () => void;
-}
-
-function PromoteMenu({ step, onPromoteScene, onShowEntityTypes, onPickEntityType, onClose }: PromoteMenuProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const t = e.target;
-      if (!(t instanceof HTMLElement) || !ref.current?.contains(t)) onClose();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-  return (
-    <div ref={ref} className="nodrag card-promote-menu">
-      {step === "menu" ? (
-        <>
-          <button type="button" className="card-promote-option" onClick={onPromoteScene}>→ New scene</button>
-          <button type="button" className="card-promote-option" onClick={onShowEntityTypes}>→ New entity…</button>
-        </>
-      ) : (
-        BUILT_IN_ENTITY_TYPES.map((t) => (
-          <button key={t.type} type="button" className="card-promote-option"
-            onClick={() => onPickEntityType(t.type)}>{t.label}</button>
-        ))
-      )}
-    </div>
-  );
+  return { isEditing, setIsEditing, displayText, handleDone };
 }
 
 // ── GraduatedCardView ─────────────────────────────────────────────────────────
@@ -222,20 +169,13 @@ interface GraduatedProps {
   destinationId?: string;
   destinationLabel?: string;
   onNavigate?: (kind: "scene" | "entity", id: string) => void;
-  /** F7: restore card to editable (keeps the created scene/entity). */
-  onClearGraduation?: () => void;
 }
 
-function GraduatedCardView({ displayText, destinationKind, destinationId, destinationLabel, onNavigate, onClearGraduation }: GraduatedProps) {
+function GraduatedCardView({ displayText, destinationKind, destinationId, destinationLabel, onNavigate }: GraduatedProps) {
   const destLabel = destinationLabel ?? (destinationKind === "scene" ? "Scene" : "Entity");
   return (
     <div className="card-node card-node--graduated">
       <BorderHandles />
-      {onClearGraduation && (
-        <button type="button" className="card-grad-restore nodrag"
-          onClick={(e) => { e.stopPropagation(); onClearGraduation(); }}
-          title="Restore card — keeps the created scene/entity">↺</button>
-      )}
       <span className="card-node-text">
         {displayText || <em className="card-node-empty">—</em>}
       </span>
@@ -252,44 +192,13 @@ function GraduatedCardView({ displayText, destinationKind, destinationId, destin
 
 // ── CardReadonlyView ──────────────────────────────────────────────────────────
 
-interface ReadonlyProps {
-  cardId: string;
-  displayText: string;
-  handleDelete: (e: ReactMouseEvent) => void;
-  onEdit: () => void;
-  onSendToScene?: (cardId: string) => void;
-  onPromoteToScene?: (cardId: string) => void;
-  onPromoteToEntity?: (cardId: string, entityType: string) => void;
-}
+interface ReadonlyProps { displayText: string; onEdit: () => void; }
 
-function CardReadonlyView({ cardId, displayText, handleDelete, onEdit, onSendToScene, onPromoteToScene, onPromoteToEntity }: ReadonlyProps) {
-  const [promoteStep, setPromoteStep] = useState<PromoteStep | null>(null);
-  const canPromote = !!(onPromoteToScene || onPromoteToEntity);
+function CardReadonlyView({ displayText, onEdit }: ReadonlyProps) {
   return (
     <div className="card-node card-node--readonly" onClick={onEdit} role="button" tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onEdit(); }}>
       <BorderHandles />
-      <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
-        title="Delete card" aria-label="Delete card">×</button>
-      {onSendToScene && (
-        <button type="button" className="card-node-send nodrag"
-          title="Send to scene" aria-label="Send to scene"
-          onClick={(e) => { e.stopPropagation(); onSendToScene(cardId); }}>→</button>
-      )}
-      {canPromote && (
-        <button type="button" className="card-node-promote nodrag"
-          title="Promote card" aria-label="Promote card"
-          onClick={(e) => { e.stopPropagation(); setPromoteStep("menu"); }}>↑</button>
-      )}
-      {promoteStep && (
-        <PromoteMenu
-          step={promoteStep}
-          onPromoteScene={() => { setPromoteStep(null); onPromoteToScene?.(cardId); }}
-          onShowEntityTypes={() => setPromoteStep("entity-type")}
-          onPickEntityType={(type) => { setPromoteStep(null); onPromoteToEntity?.(cardId, type); }}
-          onClose={() => setPromoteStep(null)}
-        />
-      )}
       <span className="card-node-text">
         {displayText || <em className="card-node-empty">Click to write…</em>}
       </span>
@@ -300,10 +209,13 @@ function CardReadonlyView({ cardId, displayText, handleDelete, onEdit, onSendToS
 // ── CardNode ──────────────────────────────────────────────────────────────────
 
 export function CardNode({ data }: NodeProps<CardNodeType>) {
-  const { doc, cardId, onSendToScene, onPromoteToScene, onPromoteToEntity,
-    onNavigateToDestination, graduated, destinationKind, destinationId, destinationLabel,
-    onClearGraduation } = data;
-  const { isEditing, setIsEditing, displayText, handleDone, handleDelete } = useCardState(doc, cardId);
+  const { doc, cardId, onNavigateToDestination, graduated, destinationKind,
+    destinationId, destinationLabel, editRequestId } = data;
+  const { isEditing, setIsEditing, displayText, handleDone } = useCardState(doc, cardId);
+
+  useEffect(() => {
+    if (editRequestId) setIsEditing(true);
+  }, [editRequestId, setIsEditing]);
 
   if (graduated) {
     return (
@@ -311,7 +223,6 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
         displayText={displayText}
         destinationKind={destinationKind} destinationId={destinationId}
         destinationLabel={destinationLabel} onNavigate={onNavigateToDestination}
-        onClearGraduation={onClearGraduation ? () => onClearGraduation(cardId) : undefined}
       />
     );
   }
@@ -325,12 +236,5 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
     );
   }
 
-  return (
-    <CardReadonlyView
-      cardId={cardId} displayText={displayText} handleDelete={handleDelete}
-      onEdit={() => setIsEditing(true)}
-      onSendToScene={onSendToScene} onPromoteToScene={onPromoteToScene}
-      onPromoteToEntity={onPromoteToEntity}
-    />
-  );
+  return <CardReadonlyView displayText={displayText} onEdit={() => setIsEditing(true)} />;
 }

@@ -5,7 +5,7 @@
  * @xyflow/react dist CSS imported once in main.tsx.
  */
 import type { Edge, EdgeChange, EdgeTypes, Node, NodeChange, NodeTypes, OnConnect, OnNodeDrag } from "@xyflow/react";
-import { applyEdgeChanges, applyNodeChanges, Background, BackgroundVariant, ConnectionMode, ReactFlow } from "@xyflow/react";
+import { applyEdgeChanges, applyNodeChanges, Background, BackgroundVariant, ConnectionMode, ReactFlow, ReactFlowProvider, useReactFlow } from "@xyflow/react";
 import type { Dispatch, MouseEvent as ReactMouseEvent, RefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
@@ -15,17 +15,9 @@ import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import { SqliteSceneDocStore } from "../../db/sqliteSceneDocStore";
 import type { CustomEntityType, Entity, StoryBibleStore } from "../../db/storyBibleStore";
-import { type DocToNodesCallbacks, resolveDestLabel, useBoardCallbacks } from "./boardCanvasHooks";
-import {
-  addConnection,
-  createBoardCard,
-  createEntityCard,
-  markCardGraduated,
-  removeCard,
-  removeConnection,
-  removeConnectionsForCard,
-  updateCardPosition,
-} from "./boardDoc";
+import { type AnyCardData, type DocToNodesCallbacks, mergeEditRequests, nextCardFlowPosition, resolveDestLabel, type ScreenToFlowPos, useBoardCallbacks, useContextMenu, useEditRequests, useZOrderByArea } from "./boardCanvasHooks";
+import { BoundContextMenu } from "./BoardContextMenu";
+import { addConnection, createBoardCard, createEntityCard, markCardGraduated, removeCard, removeConnection, removeConnectionsForCard, updateCardPosition } from "./boardDoc";
 import { CardNode, type CardNodeData } from "./CardNode";
 import { EntityCardNode, type EntityCardNodeData } from "./EntityCardNode";
 import { EntityPicker } from "./EntityPicker";
@@ -39,7 +31,6 @@ const sceneDocStore = new SqliteSceneDocStore();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type AnyCardData = CardNodeData | EntityCardNodeData;
 type NodeSetter = Dispatch<SetStateAction<Node<AnyCardData>[]>>;
 
 // ── nodeTypes + edgeTypes (stable refs — must be outside the component) ───────
@@ -94,11 +85,6 @@ function docToEdges(doc: Y.Doc): Edge[] {
   }));
 }
 
-/** Stagger new cards in a loose grid so they don't pile up at the origin. */
-function nextCardPosition(count: number): { x: number; y: number } {
-  return { x: 100 + (count % 4) * 220, y: 100 + Math.floor(count / 4) * 160 };
-}
-
 // ── useEntityLoader ───────────────────────────────────────────────────────────
 
 interface EntityLoaderParams {
@@ -138,6 +124,7 @@ function useEntityLoader(doc: Y.Doc, storyBibleStore: StoryBibleStore | undefine
 interface CanvasRefs {
   entitiesRef: { current: Entity[] }; customTypesRef: { current: CustomTypePick[] };
   callbacksRef: { current: DocToNodesCallbacks }; // tree owned by useBoardCallbacks
+  wrapRef: { current: HTMLDivElement | null }; screenToFlowPos: ScreenToFlowPos;
 }
 
 /** Yjs observer: rebuilds node list whenever the cards map changes. */
@@ -153,7 +140,6 @@ function useCardObserver(doc: Y.Doc, setNodes: NodeSetter, refs: CanvasRefs) {
 
 function useCanvasHandlers(doc: Y.Doc, setNodes: NodeSetter, nodeCount: number, refs: CanvasRefs) {
   useCardObserver(doc, setNodes, refs);
-
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
@@ -177,8 +163,8 @@ function useCanvasHandlers(doc: Y.Doc, setNodes: NodeSetter, nodeCount: number, 
   );
 
   const handleAddCard = useCallback(() => {
-    createBoardCard(doc, crypto.randomUUID(), nextCardPosition(nodeCount));
-  }, [doc, nodeCount]);
+    createBoardCard(doc, crypto.randomUUID(), nextCardFlowPosition(refs.screenToFlowPos, refs.wrapRef.current, nodeCount));
+  }, [doc, nodeCount, refs.screenToFlowPos, refs.wrapRef]);
 
   return { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard };
 }
@@ -244,15 +230,15 @@ function useHoverHighlight(nodes: Node<AnyCardData>[], edges: Edge[]) {
 
 // ── useEntityPicker ───────────────────────────────────────────────────────────
 
-function useEntityPicker(doc: Y.Doc, nodeCount: number) {
+function useEntityPicker(doc: Y.Doc, nodeCount: number, screenToFlowPos: ScreenToFlowPos, wrapRef: { current: HTMLDivElement | null }) {
   const [showPicker, setShowPicker] = useState(false);
 
   const handleEntityPick = useCallback(
     (entity: Entity) => {
-      createEntityCard(doc, crypto.randomUUID(), entity.id, nextCardPosition(nodeCount));
+      createEntityCard(doc, crypto.randomUUID(), entity.id, nextCardFlowPosition(screenToFlowPos, wrapRef.current, nodeCount));
       setShowPicker(false);
     },
-    [doc, nodeCount]
+    [doc, nodeCount, screenToFlowPos, wrapRef]
   );
 
   return { showPicker, setShowPicker, handleEntityPick };
@@ -312,8 +298,6 @@ function useSendToScene(doc: Y.Doc, selectedSceneId: string | null | undefined,
   return { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker: () => setPendingSendCardId(null) };
 }
 
-// ── BoardCanvas ───────────────────────────────────────────────────────────────
-
 interface BoardCanvasProps {
   doc: Y.Doc; storyBibleStore?: StoryBibleStore; projectId?: string;
   selectedSceneId?: string | null; liveDoc?: Y.Doc | null; tree?: BinderTree;
@@ -332,12 +316,11 @@ function BoardEmptyState() {
   );
 }
 
-// ── BoardCanvas ───────────────────────────────────────────────────────────────
+// ── BoardCanvasBody — rendered inside ReactFlowProvider ───────────────────────
 
-export function BoardCanvas({
-  doc, storyBibleStore, projectId, selectedSceneId, liveDoc, tree,
-  onSelectScene, onOpenEntry, onViewChange, onTreeChanged, boardName,
-}: BoardCanvasProps) {
+function BoardCanvasBody({ doc, storyBibleStore, projectId, selectedSceneId, liveDoc, tree, onSelectScene, onOpenEntry, onViewChange, onTreeChanged, boardName }: BoardCanvasProps) {
+  const { screenToFlowPosition } = useReactFlow();
+  const { contextMenu, menuRef, wrapRef, closeContextMenu, handleDeleteCard, handleDeleteEdge, handleNodeContextMenu, handleEdgeContextMenu } = useContextMenu({ doc });
   const entitiesRef = useRef<Entity[]>([]);
   const customTypesRef = useRef<CustomTypePick[]>([]);
   const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, [], [], { tree: undefined }));
@@ -345,32 +328,39 @@ export function BoardCanvas({
   const { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker } = useSendToScene(doc, selectedSceneId, liveDoc);
   const { callbacksRef } = useBoardCallbacks({ doc, sceneDocStore, storyBibleStore, projectId,
     tree, onSendToSceneRef, entitiesRef, onSelectScene, onOpenEntry, onViewChange, onTreeChanged });
-  const { entities } = useEntityLoader(doc, storyBibleStore, projectId,
-    { setNodes, callbacksRef, entitiesRef, customTypesRef });
-  const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } = useCanvasHandlers(doc, setNodes, nodes.length, { entitiesRef, customTypesRef, callbacksRef });
+  const { entities } = useEntityLoader(doc, storyBibleStore, projectId, { setNodes, callbacksRef, entitiesRef, customTypesRef });
+  const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } = useCanvasHandlers(doc, setNodes, nodes.length, { entitiesRef, customTypesRef, callbacksRef, wrapRef, screenToFlowPos: screenToFlowPosition });
   const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
-  const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length);
+  const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length, screenToFlowPosition, wrapRef);
   const { displayNodes, displayEdges, onNodeMouseEnter, onNodeMouseLeave } = useHoverHighlight(nodes, edges);
   const toggleBtnRef = useRef<HTMLButtonElement>(null);
+  const { editRequestMap, requestEdit } = useEditRequests();
+  const mergedNodes = useMemo(() => mergeEditRequests(displayNodes, editRequestMap), [displayNodes, editRequestMap]);
+  const finalNodes = useZOrderByArea(mergedNodes);
   return (
-    <div className="board-canvas-wrap">
+    <div ref={wrapRef} className="board-canvas-wrap">
       <BoardToolbar onAddCard={handleAddCard} entities={entities} showPicker={showPicker}
-        onTogglePicker={() => setShowPicker((v) => !v)} onEntityPick={handleEntityPick}
-        onClosePicker={() => setShowPicker(false)} toggleBtnRef={toggleBtnRef}
-        boardName={boardName} />
-      <div className="board-canvas">
-        <ReactFlow nodes={displayNodes} edges={displayEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+        onTogglePicker={() => setShowPicker((v) => !v)} onEntityPick={handleEntityPick} onClosePicker={() => setShowPicker(false)} toggleBtnRef={toggleBtnRef} boardName={boardName} />
+      <div className="board-canvas" onContextMenu={(e) => e.preventDefault()}>
+        <ReactFlow nodes={finalNodes} edges={displayEdges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
           onNodesChange={onNodesChange} onNodeDragStop={onNodeDragStop} onNodesDelete={handleNodesDelete}
           onEdgesChange={onEdgesChange} onConnect={onConnect} onEdgesDelete={onEdgesDelete}
           onNodeMouseEnter={onNodeMouseEnter} onNodeMouseLeave={onNodeMouseLeave}
+          onNodeContextMenu={handleNodeContextMenu} onEdgeContextMenu={handleEdgeContextMenu}
+          onPaneClick={() => closeContextMenu()} onPaneContextMenu={(e) => e.preventDefault()}
           connectionMode={ConnectionMode.Loose} connectionRadius={40} fitView proOptions={{ hideAttribution: false }}>
           <Background variant={BackgroundVariant.Dots} gap={22} size={1.6} color="var(--board-dot)" />
         </ReactFlow>
         {nodes.length === 0 && <BoardEmptyState />}
       </div>
-      {pendingSendCardId && tree &&
-        <ScenePicker tree={tree} onClose={closePicker}
-          onPick={(sid) => { closePicker(); handlePickScene(pendingSendCardId, sid); }} />}
+      {pendingSendCardId && tree && <ScenePicker tree={tree} onClose={closePicker} onPick={(sid) => { closePicker(); handlePickScene(pendingSendCardId, sid); }} />}
+      {contextMenu && <BoundContextMenu cm={contextMenu} menuRef={menuRef} close={closeContextMenu} cbs={callbacksRef} onDelete={handleDeleteCard} onEdit={requestEdit} onDeleteEdge={handleDeleteEdge} />}
     </div>
   );
+}
+
+// ── BoardCanvas — public export, wraps body in ReactFlowProvider ──────────────
+
+export function BoardCanvas(props: BoardCanvasProps) {
+  return <ReactFlowProvider><BoardCanvasBody {...props} /></ReactFlowProvider>;
 }

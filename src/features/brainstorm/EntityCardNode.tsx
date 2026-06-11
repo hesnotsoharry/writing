@@ -7,13 +7,11 @@
  * Deleted entity → calm "Missing entity" placeholder; no crash.
  */
 import type { Node, NodeProps } from "@xyflow/react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import { useCallback } from "react";
+import type { CSSProperties } from "react";
 import type * as Y from "yjs";
 
 import type { CustomEntityType, Entity } from "../../db/storyBibleStore";
 import { resolveEntityTypeDef } from "../../storybible/entityTypeDefs";
-import { removeCard, removeConnectionsForCard } from "./boardDoc";
 import { BorderHandles } from "./CardNode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -43,18 +41,15 @@ function etypeTint(colorVar: string): string {
 interface EntityPresentProps {
   entity: Entity;
   customTypes: Pick<CustomEntityType, "name" | "icon" | "color">[];
-  onDelete: (e: ReactMouseEvent) => void;
 }
 
-function EntityCardPresent({ entity, customTypes, onDelete }: EntityPresentProps) {
+function EntityCardPresent({ entity, customTypes }: EntityPresentProps) {
   const def = resolveEntityTypeDef(entity.type, customTypes);
   const initial = entity.name.charAt(0) || "?";
   const style = { "--etype": def.color, "--etype-tint": etypeTint(def.color) } as CSSProperties;
   return (
     <div className="card-node card-node--entity" style={style}>
       <BorderHandles />
-      <button type="button" className="card-node-delete nodrag"
-        onClick={onDelete} title="Delete card" aria-label="Delete card">×</button>
       <span className="ent-spine" />
       <span className="ent-glyph">{initial}</span>
       <span className="ent-name">{entity.name}</span>
@@ -66,24 +61,13 @@ function EntityCardPresent({ entity, customTypes, onDelete }: EntityPresentProps
 // ── EntityCardNode ────────────────────────────────────────────────────────────
 
 export function EntityCardNode({ data }: NodeProps<EntityCardNodeType>) {
-  const { doc, cardId, entityRef, entities, customTypes } = data;
+  const { entityRef, entities, customTypes } = data;
   const entity = (entities as Entity[]).find((e) => e.id === entityRef) ?? null;
-
-  const handleDelete = useCallback(
-    (e: ReactMouseEvent) => {
-      e.stopPropagation();
-      removeConnectionsForCard(doc, cardId);
-      removeCard(doc, cardId);
-    },
-    [doc, cardId],
-  );
 
   if (!entity) {
     return (
       <div className="card-node card-node--entity entity-card-node--missing">
         <BorderHandles />
-        <button type="button" className="card-node-delete nodrag"
-          onClick={handleDelete} title="Delete card" aria-label="Delete card">×</button>
         <span className="entity-card-missing">Missing entity</span>
       </div>
     );
@@ -93,7 +77,6 @@ export function EntityCardNode({ data }: NodeProps<EntityCardNodeType>) {
     <EntityCardPresent
       entity={entity}
       customTypes={customTypes as Pick<CustomEntityType, "name" | "icon" | "color">[]}
-      onDelete={handleDelete}
     />
   );
 }
