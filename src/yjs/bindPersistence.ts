@@ -27,14 +27,18 @@ export function bindPersistence(
   const { debounceMs = 500, onSaved } = opts;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
+  const saveNow = () => {
+    const text = extractPlainText(doc);
+    const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+    void store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null)
+      .then(() => { onSaved?.(sceneId, wordCount); });
+  };
+
   const scheduleSave = () => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      const text = extractPlainText(doc);
-      const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
-      void store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null)
-        .then(() => { onSaved?.(sceneId, wordCount); });
+      saveNow();
     }, debounceMs);
   };
 
@@ -48,6 +52,14 @@ export function bindPersistence(
 
   return () => {
     doc.off("update", onUpdate);
-    if (timer) clearTimeout(timer);
+    // Flush (not cancel) a pending save: writes made within debounceMs of
+    // unbind would otherwise be silently dropped — e.g. graduating a board
+    // card right before navigating away, or final keystrokes before a view
+    // switch (wave-32 Phase 6 finding).
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+      saveNow();
+    }
   };
 }

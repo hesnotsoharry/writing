@@ -11,8 +11,9 @@
  *   - StarterKit.configure({ undoRedo: false }) — Yjs brings its own UndoManager
  *   - Collaboration field: 'card-<cardId>' — top-level XmlFragment
  *
- * On blur: editor unmounts, read-only div re-reads from the Y.XmlFragment
- * (not stale React state).
+ * Phase 6 additions:
+ *   - Graduated render state: dim + "→ destination" navigation link, no editor.
+ *   - Promote affordance: "↑" button opens a two-step menu (scene / entity type).
  */
 import { Collaboration } from "@tiptap/extension-collaboration";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -20,7 +21,7 @@ import { StarterKit } from "@tiptap/starter-kit";
 import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import { removeCard, removeConnectionsForCard } from "./boardDoc";
@@ -32,9 +33,36 @@ export interface CardNodeData extends Record<string, unknown> {
   cardId: string;
   /** Phase 5: when provided, a "Send to scene" button appears on hover. */
   onSendToScene?: (cardId: string) => void;
+  /** Phase 6: promote card to a new scene. */
+  onPromoteToScene?: (cardId: string) => void;
+  /** Phase 6: promote card to a new entity of the chosen type. */
+  onPromoteToEntity?: (cardId: string, entityType: string) => void;
+  /** Phase 6: navigate to the graduated destination. */
+  onNavigateToDestination?: (kind: "scene" | "entity", id: string) => void;
+  /** Phase 6: true when card has been graduated. */
+  graduated?: boolean;
+  /** Phase 6: destination kind — 'scene' | 'entity'. */
+  destinationKind?: "scene" | "entity";
+  /** Phase 6: destination id (sceneId or entityId). */
+  destinationId?: string;
+  /** Phase 6: human-readable destination label resolved at BoardCanvas level. */
+  destinationLabel?: string;
 }
 
 export type CardNodeType = Node<CardNodeData, "card">;
+
+// ── Built-in entity types for promote picker ──────────────────────────────────
+
+const BUILT_IN_ENTITY_TYPES = [
+  { type: "character", label: "Character" },
+  { type: "location", label: "Location" },
+  { type: "item", label: "Item" },
+  { type: "faction", label: "Faction" },
+  { type: "lore", label: "Lore" },
+  { type: "theme", label: "Theme" },
+] as const;
+
+type PromoteStep = "menu" | "entity-type";
 
 // ── Fragment text extraction ──────────────────────────────────────────────────
 
@@ -91,7 +119,7 @@ function CardEditor({ doc, cardId, onDone }: CardEditorProps) {
   return <EditorContent editor={editor} className="card-node-editor" />;
 }
 
-// ── useCardState — state + observers + handlers for CardNode ─────────────────
+// ── useCardState — state + observers + handlers ───────────────────────────────
 
 function useCardState(doc: Y.Doc, cardId: string) {
   const [isEditing, setIsEditing] = useState(false);
@@ -121,12 +149,140 @@ function useCardState(doc: Y.Doc, cardId: string) {
   return { isEditing, setIsEditing, displayText, handleDone, handleDelete };
 }
 
+// ── PromoteMenu — two-step inline promote picker ─────────────────────────────
+
+interface PromoteMenuProps {
+  step: PromoteStep;
+  onPromoteScene: () => void;
+  onShowEntityTypes: () => void;
+  onPickEntityType: (type: string) => void;
+  onClose: () => void;
+}
+
+function PromoteMenu({ step, onPromoteScene, onShowEntityTypes, onPickEntityType, onClose }: PromoteMenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement) || !ref.current?.contains(t)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+  return (
+    <div ref={ref} className="nodrag card-promote-menu">
+      {step === "menu" ? (
+        <>
+          <button type="button" className="card-promote-option" onClick={onPromoteScene}>→ New scene</button>
+          <button type="button" className="card-promote-option" onClick={onShowEntityTypes}>→ New entity…</button>
+        </>
+      ) : (
+        BUILT_IN_ENTITY_TYPES.map((t) => (
+          <button key={t.type} type="button" className="card-promote-option"
+            onClick={() => onPickEntityType(t.type)}>{t.label}</button>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ── GraduatedCardView ─────────────────────────────────────────────────────────
+
+interface GraduatedProps {
+  displayText: string;
+  handleDelete: (e: ReactMouseEvent) => void;
+  destinationKind?: "scene" | "entity";
+  destinationId?: string;
+  destinationLabel?: string;
+  onNavigate?: (kind: "scene" | "entity", id: string) => void;
+}
+
+function GraduatedCardView({ displayText, handleDelete, destinationKind, destinationId, destinationLabel, onNavigate }: GraduatedProps) {
+  const destLabel = destinationLabel ?? (destinationKind === "scene" ? "Scene" : "Entity");
+  return (
+    <div className="card-node card-node--graduated">
+      <Handle type="source" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Right} id="right" />
+      <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
+        title="Delete card" aria-label="Delete card">×</button>
+      <span className="card-node-text card-node-text--graduated">
+        {displayText || <em className="card-node-empty">—</em>}
+      </span>
+      {destinationKind && destinationId && (
+        <button type="button" className="card-node-destination nodrag"
+          onClick={(e) => { e.stopPropagation(); onNavigate?.(destinationKind, destinationId); }}
+          title={`Open ${destLabel}`}>
+          → {destLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── CardReadonlyView ──────────────────────────────────────────────────────────
+
+interface ReadonlyProps {
+  cardId: string;
+  displayText: string;
+  handleDelete: (e: ReactMouseEvent) => void;
+  onEdit: () => void;
+  onSendToScene?: (cardId: string) => void;
+  onPromoteToScene?: (cardId: string) => void;
+  onPromoteToEntity?: (cardId: string, entityType: string) => void;
+}
+
+function CardReadonlyView({ cardId, displayText, handleDelete, onEdit, onSendToScene, onPromoteToScene, onPromoteToEntity }: ReadonlyProps) {
+  const [promoteStep, setPromoteStep] = useState<PromoteStep | null>(null);
+  const canPromote = !!(onPromoteToScene || onPromoteToEntity);
+  return (
+    <div className="card-node card-node--readonly" onClick={onEdit} role="button" tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onEdit(); }}>
+      <Handle type="source" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Right} id="right" />
+      <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
+        title="Delete card" aria-label="Delete card">×</button>
+      {onSendToScene && (
+        <button type="button" className="card-node-send nodrag"
+          title="Send to scene" aria-label="Send to scene"
+          onClick={(e) => { e.stopPropagation(); onSendToScene(cardId); }}>→</button>
+      )}
+      {canPromote && (
+        <button type="button" className="card-node-promote nodrag"
+          title="Promote card" aria-label="Promote card"
+          onClick={(e) => { e.stopPropagation(); setPromoteStep("menu"); }}>↑</button>
+      )}
+      {promoteStep && (
+        <PromoteMenu
+          step={promoteStep}
+          onPromoteScene={() => { setPromoteStep(null); onPromoteToScene?.(cardId); }}
+          onShowEntityTypes={() => setPromoteStep("entity-type")}
+          onPickEntityType={(type) => { setPromoteStep(null); onPromoteToEntity?.(cardId, type); }}
+          onClose={() => setPromoteStep(null)}
+        />
+      )}
+      <span className="card-node-text">
+        {displayText || <em className="card-node-empty">Click to write…</em>}
+      </span>
+    </div>
+  );
+}
+
 // ── CardNode ──────────────────────────────────────────────────────────────────
 
 export function CardNode({ data }: NodeProps<CardNodeType>) {
-  const { doc, cardId, onSendToScene } = data;
-  const { isEditing, setIsEditing, displayText, handleDone, handleDelete } =
-    useCardState(doc, cardId);
+  const { doc, cardId, onSendToScene, onPromoteToScene, onPromoteToEntity,
+    onNavigateToDestination, graduated, destinationKind, destinationId, destinationLabel } = data;
+  const { isEditing, setIsEditing, displayText, handleDone, handleDelete } = useCardState(doc, cardId);
+
+  if (graduated) {
+    return (
+      <GraduatedCardView
+        displayText={displayText} handleDelete={handleDelete}
+        destinationKind={destinationKind} destinationId={destinationId}
+        destinationLabel={destinationLabel} onNavigate={onNavigateToDestination}
+      />
+    );
+  }
 
   if (isEditing) {
     return (
@@ -139,25 +295,11 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
   }
 
   return (
-    <div className="card-node card-node--readonly" onClick={() => setIsEditing(true)}
-      role="button" tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsEditing(true); }}>
-      <Handle type="source" position={Position.Left} id="left" />
-      <Handle type="source" position={Position.Right} id="right" />
-      <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
-        title="Delete card" aria-label="Delete card">
-        ×
-      </button>
-      {onSendToScene && (
-        <button type="button" className="card-node-send nodrag"
-          title="Send to scene" aria-label="Send to scene"
-          onClick={(e) => { e.stopPropagation(); onSendToScene(cardId); }}>
-          →
-        </button>
-      )}
-      <span className="card-node-text">
-        {displayText || <em className="card-node-empty">Click to write…</em>}
-      </span>
-    </div>
+    <CardReadonlyView
+      cardId={cardId} displayText={displayText} handleDelete={handleDelete}
+      onEdit={() => setIsEditing(true)}
+      onSendToScene={onSendToScene} onPromoteToScene={onPromoteToScene}
+      onPromoteToEntity={onPromoteToEntity}
+    />
   );
 }

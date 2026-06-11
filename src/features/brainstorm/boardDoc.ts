@@ -133,6 +133,24 @@ export function createEntityCard(
   doc.getXmlFragment(`card-${cardId}`);
 }
 
+// ── Phase 6 helpers for getCardText ──────────────────────────────────────────
+
+function xmlTextContent(node: Y.XmlText): string {
+  return (node.toDelta() as { insert?: unknown }[]).reduce(
+    (s, op) => s + (typeof op.insert === "string" ? op.insert : ""),
+    ""
+  );
+}
+
+function paragraphPlainText(para: Y.XmlElement): string {
+  let text = "";
+  for (let i = 0; i < para.length; i++) {
+    const child = para.get(i);
+    if (child instanceof Y.XmlText) text += xmlTextContent(child);
+  }
+  return text;
+}
+
 /**
  * Return the plain text of a card by joining paragraph content with newlines (Phase 6).
  *
@@ -141,8 +159,16 @@ export function createEntityCard(
  *
  * Idempotent — multiple calls return the same result.
  */
-export function getCardText(_doc: Y.Doc, _cardId: string): string {
-  throw new Error("not implemented");
+export function getCardText(doc: Y.Doc, cardId: string): string {
+  const frag = doc.getXmlFragment(`card-${cardId}`);
+  if (frag.length === 0) return "";
+  const parts: string[] = [];
+  for (let i = 0; i < frag.length; i++) {
+    const child = frag.get(i);
+    if (child instanceof Y.XmlElement) parts.push(paragraphPlainText(child));
+    else if (child instanceof Y.XmlText) parts.push(xmlTextContent(child));
+  }
+  return parts.join("\n");
 }
 
 /**
@@ -162,9 +188,16 @@ export function getCardText(_doc: Y.Doc, _cardId: string): string {
  * The card's text fragment is NOT cleared — provenance is preserved.
  */
 export function markCardGraduated(
-  _doc: Y.Doc,
-  _cardId: string,
-  _destination: { kind: "scene" | "entity"; id: string }
+  doc: Y.Doc,
+  cardId: string,
+  destination: { kind: "scene" | "entity"; id: string }
 ): void {
-  throw new Error("not implemented");
+  const cards = doc.getMap("cards");
+  const existing = (cards.get(cardId) as Record<string, unknown> | undefined) ?? {};
+  cards.set(cardId, {
+    ...existing,
+    graduated: true,
+    destinationKind: destination.kind,
+    destinationId: destination.id,
+  });
 }

@@ -1534,6 +1534,48 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .card-node:hover .card-node-send { opacity: 1; }
 .card-node-send:hover { background: var(--parchment-deep); color: var(--ink); }
 
+/* ── Phase 6: promote button (↑), graduated state, destination link, promote menu ── */
+
+/* Promote button: shown on hover, left of send button */
+.card-node-promote {
+  position: absolute; top: 3px; right: 48px;
+  width: 18px; height: 18px; border-radius: var(--r-xs);
+  display: grid; place-items: center;
+  font-size: 13px; line-height: 1; color: var(--ink-4);
+  opacity: 0; transition: opacity var(--dur-fast);
+}
+.card-node:hover .card-node-promote { opacity: 1; }
+.card-node-promote:hover { background: var(--parchment-deep); color: var(--ink); }
+
+/* Graduated card: dimmed appearance */
+.card-node--graduated { opacity: 0.55; }
+.card-node-text--graduated { color: var(--ink-4); }
+
+/* Destination navigation link inside graduated card */
+.card-node-destination {
+  display: block; margin-top: 4px;
+  font-size: var(--text-xs); color: var(--ink-4);
+  text-align: left; padding: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity var(--dur-fast);
+}
+.card-node--graduated:hover .card-node-destination { opacity: 1; }
+.card-node-destination:hover { color: var(--ink-2); }
+
+/* Promote two-step menu */
+.card-promote-menu {
+  position: absolute; top: 26px; right: 3px; z-index: 10;
+  background: var(--parchment); border: 1px solid var(--parchment-edge);
+  border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; gap: 2px; padding: 4px;
+  min-width: 120px;
+}
+.card-promote-option {
+  font-size: var(--text-sm); color: var(--ink-2);
+  text-align: left; padding: 4px 8px; border-radius: var(--r-xs);
+}
+.card-promote-option:hover { background: var(--parchment-deep); color: var(--ink); }
+
 /* ── Connection handles (furniture-tier — two-tier hover doctrine) ───────────
    Handles are small circles at card edges, hidden by default, visible on node
    hover. Neutral (ink-4) resting, slightly darker (ink-2) on hover — furniture,

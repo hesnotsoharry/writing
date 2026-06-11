@@ -71,13 +71,24 @@ describe("bindPersistence", () => {
     unbind();
   });
 
-  it("stops saving after unbind", async () => {
+  it("flushes a pending save on unbind, then stops saving", async () => {
     const store = new InMemorySceneDocStore();
     const doc = new Y.Doc();
     const unbind = bindPersistence(doc, "scene-1", store, { debounceMs: 500 });
+    // Write within the debounce window, then unbind before it elapses. The
+    // pending save must FLUSH (not drop) — writes made within debounceMs of
+    // unbind were silently lost before (wave-32 Phase 6: graduating a board
+    // card right before navigating away).
+    appendParagraph(doc, "written just before unbind");
     unbind();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.saveCount).toBe(1);
+    const restored = new Y.Doc();
+    applyEncoded(restored, (await store.load("scene-1"))!);
+    expect(extractPlainText(restored)).toBe("written just before unbind");
+    // After the flush, further updates must NOT trigger saves.
     appendParagraph(doc, "ignored");
     await vi.advanceTimersByTimeAsync(500);
-    expect(store.saveCount).toBe(0);
+    expect(store.saveCount).toBe(1);
   });
 });

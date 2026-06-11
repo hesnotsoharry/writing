@@ -211,8 +211,8 @@ export function buildViewStage(
   if (view === "brainstorm") {
     const boardId = ctx.brainstormBoardId ?? "brainstorm-default";
     return <BoardView key={boardId} boardId={boardId} storyBibleStore={ctx.storyBibleStore}
-      projectId={activeProjectId ?? undefined} selectedSceneId={ctx.selectedSceneId}
-      liveDoc={doc} tree={ctx.tree} />;
+      projectId={activeProjectId ?? undefined} selectedSceneId={ctx.selectedSceneId} liveDoc={doc} tree={ctx.tree}
+      onSelectScene={ctx.onSelectScene} onOpenEntry={ctx.onOpenEntry} onViewChange={ctx.onViewChange} onTreeChanged={ctx.reloadTree} />;
   }
   if (view === "entry") {
     return <EntryViewStage

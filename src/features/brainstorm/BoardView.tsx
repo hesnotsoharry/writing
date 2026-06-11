@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import type { AppView } from "../../App.state";
 import type { BinderTree } from "../../binder/buildTree";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBoardDocStore } from "../../db/sqliteBoardDocStore";
@@ -103,9 +104,20 @@ interface BoardViewProps {
   liveDoc?: Y.Doc | null;
   /** Phase 5: binder tree used to populate the ScenePicker scene list. */
   tree?: BinderTree;
+  /** Phase 6: navigate to a scene from a graduated card. */
+  onSelectScene?: (sceneId: string) => void;
+  /** Phase 6: open an entity entry (kind = specific entity type string). */
+  onOpenEntry?: (id: string, kind: string) => void;
+  /** Phase 6: switch views after promote-to-scene. */
+  onViewChange?: (view: AppView) => void;
+  /** Phase 6: reload the binder tree after a new scene is created via promote. */
+  onTreeChanged?: () => void;
 }
 
-export function BoardView({ boardId, storyBibleStore, projectId, selectedSceneId, liveDoc, tree }: BoardViewProps) {
+export function BoardView({
+  boardId, storyBibleStore, projectId, selectedSceneId, liveDoc, tree,
+  onSelectScene, onOpenEntry, onViewChange, onTreeChanged,
+}: BoardViewProps) {
   const doc = useBoardDoc(boardId);
 
   if (!doc) {
@@ -125,6 +137,10 @@ export function BoardView({ boardId, storyBibleStore, projectId, selectedSceneId
         selectedSceneId={selectedSceneId}
         liveDoc={liveDoc}
         tree={tree}
+        onSelectScene={onSelectScene}
+        onOpenEntry={onOpenEntry}
+        onViewChange={onViewChange}
+        onTreeChanged={onTreeChanged}
       />
     </div>
   );
