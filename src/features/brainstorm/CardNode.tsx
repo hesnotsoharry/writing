@@ -18,11 +18,12 @@ import { Collaboration } from "@tiptap/extension-collaboration";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import type { Node, NodeProps } from "@xyflow/react";
+import { Handle, Position } from "@xyflow/react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 import * as Y from "yjs";
 
-import { removeCard } from "./boardDoc";
+import { removeCard, removeConnectionsForCard } from "./boardDoc";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -107,7 +108,11 @@ function useCardState(doc: Y.Doc, cardId: string) {
   }, [doc, cardId]);
 
   const handleDelete = useCallback(
-    (e: ReactMouseEvent) => { e.stopPropagation(); removeCard(doc, cardId); },
+    (e: ReactMouseEvent) => {
+      e.stopPropagation();
+      removeConnectionsForCard(doc, cardId);
+      removeCard(doc, cardId);
+    },
     [doc, cardId]
   );
 
@@ -124,6 +129,8 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
   if (isEditing) {
     return (
       <div className="nodrag card-node card-node--editing">
+        <Handle type="source" position={Position.Left} id="left" />
+        <Handle type="source" position={Position.Right} id="right" />
         <CardEditor doc={doc} cardId={cardId} onDone={handleDone} />
       </div>
     );
@@ -133,6 +140,8 @@ export function CardNode({ data }: NodeProps<CardNodeType>) {
     <div className="card-node card-node--readonly" onClick={() => setIsEditing(true)}
       role="button" tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIsEditing(true); }}>
+      <Handle type="source" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Right} id="right" />
       <button type="button" className="card-node-delete nodrag" onClick={handleDelete}
         title="Delete card" aria-label="Delete card">
         ×

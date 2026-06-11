@@ -71,12 +71,12 @@ export function removeCard(doc: Y.Doc, cardId: string): void {
  * Plain JSON in Y.Map (not a Y type) ensures CRDT safety and matches card metadata pattern.
  */
 export function addConnection(
-  _doc: Y.Doc,
-  _connectionId: string,
-  _from: string,
-  _to: string
+  doc: Y.Doc,
+  connectionId: string,
+  from: string,
+  to: string
 ): void {
-  throw new Error("not implemented");
+  doc.getMap("connections").set(connectionId, { from, to });
 }
 
 /**
@@ -85,6 +85,25 @@ export function addConnection(
  * Deletes the connection's entry from doc.getMap('connections').
  * Other connections are unaffected.
  */
-export function removeConnection(_doc: Y.Doc, _connectionId: string): void {
-  throw new Error("not implemented");
+export function removeConnection(doc: Y.Doc, connectionId: string): void {
+  doc.getMap("connections").delete(connectionId);
+}
+
+/**
+ * Remove all connections whose from or to matches a given card (Phase 3 cascade).
+ *
+ * Called by the canvas layer before removeCard so deleting a card does not
+ * leave dangling edges. Collects IDs first to avoid mutating the map mid-iteration.
+ */
+export function removeConnectionsForCard(doc: Y.Doc, cardId: string): void {
+  const connections = doc.getMap<{ from: string; to: string }>("connections");
+  const toRemove: string[] = [];
+  for (const [connId, meta] of connections.entries()) {
+    if (meta.from === cardId || meta.to === cardId) {
+      toRemove.push(connId);
+    }
+  }
+  for (const connId of toRemove) {
+    removeConnection(doc, connId);
+  }
 }

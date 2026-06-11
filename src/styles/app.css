@@ -1522,3 +1522,20 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 }
 .card-node:hover .card-node-delete { opacity: 1; }
 .card-node-delete:hover { background: var(--parchment-deep); color: var(--ink); }
+
+/* ── Connection handles (furniture-tier — two-tier hover doctrine) ───────────
+   Handles are small circles at card edges, hidden by default, visible on node
+   hover. Neutral (ink-4) resting, slightly darker (ink-2) on hover — furniture,
+   not accent ring. React Flow positions them absolutely at the node boundary.   */
+.card-node .react-flow__handle {
+  width: 8px; height: 8px;
+  min-width: unset; min-height: unset;
+  border-radius: 50%;
+  background: var(--ink-4);
+  border: 1.5px solid var(--parchment-edge);
+  opacity: 0;
+  transition: opacity var(--dur-fast), background var(--dur-fast);
+}
+.card-node:hover .react-flow__handle { opacity: 1; }
+.card-node .react-flow__handle:hover,
+.card-node .react-flow__handle-connecting { background: var(--ink-2); opacity: 1; }

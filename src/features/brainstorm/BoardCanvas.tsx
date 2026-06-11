@@ -11,13 +11,20 @@
  *
  * @xyflow/react dist CSS is imported once in main.tsx.
  */
-import type { Node, NodeChange, NodeTypes, OnNodeDrag } from "@xyflow/react";
-import { applyNodeChanges, Background, ReactFlow } from "@xyflow/react";
+import type { Edge, EdgeChange, Node, NodeChange, NodeTypes, OnConnect, OnNodeDrag } from "@xyflow/react";
+import { applyEdgeChanges, applyNodeChanges, Background, ConnectionMode, ReactFlow } from "@xyflow/react";
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useState } from "react";
 import * as Y from "yjs";
 
 import { Icon } from "../../components/Icon";
-import { createBoardCard, removeCard, updateCardPosition } from "./boardDoc";
+import {
+  addConnection,
+  createBoardCard,
+  removeCard,
+  removeConnection,
+  removeConnectionsForCard,
+  updateCardPosition,
+} from "./boardDoc";
 import { CardNode, type CardNodeData } from "./CardNode";
 
 // ── nodeTypes (stable reference — must be defined outside the component) ──────
@@ -27,6 +34,7 @@ const nodeTypes: NodeTypes = { card: CardNode };
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 interface CardMeta { x: number; y: number; }
+interface ConnectionMeta { from: string; to: string; }
 
 function docToNodes(doc: Y.Doc): Node<CardNodeData>[] {
   const cards = doc.getMap<CardMeta>("cards");
@@ -34,6 +42,17 @@ function docToNodes(doc: Y.Doc): Node<CardNodeData>[] {
     id, type: "card" as const,
     position: { x: meta.x, y: meta.y },
     data: { doc, cardId: id },
+  }));
+}
+
+function docToEdges(doc: Y.Doc): Edge[] {
+  const connections = doc.getMap<ConnectionMeta>("connections");
+  return Array.from(connections.entries()).map(([id, meta]) => ({
+    id,
+    source: meta.from,
+    target: meta.to,
+    type: "straight" as const,
+    style: { stroke: "var(--ink-4)", strokeWidth: 1.5 },
   }));
 }
 
@@ -68,9 +87,14 @@ function useCanvasHandlers(doc: Y.Doc, setNodes: NodeSetter, nodeCount: number) 
     [doc]
   );
 
-  // Keyboard delete → Yjs remove.
+  // Keyboard delete → cascade connections, then Yjs remove.
   const handleNodesDelete = useCallback(
-    (deleted: Node[]) => { for (const node of deleted) removeCard(doc, node.id); },
+    (deleted: Node[]) => {
+      for (const node of deleted) {
+        removeConnectionsForCard(doc, node.id);
+        removeCard(doc, node.id);
+      }
+    },
     [doc]
   );
 
@@ -81,6 +105,44 @@ function useCanvasHandlers(doc: Y.Doc, setNodes: NodeSetter, nodeCount: number) 
   return { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard };
 }
 
+// ── useEdgeHandlers ───────────────────────────────────────────────────────────
+
+type EdgeSetter = Dispatch<SetStateAction<Edge[]>>;
+
+function useEdgeHandlers(doc: Y.Doc, setEdges: EdgeSetter) {
+  // Yjs observer: rebuild edge list when connections map changes.
+  useEffect(() => {
+    const connections = doc.getMap<ConnectionMeta>("connections");
+    const sync = () => setEdges(docToEdges(doc));
+    connections.observe(sync);
+    return () => connections.unobserve(sync);
+  }, [doc, setEdges]);
+
+  // Local edge state for selection / transient changes.
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+    [setEdges]
+  );
+
+  // Handle drag between card handles → addConnection.
+  const onConnect: OnConnect = useCallback(
+    (connection) => {
+      if (!connection.source || !connection.target) return;
+      if (connection.source === connection.target) return;
+      addConnection(doc, crypto.randomUUID(), connection.source, connection.target);
+    },
+    [doc]
+  );
+
+  // Edge deleted via keyboard Delete → remove from Yjs.
+  const onEdgesDelete = useCallback(
+    (deleted: Edge[]) => { for (const edge of deleted) removeConnection(doc, edge.id); },
+    [doc]
+  );
+
+  return { onEdgesChange, onConnect, onEdgesDelete };
+}
+
 // ── BoardCanvas ───────────────────────────────────────────────────────────────
 
 interface BoardCanvasProps { doc: Y.Doc; }
@@ -88,8 +150,12 @@ interface BoardCanvasProps { doc: Y.Doc; }
 export function BoardCanvas({ doc }: BoardCanvasProps) {
   const initialNodes = useMemo(() => docToNodes(doc), [doc]);
   const [nodes, setNodes] = useState<Node<CardNodeData>[]>(initialNodes);
+  const initialEdges = useMemo(() => docToEdges(doc), [doc]);
+  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+
   const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } =
     useCanvasHandlers(doc, setNodes, nodes.length);
+  const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
 
   return (
     <div className="board-canvas-wrap">
@@ -99,10 +165,14 @@ export function BoardCanvas({ doc }: BoardCanvasProps) {
         </button>
       </div>
       <div className="board-canvas">
-        <ReactFlow nodes={nodes} edges={[]} nodeTypes={nodeTypes}
+        <ReactFlow
+          nodes={nodes} edges={edges} nodeTypes={nodeTypes}
           onNodesChange={onNodesChange} onNodeDragStop={onNodeDragStop}
-          onNodesDelete={handleNodesDelete} fitView
-          proOptions={{ hideAttribution: false }}>
+          onNodesDelete={handleNodesDelete}
+          onEdgesChange={onEdgesChange} onConnect={onConnect}
+          onEdgesDelete={onEdgesDelete}
+          connectionMode={ConnectionMode.Loose}
+          fitView proOptions={{ hideAttribution: false }}>
           <Background />
         </ReactFlow>
       </div>
