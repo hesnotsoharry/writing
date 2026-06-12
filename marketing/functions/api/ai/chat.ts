@@ -47,6 +47,7 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 1024;
 const MAX_TOKENS_CAP = 4096;
+const SYSTEM_LENGTH_CAP = 32_000;
 
 // Re-export for consumers that import from chat.ts (e.g. tests checking rates).
 export { INPUT_UNITS_PER_TOKEN, OUTPUT_UNITS_PER_TOKEN };
@@ -61,6 +62,7 @@ interface Message {
 interface ChatBody {
   messages?: unknown;
   max_tokens?: unknown;
+  system?: unknown;
 }
 
 interface SubscriptionRow {
@@ -78,6 +80,7 @@ interface StreamArgs {
   apiKey: string;
   messages: Message[];
   maxTokens: number;
+  system?: string;
   writer: WritableStreamDefaultWriter<Uint8Array>;
   encoder: TextEncoder;
   db: SupabaseClient;
@@ -180,7 +183,10 @@ async function callAnthropic(
   messages: Message[],
   maxTokens: number,
   apiKey: string,
+  system?: string,
 ): Promise<Response> {
+  const requestBody: Record<string, unknown> = { model: MODEL, max_tokens: maxTokens, stream: true, messages };
+  if (system) requestBody["system"] = system;
   return fetch(ANTHROPIC_API, {
     method: "POST",
     headers: {
@@ -188,7 +194,7 @@ async function callAnthropic(
       "anthropic-version": ANTHROPIC_VERSION,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, stream: true, messages }),
+    body: JSON.stringify(requestBody),
   });
 }
 
@@ -226,10 +232,10 @@ async function refundCredits(
 // ── Stream runner (runs in waitUntil) ─────────────────────────────────────────
 
 async function runStream(args: StreamArgs): Promise<void> {
-  const { apiKey, messages, maxTokens, writer, encoder, db, licenseKey, reserve, requestId } = args;
+  const { apiKey, messages, maxTokens, system, writer, encoder, db, licenseKey, reserve, requestId } = args;
   let refunded = false;
   try {
-    const anthropicRes = await callAnthropic(messages, maxTokens, apiKey);
+    const anthropicRes = await callAnthropic(messages, maxTokens, apiKey, system);
     if (!anthropicRes.ok || !anthropicRes.body) {
       await refundCredits(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
       refunded = true;
@@ -282,6 +288,11 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const body = (await context.request.json()) as ChatBody;
   const messages = parseMessages(body.messages);
   if (!messages) return new Response("Bad Request", { status: 400, headers: cors });
+  if (body.system !== undefined && body.system !== null) {
+    if (typeof body.system !== "string") return new Response("Bad Request", { status: 400, headers: cors });
+    if (body.system.length > SYSTEM_LENGTH_CAP) return new Response("Bad Request", { status: 400, headers: cors });
+  }
+  const system = typeof body.system === "string" && body.system.length > 0 ? body.system : undefined;
   const maxTokens =
     typeof body.max_tokens === "number"
       ? Math.min(body.max_tokens, MAX_TOKENS_CAP)
@@ -313,7 +324,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   }
 
   // Reserve credits (max possible cost for this request)
-  const totalChars = messages.reduce((s, m) => s + m.content.length, 0);
+  const totalChars = messages.reduce((s, m) => s + m.content.length, 0) + (system?.length ?? 0);
   const reserve = estimateCredits(totalChars, maxTokens);
   const requestId = crypto.randomUUID();
 
@@ -333,6 +344,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
       apiKey: context.env.ANTHROPIC_API_KEY,
       messages,
       maxTokens,
+      system,
       writer,
       encoder,
       db,

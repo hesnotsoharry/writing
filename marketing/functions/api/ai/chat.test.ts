@@ -326,6 +326,74 @@ describe("POST /api/ai/chat contract", () => {
       expect(refundCall.args["p_request_id"]).toBe(reserveCall!.args["p_request_id"]);
     }
   });
+
+  it("system field passes through to Anthropic fetch body when provided", async () => {
+    const token = await makeValidToken();
+    const systemPrompt = "You are a brainstorm assistant. Context: scene about a forest.";
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], system: systemPrompt },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalled();
+    const callArgs = fetchMock.mock.calls[0];
+    const sentBody = JSON.parse(callArgs[1]!.body as string) as Record<string, unknown>;
+    expect(sentBody["system"]).toBe(systemPrompt);
+  });
+
+  it("system field is omitted from Anthropic fetch body when not provided", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    const callArgs = fetchMock.mock.calls[0];
+    const sentBody = JSON.parse(callArgs[1]!.body as string) as Record<string, unknown>;
+    expect(sentBody).not.toHaveProperty("system");
+  });
+
+  it("returns 400 when system exceeds 32,000 characters", async () => {
+    const token = await makeValidToken();
+    const oversizedSystem = "x".repeat(32_001);
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], system: oversizedSystem },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it("reserve estimate includes system length so reserve >= actual for system-bearing requests", async () => {
+    const token = await makeValidToken();
+    const systemPrompt = "x".repeat(4000); // 4000 chars = ~1000 extra tokens
+    // baseline: same message, no system
+    const { ctx: ctxNoSys, getWaitUntil: wu0 } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    rpcCalls = [];
+    const resNoSys = await onRequestPost(ctxNoSys);
+    await collectSseEvents(resNoSys, wu0());
+    const reserveNoSys = Number(rpcCalls.find((c) => c.fn === "reserve_credits")!.args["p_amount"]);
+
+    rpcCalls = [];
+    const { ctx: ctxSys, getWaitUntil: wu1 } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], system: systemPrompt },
+    );
+    const resSys = await onRequestPost(ctxSys);
+    await collectSseEvents(resSys, wu1());
+    const reserveWithSys = Number(rpcCalls.find((c) => c.fn === "reserve_credits")!.args["p_amount"]);
+
+    expect(reserveWithSys).toBeGreaterThan(reserveNoSys);
+  });
 });
 
 // ── CORS contract ─────────────────────────────────────────────────────────────
