@@ -276,9 +276,9 @@ export function BackupSection({ showToast }: BackupSectionProps) {
 // ── Section: AI assistant (Wave 34) ──────────────────────────────────────────
 
 export function AiSection({ tweaks, setTweak }: SectionProps) {
-  return <SetRow label="Show AI assistant" desc="Opt-in AI brainstorming (subscription required). Turn off to hide the AI tab entirely." last>
-    <SetToggle value={tweaks.aiEnabled} onChange={(v) => setTweak("aiEnabled", v)} />
-  </SetRow>;
+  const hasKey = tweaks.aiLicenseKey !== "";
+  return <><SetRow label="Show AI assistant" desc="Opt-in AI brainstorming (subscription required). Turn off to hide the AI tab entirely." last={!hasKey}><SetToggle value={tweaks.aiEnabled} onChange={(v) => setTweak("aiEnabled", v)} /></SetRow>
+    {hasKey && <SetRow label="AI license key" desc="Clear to re-enter a different one." last><button className="ai-change-key-btn" onClick={() => setTweak("aiLicenseKey", "")}>Change license key…</button></SetRow>}</>;
 }
 
 // ── Section: About ────────────────────────────────────────────────────────────

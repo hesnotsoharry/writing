@@ -177,4 +177,24 @@ describe("AssistantPanel — ready phase (consent + key stored)", () => {
     render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
     expect(screen.queryByText(/what i can see/i)).not.toBeNull();
   });
+
+  it("renders the Change license key button", () => {
+    const store = makeMockStore();
+    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
+    expect(screen.queryByRole("button", { name: "Change license key" })).not.toBeNull();
+  });
+
+  it("clicking Change license key transitions to key-entry, clears stored key, preserves consent", () => {
+    const store = makeMockStore();
+    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Change license key" }));
+
+    // Transitions to key-entry phase
+    expect(screen.queryByPlaceholderText("AI license key…")).not.toBeNull();
+    // Stored key is cleared
+    expect(localStorage.getItem("writing.aiLicenseKey")).toBe(JSON.stringify(""));
+    // Consent is preserved — not reset
+    expect(localStorage.getItem("writing.aiConsentGiven")).toBe(JSON.stringify(true));
+  });
 });

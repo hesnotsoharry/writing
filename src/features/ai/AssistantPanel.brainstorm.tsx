@@ -268,9 +268,18 @@ export interface BrainstormPaneProps {
   doc: Y.Doc | null;
   store: StoryBibleStore;
   licenseKey: string;
+  onChangeKey?: () => void;
 }
 
-export function BrainstormPane({ sceneId, sceneName, doc, store, licenseKey }: BrainstormPaneProps) {
+function ChangeKeyLink({ onChangeKey }: { onChangeKey: () => void }) {
+  return (
+    <div className="ai-panel-footer">
+      <button className="ai-change-key-btn" onClick={onChangeKey}>Change license key</button>
+    </div>
+  );
+}
+
+export function BrainstormPane({ sceneId, sceneName, doc, store, licenseKey, onChangeKey }: BrainstormPaneProps) {
   const [state, setState] = useState<PanelState>(INIT_PANEL_STATE);
   const sessionRef = useRef<SessionResult | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -288,6 +297,7 @@ export function BrainstormPane({ sceneId, sceneName, doc, store, licenseKey }: B
         {guardrail
           ? <GuardrailBanner guardrail={guardrail} onRetry={guardrail.kind === "offline" ? handleClearGuardrail : undefined} />
           : <><PromptForm value={prompt} onChange={setPrompt} onSend={handleSend} onStop={handleStop} streaming={streaming} /><ReplyArea reply={reply} streaming={streaming} error={error} /><CreditMeter sessionCreditsCost={sessionCreditsCost} /></>}
+        {onChangeKey && <ChangeKeyLink onChangeKey={onChangeKey} />}
       </div>
     </div>
   );

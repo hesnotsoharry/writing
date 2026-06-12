@@ -1909,3 +1909,11 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 /* Dormant affordance */
 .ai-dormant { padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); align-items: flex-start; }
 .ai-dormant-text { font-size: var(--text-sm); color: var(--ink-3); line-height: 1.55; margin: 0; }
+
+/* Change-key footer (panel + settings) */
+.ai-panel-footer { display: flex; justify-content: flex-end; padding-top: var(--s-3); }
+.ai-change-key-btn {
+  font-size: var(--text-2xs); color: var(--ink-4); padding: 0;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.ai-change-key-btn:hover { color: var(--ink-3); }

@@ -71,6 +71,10 @@ export function AssistantPanel({ sceneId, sceneName, doc, store }: AssistantPane
     setStoredTweak("aiLicenseKey", key);
     setPhase("ready");
   }, []);
+  const handleChangeKey = useCallback(() => {
+    setStoredTweak("aiLicenseKey", "");
+    setPhase("key-entry");
+  }, []);
   if (phase === "dormant") {
     return <PanelScroll><DormantAffordance onEnable={handleReEnable} /></PanelScroll>;
   }
@@ -89,6 +93,7 @@ export function AssistantPanel({ sceneId, sceneName, doc, store }: AssistantPane
       doc={doc}
       store={store}
       licenseKey={licenseKey}
+      onChangeKey={handleChangeKey}
     />
   );
 }

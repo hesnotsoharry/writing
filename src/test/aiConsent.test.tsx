@@ -41,6 +41,8 @@ vi.mock("../features/ai/prompts/brainstorm", () => ({
 
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
 import { AssistantPanel, wrapInspectorSlot } from "../features/ai/AssistantPanel";
+import { AiSection } from "../features/settings/Settings.sections";
+import { TWEAK_DEFAULTS } from "../features/settings/settings.store";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -273,6 +275,32 @@ describe("AssistantPanel — offline retry", () => {
     expect(restored.value).toBe("my draft prompt");
     // No auto-resend — acquireSession call count unchanged
     expect(mockAcquireSession.mock.calls.length).toBe(callCountBeforeRetry);
+  });
+});
+
+// ── 8. Settings — AiSection change license key ────────────────────────────────
+
+describe("AiSection — change license key button", () => {
+  it("shows Change license key button when a key is stored", () => {
+    const setTweak = vi.fn();
+    const tweaks = { ...TWEAK_DEFAULTS, aiLicenseKey: "stored-key-abc" };
+    render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
+    expect(screen.queryByRole("button", { name: "Change license key…" })).not.toBeNull();
+  });
+
+  it("does not show Change license key button when no key is stored", () => {
+    const setTweak = vi.fn();
+    const tweaks = { ...TWEAK_DEFAULTS, aiLicenseKey: "" };
+    render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
+    expect(screen.queryByRole("button", { name: "Change license key…" })).toBeNull();
+  });
+
+  it("clicking Change license key calls setTweak with aiLicenseKey cleared", () => {
+    const setTweak = vi.fn();
+    const tweaks = { ...TWEAK_DEFAULTS, aiLicenseKey: "stored-key-abc" };
+    render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
+    fireEvent.click(screen.getByRole("button", { name: "Change license key…" }));
+    expect(setTweak).toHaveBeenCalledWith("aiLicenseKey", "");
   });
 });
 
