@@ -71,6 +71,11 @@ const STORED_RECORD = {
   activatedAt: "2026-06-10T00:00:00.000Z",
 };
 
+// A valid UUID-shaped key that passes isLicenseKeyShaped (formatLicenseKeyInput
+// strips non-hex chars; all test inputs must be UUID format to get past the
+// client-side shape guard before activateLicense is ever called).
+const VALID_KEY = "38b1460a-5104-4067-a91d-77b872934d51";
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -102,7 +107,7 @@ describe("ActivationGate — error states produce three distinct messages", () =
   it("invalid_key shows the friendly 'double-check your email' message", async () => {
     mockActivateLicense.mockResolvedValue(INVALID_KEY_RESULT);
     render(<ActivationGate onActivated={vi.fn()} />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "bad-key" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: VALID_KEY } });
     fireEvent.click(screen.getByRole("button", { name: /activate/i }));
     await waitFor(() => {
       expect(
@@ -114,7 +119,7 @@ describe("ActivationGate — error states produce three distinct messages", () =
   it("rejected shows the verbatim LS message, not the friendly message", async () => {
     mockActivateLicense.mockResolvedValue(REJECTED_RESULT);
     render(<ActivationGate onActivated={vi.fn()} />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "used-key" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: VALID_KEY } });
     fireEvent.click(screen.getByRole("button", { name: /activate/i }));
     await waitFor(() => {
       expect(
@@ -128,7 +133,7 @@ describe("ActivationGate — error states produce three distinct messages", () =
   it("network shows the 'couldn't reach' message, not the verbatim LS message", async () => {
     mockActivateLicense.mockResolvedValue(NETWORK_RESULT);
     render(<ActivationGate onActivated={vi.fn()} />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "any-key" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: VALID_KEY } });
     fireEvent.click(screen.getByRole("button", { name: /activate/i }));
     await waitFor(() => {
       expect(
@@ -149,7 +154,7 @@ describe("ActivationGate — success path calls saveActivation before onActivate
     const onActivated = vi.fn(() => callOrder.push("activated"));
 
     render(<ActivationGate onActivated={onActivated} />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "KEY-1234" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: VALID_KEY } });
     fireEvent.click(screen.getByRole("button", { name: /activate/i }));
 
     await waitFor(() => expect(onActivated).toHaveBeenCalledTimes(1));
@@ -162,12 +167,12 @@ describe("ActivationGate — success path calls saveActivation before onActivate
     const onActivated = vi.fn();
 
     render(<ActivationGate onActivated={onActivated} />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: " KEY-1234 " } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: ` ${VALID_KEY} ` } });
     fireEvent.click(screen.getByRole("button", { name: /activate/i }));
 
     await waitFor(() => expect(mockSaveActivation).toHaveBeenCalledTimes(1));
     const [record] = mockSaveActivation.mock.calls[0] as [typeof STORED_RECORD];
-    expect(record.licenseKey).toBe("KEY-1234"); // trimmed
+    expect(record.licenseKey).toBe(VALID_KEY); // whitespace stripped by formatLicenseKeyInput
     expect(record.instanceId).toBe("inst-abc");
     expect(typeof record.activatedAt).toBe("string");
   });
@@ -179,7 +184,7 @@ describe("ActivationGate — save-failure path shows Retry without re-calling ac
     mockSaveActivation.mockRejectedValue(new Error("disk full"));
 
     render(<ActivationGate onActivated={vi.fn()} />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "KEY-1234" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: VALID_KEY } });
     fireEvent.click(screen.getByRole("button", { name: /activate/i }));
 
     await waitFor(() => {
@@ -196,7 +201,7 @@ describe("ActivationGate — save-failure path shows Retry without re-calling ac
     const onActivated = vi.fn();
 
     render(<ActivationGate onActivated={onActivated} />);
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "KEY-1234" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: VALID_KEY } });
     fireEvent.click(screen.getByRole("button", { name: /activate/i }));
 
     await waitFor(() => {
