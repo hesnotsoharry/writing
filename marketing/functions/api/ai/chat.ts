@@ -16,6 +16,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { verifyToken } from "../../_lib/ai-token";
+import { getCorsHeaders, handleOptions } from "../../_lib/cors";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -228,15 +229,21 @@ async function runStream(args: StreamArgs): Promise<void> {
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
+export const onRequestOptions: PagesFunction<AiEnv> = (context) => {
+  return handleOptions(context.request);
+};
+
 export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
+  const cors = getCorsHeaders(context.request);
+
   const rawToken = extractBearer(context.request);
-  if (!rawToken) return new Response("Unauthorized", { status: 401 });
+  if (!rawToken) return new Response("Unauthorized", { status: 401, headers: cors });
   const licenseKey = await verifyToken(rawToken, context.env.PROXY_SESSION_SECRET);
-  if (!licenseKey) return new Response("Unauthorized", { status: 401 });
+  if (!licenseKey) return new Response("Unauthorized", { status: 401, headers: cors });
 
   const body = (await context.request.json()) as ChatBody;
   const messages = parseMessages(body.messages);
-  if (!messages) return new Response("Bad Request", { status: 400 });
+  if (!messages) return new Response("Bad Request", { status: 400, headers: cors });
   const maxTokens =
     typeof body.max_tokens === "number"
       ? Math.min(body.max_tokens, MAX_TOKENS_CAP)
@@ -248,9 +255,9 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     .select("status, credits_balance, reset_at")
     .eq("license_key", licenseKey)
     .single();
-  if (subErr || !data) return new Response("Forbidden", { status: 403 });
+  if (subErr || !data) return new Response("Forbidden", { status: 403, headers: cors });
   const sub = data as unknown as SubscriptionRow;
-  if (sub.status !== "active") return new Response("Forbidden", { status: 403 });
+  if (sub.status !== "active") return new Response("Forbidden", { status: 403, headers: cors });
 
   const totalChars = messages.reduce((s, m) => s + m.content.length, 0);
   const estimatedCost = estimateCredits(totalChars, maxTokens);
@@ -258,7 +265,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   if (!decremented) {
     return new Response(
       JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at }),
-      { status: 429, headers: { "Content-Type": "application/json" } },
+      { status: 429, headers: { "Content-Type": "application/json", ...cors } },
     );
   }
 
@@ -273,6 +280,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       "Connection": "keep-alive",
+      ...cors,
     },
   });
 };

@@ -15,7 +15,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildToken } from "../../_lib/ai-token";
-import { onRequestPost } from "./chat";
+import { ALLOWED_ORIGINS } from "../../_lib/cors";
+import { onRequestOptions, onRequestPost } from "./chat";
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
 
@@ -93,7 +94,7 @@ async function makeValidToken() {
 
 type WaitUntilFn = (p: Promise<void>) => void;
 
-function fakeContext(authHeader: string | null, body: unknown): {
+function fakeContext(authHeader: string | null, body: unknown, origin?: string): {
   ctx: Parameters<typeof onRequestPost>[0];
   getWaitUntil: () => Promise<void> | undefined;
 } {
@@ -101,6 +102,7 @@ function fakeContext(authHeader: string | null, body: unknown): {
   const waitUntil: WaitUntilFn = (p) => { waitUntilP = p; };
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (authHeader) headers["Authorization"] = authHeader;
+  if (origin) headers["Origin"] = origin;
   const ctx = {
     env: {
       SUPABASE_URL: "https://placeholder.supabase.co",
@@ -255,5 +257,106 @@ describe("POST /api/ai/chat contract", () => {
     const res = await onRequestPost(ctx);
     await collectSseEvents(res, getWaitUntil());
     expect(insertCalled).toBe(true);
+  });
+});
+
+// ── CORS contract ─────────────────────────────────────────────────────────────
+
+function fakeOptionsContext(origin?: string): Parameters<typeof onRequestOptions>[0] {
+  const headers: Record<string, string> = {};
+  if (origin) headers["Origin"] = origin;
+  return {
+    env: {},
+    request: new Request("https://writersnook.app/api/ai/chat", {
+      method: "OPTIONS",
+      headers,
+    }),
+  } as unknown as Parameters<typeof onRequestOptions>[0];
+}
+
+describe("CORS contract — /api/ai/chat", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    decrementSucceeds = true;
+    insertCalled = false;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("OPTIONS with an allowlisted origin returns 204 with full preflight headers", async () => {
+    const origin = ALLOWED_ORIGINS[0];
+    const res = await onRequestOptions(fakeOptionsContext(origin));
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+    expect(res.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS");
+    expect(res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization");
+    expect(res.headers.get("Access-Control-Max-Age")).toBe("86400");
+    expect(res.headers.get("Vary")).toBe("Origin");
+  });
+
+  it("OPTIONS with a non-allowlisted origin returns 204 without ACAO header", async () => {
+    const res = await onRequestOptions(fakeOptionsContext("https://evil.example.com"));
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("OPTIONS with no origin returns 204 without ACAO header", async () => {
+    const res = await onRequestOptions(fakeOptionsContext());
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("POST with an allowlisted origin carries ACAO header on 200 SSE response", async () => {
+    const token = await makeValidToken();
+    const origin = ALLOWED_ORIGINS[1];
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+      origin,
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+    expect(res.headers.get("Vary")).toBe("Origin");
+  });
+
+  it("POST with an allowlisted origin carries ACAO header on 401 error response", async () => {
+    const origin = ALLOWED_ORIGINS[2];
+    const { ctx } = fakeContext(null, { messages: [{ role: "user", content: "hi" }] }, origin);
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(401);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+  });
+
+  it("POST with an allowlisted origin carries ACAO header on 429 response", async () => {
+    subRow = { status: "active", credits_balance: 0, reset_at: "2026-07-01T00:00:00Z" };
+    decrementSucceeds = false;
+    const token = await makeValidToken();
+    const origin = ALLOWED_ORIGINS[0];
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+      origin,
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+  });
+
+  it("POST with a non-allowlisted origin returns no ACAO header on 200 response", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+      "https://evil.example.com",
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 });

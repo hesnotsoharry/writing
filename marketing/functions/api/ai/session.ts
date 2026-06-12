@@ -8,6 +8,7 @@
  * Decision 6: endpoint is auth-gated from first commit.
  */
 import { buildToken } from "../../_lib/ai-token";
+import { getCorsHeaders, handleOptions } from "../../_lib/cors";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
 
 interface SessionBody {
@@ -18,10 +19,16 @@ interface SubscriptionStatusRow {
   status: string;
 }
 
+export const onRequestOptions: PagesFunction<AiEnv> = (context) => {
+  return handleOptions(context.request);
+};
+
 export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
+  const cors = getCorsHeaders(context.request);
+
   const body = (await context.request.json()) as SessionBody;
   if (typeof body.licenseKey !== "string" || body.licenseKey.trim() === "") {
-    return new Response("Bad Request", { status: 400 });
+    return new Response("Bad Request", { status: 400, headers: cors });
   }
   const licenseKey = body.licenseKey;
 
@@ -33,11 +40,11 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     .single();
 
   if (error || !data) {
-    return new Response("Forbidden", { status: 403 });
+    return new Response("Forbidden", { status: 403, headers: cors });
   }
   const row = data as unknown as SubscriptionStatusRow;
   if (row.status !== "active") {
-    return new Response("Forbidden", { status: 403 });
+    return new Response("Forbidden", { status: 403, headers: cors });
   }
 
   const { token, expiresAt } = await buildToken(
@@ -46,6 +53,6 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   );
   return new Response(JSON.stringify({ token, expiresAt }), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cors },
   });
 };
