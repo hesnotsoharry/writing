@@ -1,17 +1,21 @@
 /**
- * AssistantPanel.test.tsx — render-contract tests for AssistantPanel and
- * InspectorTabShell. Uses native vitest matchers only (no jest-dom augmentation
- * since this file lives in src/test/ and jest-dom matchers are available via
- * the setup.ts, but asserting with queryBy* + not.toBeNull() is clearer).
+ * AssistantPanel.test.tsx — render-contract tests for AssistantPanel,
+ * InspectorTabShell, and the phase lifecycle.
+ *
+ * Phase-aware setup: AssistantPanel reads aiConsentGiven + aiLicenseKey from
+ * localStorage. Each describe block seeds the appropriate phase.
  */
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
 import { AssistantPanel, InspectorTabShell } from "../features/ai/AssistantPanel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -19,6 +23,16 @@ function makeMockStore(groups: SceneEntityGroup[] = []): StoryBibleStore {
   return {
     loadSceneEntities: vi.fn().mockResolvedValue(groups),
   } as unknown as StoryBibleStore;
+}
+
+function seedReadyPhase() {
+  localStorage.setItem("writing.aiConsentGiven", JSON.stringify(true));
+  localStorage.setItem("writing.aiLicenseKey", JSON.stringify("DEV-AI-LICENSE-2026"));
+}
+
+function seedKeyEntryPhase() {
+  localStorage.setItem("writing.aiConsentGiven", JSON.stringify(true));
+  // no aiLicenseKey → key-entry phase
 }
 
 // ── InspectorTabShell tests ───────────────────────────────────────────────────
@@ -84,14 +98,45 @@ describe("InspectorTabShell", () => {
   });
 });
 
-// ── AssistantPanel tests ──────────────────────────────────────────────────────
+// ── AssistantPanel — consent phase ───────────────────────────────────────────
 
-describe("AssistantPanel", () => {
+describe("AssistantPanel — consent phase (no localStorage consent)", () => {
+  it("renders the consent walkthrough when no consent is stored", () => {
+    const store = makeMockStore();
+    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
+    expect(screen.queryByText(/AI brainstorming assistant/i)).not.toBeNull();
+  });
+
+  it("renders Accept and Not now buttons in consent phase", () => {
+    const store = makeMockStore();
+    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Not now" })).not.toBeNull();
+  });
+});
+
+// ── AssistantPanel — key-entry phase ─────────────────────────────────────────
+
+describe("AssistantPanel — key-entry phase (consent given, no key)", () => {
+  beforeEach(seedKeyEntryPhase);
+
   it("renders a license key input field", () => {
     const store = makeMockStore();
     render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
     expect(screen.queryByPlaceholderText("AI license key…")).not.toBeNull();
   });
+
+  it("renders the Connect button", () => {
+    const store = makeMockStore();
+    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
+    expect(screen.queryByRole("button", { name: "Connect" })).not.toBeNull();
+  });
+});
+
+// ── AssistantPanel — ready phase ─────────────────────────────────────────────
+
+describe("AssistantPanel — ready phase (consent + key stored)", () => {
+  beforeEach(seedReadyPhase);
 
   it("renders the Brainstorm send button", () => {
     const store = makeMockStore();

@@ -76,3 +76,29 @@ content server-side (even encrypted at rest) is not permitted under the current 
 **Load-bearing Phase-1 decisions (above) are unaffected** — Yjs substrate, one-doc-per-scene,
 web-bundle editor, and the WebSocket sync contract all remain valid. The amendment only affects
 where and whether documents are persisted server-side.
+
+---
+
+## Amendment — 2026-06-12 (Wave 34: no-AI stance retired; local-first architecture unchanged)
+
+**Context:** Wave 34 introduces an opt-in AI brainstorming assistant. The original rationale for
+"no built-in AI" was cost sensitivity; the pivot to a subscription-funded, consent-gated model
+resolves this (running cost is zero when unused). This supersedes the "no AI" stance recorded in
+the original decision and in CLAUDE.md.
+
+**What changes:**
+- The phrase "no built-in AI" in CLAUDE.md and the About panel is replaced with the new opt-in
+  stance (AI is never required; the panel is dormant until the user accepts a consent walkthrough).
+- A subscription license key (separate from the one-time app license) gates the AI panel only
+  (per Decision 7 in `roadmap/wave-34-ai-assistant-foundation.md`).
+- Manuscript text does leave the device when the user sends a brainstorm query; the consent
+  walkthrough states this honestly (local → our relay → Anthropic; never stored, never logged,
+  never used for training).
+
+**What does NOT change:**
+- The local-first storage architecture (SQLite, Yjs, one-doc-per-scene) is unaffected.
+- The WebSocket sync contract and Phase-2 sync design are unaffected.
+- The app license gate (`license.gate.ts`) is untouched; the AI subscription gates only the panel.
+- Writing, binder, story bible, and export remain fully functional with zero AI usage.
+
+**Reference:** `roadmap/wave-34-ai-assistant-foundation.md` — Locked decisions D4, D7, D8.

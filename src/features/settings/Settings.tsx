@@ -8,6 +8,7 @@ import { ACCENT_KEY, DEFAULT_ACCENT, THEME_KEY } from "../../theme/useTheme";
 import { SetRow } from "./Settings.primitives";
 import {
   AboutSection,
+  AiSection,
   AppearanceSection,
   BackupSection,
   EditorSection,
@@ -29,7 +30,7 @@ export interface SettingsProps {
 
 // ── Nav definition ────────────────────────────────────────────────────────────
 
-type SectionId = "appearance" | "editor" | "writing" | "backup" | "about";
+type SectionId = "appearance" | "editor" | "writing" | "ai" | "backup" | "about";
 
 interface NavItem {
   id: SectionId;
@@ -41,6 +42,7 @@ const SET_NAV: NavItem[] = [
   { id: "appearance", label: "Appearance",    icon: "palette"  },
   { id: "editor",     label: "Editor",        icon: "type"     },
   { id: "writing",    label: "Writing",       icon: "feather"  },
+  { id: "ai",         label: "AI assistant",  icon: "feather"  },
   { id: "backup",     label: "Backup & data", icon: "archive"  },
   { id: "about",      label: "About",         icon: "info"     },
 ];
@@ -156,6 +158,7 @@ function SectionRouter({ sec, tweaks, setTweak, theme, accent, onThemeChange, on
   if (sec === "appearance") return <AppearanceSection tweaks={tweaks} setTweak={setTweak} theme={theme} accent={accent} onThemeChange={onThemeChange} onAccentChange={onAccentChange} />;
   if (sec === "editor")     return <EditorSection tweaks={tweaks} setTweak={setTweak} />;
   if (sec === "writing")    return <WritingSection tweaks={tweaks} setTweak={setTweak} onOpenGoals={onOpenGoals} />;
+  if (sec === "ai")         return <AiSection tweaks={tweaks} setTweak={setTweak} />;
   if (sec === "backup")     return <BackupSection showToast={showToast} />;
   return (
     <>

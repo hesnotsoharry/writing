@@ -2,7 +2,8 @@
 
 A local-first creative-writing desktop app (Windows now; mobile later) for a single user. Calm,
 modern writing space with a Scrivener-style binder, owned local storage, and automatic off-machine
-backup. **No built-in AI** (deliberate — keeps running cost near zero).
+backup. **Opt-in AI assistant** (consent-gated, subscription-funded brainstorming; AI is never
+required for core writing and costs zero when unused).
 
 > Status (2026-06-09): **shipped and in use** (v0.2.6 — branded as WritersNook). Phase 1 desktop app
 > is built, released via a signed GitHub-release auto-update pipeline, and installed on real users'

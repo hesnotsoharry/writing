@@ -273,6 +273,14 @@ export function BackupSection({ showToast }: BackupSectionProps) {
   );
 }
 
+// ── Section: AI assistant (Wave 34) ──────────────────────────────────────────
+
+export function AiSection({ tweaks, setTweak }: SectionProps) {
+  return <SetRow label="Show AI assistant" desc="Opt-in AI brainstorming (subscription required). Turn off to hide the AI tab entirely." last>
+    <SetToggle value={tweaks.aiEnabled} onChange={(v) => setTweak("aiEnabled", v)} />
+  </SetRow>;
+}
+
 // ── Section: About ────────────────────────────────────────────────────────────
 
 const SHORTCUTS: [string, string][] = [
@@ -283,18 +291,14 @@ const SHORTCUTS: [string, string][] = [
 /** Live app version from the Tauri shell (tauri.conf.json's `version`); null while loading or outside Tauri (tests). */
 function useAppVersion(): string | null {
   const [version, setVersion] = useState<string | null>(null);
-  useEffect(() => {
-    getVersion().then(setVersion).catch(() => setVersion(null));
-  }, []);
+  useEffect(() => { getVersion().then(setVersion).catch(() => setVersion(null)); }, []);
   return version;
 }
 
 /** Activation record from the app DB; null while loading or when not activated. */
 function useLicenseActivation(): ActivationRecord | null {
   const [record, setRecord] = useState<ActivationRecord | null>(null);
-  useEffect(() => {
-    loadActivation().then(setRecord).catch(() => setRecord(null));
-  }, []);
+  useEffect(() => { loadActivation().then(setRecord).catch(() => setRecord(null)); }, []);
   return record;
 }
 
@@ -318,7 +322,8 @@ export function AboutSection() {
         </div>
         <p className="set-about-blurb">
           A calm, local-first writing space. Your words live entirely on this device. Use
-          Settings ▸ Backup to save a copy wherever you like. No built-in AI, by design.
+          Settings ▸ Backup to save a copy wherever you like. AI brainstorming is opt-in
+          and subscription-funded — never required for writing.
           Everything exports in one step; there is no lock-in.
         </p>
         <div className="set-sub">Keyboard shortcuts</div>

@@ -38,6 +38,7 @@ import { LabelManager } from "./features/outliner/LabelManager";
 import { type OtlSort } from "./features/outliner/Outliner";
 import { useQuickCount } from "./features/quickcapture/useQuickCount";
 import { useQuickItemsBadge } from "./features/quickcapture/useQuickItemsBadge";
+import { useAiEnabled } from "./features/settings/settings.store";
 import { SceneInspector } from "./inspector/SceneInspector";
 import { useManuscriptWordCount } from "./lib/manuscriptWords";
 import { GOALS_CHANGED_EVENT } from "./lib/settings";
@@ -182,14 +183,13 @@ interface SideSlotsProps {
   quickCount: number; archivedCount: number; manuscriptTotal: number; overlays: OverlayFlags;
   storyBibleStore: AppContentProps["storyBibleStore"]; activeScene: Scene | null;
   linksVersion: number; liveWordCount: number; chapterId: string | null; chapterTotal: number | null;
-  onAddGoal: (s: "scene" | "chapter", id: string) => void;
-  onExport: (s: "scene" | "chapter", id: string) => void;
+  onAddGoal: (s: "scene" | "chapter", id: string) => void;  onExport: (s: "scene" | "chapter", id: string) => void;
   onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
   showSidePanels: boolean; view: AppView;
   onOpenEntry: (id: string, kind: string) => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
   onInsertAtCaret?: (name: string) => void;
-  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null; // F2: board id; null outside brainstorm
+  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null;  aiEnabled: boolean;
 }
 
 function buildSideSlots(p: SideSlotsProps) {
@@ -275,10 +275,9 @@ function useAppContentSlots(props: AppContentProps) {
   const goalProgress = useDailyGoalProgress({ projectId: activeProjectId ?? "", scope: "manuscript", targetId: null, currentScopeTotal: manuscriptTotal });
   const quickCount = useQuickCount(activeProjectId); const archivedCount = useArchivedCount(activeProjectId, archivedVersion);
   const docName = projects.find((p) => p.id === activeProjectId)?.title; const activeScene = useActiveScene(tree, selectedSceneId);
-  const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);
-  const focusSettingsHook = useFocusSettings();
+  const { chapterId, chapterTotal } = useChapterInfo(tree, selectedSceneId, liveWordCount);  const focusSettingsHook = useFocusSettings();
   const onAddGoal = (scope: "scene" | "chapter", id: string) => { overlays.setGoalsInitialScope({ scope, targetId: id }); setShowGoals(true); };
-  const { menu: goalMenu, openGoalMenu, closeGoalMenu, editGoalId, setEditGoalId } = useGoalMenu(setShowGoals);
+  const { menu: goalMenu, openGoalMenu, closeGoalMenu, editGoalId, setEditGoalId } = useGoalMenu(setShowGoals);  const aiEnabled = useAiEnabled();
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);  const showSidePanels = !focusMode && view !== "cork" && view !== "outline" && view !== "bible" && view !== "entry";  const insertAtCaretRef = useRef<((text: string) => void) | null>(null);  const onRegisterInsert = useCallback((fn: (text: string) => void) => { insertAtCaretRef.current = fn; }, []);  const onInsertAtCaret = useCallback((name: string) => { insertAtCaretRef.current?.(name); }, []);  const selectSceneWithViewReset = useCallback((id: string) => { if (view === "brainstorm") onViewChange("editor"); onSelectScene(id); }, [view, onViewChange, onSelectScene]);
   // eslint-disable-next-line react-hooks/refs
   const { binderSlot, inspectorSlot } = buildSideSlots({
@@ -287,7 +286,8 @@ function useAppContentSlots(props: AppContentProps) {
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
     showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
-    onInsertAtCaret, selectedBoardId, doc, onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
+    onInsertAtCaret, selectedBoardId, doc, aiEnabled,
+    onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
   const { onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };
   // eslint-disable-next-line react-hooks/refs

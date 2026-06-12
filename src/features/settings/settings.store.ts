@@ -46,6 +46,13 @@ export interface Tweaks {
   // ── Relationship map (Wave 33) ────────────────────────────────────────────
   /** true = edge labels always visible; false = hover-only (default). */
   rmapLabelsAlways: boolean;
+  // ── AI assistant (Wave 34) ────────────────────────────────────────────────
+  /** false = hide the AI tab entirely; true = show dormant affordance. */
+  aiEnabled: boolean;
+  /** true once the user has accepted the consent walkthrough. */
+  aiConsentGiven: boolean;
+  /** Stored subscription license key (session token is kept in React state only). */
+  aiLicenseKey: string;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -67,6 +74,9 @@ export const TWEAK_DEFAULTS: Tweaks = {
   autolinkTypes: ["character", "location", "item", "faction", "lore"],
   snapshotAutoLimit: 25,
   rmapLabelsAlways: false,
+  aiEnabled: true,
+  aiConsentGiven: false,
+  aiLicenseKey: "",
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
@@ -135,6 +145,24 @@ export function useSettings(): {
 // Keep DEFAULT_ACCENT in scope (imported above) so it's available for callers
 // who need to compare against the accent default without importing useTheme directly.
 export { DEFAULT_ACCENT };
+
+// ── useAiEnabled ──────────────────────────────────────────────────────────────
+// Reactive subscription to the aiEnabled tweak.
+// Re-reads on every SETTINGS_CHANGED_EVENT so wrapInspectorSlot updates live.
+
+function readAiEnabled(): boolean {
+  return getTweak("aiEnabled", TWEAK_DEFAULTS.aiEnabled);
+}
+
+export function useAiEnabled(): boolean {
+  const [enabled, setEnabled] = useState<boolean>(readAiEnabled);
+  useEffect(() => {
+    const h = () => setEnabled(readAiEnabled());
+    window.addEventListener(SETTINGS_CHANGED_EVENT, h);
+    return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, h);
+  }, []);
+  return enabled;
+}
 
 // ── useAutolinkSettings ───────────────────────────────────────────────────────
 // Reactive subscription to the three autolink tweaks.

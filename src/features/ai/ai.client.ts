@@ -18,7 +18,11 @@ export interface AiMessage {
 export type NormalizedEvent =
   | { type: "token"; text: string }
   | { type: "done"; inputTokens: number; outputTokens: number; creditsCost: number }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /** Proxy returned 429 — credit balance exhausted. */
+  | { type: "credits-exhausted"; resetAt: string }
+  /** Proxy returned 403 — session token invalid or subscription expired. */
+  | { type: "session-expired" };
 
 export interface SessionResult {
   token: string;
@@ -134,6 +138,19 @@ export async function streamChat(
     body: JSON.stringify(buildChatBody(messages, options)),
     signal: options?.signal,
   });
+  if (res.status === 429) {
+    const raw = await res.json().catch(() => null);
+    const resetAt =
+      raw !== null && typeof raw === "object" && "resetAt" in raw
+        ? String((raw as { resetAt: unknown }).resetAt)
+        : "";
+    onEvent({ type: "credits-exhausted", resetAt });
+    return;
+  }
+  if (res.status === 403) {
+    onEvent({ type: "session-expired" });
+    return;
+  }
   if (!res.ok || !res.body) {
     const errBody = await res.text().catch(() => "");
     onEvent({ type: "error", message: `Chat request failed: ${res.status} ${errBody}` });
