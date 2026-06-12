@@ -40,7 +40,13 @@ export function computeTrialStatus(
   record: TrialRecord,
   now: Date,
 ): TrialStatus {
-  void record;
-  void now;
-  throw new Error("not implemented");
+  const trialStart = Date.parse(record.trialStartedAt);
+  const lastSeen = Date.parse(record.lastSeenAt);
+  const effectiveNow = Math.max(now.getTime(), lastSeen);
+  const trialEnd = trialStart + TRIAL_DURATION_DAYS * 86_400_000;
+  const remainingMs = trialEnd - effectiveNow;
+  const rawDaysLeft = Math.ceil(remainingMs / 86_400_000);
+  const daysLeft = Math.max(0, rawDaysLeft);
+  const state: TrialState = daysLeft <= 0 ? "expired" : "active";
+  return { state, daysLeft };
 }

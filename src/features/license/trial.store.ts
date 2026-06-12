@@ -10,8 +10,11 @@
  * against the oracle acceptance test.
  */
 import { getDb } from "../../db/schema";
-
 import type { TrialRecord } from "./trial";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TRIAL_KEY = "trial";
 
 /**
  * Minimal db interface for the trial store (mirrors LicenseStoreDb —
@@ -29,9 +32,10 @@ export async function writeTrialRecord(
   db: TrialStoreDb,
   record: TrialRecord,
 ): Promise<void> {
-  void db;
-  void record;
-  throw new Error("not implemented");
+  await db.execute(
+    `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
+    [TRIAL_KEY, JSON.stringify(record)],
+  );
 }
 
 /**
@@ -41,8 +45,25 @@ export async function writeTrialRecord(
 export async function readTrialRecord(
   db: TrialStoreDb,
 ): Promise<TrialRecord | null> {
-  void db;
-  throw new Error("not implemented");
+  const rows = (await db.select(
+    `SELECT value FROM app_meta WHERE key = ?`,
+    [TRIAL_KEY],
+  )) as { value: string }[];
+  if (rows.length === 0) return null;
+  try {
+    const parsed: unknown = JSON.parse(rows[0].value);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      typeof (parsed as Record<string, unknown>).trialStartedAt !== "string" ||
+      typeof (parsed as Record<string, unknown>).lastSeenAt !== "string"
+    ) {
+      return null;
+    }
+    return parsed as TrialRecord;
+  } catch {
+    return null;
+  }
 }
 
 // ─── App-facing wrappers (bind to getDb()) ────────────────────────────────────
