@@ -14,10 +14,21 @@ import { loadActivation } from "./license.store";
 /**
  * Gate lifecycle:
  *   'checking' — DB may not be ready yet; activation not yet queried.
- *   'needed'   — no activation record found; show the ActivationGate UI.
+ *   'needed'   — no activation record AND no active trial; show ActivationGate.
+ *   'trial'    — no activation record but 14-day trial active; show the app
+ *                (wave-33; daysLeft carries the countdown for the StatusBar pill).
  *   'cleared'  — record present (or DEV bypass active); show the main app.
  */
-export type GateStatus = "checking" | "needed" | "cleared";
+export type GateStatus = "checking" | "needed" | "trial" | "cleared";
+
+export interface LicenseGateResult {
+  gateStatus: GateStatus;
+  /** Whole days left in the trial; non-null only while gateStatus is 'trial'. */
+  daysLeft: number | null;
+  /** True when gateStatus is 'needed' because a trial ran out (copy variant). */
+  trialExpired: boolean;
+  onActivated: () => void;
+}
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -41,9 +52,7 @@ function isDevBypassed(): boolean {
   );
 }
 
-export function useLicenseGate(
-  dbReady: boolean,
-): { gateStatus: GateStatus; onActivated: () => void } {
+export function useLicenseGate(dbReady: boolean): LicenseGateResult {
   // Compute bypass at hook creation so the initial state is already 'cleared'
   // when the flag is set — avoids a synchronous setState inside an effect.
   const bypassed = isDevBypassed();
@@ -59,5 +68,6 @@ export function useLicenseGate(
   }, [dbReady, bypassed]);
 
   const onActivated = useCallback(() => setGateStatus("cleared"), []);
-  return { gateStatus, onActivated };
+  // Trial wiring lands in wave-33 Phase 2; until then these are inert.
+  return { gateStatus, daysLeft: null, trialExpired: false, onActivated };
 }
