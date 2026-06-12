@@ -28,6 +28,7 @@ import type { Snapshot } from "./db/snapshotStore";
 import { SqliteGoalsStore } from "./db/sqliteGoalsStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
+import { AssistantPanelDev } from "./features/ai/AssistantPanelDev";
 import { useArchivedCount } from "./features/archive/useArchivedCount";
 import { AppFocusLayer, useFocusSettings } from "./features/focus/AppFocusLayer";
 import type { GoalRecord } from "./features/goals/goalModel";
@@ -333,15 +334,14 @@ export function AppContent(props: AppContentProps) {
         statusBar={<StatusBar sceneWordCount={liveWordCount} goalsOn={goalsOn}
           manuscriptTotal={manuscriptTotal} goal={goalProgress} trialDaysLeft={trialDaysLeft} onTrialPillClick={onTrialPillClick} />}
       />
-      <AppFocusLayer focusMode={focusMode} wordCount={liveWordCount} goal={hudGoal}
-        goalOn={goalsOn} settingsHook={focusSettingsHook} onExit={() => setFocusMode(false)} />
+      <AppFocusLayer focusMode={focusMode} wordCount={liveWordCount} goal={hudGoal} goalOn={goalsOn} settingsHook={focusSettingsHook} onExit={() => setFocusMode(false)} />
       <OverlayStack {...overlays} activeProjectId={activeProjectId}
         editGoalId={editGoalId} setEditGoalId={setEditGoalId} manuscriptTotal={manuscriptTotal} />
       <ContextMenu menu={goalMenu} onClose={closeGoalMenu} />
       <LabelManagerOverlay show={labelState.showLabelManager} activeProjectId={activeProjectId}
         labels={labelState.labels} labelStore={labelStore}
-        onClose={() => labelState.setShowLabelManager(false)}
-        onChanged={labelState.refreshLabels} />
+        onClose={() => labelState.setShowLabelManager(false)} onChanged={labelState.refreshLabels} />
+      {import.meta.env.DEV && <AssistantPanelDev />}
     </>
   );
 }

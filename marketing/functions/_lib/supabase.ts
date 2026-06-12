@@ -11,6 +11,16 @@ export interface Env {
 }
 
 /**
+ * Extended environment for AI proxy endpoints (api/ai/).
+ * ANTHROPIC_API_KEY and PROXY_SESSION_SECRET are set as Cloudflare secrets
+ * via `wrangler secret put` or the Pages dashboard — never committed to source.
+ */
+export interface AiEnv extends Env {
+  ANTHROPIC_API_KEY: string;
+  PROXY_SESSION_SECRET: string;
+}
+
+/**
  * Creates a Supabase service-role client for the Workers/Pages edge runtime.
  * Uses the custom-fetch pattern required for Cloudflare's edge runtime —
  * the library's default cross-fetch polyfill is Node-oriented and incompatible
