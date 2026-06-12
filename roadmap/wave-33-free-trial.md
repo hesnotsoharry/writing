@@ -108,7 +108,10 @@ durable: candidate
 | 0 (oracle) | 2026-06-11 (orchestrator + haiku-test-author) | 2026-06-11 | e870b22 | Internal — oracle confirmed failing for the right reason (13/14 "not implemented") |
 | 1 | 2026-06-11 · run-phase `wf_6279ff85-963` | 2026-06-11 · gates green · reviewer PASS (4/4 angles) | 3877c22 | Internal — no observation point (oracle: 14/14 pass) |
 | 2 (oracle) | 2026-06-11 (orchestrator + haiku-test-author) | 2026-06-11 | a743a3c | Internal — oracle confirmed failing for the right reason (10/12 pre-impl) |
-| 2 | 2026-06-11 · run-phase `wf_8f07c851-71b` | — | — | — |
+| 2 | 2026-06-11 · run-phase `wf_8f07c851-71b` | 2026-06-11 · oracle 12/12 · reviewer FLAG adjudicated (setup.ts shim accepted) | 683130b | Deferred to Phase 3 smoke (gates were red on pre-existing test debt at smoke time; fixed in ffc1132) |
+| 2b (inline fix) | 2026-06-11 (sonnet-implementer) | 2026-06-11 | ffc1132 | Internal — stale ActivationGate tests aligned to shipped UUID validation (15/15) |
+| 3 (oracle) | 2026-06-11 (orchestrator + haiku-test-author) | 2026-06-11 | 60912f9 | Internal — oracle failing for the right reason (5/10 pre-impl) |
+| 3 | 2026-06-11 · run-phase `wf_e1fa24b1-f1c` | 2026-06-11 · oracle 10/10 · reviewer FLAG_UNCERTAIN adjudicated (cosmetic) | 49ec20a | PENDING — capabilityHalt: smoke CANNOT-LAUNCH (no .claude/smoke-config.json; dev+installed builds share %APPDATA%\com.coles.writing\writing.db, so trial-state seeding needs Cole's go-ahead). Full suite 1251/1251 green. |
 
 ## Follow-up candidates
 

@@ -5,11 +5,11 @@
 // storage per Decision D2 (app_meta KV table under key 'trial').
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  TRIAL_DURATION_DAYS,
-  computeTrialStatus,
-} from "../features/license/trial";
 import type { TrialRecord } from "../features/license/trial";
+import {
+  computeTrialStatus,
+  TRIAL_DURATION_DAYS,
+} from "../features/license/trial";
 import {
   readTrialRecord,
   writeTrialRecord,
