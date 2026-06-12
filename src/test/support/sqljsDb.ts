@@ -46,6 +46,18 @@ function runSelect<T>(
     rows.push(stmt.getAsObject() as Record<string, unknown>);
   }
   stmt.free();
+  // PRAGMA table_info returns dflt_value as SQLITE_TEXT even for integer/float
+  // default expressions (e.g. DEFAULT 0 → "0"). Coerce numeric-looking dflt_value
+  // strings to their JavaScript number equivalents so tests can assert toBe(0) etc.
+  if (/PRAGMA\s+table_x?info\b/i.test(query)) {
+    return rows.map((row) => ({
+      ...row,
+      dflt_value:
+        typeof row.dflt_value === "string" && row.dflt_value !== "NULL"
+          ? (Number.isFinite(Number(row.dflt_value)) ? Number(row.dflt_value) : row.dflt_value)
+          : row.dflt_value,
+    })) as T;
+  }
   return rows as T;
 }
 

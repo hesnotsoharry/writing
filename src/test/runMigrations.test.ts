@@ -71,10 +71,14 @@ describe("runMigrations — version gating (vi.fn double)", () => {
     // Migration 3 legitimately issues its own CREATE TABLE (scene_links_new) — that must
     // NOT be counted as a spurious baseline re-run.
     const baselineTables = ["scene_docs", "projects", "folders", "scenes", "characters", "locations"];
+    // Match CREATE TABLE statements where the table name directly follows the keyword —
+    // this avoids false-positives from later migrations that REFERENCE baseline table names
+    // in FK declarations (e.g. "REFERENCES projects(id)") inside their own CREATE TABLE body.
     const baselineDdlFired = db.executeCalls.some(
       (call) =>
-        call.includes("CREATE TABLE") &&
-        baselineTables.some((t) => call.includes(t))
+        baselineTables.some((t) =>
+          new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${t}\\b`).test(call)
+        )
     );
     expect(baselineDdlFired).toBe(false);
 

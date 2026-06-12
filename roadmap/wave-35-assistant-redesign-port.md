@@ -130,7 +130,11 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit SHA | Observation point hit |
+|---|---|---|---|---|
+| 0 (plan + oracle) | — | 2026-06-12 | e053852 + c6b351a | n/a — oracle confirmed failing 14/14 for "migrations absent" |
+| A | 2026-06-12 (run-phase `wf_322c4431-c7c`, panel tier) | 2026-06-12 | (this commit) | Internal — no observation point; oracle 14/14 green, full suite 1308 green, panel PASS (1 FLAG: stale header — fixed by orchestrator) |
+| B | 2026-06-12 (run-phase, skip tier + smoke) | — | — | — |
 
 ## Follow-up candidates
 

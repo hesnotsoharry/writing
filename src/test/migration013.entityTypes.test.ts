@@ -164,7 +164,7 @@ describe("migration suite — after entity_types", () => {
     try {
       await runMigrations(db);
       expect(await readUserVersion(db)).toBe(LATEST);
-      expect(LATEST).toBe(15);
+      expect(LATEST).toBe(17);
     } finally {
       db.close();
     }

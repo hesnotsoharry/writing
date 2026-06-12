@@ -1,5 +1,5 @@
 /**
- * Migration implementations 009–013.
+ * Migration implementations 009–017.
  * Extracted from migrations.ts to satisfy the 300-line file limit.
  * FROZEN entries (009–012) — do not edit. New migrations go here or in
  * a further migrations3.ts as the file grows.
@@ -159,6 +159,67 @@ export async function migration_015_boards(db: DbHandle): Promise<void> {
     `CREATE TABLE IF NOT EXISTS board_docs (
       board_id TEXT PRIMARY KEY,
       state_base64 TEXT NOT NULL
+    )`
+  );
+}
+
+/**
+ * Create ai_conversations and ai_messages tables for the AI assistant feature,
+ * and add entities.exclude_from_ai column to shield entities from context assembly.
+ *
+ * ai_conversations — one row per manuscript-level conversation (project-scoped).
+ * ai_messages — ordered turns; role CHECK restricts to 'you' | 'ai'.
+ * context_json (you-messages) mirrors the chips displayed at send time.
+ * credits_cost (ai-messages) is populated from the stream's done event.
+ *
+ * ON DELETE CASCADE on ai_messages is declared but the app explicitly deletes
+ * child rows rather than relying on PRAGMA foreign_keys (Decision 4).
+ */
+export async function migration_016_ai_assistant(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS ai_conversations (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id),
+      title TEXT NOT NULL,
+      last_verb TEXT,
+      boundary_chapter_id TEXT,
+      context_config TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`
+  );
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS ai_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK (role IN ('you','ai')),
+      verb TEXT NOT NULL,
+      body TEXT NOT NULL,
+      context_json TEXT,
+      credits_cost INTEGER,
+      created_at INTEGER NOT NULL
+    )`
+  );
+  await ensureColumn(db, "entities", "exclude_from_ai", "INTEGER NOT NULL DEFAULT 0");
+}
+
+/**
+ * Create the manuscript_about table — a 1:1 record keyed on project_id that
+ * holds the "About this manuscript" fields sent along in every AI system prompt.
+ *
+ * All five content fields are TEXT nullable so partial saves are valid.
+ * Separate from the projects row to keep AI-scoped data cohesive and droppable
+ * without touching the hot projects table (Decision 1).
+ */
+export async function migration_017_manuscript_about(db: DbHandle): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS manuscript_about (
+      project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+      synopsis TEXT,
+      genre TEXT,
+      tone TEXT,
+      pov TEXT,
+      notes TEXT
     )`
   );
 }

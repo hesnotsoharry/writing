@@ -6,6 +6,8 @@ import {
   migration_013_entity_types,
   migration_014_app_meta,
   migration_015_boards,
+  migration_016_ai_assistant,
+  migration_017_manuscript_about,
 } from "./migrations2";
 import type { DbHandle } from "./schema";
 import { ensureColumn } from "./schema";
@@ -374,6 +376,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 13, name: "entity-types", up: migration_013_entity_types },
   { version: 14, name: "app-meta", up: migration_014_app_meta },
   { version: 15, name: "boards", up: migration_015_boards },
+  { version: 16, name: "ai-assistant", up: migration_016_ai_assistant },
+  { version: 17, name: "manuscript-about", up: migration_017_manuscript_about },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
