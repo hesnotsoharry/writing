@@ -148,6 +148,7 @@ Decisions D1–D6 ran the full cell on 2026-06-12: `sonnet-architect` (agent ae1
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
 | 1 | 2026-06-12 (run-phase wf_850770ae-4f5) | 2026-06-12 — gates green; reviewer FLAG ×3 adjudicated, all 4 findings fixed pre-commit (TOCTOU→atomic `decrement_credits` RPC, CREDIT_UNIT_USD mirror, pinned model ID, hooks violation) | 6dbcd3c + 71a816a (CORS fix — WebView preflight, found at live smoke) | YES 2026-06-12 — Cole typed a prompt into the dev panel and watched a streamed reply (after CORS fix deployed). Backend chain also verified via curl: session 200 → chat SSE → done {16 in / 8 out / 513 credits}. |
+| 2 | 2026-06-12 (run-phase wf_69a127eb-0b2) | 2026-06-12 — gates green (128 tests); reviewer BLOCK adjudicated: RPC param mismatch (p_cost→p_amount, would have 429'd every chat), rate-cap off-by-one, email-key OOO bug — all fixed pre-commit + LS-mint path and env variant IDs wired | 7784b06 | Internal phase (no user-visible observation per plan). NOT pushed — awaiting Cole paste-run of 0003_credit_reserve.sql (D6). LS sandbox webhook end-to-end test pending (gates Phase 2 ship per plan Note). |
 
 ## Follow-up candidates
 
