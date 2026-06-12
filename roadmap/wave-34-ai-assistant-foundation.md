@@ -147,7 +147,7 @@ Decisions D1–D6 ran the full cell on 2026-06-12: `sonnet-architect` (agent ae1
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | 2026-06-12 (run-phase wf_850770ae-4f5) | 2026-06-12 — gates green; reviewer FLAG ×3 adjudicated, all 4 findings fixed pre-commit (TOCTOU→atomic `decrement_credits` RPC, CREDIT_UNIT_USD mirror, pinned model ID, hooks violation) | 6dbcd3c | NOT YET — live smoke pending Cole pre-work: Supabase migration + dev seed applied, then push (D6), then dev-build smoke. Cloudflare secrets set 2026-06-12. |
+| 1 | 2026-06-12 (run-phase wf_850770ae-4f5) | 2026-06-12 — gates green; reviewer FLAG ×3 adjudicated, all 4 findings fixed pre-commit (TOCTOU→atomic `decrement_credits` RPC, CREDIT_UNIT_USD mirror, pinned model ID, hooks violation) | 6dbcd3c + 71a816a (CORS fix — WebView preflight, found at live smoke) | YES 2026-06-12 — Cole typed a prompt into the dev panel and watched a streamed reply (after CORS fix deployed). Backend chain also verified via curl: session 200 → chat SSE → done {16 in / 8 out / 513 credits}. |
 
 ## Follow-up candidates
 
