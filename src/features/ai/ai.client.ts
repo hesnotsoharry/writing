@@ -72,35 +72,33 @@ function parseSseLine(line: string): NormalizedEvent | null {
 // ── Streaming chat ────────────────────────────────────────────────────────────
 
 /**
- * Stream a chat request through the proxy. Calls onEvent for each normalized
- * SSE event. Resolves when the stream closes (after the 'done' event).
- *
- * No Anthropic wire-format parsing occurs here — the proxy normalizes all events.
+ * Optional parameters for streamChat.
+ * - maxTokens: per-verb output cap (proxy uses this to reserve credits).
+ * - system: system prompt forwarded to Anthropic's `system` field by the proxy.
+ * - signal: AbortSignal for stop-button support.
  */
-export async function streamChat(
-  token: string,
+export interface StreamChatOptions {
+  maxTokens?: number;
+  system?: string;
+  signal?: AbortSignal;
+}
+
+function buildChatBody(
   messages: AiMessage[],
+  options: StreamChatOptions | undefined,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { messages };
+  if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+  if (options?.system) body.system = options.system;
+  return body;
+}
+
+async function drainStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   onEvent: (ev: NormalizedEvent) => void,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/ai/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    },
-    body: JSON.stringify({ messages }),
-  });
-
-  if (!res.ok || !res.body) {
-    const errBody = await res.text().catch(() => "");
-    onEvent({ type: "error", message: `Chat request failed: ${res.status} ${errBody}` });
-    return;
-  }
-
-  const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -116,4 +114,30 @@ export async function streamChat(
     const ev = parseSseLine(buffer);
     if (ev) onEvent(ev);
   }
+}
+
+/**
+ * Stream a chat request through the proxy. Calls onEvent for each normalized
+ * SSE event. Resolves when the stream closes (after the 'done' event).
+ *
+ * No Anthropic wire-format parsing occurs here — the proxy normalizes all events.
+ */
+export async function streamChat(
+  token: string,
+  messages: AiMessage[],
+  onEvent: (ev: NormalizedEvent) => void,
+  options?: StreamChatOptions,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/ai/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(buildChatBody(messages, options)),
+    signal: options?.signal,
+  });
+  if (!res.ok || !res.body) {
+    const errBody = await res.text().catch(() => "");
+    onEvent({ type: "error", message: `Chat request failed: ${res.status} ${errBody}` });
+    return;
+  }
+  await drainStream(res.body.getReader(), onEvent);
 }

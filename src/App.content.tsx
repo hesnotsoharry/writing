@@ -28,7 +28,7 @@ import type { Snapshot } from "./db/snapshotStore";
 import { SqliteGoalsStore } from "./db/sqliteGoalsStore";
 import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import { useLiveWordCount } from "./editor/useLiveWordCount";
-import { AssistantPanelDev } from "./features/ai/AssistantPanelDev";
+import { wrapInspectorSlot } from "./features/ai/AssistantPanel";
 import { useArchivedCount } from "./features/archive/useArchivedCount";
 import { AppFocusLayer, useFocusSettings } from "./features/focus/AppFocusLayer";
 import type { GoalRecord } from "./features/goals/goalModel";
@@ -189,7 +189,7 @@ interface SideSlotsProps {
   onOpenEntry: (id: string, kind: string) => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
   onInsertAtCaret?: (name: string) => void;
-  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null; // F2: board id; null outside brainstorm
+  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null; // F2: board id; null outside brainstorm
 }
 
 function buildSideSlots(p: SideSlotsProps) {
@@ -203,8 +203,8 @@ function buildSideSlots(p: SideSlotsProps) {
         onOpenArchive={() => p.overlays.setShowArchive(true)}
         onOpenBrainstorm={p.onOpenBrainstorm} activeBoardId={p.view === "brainstorm" ? (p.selectedBoardId ?? null) : null} />
     : null;
-  const inspectorSlot = (p.showSidePanels && p.view === "editor" && p.activeProjectId)
-    ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId}
+  const base = (p.showSidePanels && p.view === "editor" && !!p.activeProjectId)
+    ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId!}
         sceneId={p.selectedSceneId} scene={p.activeScene} refreshKey={p.linksVersion}
         liveWordCount={p.liveWordCount} manuscriptTotal={p.manuscriptTotal}
         chapterId={p.chapterId} chapterTotal={p.chapterTotal}
@@ -212,10 +212,11 @@ function buildSideSlots(p: SideSlotsProps) {
         onTakeSnapshot={p.onTakeSnapshot} onGoalMenu={p.onGoalMenu}
         onInsertAtCaret={p.onInsertAtCaret}
         onOpenEntry={(entityId, type) => {
-          const kind = type === "character" ? "Character" : type === "location" ? "Location" : type.charAt(0).toUpperCase() + type.slice(1);
+          const kind = type.charAt(0).toUpperCase() + type.slice(1);
           p.onOpenEntry(entityId, kind);
         }} />
     : null;
+  const inspectorSlot = base ? wrapInspectorSlot(base, p) : null;
   return { binderSlot, inspectorSlot };
 }
 
@@ -286,7 +287,7 @@ function useAppContentSlots(props: AppContentProps) {
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
     showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
-    onInsertAtCaret, selectedBoardId, onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
+    onInsertAtCaret, selectedBoardId, doc, onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
   const { onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };
   // eslint-disable-next-line react-hooks/refs
@@ -341,7 +342,6 @@ export function AppContent(props: AppContentProps) {
       <LabelManagerOverlay show={labelState.showLabelManager} activeProjectId={activeProjectId}
         labels={labelState.labels} labelStore={labelStore}
         onClose={() => labelState.setShowLabelManager(false)} onChanged={labelState.refreshLabels} />
-      {import.meta.env.DEV && <AssistantPanelDev />}
     </>
   );
 }
