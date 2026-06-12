@@ -31,6 +31,12 @@ export interface WebhookEnv extends Env {
   LS_SUB_VARIANT_ID?: string;
   /** LS variant ID for the top-up credits pack product. */
   LS_TOPUP_VARIANT_ID?: string;
+  /**
+   * LS API key for fetching order-scoped license keys.
+   * Keys are NOT included in subscription webhook payloads — they must be
+   * fetched via GET /v1/license-keys?filter[order_id]={id} (Bug A fix 2026-06-12).
+   */
+  LS_API_KEY: string;
 }
 
 /**

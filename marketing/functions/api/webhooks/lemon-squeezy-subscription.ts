@@ -5,26 +5,26 @@
  * Mirrors the HMAC verification and webhook_events idempotency ledger from
  * lemon-squeezy.ts; new behavior in a separate file (decision: no cross-contamination).
  *
- * Handled events:
- *   subscription_created       — create subscription row; prefer LS-provided license key;
- *                                fall back to WN-AI- self-mint if absent.
- *   subscription_updated       — update status / reset_at.
- *   subscription_payment_success — monthly reset: balance := MONTHLY_ALLOWANCE.
- *   subscription_expired       — freeze: status='expired', balance preserved.
- *   order_created (top-up)     — += TOPUP_PACK_AMOUNT for matching LS_TOPUP_VARIANT_ID.
- *                                Other variant IDs (subscription product, unknown) are
- *                                recorded in webhook_events as idempotent no-ops.
+ * Event → payload shape → subscription id extraction:
+ *   subscription_created       data is subscription  — sub id = data.id
+ *   subscription_updated       data is subscription  — sub id = data.id
+ *   subscription_expired       data is subscription  — sub id = data.id
+ *   subscription_payment_success data is invoice     — sub id = data.attributes.subscription_id
+ *     (Bug B fix 2026-06-12: invoice data.id is the INVOICE id, not the subscription id)
+ *
+ * Row creation (Bug A fix 2026-06-12):
+ *   subscription_created: sole row-creating event. Fetches license key from LS API
+ *     (GET /v1/license-keys?filter[order_id]={order_id}). Keys are ORDER-scoped
+ *     resources — LS does NOT include them in subscription webhook payloads.
+ *     LS API network failure / non-200 → 500 so LS retries (up to 3x).
+ *     API returns zero keys (product without license keys) → WN-AI- self-mint fallback.
+ *   All other subscription events: resolve existing row by ls_subscription_id only.
+ *     No existing row → 500 (retryable; LS retries until created arrives first).
  *
  * Idempotency: webhook_events ledger (23505 unique violation = already processed).
- * Out-of-order safety: upsert_subscription() ON CONFLICT (ls_subscription_id)
- *   never overwrites license_key once minted; balance only changes via explicit RPCs.
- *
- * Key-mint path (D2, verified 2026-06-12): LS subscription products have "generate
- *   license key" enabled. Prefer the key from the LS payload; WN-AI- self-mint is
- *   the dormant fallback. The email seam always reads the PERSISTED key from the
- *   upsert RETURNING to guard against out-of-order delivery.
+ * Top-up order_created branch: unchanged.
  */
-import { PostgrestError } from "@supabase/supabase-js";
+import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 import { MONTHLY_ALLOWANCE, TOPUP_PACK_AMOUNT } from "../../_lib/credits";
 import { WebhookEnv, makeServiceClient } from "../../_lib/supabase";
@@ -49,14 +49,26 @@ interface SubscriptionAttributes {
   renews_at: string | null;
   ends_at: string | null;
   updated_at: string;
-  // LS includes a license_key field when "generate license key" is enabled.
-  // Verified active for subscription products (D2, 2026-06-12).
   [key: string]: unknown;
 }
 
+// subscription_created / subscription_updated / subscription_expired payloads.
 interface SubscriptionPayload {
-  meta: { event_name: string };
+  meta: { event_name: "subscription_created" | "subscription_updated" | "subscription_expired" };
   data: { type: "subscriptions"; id: string; attributes: SubscriptionAttributes };
+}
+
+// subscription_payment_success: data is a subscription-invoice (NOT a subscription).
+// Bug B (2026-06-12): data.id is the INVOICE id; sub id is at attributes.subscription_id.
+interface InvoiceAttributes {
+  subscription_id: string;
+  updated_at: string;
+  [key: string]: unknown;
+}
+
+interface InvoicePayload {
+  meta: { event_name: "subscription_payment_success" };
+  data: { type: "subscription-invoices"; id: string; attributes: InvoiceAttributes };
 }
 
 interface TopupOrderAttributes {
@@ -70,7 +82,7 @@ interface TopupOrderPayload {
   data: { type: "orders"; id: string; attributes: TopupOrderAttributes };
 }
 
-type LsPayload = SubscriptionPayload | TopupOrderPayload;
+type LsPayload = SubscriptionPayload | InvoicePayload | TopupOrderPayload;
 
 const SUBSCRIPTION_EVENTS = new Set([
   "subscription_created",
@@ -90,16 +102,7 @@ function mapStatus(lsStatus: LsSubStatus): "active" | "expired" {
   return "active";
 }
 
-// ── Key mint seam (D2) ────────────────────────────────────────────────────────
-
-/**
- * SEAM: License key extraction — LS-mint path (D2, verified 2026-06-12, PRIMARY).
- * Returns the key if the LS payload carries one; null otherwise (self-mint fallback).
- */
-function extractLicenseKey(attrs: SubscriptionAttributes): string | null {
-  const key = attrs["license_key"];
-  return typeof key === "string" && key.length > 0 ? key : null;
-}
+// ── License key helpers ───────────────────────────────────────────────────────
 
 function mintNewLicenseKey(): string {
   const bytes = new Uint8Array(16);
@@ -112,6 +115,66 @@ function mintNewLicenseKey(): string {
       .toUpperCase()
   );
 }
+
+interface LsLicenseKeyResponse {
+  data: Array<{ attributes: { key: string } }>;
+}
+
+/**
+ * Fetches the license key for an order from the LS license-keys API.
+ * Returns: key string (use it), null (zero keys → self-mint), or "error" (caller → 500).
+ *
+ * Bug A fix (2026-06-12): LS does NOT include license keys in subscription webhook
+ * payloads. Keys are ORDER-scoped resources — must be fetched via the API.
+ * Endpoint: GET /v1/license-keys?filter[order_id]={id}
+ *           Authorization: Bearer {LS_API_KEY}, Accept: application/vnd.api+json
+ */
+async function fetchLsLicenseKey(
+  orderId: number,
+  env: WebhookEnv,
+): Promise<string | null | "error"> {
+  try {
+    const res = await fetch(
+      `https://api.lemonsqueezy.com/v1/license-keys?filter[order_id]=${orderId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${env.LS_API_KEY}`,
+          Accept: "application/vnd.api+json",
+        },
+      },
+    );
+    if (!res.ok) return "error";
+    const json = (await res.json()) as LsLicenseKeyResponse;
+    if (!json.data || json.data.length === 0) return null;
+    return json.data[0].attributes.key;
+  } catch {
+    return "error";
+  }
+}
+
+// ── Subscription row resolver ─────────────────────────────────────────────────
+
+interface SubRow { license_key: string }
+
+/**
+ * Resolves an existing subscription row by ls_subscription_id.
+ * Returns the row or null if not found.
+ * Non-created events must find an existing row; null → caller returns 500 (retryable).
+ */
+async function resolveSubscription(
+  db: SupabaseClient,
+  lsSubId: string,
+): Promise<SubRow | null> {
+  const { data, error } = await db
+    .from("subscriptions")
+    .select("license_key")
+    .eq("ls_subscription_id", lsSubId)
+    .single();
+  if (error || !data) return null;
+  return data as SubRow;
+}
+
+// ── Email seam ────────────────────────────────────────────────────────────────
 
 /**
  * SEAM: Email dispatch for the subscription license key.
@@ -147,31 +210,27 @@ function isSubscriptionVariant(variantId: number | undefined, env: WebhookEnv): 
   return matchesVariantEnv(variantId, env.LS_SUB_VARIANT_ID);
 }
 
-// ── Subscription event handler ────────────────────────────────────────────────
+// ── Subscription event handlers ───────────────────────────────────────────────
 
-async function handleSubscriptionEvent(
-  payload: SubscriptionPayload,
-  env: WebhookEnv,
-): Promise<Response> {
-  const eventName = payload.meta.event_name;
+/**
+ * subscription_created: sole row-creating event.
+ * Fetches license key from LS API; self-mints WN-AI- only when API returns zero keys.
+ * LS API network failure or non-200 → 500 so LS retries.
+ */
+async function handleCreated(payload: SubscriptionPayload, env: WebhookEnv): Promise<Response> {
   const subId = payload.data.id;
   const attrs = payload.data.attributes;
-
-  // Idempotency key: event + subscription + state timestamp (changes per-update)
   const idempotencyKey = `sub:${subId}:${attrs.updated_at}`;
   const db = makeServiceClient(env);
 
-  // Resolve license key: prefer LS-provided (primary path); fall back to self-mint.
-  const extracted = extractLicenseKey(attrs);
-  const licenseKey = extracted ?? mintNewLicenseKey();
-  const selfMinted = extracted === null;
+  // Fetch from LS API — keys are order-scoped, not in the webhook payload (Bug A fix)
+  const apiResult = await fetchLsLicenseKey(attrs.order_id, env);
+  if (apiResult === "error") return new Response("Internal Server Error", { status: 500 });
+  const licenseKey = apiResult ?? mintNewLicenseKey();
 
-  // Map LS status (expired event always freezes)
-  const status =
-    eventName === "subscription_expired" ? "expired" : mapStatus(attrs.status);
+  const status = mapStatus(attrs.status);
   const resetAt = attrs.renews_at ? new Date(attrs.renews_at) : null;
 
-  // Upsert subscription row (ON CONFLICT: update status/reset_at; never overwrite key)
   const { data: upsertedKey, error: upsertErr } = await db.rpc("upsert_subscription", {
     p_license_key: licenseKey,
     p_ls_subscription_id: subId,
@@ -181,33 +240,82 @@ async function handleSubscriptionEvent(
   });
   if (upsertErr) return new Response("Internal Server Error", { status: 500 });
 
-  // Mark event in idempotency ledger AFTER the idempotent upsert
+  const { error: ledgerErr } = await db
+    .from("webhook_events")
+    .insert({ event_name: "subscription_created", order_id: idempotencyKey });
+  const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
+  if (ledgerCode === "23505") return new Response(null, { status: 200 });
+  if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
+
+  const emailKey = (upsertedKey as string | null) ?? licenseKey;
+  await sendSubscriptionKeyEmail(env, attrs.user_email, emailKey);
+
+  return new Response(null, { status: 200 });
+}
+
+/**
+ * subscription_payment_success: monthly credit reset.
+ * Bug B fix (2026-06-12): payload data is a subscription-invoice object.
+ *   Subscription id = data.attributes.subscription_id (NOT data.id = invoice id).
+ * Never creates rows; resolves existing row or returns 500 (retryable).
+ */
+async function handlePaymentSuccess(payload: InvoicePayload, env: WebhookEnv): Promise<Response> {
+  const invoiceId = payload.data.id;
+  const subId = payload.data.attributes.subscription_id; // Bug B fix: NOT payload.data.id
+  const idempotencyKey = `sub:${subId}:payment:${invoiceId}`;
+  const db = makeServiceClient(env);
+
+  const existing = await resolveSubscription(db, subId);
+  if (!existing) return new Response("Internal Server Error", { status: 500 });
+
+  const { error: ledgerErr } = await db
+    .from("webhook_events")
+    .insert({ event_name: "subscription_payment_success", order_id: idempotencyKey });
+  const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
+  if (ledgerCode === "23505") return new Response(null, { status: 200 });
+  if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
+
+  const nextResetAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.rpc("reset_credits", {
+    p_license_key: existing.license_key,
+    p_allowance: MONTHLY_ALLOWANCE,
+    p_reset_at: nextResetAt.toISOString(),
+    p_request_id: idempotencyKey,
+  });
+
+  return new Response(null, { status: 200 });
+}
+
+/**
+ * subscription_updated / subscription_expired: status/reset_at update only.
+ * Never creates rows; resolves existing row or returns 500 (retryable).
+ * subscription_expired always sets status='expired' regardless of payload status field.
+ */
+async function handleStatusUpdate(payload: SubscriptionPayload, env: WebhookEnv): Promise<Response> {
+  const eventName = payload.meta.event_name;
+  const subId = payload.data.id;
+  const attrs = payload.data.attributes;
+  const idempotencyKey = `sub:${subId}:${attrs.updated_at}`;
+  const db = makeServiceClient(env);
+
+  const existing = await resolveSubscription(db, subId);
+  if (!existing) return new Response("Internal Server Error", { status: 500 });
+
+  const status = eventName === "subscription_expired" ? "expired" : mapStatus(attrs.status);
+  const resetAt = attrs.renews_at ? new Date(attrs.renews_at) : null;
+
+  const { error: updateErr } = await db
+    .from("subscriptions")
+    .update({ status, reset_at: resetAt?.toISOString() ?? null })
+    .eq("ls_subscription_id", subId);
+  if (updateErr) return new Response("Internal Server Error", { status: 500 });
+
   const { error: ledgerErr } = await db
     .from("webhook_events")
     .insert({ event_name: eventName, order_id: idempotencyKey });
   const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
-
-  // payment_success: reset balance to monthly allowance
-  if (eventName === "subscription_payment_success") {
-    const effectiveKey = (upsertedKey as string | null) ?? licenseKey;
-    const nextResetAt = resetAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    await db.rpc("reset_credits", {
-      p_license_key: effectiveKey,
-      p_allowance: MONTHLY_ALLOWANCE,
-      p_reset_at: nextResetAt.toISOString(),
-      p_request_id: idempotencyKey,
-    });
-  }
-
-  // subscription_created: email the persisted credential when we self-minted.
-  // ALWAYS use the upsert RETURNING key, never the local variable — guards
-  // against out-of-order delivery where a prior event stored a different key.
-  if (eventName === "subscription_created" && selfMinted) {
-    const emailKey = (upsertedKey as string | null) ?? licenseKey;
-    await sendSubscriptionKeyEmail(env, attrs.user_email, emailKey);
-  }
 
   return new Response(null, { status: 200 });
 }
@@ -274,8 +382,13 @@ export const onRequestPost: PagesFunction<WebhookEnv> = async (context) => {
   const eventName = payload.meta.event_name;
   if (!HANDLED_EVENTS.has(eventName)) return new Response(null, { status: 200 });
 
+  if (eventName === "subscription_payment_success") {
+    return handlePaymentSuccess(payload as InvoicePayload, context.env);
+  }
   if (SUBSCRIPTION_EVENTS.has(eventName)) {
-    return handleSubscriptionEvent(payload as SubscriptionPayload, context.env);
+    const subPayload = payload as SubscriptionPayload;
+    if (eventName === "subscription_created") return handleCreated(subPayload, context.env);
+    return handleStatusUpdate(subPayload, context.env);
   }
   return handleTopupOrder(payload as TopupOrderPayload, context.env);
 };
