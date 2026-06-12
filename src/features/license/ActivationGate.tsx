@@ -120,7 +120,10 @@ function useActivationFlow(onActivated: () => void) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function GateHead() {
+function GateHead({ trialExpired = false }: { trialExpired?: boolean }) {
+  const sub = trialExpired
+    ? "Your 14-day free trial has ended."
+    : "Enter your license key to get started.";
   return (
     <div className="sheet-head">
       <Icon
@@ -129,8 +132,18 @@ function GateHead() {
       />
       <div>
         <div className="sheet-title">WritersNook</div>
-        <div className="sheet-sub">Enter your license key to get started.</div>
+        <div className="sheet-sub">{sub}</div>
       </div>
+    </div>
+  );
+}
+
+function GateDismiss({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="sheet-foot">
+      <button className="btn btn-secondary" onClick={onDismiss}>
+        Continue trial
+      </button>
     </div>
   );
 }
@@ -220,13 +233,13 @@ function GateFooter({ phase, onActivate, onRetrySave }: GateFooterProps) {
 
 // ─── ActivationGate ───────────────────────────────────────────────────────────
 
-export function ActivationGate({ onActivated }: ActivationGateProps) {
+export function ActivationGate({ onActivated, trialExpired = false, onDismiss }: ActivationGateProps) {
   const { phase, licenseKey, setLicenseKey, onActivate, onRetrySave } =
     useActivationFlow(onActivated);
   return (
     <div className="gate-bg">
       <div className="sheet gate-sheet">
-        <GateHead />
+        <GateHead trialExpired={trialExpired} />
         <GateBody
           phase={phase}
           licenseKey={licenseKey}
@@ -234,6 +247,7 @@ export function ActivationGate({ onActivated }: ActivationGateProps) {
           onActivate={onActivate}
         />
         <GateFooter phase={phase} onActivate={onActivate} onRetrySave={onRetrySave} />
+        {onDismiss && <GateDismiss onDismiss={onDismiss} />}
       </div>
     </div>
   );

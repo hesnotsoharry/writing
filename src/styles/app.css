@@ -373,6 +373,13 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .statusbar .goal-mini { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .statusbar .goal-track { width: 90px; height: 5px; border-radius: 3px; background: var(--parchment-deep); overflow: hidden; }
 .statusbar .goal-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.statusbar .sb-trial-pill {
+  display: flex; align-items: center;
+  padding: 1px 8px; border-radius: 10px;
+  border: 1px solid var(--line); background: none; color: var(--ink-3);
+  cursor: pointer; font-size: inherit; font-family: inherit; white-space: nowrap; line-height: 1;
+}
+.statusbar .sb-trial-pill:hover { background: var(--parchment-deep); }
 
 /* ---- Inspector ----------------------------------------------------------- */
 .insp-scroll { flex: 1; overflow-y: auto; padding: var(--s-5) var(--s-4) var(--s-8); }

@@ -259,8 +259,7 @@ function useAppCore() {
   const { doc, selectedSceneId, showHistory, historySceneId } = state;
   const snap = useSnapshotState(doc, selectedSceneId, showHistory, historySceneId);
   // Rail snapshots: always track the active scene, independent of the overlay.
-  const [railRefreshKey, setRailRefreshKey] = useState(0);
-  const bumpRailKey = useCallback(() => setRailRefreshKey((k) => k + 1), []);
+  const [railRefreshKey, setRailRefreshKey] = useState(0); const bumpRailKey = useCallback(() => setRailRefreshKey((k) => k + 1), []);
   const railSnapshots = useActiveSceneSnapshots(snapshotStore, selectedSceneId, railRefreshKey);
   return { state, wiring, snap, railSnapshots, bumpRailKey, setTheme, setAccent };
 }
@@ -313,11 +312,11 @@ export default function App() {
     setShowHistory, setHistorySceneId,
     entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
   const { setHistorySnapshots } = snap;
-  // Phase 3 will consume daysLeft and trialExpired for the StatusBar trial pill.
-  const { gateStatus, onActivated } = useLicenseGate(!loading);
+  const { gateStatus, onActivated, daysLeft, trialExpired } = useLicenseGate(!loading); const [activationOpen, setActivationOpen] = useState(false);
 
   if (loading || gateStatus === "checking") return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
-  if (gateStatus === "needed") return <ActivationGate onActivated={onActivated} />;
+  if (gateStatus === "needed") return <ActivationGate onActivated={onActivated} trialExpired={trialExpired} />;
+  if (gateStatus === "trial" && activationOpen) return <ActivationGate onActivated={onActivated} onDismiss={() => setActivationOpen(false)} />;
   if (!tree) return null;
   const ctx: SnapCtx = { sceneId: selectedSceneId, doc, set: setHistorySnapshots, setShowHistory };
   const allScenes = [...(tree.chapters.flatMap((ch) => ch.scenes)), ...tree.shortPieces];
@@ -339,7 +338,7 @@ export default function App() {
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
       onTakeSnapshot={selectedSceneId ? () => { void snapCapture({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
-      labelStore={labelStore}
+      labelStore={labelStore} trialDaysLeft={gateStatus === "trial" ? daysLeft : null} onTrialPillClick={() => setActivationOpen(true)}
     />
   );
 }

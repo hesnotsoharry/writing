@@ -93,7 +93,7 @@ export interface AppContentProps {
   onOpenEntry: (id: string, kind: string) => void; onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void; onExitEntry: () => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
-  labelStore: LabelStore;
+  labelStore: LabelStore; trialDaysLeft?: number | null; onTrialPillClick?: () => void;
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -311,7 +311,7 @@ export function AppContent(props: AppContentProps) {
     docName, binderSlot, inspectorSlot, viewStageContent, overlays, motionOn,
     labelState, labelStore, focusSettingsHook, goalMenu, closeGoalMenu, editGoalId, setEditGoalId,
   } = useAppContentSlots(props);
-  const { view, onViewChange, activeProjectId } = props;
+  const { view, onViewChange, activeProjectId, trialDaysLeft, onTrialPillClick } = props;
   const hudGoal = { current: goalProgress.words, target: goalProgress.target,
     pct: goalProgress.pct, streak: goalProgress.streak,
     name: goalProgress.on ? GOAL_META.daily.name : undefined };
@@ -331,7 +331,7 @@ export function AppContent(props: AppContentProps) {
         viewStage={viewStageContent}
         inspector={inspectorSlot}
         statusBar={<StatusBar sceneWordCount={liveWordCount} goalsOn={goalsOn}
-          manuscriptTotal={manuscriptTotal} goal={goalProgress} />}
+          manuscriptTotal={manuscriptTotal} goal={goalProgress} trialDaysLeft={trialDaysLeft} onTrialPillClick={onTrialPillClick} />}
       />
       <AppFocusLayer focusMode={focusMode} wordCount={liveWordCount} goal={hudGoal}
         goalOn={goalsOn} settingsHook={focusSettingsHook} onExit={() => setFocusMode(false)} />

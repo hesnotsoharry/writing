@@ -88,6 +88,17 @@ function renderBackup(backupStatus: BackupStatus | undefined, clock: string): Re
   );
 }
 
+function renderTrialPill(
+  days: number | null | undefined,
+  onClick: (() => void) | undefined,
+): ReactElement | null {
+  if (days == null) return null;
+  const label = days === 1 ? "1 day left" : `${days} days left`;
+  return (
+    <button className="sb-trial-pill" onClick={onClick}>{label}</button>
+  );
+}
+
 /**
  * Bottom status bar. DATA HONESTY: only genuinely derivable values are shown.
  * The clock is a real local time. The save state shows "Local only" — real
@@ -95,7 +106,7 @@ function renderBackup(backupStatus: BackupStatus | undefined, clock: string): Re
  * fabricated relative timestamps.
  */
 export function StatusBar(props: StatusBarProps): ReactElement {
-  const { sceneWordCount, goalsOn = false, manuscriptTotal, goal, backupStatus } = props;
+  const { sceneWordCount, goalsOn = false, manuscriptTotal, goal, backupStatus, trialDaysLeft, onTrialPillClick } = props;
   const sceneDisplay = sceneWordCount !== null ? sceneWordCount.toLocaleString() : "—";
   const [clock, setClock] = useState(clockNow);
 
@@ -128,6 +139,7 @@ export function StatusBar(props: StatusBarProps): ReactElement {
             <div className="goal-track"><div className="goal-fill" style={{ width: formatPct(goal.pct) }}></div></div>
           </div>
         )}
+        {renderTrialPill(trialDaysLeft, onTrialPillClick)}
         {renderBackup(backupStatus, clock)}
       </div>
     </div>
