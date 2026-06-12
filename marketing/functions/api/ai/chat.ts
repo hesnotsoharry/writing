@@ -2,13 +2,25 @@
  * POST /api/ai/chat
  *
  * Authenticated (Bearer session token) chat endpoint. Validates the token,
- * checks credit balance, streams the Anthropic Messages API response as a
- * normalized SSE event schema, and decrements credits.
+ * checks the per-license rate cap, reserves credits, streams the Anthropic
+ * Messages API response as a normalized SSE event schema, then reconciles
+ * credits from actual token usage (refund-only — balance never goes negative).
  *
  * Normalized SSE schema (Decision 4):
  *   {type:'token', text:string}
  *   {type:'done', inputTokens:number, outputTokens:number, creditsCost:number}
  *   {type:'error', message:string}
+ *
+ * Credit flow (Decision 3 — reserve-then-reconcile):
+ *   1. reserve_credits(estimate) — atomic; returns null if insufficient → 429.
+ *   2. Stream Anthropic response, relay token events.
+ *   3. On stream completion: refund_credits(reserve − actual) if reserve > actual.
+ *   4. On stream failure: refund_credits(full reserve).
+ *   creditsCost in 'done' = min(reserve, actual) — what was actually charged.
+ *
+ * 429 shapes (distinct bodies per caller):
+ *   Zero-credit:  {creditsRemaining:0, resetAt:string|null}
+ *   Rate-cap:     {error:'rate_limit_exceeded', retryAfterSeconds:number}
  *
  * No request/response body logging anywhere in this file (Decision 4 privacy).
  * Credit unit: 1 unit = $0.00001 USD (see migration 0002_ai_subscriptions.sql).
@@ -17,19 +29,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { verifyToken } from "../../_lib/ai-token";
 import { getCorsHeaders, handleOptions } from "../../_lib/cors";
+import {
+  INPUT_UNITS_PER_TOKEN,
+  OUTPUT_UNITS_PER_TOKEN,
+  RATE_CAP_PER_MINUTE,
+  RATE_WINDOW_SECONDS,
+  actualCredits,
+  estimateCredits,
+} from "../../_lib/credits";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-// Model for Phase 1. Pinned to dated variant per reviewer fix (wave-34).
+// Model for Phase 1/2. Pinned to dated variant per reviewer fix (wave-34).
 const MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 1024;
 const MAX_TOKENS_CAP = 4096;
-// Haiku 4.5 pricing: $1/MTok input, $5/MTok output → units per token
-const INPUT_UNITS_PER_TOKEN = 0.1;
-const OUTPUT_UNITS_PER_TOKEN = 0.5;
+
+// Re-export for consumers that import from chat.ts (e.g. tests checking rates).
+export { INPUT_UNITS_PER_TOKEN, OUTPUT_UNITS_PER_TOKEN };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,15 +82,8 @@ interface StreamArgs {
   encoder: TextEncoder;
   db: SupabaseClient;
   licenseKey: string;
-  estimatedCost: number;
-}
-
-// ── Credit helpers ────────────────────────────────────────────────────────────
-
-function estimateCredits(charCount: number, maxTokens: number): number {
-  const inputEst = Math.ceil((charCount / 4) * INPUT_UNITS_PER_TOKEN);
-  const outputReserve = Math.ceil(maxTokens * OUTPUT_UNITS_PER_TOKEN);
-  return inputEst + outputReserve;
+  reserve: number;
+  requestId: string;
 }
 
 // ── SSE write helper ──────────────────────────────────────────────────────────
@@ -179,48 +192,73 @@ async function callAnthropic(
   });
 }
 
-// ── Credit decrement ──────────────────────────────────────────────────────────
+// ── Credit helpers ────────────────────────────────────────────────────────────
 
-async function attemptDecrement(
+async function reserveCredits(
   db: SupabaseClient,
   licenseKey: string,
-  cost: number,
+  amount: number,
+  requestId: string,
 ): Promise<boolean> {
-  // Atomic: single UPDATE … WHERE credits_balance >= p_cost RETURNING credits_balance.
-  // Returns NULL (no row) when credits are insufficient or subscription is inactive,
-  // preventing the TOCTOU double-spend where two concurrent requests both pass a
-  // pre-flight balance check before either writes.
-  const { data } = await db.rpc("decrement_credits", {
+  const { data } = await db.rpc("reserve_credits", {
     p_license_key: licenseKey,
-    p_cost: cost,
+    p_amount: amount,
+    p_request_id: requestId,
   });
   return data !== null;
+}
+
+async function refundCredits(
+  db: SupabaseClient,
+  licenseKey: string,
+  amount: number,
+  requestId: string,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  await db.rpc("refund_credits", {
+    p_license_key: licenseKey,
+    p_amount: amount,
+    p_request_id: requestId,
+    p_meta: meta,
+  });
 }
 
 // ── Stream runner (runs in waitUntil) ─────────────────────────────────────────
 
 async function runStream(args: StreamArgs): Promise<void> {
-  const { apiKey, messages, maxTokens, writer, encoder, db, licenseKey, estimatedCost } = args;
+  const { apiKey, messages, maxTokens, writer, encoder, db, licenseKey, reserve, requestId } = args;
+  let refunded = false;
   try {
     const anthropicRes = await callAnthropic(messages, maxTokens, apiKey);
     if (!anthropicRes.ok || !anthropicRes.body) {
+      await refundCredits(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
+      refunded = true;
       await writeSse(writer, encoder, { type: "error", message: "Upstream error" });
       return;
     }
     const state = await pumpAnthropicToClient(anthropicRes.body, writer, encoder);
+    const actual = actualCredits(state.inputTokens, state.outputTokens);
+    const refundAmount = Math.max(0, reserve - actual);
+    const charged = reserve - refundAmount; // what was actually consumed
+    if (refundAmount > 0) {
+      await refundCredits(db, licenseKey, refundAmount, requestId, {
+        input_tokens: state.inputTokens,
+        output_tokens: state.outputTokens,
+        model: MODEL,
+      });
+    }
     await writeSse(writer, encoder, {
       type: "done",
       inputTokens: state.inputTokens,
       outputTokens: state.outputTokens,
-      creditsCost: estimatedCost,
-    });
-    await db.from("credit_events").insert({
-      license_key: licenseKey,
-      event_type: "decrement",
-      delta: -estimatedCost,
-      meta: { input_tokens: state.inputTokens, output_tokens: state.outputTokens, model: MODEL },
+      creditsCost: charged,
     });
   } catch {
+    if (!refunded) {
+      await refundCredits(db, licenseKey, reserve, requestId, { reason: "stream_error" }).catch(
+        () => {},
+      );
+    }
     await writeSse(writer, encoder, { type: "error", message: "Stream error" }).catch(() => {});
   } finally {
     await writer.close().catch(() => {});
@@ -250,6 +288,8 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
       : DEFAULT_MAX_TOKENS;
 
   const db = makeServiceClient(context.env);
+
+  // Subscription check
   const { data, error: subErr } = await db
     .from("subscriptions")
     .select("status, credits_balance, reset_at")
@@ -259,10 +299,26 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const sub = data as unknown as SubscriptionRow;
   if (sub.status !== "active") return new Response("Forbidden", { status: 403, headers: cors });
 
+  // Per-license rate cap (D3) — checked before credit reserve to fail fast
+  const { data: ratePassed } = await db.rpc("check_rate_limit", {
+    p_license_key: licenseKey,
+    p_cap: RATE_CAP_PER_MINUTE,
+    p_window_seconds: RATE_WINDOW_SECONDS,
+  });
+  if (!ratePassed) {
+    return new Response(
+      JSON.stringify({ error: "rate_limit_exceeded", retryAfterSeconds: RATE_WINDOW_SECONDS }),
+      { status: 429, headers: { "Content-Type": "application/json", ...cors } },
+    );
+  }
+
+  // Reserve credits (max possible cost for this request)
   const totalChars = messages.reduce((s, m) => s + m.content.length, 0);
-  const estimatedCost = estimateCredits(totalChars, maxTokens);
-  const decremented = await attemptDecrement(db, licenseKey, estimatedCost);
-  if (!decremented) {
+  const reserve = estimateCredits(totalChars, maxTokens);
+  const requestId = crypto.randomUUID();
+
+  const reserved = await reserveCredits(db, licenseKey, reserve, requestId);
+  if (!reserved) {
     return new Response(
       JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at }),
       { status: 429, headers: { "Content-Type": "application/json", ...cors } },
@@ -273,7 +329,17 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
   context.waitUntil(
-    runStream({ apiKey: context.env.ANTHROPIC_API_KEY, messages, maxTokens, writer, encoder, db, licenseKey, estimatedCost }),
+    runStream({
+      apiKey: context.env.ANTHROPIC_API_KEY,
+      messages,
+      maxTokens,
+      writer,
+      encoder,
+      db,
+      licenseKey,
+      reserve,
+      requestId,
+    }),
   );
   return new Response(readable, {
     headers: {

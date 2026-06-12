@@ -21,6 +21,19 @@ export interface AiEnv extends Env {
 }
 
 /**
+ * Extended environment for subscription/webhook endpoints.
+ * Variant IDs are set via Cloudflare secret management — never hardcoded.
+ * Test-mode IDs: LS_SUB_VARIANT_ID=1782093, LS_TOPUP_VARIANT_ID=1782092.
+ * Swap to live IDs at launch (LS test→live gotcha: variant IDs differ per mode).
+ */
+export interface WebhookEnv extends Env {
+  /** LS variant ID for the WritersNook subscription product. */
+  LS_SUB_VARIANT_ID?: string;
+  /** LS variant ID for the top-up credits pack product. */
+  LS_TOPUP_VARIANT_ID?: string;
+}
+
+/**
  * Creates a Supabase service-role client for the Workers/Pages edge runtime.
  * Uses the custom-fetch pattern required for Cloudflare's edge runtime —
  * the library's default cross-fetch polyfill is Node-oriented and incompatible

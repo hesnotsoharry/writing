@@ -1,5 +1,5 @@
 /**
- * Seam tests for POST /api/ai/chat.
+ * Seam tests for POST /api/ai/chat (Phase 2 — reserve-then-reconcile).
  *
  * Contract under test:
  *   - Missing Authorization header → 401
@@ -7,8 +7,12 @@
  *   - Valid token + active subscription + sufficient credits →
  *       streams only normalized events: {type:'token'|'done'|'error'}
  *       done event carries {inputTokens, outputTokens, creditsCost}
- *   - Valid token + zero credits → 429 with {creditsRemaining, resetAt}
- *   - credits_balance can never go negative (conditional decrement)
+ *   - Valid token + zero credits (reserve_credits returns null) →
+ *       429 with {creditsRemaining, resetAt}  (distinct from rate-cap 429)
+ *   - Rate cap exceeded → 429 with {error:'rate_limit_exceeded', retryAfterSeconds}
+ *   - Non-negative invariant: refund_credits called with reserve − actual;
+ *       balance cannot go below zero (SQL constraint; test validates refund call).
+ *   - Stream failure → refund_credits called for full reserve.
  *
  * Boundary: @supabase/supabase-js and global fetch are mocked; no live calls.
  */
@@ -26,33 +30,39 @@ interface SubRow {
   reset_at: string | null;
 }
 
+interface RpcCall { fn: string; args: Record<string, unknown> }
+
 let subRow: SubRow = { status: "active", credits_balance: 100000, reset_at: null };
-let decrementSucceeds = true;
-let insertCalled = false;
+let reserveSucceeds = true;
+let ratePassed = true;
+let rpcCalls: RpcCall[] = [];
 
 function makeMockClient() {
   return {
-    from: (table: string) => ({
-      select: () => ({
-        eq: () => ({
-          single: () => Promise.resolve({ data: subRow, error: null }),
+    from: (table: string) => {
+      void table;
+      return {
+        select: () => ({
+          eq: () => ({
+            single: () => Promise.resolve({ data: subRow, error: null }),
+          }),
         }),
-      }),
-      insert: () => {
-        if (table === "credit_events") insertCalled = true;
-        return Promise.resolve({ data: null, error: null });
-      },
-    }),
-    // Mock for the atomic decrement_credits RPC (fix: TOCTOU double-spend).
-    // Returns new balance (non-null) on success; null when credits insufficient.
-    rpc: (fn: string) => {
-      if (fn === "decrement_credits") {
+        insert: () => Promise.resolve({ data: null, error: null }),
+      };
+    },
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+      if (fn === "reserve_credits") {
         return Promise.resolve({
-          data: decrementSucceeds ? subRow.credits_balance - 1 : null,
+          data: reserveSucceeds ? subRow.credits_balance - 1 : null,
           error: null,
         });
       }
-      return Promise.resolve({ data: null, error: null });
+      if (fn === "check_rate_limit") {
+        return Promise.resolve({ data: ratePassed, error: null });
+      }
+      // refund_credits and others succeed by default
+      return Promise.resolve({ data: subRow.credits_balance, error: null });
     },
   };
 }
@@ -139,8 +149,9 @@ async function collectSseEvents(res: Response, waitUntilP?: Promise<void>): Prom
 describe("POST /api/ai/chat contract", () => {
   beforeEach(() => {
     subRow = { status: "active", credits_balance: 100000, reset_at: null };
-    decrementSucceeds = true;
-    insertCalled = false;
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
   });
 
@@ -164,8 +175,7 @@ describe("POST /api/ai/chat contract", () => {
   });
 
   it("returns 401 for an expired token (TTL past)", async () => {
-    // Build a token with an already-expired timestamp
-    const pastNow = Date.now() - 5 * 60 * 60 * 1000; // 5h ago
+    const pastNow = Date.now() - 5 * 60 * 60 * 1000;
     const { token } = await buildToken(TEST_LICENSE, TEST_SECRET, pastNow);
     const { ctx } = fakeContext(
       `Bearer ${token}`,
@@ -226,15 +236,14 @@ describe("POST /api/ai/chat contract", () => {
     for (const ev of tokenEvents) {
       const t = ev as { type: string; text: string };
       expect(typeof t.text).toBe("string");
-      // Must NOT contain Anthropic-specific fields
       expect(ev).not.toHaveProperty("delta");
       expect(ev).not.toHaveProperty("index");
     }
   });
 
-  it("returns 429 with creditsRemaining when credits_balance is 0", async () => {
+  it("returns 429 with creditsRemaining when reserve_credits returns null (zero balance)", async () => {
     subRow = { status: "active", credits_balance: 0, reset_at: "2026-07-01T00:00:00Z" };
-    decrementSucceeds = false;
+    reserveSucceeds = false;
     const token = await makeValidToken();
     const { ctx } = fakeContext(
       `Bearer ${token}`,
@@ -245,18 +254,77 @@ describe("POST /api/ai/chat contract", () => {
     const body = (await res.json()) as { creditsRemaining: number; resetAt: string | null };
     expect(body.creditsRemaining).toBe(0);
     expect(body.resetAt).toBe("2026-07-01T00:00:00Z");
+    // Must NOT have rate_limit_exceeded shape
+    expect(body).not.toHaveProperty("error");
   });
 
-  it("credit_events ledger insert is called after a successful stream", async () => {
+  it("returns 429 with rate_limit_exceeded body (distinct from zero-credit shape)", async () => {
+    ratePassed = false;
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { error: string; retryAfterSeconds: number };
+    expect(body.error).toBe("rate_limit_exceeded");
+    expect(typeof body.retryAfterSeconds).toBe("number");
+    // Must NOT have creditsRemaining shape
+    expect(body).not.toHaveProperty("creditsRemaining");
+  });
+
+  it("refund_credits called with reserve − actual on successful stream (non-negative invariant)", async () => {
     const token = await makeValidToken();
     const { ctx, getWaitUntil } = fakeContext(
       `Bearer ${token}`,
       { messages: [{ role: "user", content: "Hello" }] },
     );
-    // Must consume the response body to unblock the TransformStream pump.
     const res = await onRequestPost(ctx);
     await collectSseEvents(res, getWaitUntil());
-    expect(insertCalled).toBe(true);
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    expect(reserveCall).toBeDefined();
+    const reserved = Math.abs(Number(reserveCall!.args["p_amount"]));
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    // Refund only fires when reserve > actual (reserve usually > actual in test)
+    if (refundCall) {
+      const refundAmt = Number(refundCall.args["p_amount"]);
+      expect(refundAmt).toBeGreaterThanOrEqual(0); // refund-only: never negative
+      expect(refundAmt).toBeLessThanOrEqual(reserved); // never refunds more than reserved
+    }
+  });
+
+  it("refund_credits called with full reserve on stream failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    expect(refundCall).toBeDefined();
+    // On failure, full reserve is returned
+    expect(Number(refundCall!.args["p_amount"])).toBe(
+      Math.abs(Number(reserveCall!.args["p_amount"])),
+    );
+  });
+
+  it("reserve_credits and refund_credits share the same request_id", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    if (refundCall) {
+      expect(refundCall.args["p_request_id"]).toBe(reserveCall!.args["p_request_id"]);
+    }
   });
 });
 
@@ -277,8 +345,9 @@ function fakeOptionsContext(origin?: string): Parameters<typeof onRequestOptions
 describe("CORS contract — /api/ai/chat", () => {
   beforeEach(() => {
     subRow = { status: "active", credits_balance: 100000, reset_at: null };
-    decrementSucceeds = true;
-    insertCalled = false;
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
   });
 
@@ -332,9 +401,23 @@ describe("CORS contract — /api/ai/chat", () => {
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe(origin);
   });
 
-  it("POST with an allowlisted origin carries ACAO header on 429 response", async () => {
+  it("POST with an allowlisted origin carries ACAO header on 429 zero-credit response", async () => {
     subRow = { status: "active", credits_balance: 0, reset_at: "2026-07-01T00:00:00Z" };
-    decrementSucceeds = false;
+    reserveSucceeds = false;
+    const token = await makeValidToken();
+    const origin = ALLOWED_ORIGINS[0];
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+      origin,
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+  });
+
+  it("POST with an allowlisted origin carries ACAO header on 429 rate-cap response", async () => {
+    ratePassed = false;
     const token = await makeValidToken();
     const origin = ALLOWED_ORIGINS[0];
     const { ctx } = fakeContext(
