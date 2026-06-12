@@ -154,6 +154,19 @@ describe("trial — pure 14-day status logic (clock-rollback clamp)", () => {
       await expect(readTrialRecord(db)).resolves.toBeNull();
     });
 
+    it("readTrialRecord returns null when a date field is a string but not a parseable date (NaN guard)", async () => {
+      const { select, db } = stubDb();
+      select.mockResolvedValue([
+        {
+          value: JSON.stringify({
+            trialStartedAt: "not-a-date",
+            lastSeenAt: "2026-06-01T00:00:00.000Z",
+          }),
+        },
+      ]);
+      await expect(readTrialRecord(db)).resolves.toBeNull();
+    });
+
     it("readTrialRecord returns null when JSON is valid but missing required fields (e.g. no lastSeenAt)", async () => {
       const { select, db } = stubDb();
       select.mockResolvedValue([

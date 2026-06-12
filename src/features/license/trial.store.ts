@@ -56,7 +56,12 @@ export async function readTrialRecord(
       typeof parsed !== "object" ||
       parsed === null ||
       typeof (parsed as Record<string, unknown>).trialStartedAt !== "string" ||
-      typeof (parsed as Record<string, unknown>).lastSeenAt !== "string"
+      typeof (parsed as Record<string, unknown>).lastSeenAt !== "string" ||
+      // Unparseable date strings must read as no-record: NaN would otherwise
+      // flow through computeTrialStatus as state "active" forever (NaN <= 0
+      // is false), turning a hand-edited row into an infinite trial.
+      Number.isNaN(Date.parse((parsed as TrialRecord).trialStartedAt)) ||
+      Number.isNaN(Date.parse((parsed as TrialRecord).lastSeenAt))
     ) {
       return null;
     }
