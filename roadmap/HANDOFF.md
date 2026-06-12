@@ -4,23 +4,26 @@ updated: 2026-06-12
 ---
 
 ## Current state
-- Branch: master · v0.5.1 shipped · **AI pivot ratified (2026-06-12)** — "no built-in AI" stance retired per market research at [market-research/](market-research/)
-- Active wave: **wave-34-ai-assistant-foundation — PLANNED, not yet started** · plan validated via /wave-plan (Gates A/B/C/D), decisions D1–D8 locked through the full architect → attack-decision review cell
-- Wave 34 = Supabase credit schema + Cloudflare AI proxy (in existing `marketing/functions/`) + LS subscription webhooks + desktop Assistant panel with brainstorm verb + opt-in/consent lifecycle. Waves 35 (3 more verbs, pickers, marketing site) and 36 (BYO-key tier, pricing flip) sequenced in the plan.
+- Branch: master · **wave-34 (AI assistant foundation) SHIPPED 2026-06-12** · v0.6.0 tag + Cole's `publish.ps1` desktop release pending
+- WritersNook has its first AI feature + first revenue spine: Supabase credit schema (0002+0003 applied), Cloudflare AI proxy (`marketing/functions/api/ai/`), LS subscription webhooks (real key fetched via `/v1/license-keys`), Assistant panel (brainstorm verb, context chips, credit meter), consent-gated opt-in lifecycle
+- Proven end-to-end in LS test mode: purchase → webhook → emailed key → consent → metered streamed chat; wave-end adversarial panel (billing + privacy lenses) findings all fixed and deployed
+- 5 durable decisions promoted to [decisions/](decisions/) (proxy home, identity, credit ledger, streaming protocol, lapsed-sub behavior) · vendor-gotchas updated (anthropic, lemonsqueezy, cloudflare-pages)
 
 ## Next 3 steps
-1. **Cole pre-work (gates Phase 1 smoke / Phase 2 ship):** Anthropic API key → Cloudflare secrets (`ANTHROPIC_API_KEY`, `PROXY_SESSION_SECRET`); Supabase SQL-editor access or willingness to paste-run the Phase 1 migration; LS test-mode products ($14.99/mo sub + top-up) + verify whether subscription variants can carry license keys (plan works either way — D2 pluggable key mint).
-2. Read [wave-34-ai-assistant-foundation.md](wave-34-ai-assistant-foundation.md) end-to-end (Locked decisions D1–D8 are binding; research sidecar `-research.md` carries verified vendor facts) → dispatch Phase 1 (walking skeleton) via run-phase Workflow.
-3. After wave 34 ships: wave 35 planning (remaining verbs + selected-text API + marketing site).
+1. **Cole:** bump version + tag v0.6.0 happens with the desktop release — run `.\publish.ps1` when ready; consider rotating the Anthropic API key (it transited this session's chat log) — two-minute swap via `wrangler pages secret put`.
+2. **Wave 35 planning** (`/wave-plan 35`): 3 more verbs (critique/beta-read/proof) + selected-text + pickers + exclude-flags + marketing site AI/pricing pages. Inputs: [discovery/2026-06-12-ai-assistant-v2-context-and-conversations.md](discovery/2026-06-12-ai-assistant-v2-context-and-conversations.md) (harness pass, manuscript-level conversations, synopsis context) + parked wave-34 polish (below).
+3. **Launch checklist (pre-revenue, wave 35/36):** swap `LS_SUB_VARIANT_ID`/`LS_TOPUP_VARIANT_ID` to live-mode IDs (test: 1782093/1782092; blank/missing now fails loud); create live-mode LS webhook for the subscription handler; wire Resend in `sendSubscriptionKeyEmail` (currently no-op seam, only matters if LS key-email ever insufficient).
 
 ## Active work
-- Wave 34 planned, awaiting Cole pre-work + fresh session to execute · 13 open follow-ups in [inbox](follow-ups/) (untouched this session; one new candidate staged in the wave file: GDPR/DPA formalization)
-- Open follow-ups: 13 · [inbox](follow-ups/) — top item: none
-- Deferred (v1.5 board features): side-panel beside editor (highest value) · drag card to editor · images · quick-note injection
-- Known gaps: smoke-config.json missing (dev uses CDP 9222 + tauri-devtools MCP) · email backend error clarity · UpdateModal clarity
+- No wave in flight. Open follow-ups: 13 in [inbox](follow-ups/) (all pre-wave-34, untouched this wave).
+- **Cole-owned, non-software:** GDPR/DPA + privacy-policy formalization for the AI data path — rejected by the follow-up auditor as legal (not software) work, but real: the "never trains on your manuscript" promise ships in consent copy while the Anthropic DPA / data-residency posture is unreviewed. Needs Cole + counsel/policy pass before real-money launch.
+- Parked wave-34 polish (fold into wave 35): wire `chat.ts` cost math to `CREDIT_UNIT_USD`; DROP superseded `decrement_credits` in next migration; `reset_at` drift (use LS `renews_at` when available); blank reset-date in first-month 429 body; entity-notes content not chip-visible (context-strip redesign covers it); panel reacts to Settings-side key clear only on next mount.
+- Process lesson (binding for wave 35, recorded in wave file): orchestrator authors failing acceptance tests for cross-boundary phases BEFORE dispatch (`~/.claude/rules-deferred/orchestrator-owned-acceptance-tests.md`) — wave-34 substituted live verification (which caught more bugs than the paper tests would have) but it's a Check-5 FAIL on record.
+- Phase 2 product deferrals unchanged: board features (side-panel, drag-to-editor, images, quick-note), live sync, mobile.
 
 ## Reference index
-- Project conventions: [CLAUDE.md](../CLAUDE.md)
-- Durable decisions: [decisions/](decisions/) — 1 promoted wave-33
-- Vendor-gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/) (tauri, react-flow, yjs, tiptap)
-- Build & release: `npm run tauri dev` (CDP 9222) · `npm run test` · `npm run lint:fix` · `.\publish.ps1` (version bump 4 files + tag)
+- Project conventions: [CLAUDE.md](../CLAUDE.md) (AI stance updated this wave) · ADR-0001 amended with the dated pivot
+- Wave record: [wave-34-ai-assistant-foundation.md](wave-34-ai-assistant-foundation.md) — status table, mechanical review, observation evidence
+- Secrets on Pages project `writing` (NOT "writers-nook-marketing" — wrangler.toml name is stale): ANTHROPIC_API_KEY, PROXY_SESSION_SECRET, LS_API_KEY, LS_SUB_VARIANT_ID, LS_TOPUP_VARIANT_ID (all set 2026-06-12; missing-secret paths fail loud)
+- Build & release: `npm run tauri dev` (CDP 9222) · `npm run test` · `npm run lint:fix` · `.\publish.ps1` (Cole-run, interactive; bump version in 4 files + tag first)
+- Smoke: dev panel hits the production proxy by default; set `VITE_AI_PROXY_URL` in `.env.local` for local wrangler; dev license key `DEV-AI-LICENSE-2026` (seeded Supabase row)

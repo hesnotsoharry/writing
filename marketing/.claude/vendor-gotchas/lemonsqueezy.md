@@ -2,8 +2,8 @@
 vendor: "lemonsqueezy"
 sdkVersion: "TBD"
 firstWritten: 2026-06-04
-lastVerified: 2026-06-04
-notes: "API quirks, webhook event shape, lemon.js loader, License API public auth"
+lastVerified: 2026-06-12
+notes: "API quirks, webhook event shape, lemon.js loader, License API public auth, subscription license key fetching"
 ---
 
 # lemonsqueezy gotchas
@@ -75,3 +75,23 @@ Source: live dry-run diagnosis (overnight session 2026-06-10)
 **Gotcha:** `checkout/buy/<variant-uuid>?embed=1&checkout[email]=...` 302-redirects to `checkout/cart/<cart-uuid>` with NO query params on the redirect target. Three traps: (1) curl/HEAD without a cookie jar gets 404 on both `/buy/` and `/checkout/buy/` forms -- looks like a dead variant but is just the session dance; diagnose with a real browser, not curl. (2) The stripped params are NOT lost -- LS carries them server-side into the cart session (email prefill was observed reaching Stripe `billingDetails[email]` inside the overlay). Do not "fix" the bracket encoding: PHP decodes `%5B`/`%5D` before array parsing, so `checkout%5Bemail%5D` is identical to `checkout[email]`. (3) The embed overlay is a full-screen fixed iframe (100%x100%, max z-index) -- users and screenshots cannot distinguish it from a real navigation to LS; "it navigated away" reports need the iframe check (`document.querySelector("iframe[src*=lemonsqueezy]")`).
 
 **Workaround / belt-and-suspenders:** for the post-purchase order summary, do not rely solely on the `Checkout.Success` postMessage -> sessionStorage handoff; also set the LS product Confirmation-modal button link to `purchase-success.html?order_id=[order_id]&email=[email]&total=[total]` (template variables per docs.lemonsqueezy.com/help/products/link-variables) and have the page read query params as a second source.
+
+## 2026-06-12 — subscription license keys are order-scoped; payment_success needs webhook parsing
+
+Source: wave-34-ai-assistant-foundation, commit 264c564
+
+**Gotcha:** when a subscription generates a license key via LS, the key is order-scoped and NOT present in the `subscription_created` event payload. Additionally, `payment_success` (subscription renewal) carries the `subscription_id` in attributes but not the key itself. If you assume keys live on subscriptions or arrive in the initial event, you'll need to refetch them and may miss renewals.
+
+**Workaround:** listen for `order_created` events, then fetch the generated key via `GET /v1/license-keys?filter[order_id]=<order_id>` (paginated response; pick the first result). Store the key keyed by subscription_id for future lookups. On `payment_success`, use the subscription_id to re-fetch the key if needed (keys do not change on renewal, but the order_id relationship persists). Webhook handler shape: upsert keyed by subscription_id.
+
+**Why:** LS separates subscription metadata (created/updated/expired events) from fulfillment artifacts (license keys live on orders, not subscriptions). Subscription product settings have a "generate license key" toggle; when enabled, each order triggers key generation asynchronously. The key is not bundled into the subscription event for data-model reasons (subscriptions can have multiple orders; events would be ambiguous).
+
+## 2026-06-12 — test-mode subscriptions generate license keys; live-mode products may not without explicit enablement
+
+Source: wave-34-ai-assistant-foundation, commit 264c564
+
+**Gotcha:** the test-mode subscription product (WritersNook Plus test variant 1782093) had "generate license key" enabled in the LS dashboard. When flipping to live mode, verify that the live-mode product has the same setting; LS does NOT carry feature flags across the test→live boundary (as noted in an earlier gotcha on this page). If you forget to enable license-key generation on the live product, subscriptions will process normally but will have no associated keys — subscriptions go live, customers pay, but `GET /v1/license-keys?filter[order_id]=...` returns empty.
+
+**Workaround:** after any test→live flip, visit the LS dashboard for the live product and check the **Product Settings** → **License key** toggle. Enable it to match the test product. Verify one test purchase → one key generated (order created + license_key_created event lands) before pushing the endpoint code to production.
+
+**Why:** product settings are explicitly per-environment; the feature flag doesn't auto-propagate during the test→live promotion.

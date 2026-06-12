@@ -35,3 +35,27 @@ tile) are screenshot sources, regenerated via headless Edge:
 `msedge --headless --hide-scrollbars --window-size=W,H --screenshot=<out.png> file:///<source.html>`
 (add `--default-background-color=00000000` for transparency, e.g. favicon rounded corners). Both
 ship in `public/` with `noindex` — harmless. Re-screenshot after editing either source.
+
+## WebView2 (Tauri) makes CORS preflight requests to Pages Functions
+
+Source: wave-34-ai-assistant-foundation, commit 264c564
+
+**Gotcha:** Pages Functions endpoints accessed from a Tauri WebView2 client receive CORS preflight
+(OPTIONS) requests. If the endpoint does not respond with the correct CORS headers, the browser
+(WebView2) blocks the actual request (POST/GET) with a CORS error. This surprised the team because
+direct curl or browser requests work fine; the CORS wall only appears when a Tauri app makes the call.
+
+**Workaround:** add CORS headers to the Pages Function response. At a minimum, return:
+```
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization
+```
+For preflight (OPTIONS), respond with 204 + these headers. For actual requests (POST), include the
+same headers in the response. The Pages Functions pattern (handler exports, middleware) allows a
+centralized CORS middleware or per-endpoint headers.
+
+**Why:** WebView2 enforces the same CORS policy as a desktop browser (for security). The desktop app
+has a different origin (tauri://) from the hosted Pages Functions endpoint, triggering the preflight
+check. curl bypasses CORS (it is not a browser); direct browser requests may be on the same origin
+or exempt (data: URIs, extensions, localhost).
