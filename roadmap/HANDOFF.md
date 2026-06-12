@@ -1,20 +1,20 @@
 ---
 project: writing
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 
 ## Current state
-- Branch: master · Latest commit: wrap(wave-33) · Tag: v0.5.0 (not yet published — Cole runs publish.ps1)
-- Active wave: none · Wave-33-free-trial shipped
-- Status: 14-day in-app free trial live in code — unlicensed boots open the full app with a StatusBar day-count pill; expired trial shows the activation wall; license precedence unchanged; clock-rollback clamped
+- Branch: master · v0.5.1 shipped · **AI pivot ratified (2026-06-12)** — "no built-in AI" stance retired per market research at [market-research/](market-research/)
+- Active wave: **wave-34-ai-assistant-foundation — PLANNED, not yet started** · plan validated via /wave-plan (Gates A/B/C/D), decisions D1–D8 locked through the full architect → attack-decision review cell
+- Wave 34 = Supabase credit schema + Cloudflare AI proxy (in existing `marketing/functions/`) + LS subscription webhooks + desktop Assistant panel with brainstorm verb + opt-in/consent lifecycle. Waves 35 (3 more verbs, pickers, marketing site) and 36 (BYO-key tier, pricing flip) sequenced in the plan.
 
 ## Next 3 steps
-1. Cole runs `.\publish.ps1` to release v0.5.0 (version already bumped in all 4 files, tag set). Consider marketing-site copy ("14-day free trial") afterwards — out of wave scope by design.
-2. Cole QA on the trial flow if desired (agent already CDP-smoke-verified all states incl. restart persistence via lastSeenAt bump) — fastest check: fresh machine or renamed dev DB.
-3. Select next focus from inbox: 13 open follow-ups remain; [roadmap/follow-ups/](follow-ups/) — wave-33 audit qualified no new candidates.
+1. **Cole pre-work (gates Phase 1 smoke / Phase 2 ship):** Anthropic API key → Cloudflare secrets (`ANTHROPIC_API_KEY`, `PROXY_SESSION_SECRET`); Supabase SQL-editor access or willingness to paste-run the Phase 1 migration; LS test-mode products ($14.99/mo sub + top-up) + verify whether subscription variants can carry license keys (plan works either way — D2 pluggable key mint).
+2. Read [wave-34-ai-assistant-foundation.md](wave-34-ai-assistant-foundation.md) end-to-end (Locked decisions D1–D8 are binding; research sidecar `-research.md` carries verified vendor facts) → dispatch Phase 1 (walking skeleton) via run-phase Workflow.
+3. After wave 34 ships: wave 35 planning (remaining verbs + selected-text API + marketing site).
 
 ## Active work
-- No wave in flight · Wave-33-free-trial wrapped
+- Wave 34 planned, awaiting Cole pre-work + fresh session to execute · 13 open follow-ups in [inbox](follow-ups/) (untouched this session; one new candidate staged in the wave file: GDPR/DPA formalization)
 - Open follow-ups: 13 · [inbox](follow-ups/) — top item: none
 - Deferred (v1.5 board features): side-panel beside editor (highest value) · drag card to editor · images · quick-note injection
 - Known gaps: smoke-config.json missing (dev uses CDP 9222 + tauri-devtools MCP) · email backend error clarity · UpdateModal clarity
