@@ -98,18 +98,21 @@ describe("InspectorTabShell", () => {
   });
 });
 
-// ── AssistantPanel — consent phase ───────────────────────────────────────────
+// ── AssistantPanel — dormant phase ───────────────────────────────────────────
 
-describe("AssistantPanel — consent phase (no localStorage consent)", () => {
-  it("renders the consent walkthrough when no consent is stored", () => {
+describe("AssistantPanel — dormant phase (no localStorage consent)", () => {
+  it("renders the dormant affordance when no consent is stored", () => {
     const store = makeMockStore();
     render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
-    expect(screen.queryByText(/AI brainstorming assistant/i)).not.toBeNull();
+    expect(screen.queryByText(/AI brainstorming is available/i)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Enable" })).not.toBeNull();
   });
 
-  it("renders Accept and Not now buttons in consent phase", () => {
+  it("clicking Enable transitions from dormant to the consent walkthrough", () => {
     const store = makeMockStore();
     render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
+    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    expect(screen.queryByText(/AI brainstorming assistant/i)).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Not now" })).not.toBeNull();
   });

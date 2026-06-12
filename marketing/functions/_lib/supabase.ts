@@ -27,10 +27,10 @@ export interface AiEnv extends Env {
  * Swap to live IDs at launch (LS test→live gotcha: variant IDs differ per mode).
  */
 export interface WebhookEnv extends Env {
-  /** LS variant ID for the WritersNook subscription product. */
-  LS_SUB_VARIANT_ID?: string;
-  /** LS variant ID for the top-up credits pack product. */
-  LS_TOPUP_VARIANT_ID?: string;
+  /** LS variant ID for the WritersNook subscription product. Required — blank/absent → 500. */
+  LS_SUB_VARIANT_ID: string;
+  /** LS variant ID for the top-up credits pack product. Required — blank/absent → 500. */
+  LS_TOPUP_VARIANT_ID: string;
   /**
    * LS API key for fetching order-scoped license keys.
    * Keys are NOT included in subscription webhook payloads — they must be

@@ -40,6 +40,7 @@ vi.mock("../features/ai/prompts/brainstorm", () => ({
 }));
 
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
+import { AiErrorBoundary } from "../features/ai/AiErrorBoundary";
 import { AssistantPanel, wrapInspectorSlot } from "../features/ai/AssistantPanel";
 import { AiSection } from "../features/settings/Settings.sections";
 import { TWEAK_DEFAULTS } from "../features/settings/settings.store";
@@ -98,11 +99,11 @@ describe("wrapInspectorSlot — aiEnabled toggle", () => {
 // ── 2. No network pre-consent ─────────────────────────────────────────────────
 
 describe("AssistantPanel — pre-consent network barrier", () => {
-  it("does not call fetch or acquireSession before the consent walkthrough is accepted", async () => {
+  it("does not call fetch or acquireSession while in the dormant affordance", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
-    // No localStorage consent — renders ConsentWalkthrough
+    // No localStorage consent — renders DormantAffordance (fresh profile)
     const store = makeMockStore();
     render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
 
@@ -117,25 +118,27 @@ describe("AssistantPanel — pre-consent network barrier", () => {
 // ── 2b. Dismiss returns to dormant ───────────────────────────────────────────
 
 describe("AssistantPanel — dismiss returns to dormant", () => {
-  it("renders dormant affordance on dismiss, consent gone, no network call", async () => {
+  it("Enable → consent → Not now → dormant; no network call throughout", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
     const store = makeMockStore();
     render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
 
-    expect(screen.queryByText(/AI brainstorming assistant/i)).not.toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
-
-    // Consent UI is gone
-    expect(screen.queryByText(/AI brainstorming assistant/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
-
-    // Dormant affordance is present
+    // Fresh profile starts in dormant
     expect(screen.queryByRole("button", { name: "Enable" })).not.toBeNull();
 
-    // No network call occurred
+    // Click Enable → consent walkthrough
+    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    expect(screen.queryByText(/AI brainstorming assistant/i)).not.toBeNull();
+
+    // Click Not now → back to dormant
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(screen.queryByText(/AI brainstorming assistant/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Enable" })).not.toBeNull();
+
+    // No network call occurred at any point
     await new Promise((r) => setTimeout(r, 30));
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(mockAcquireSession).not.toHaveBeenCalled();
@@ -281,26 +284,77 @@ describe("AssistantPanel — offline retry", () => {
 // ── 8. Settings — AiSection change license key ────────────────────────────────
 
 describe("AiSection — change license key button", () => {
-  it("shows Change license key button when a key is stored", () => {
+  it("shows Change license key button when aiEnabled and a key is stored", () => {
     const setTweak = vi.fn();
-    const tweaks = { ...TWEAK_DEFAULTS, aiLicenseKey: "stored-key-abc" };
+    const tweaks = { ...TWEAK_DEFAULTS, aiEnabled: true, aiLicenseKey: "stored-key-abc" };
     render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
     expect(screen.queryByRole("button", { name: "Change license key…" })).not.toBeNull();
   });
 
   it("does not show Change license key button when no key is stored", () => {
     const setTweak = vi.fn();
-    const tweaks = { ...TWEAK_DEFAULTS, aiLicenseKey: "" };
+    const tweaks = { ...TWEAK_DEFAULTS, aiEnabled: true, aiLicenseKey: "" };
+    render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
+    expect(screen.queryByRole("button", { name: "Change license key…" })).toBeNull();
+  });
+
+  it("does not show Change license key button when aiEnabled is false, even with a key stored", () => {
+    const setTweak = vi.fn();
+    const tweaks = { ...TWEAK_DEFAULTS, aiEnabled: false, aiLicenseKey: "stored-key-abc" };
     render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
     expect(screen.queryByRole("button", { name: "Change license key…" })).toBeNull();
   });
 
   it("clicking Change license key calls setTweak with aiLicenseKey cleared", () => {
     const setTweak = vi.fn();
-    const tweaks = { ...TWEAK_DEFAULTS, aiLicenseKey: "stored-key-abc" };
+    const tweaks = { ...TWEAK_DEFAULTS, aiEnabled: true, aiLicenseKey: "stored-key-abc" };
     render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
     fireEvent.click(screen.getByRole("button", { name: "Change license key…" }));
     expect(setTweak).toHaveBeenCalledWith("aiLicenseKey", "");
+  });
+});
+
+// ── 9. AiErrorBoundary — render-error isolation ───────────────────────────────
+
+function ThrowOnRender(): never {
+  throw new Error("render bomb");
+}
+
+describe("AiErrorBoundary — error isolation", () => {
+  it("shows the fallback div when a child throws during render", () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(
+      <AiErrorBoundary>
+        <ThrowOnRender />
+      </AiErrorBoundary>
+    );
+    errSpy.mockRestore();
+    expect(screen.queryByText(/assistant hit a problem/i)).not.toBeNull();
+  });
+
+  it("does not unmount sibling elements when the AI subtree throws", () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(
+      <div>
+        <div data-testid="editor-sibling">editor</div>
+        <AiErrorBoundary>
+          <ThrowOnRender />
+        </AiErrorBoundary>
+      </div>
+    );
+    errSpy.mockRestore();
+    expect(screen.queryByTestId("editor-sibling")).not.toBeNull();
+    expect(screen.queryByText(/assistant hit a problem/i)).not.toBeNull();
+  });
+
+  it("renders children normally when no error occurs", () => {
+    render(
+      <AiErrorBoundary>
+        <div data-testid="healthy-child">ok</div>
+      </AiErrorBoundary>
+    );
+    expect(screen.queryByTestId("healthy-child")).not.toBeNull();
+    expect(screen.queryByText(/assistant hit a problem/i)).toBeNull();
   });
 });
 

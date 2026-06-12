@@ -425,3 +425,50 @@ describe("order_created — top-up pack", () => {
     expect(firstCalls).toBe(1);
   });
 });
+
+describe("order_created — top-up out-of-order delivery and config guard", () => {
+  it("returns 500 with NO webhook_events tombstone when subscriber email not found (out-of-order); retry after subscriber row exists grants exactly once", async () => {
+    const missingEmail = "latecomer@example.com";
+    subRows = []; // no subscriber row yet
+
+    const body = orderPayload("order_oo_001", Number(TEST_TOPUP_VARIANT), missingEmail);
+
+    // First delivery: subscriber not in DB yet → 500, ledger NOT written
+    const res1 = await onRequestPost(makeContext(body));
+    expect(res1.status).toBe(500);
+    expect(ledger.size).toBe(0);
+    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
+
+    // Subscriber row arrives in DB between LS retries
+    subRows = [{ license_key: "WN-AI-LATECOMER", user_email: missingEmail, ls_subscription_id: "sub_late" }];
+
+    // Retry: subscriber found → ledger written → topup_credits called once
+    const res2 = await onRequestPost(makeContext(body));
+    expect(res2.status).toBe(200);
+    expect(rpcCalls.filter((c) => c.fn === "topup_credits")).toHaveLength(1);
+    expect(rpcCalls.find((c) => c.fn === "topup_credits")!.args["p_license_key"]).toBe("WN-AI-LATECOMER");
+
+    // LS delivers again (network glitch): 23505 on ledger → 200, no second grant
+    rpcCalls = [];
+    const res3 = await onRequestPost(makeContext(body));
+    expect(res3.status).toBe(200);
+    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
+  });
+
+  it("returns 500 with no ledger write when LS_TOPUP_VARIANT_ID is blank (missing config)", async () => {
+    const body = orderPayload("order_blank_001", Number(TEST_TOPUP_VARIANT));
+    const ctx = makeContext(body, TEST_SECRET, makeEnv("" /* blank topup variant */));
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(500);
+    expect(ledger.size).toBe(0);
+    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
+  });
+
+  it("returns 500 with no ledger write when LS_SUB_VARIANT_ID is blank (missing config)", async () => {
+    const body = orderPayload("order_blank_002", Number(TEST_TOPUP_VARIANT));
+    const ctx = makeContext(body, TEST_SECRET, makeEnv(TEST_TOPUP_VARIANT, "" /* blank sub variant */));
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(500);
+    expect(ledger.size).toBe(0);
+  });
+});

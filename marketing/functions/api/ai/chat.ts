@@ -282,7 +282,12 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
 
   const rawToken = extractBearer(context.request);
   if (!rawToken) return new Response("Unauthorized", { status: 401, headers: cors });
-  const licenseKey = await verifyToken(rawToken, context.env.PROXY_SESSION_SECRET);
+  let licenseKey: string | null;
+  try {
+    licenseKey = await verifyToken(rawToken, context.env.PROXY_SESSION_SECRET);
+  } catch {
+    return new Response("Internal Server Error", { status: 500, headers: cors });
+  }
   if (!licenseKey) return new Response("Unauthorized", { status: 401, headers: cors });
 
   const body = (await context.request.json()) as ChatBody;

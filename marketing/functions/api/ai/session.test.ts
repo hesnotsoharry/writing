@@ -132,6 +132,29 @@ describe("POST /api/ai/session contract", () => {
     expect(res.status).toBe(403);
   });
 
+  it("returns 500 when PROXY_SESSION_SECRET is empty — misconfigured server, no token minted", async () => {
+    subRow = { status: "active" };
+    const ctx = {
+      env: {
+        SUPABASE_URL: "https://placeholder.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "placeholder-srk",
+        SUPABASE_ANON_KEY: "placeholder-anon",
+        LEMON_SQUEEZY_SIGNING_SECRET: "placeholder-ls",
+        ANTHROPIC_API_KEY: "placeholder-anthropic",
+        PROXY_SESSION_SECRET: "",
+      },
+      request: new Request("https://writersnook.app/api/ai/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ licenseKey: "ACTIVE-KEY-001" }),
+      }),
+    } as unknown as Parameters<typeof onRequestPost>[0];
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(500);
+    const text = await res.text();
+    expect(text).not.toContain("token");
+  });
+
   it("returns 400 when licenseKey is missing from the body", async () => {
     const ctx = {
       env: {

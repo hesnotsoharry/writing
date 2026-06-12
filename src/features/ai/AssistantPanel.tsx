@@ -14,6 +14,7 @@ import type * as Y from "yjs";
 
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak, setStoredTweak } from "../settings/settings.store";
+import { AiErrorBoundary } from "./AiErrorBoundary";
 import { BrainstormPane, KeyEntryPanel } from "./AssistantPanel.brainstorm";
 import { ConsentWalkthrough } from "./ConsentWalkthrough";
 
@@ -24,7 +25,7 @@ type PanelPhase = "dormant" | "consent" | "key-entry" | "ready";
 // ── Phase initializer ─────────────────────────────────────────────────────────
 
 function initialPhase(): PanelPhase {
-  if (!getTweak("aiConsentGiven", false)) return "consent";
+  if (!getTweak("aiConsentGiven", false)) return "dormant";
   if (!getTweak("aiLicenseKey", "")) return "key-entry";
   return "ready";
 }
@@ -153,12 +154,14 @@ export function wrapInspectorSlot(
     <InspectorTabShell
       inspector={base}
       assistant={
-        <AssistantPanel
-          sceneId={p.selectedSceneId}
-          sceneName={p.activeScene?.title ?? null}
-          doc={p.doc ?? null}
-          store={p.storyBibleStore}
-        />
+        <AiErrorBoundary>
+          <AssistantPanel
+            sceneId={p.selectedSceneId}
+            sceneName={p.activeScene?.title ?? null}
+            doc={p.doc ?? null}
+            store={p.storyBibleStore}
+          />
+        </AiErrorBoundary>
       }
     />
   );

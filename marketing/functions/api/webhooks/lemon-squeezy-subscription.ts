@@ -331,6 +331,28 @@ async function handleTopupOrder(
   const variantId = attrs.first_order_item?.variant_id;
   const db = makeServiceClient(env);
 
+  // Fix 2: Config guard — both variant IDs must be non-blank.
+  // Absent/blank makes every order_created silently no-op; 500 forces LS to retry
+  // until the config is fixed (loud failure over silent data loss).
+  if (!env.LS_TOPUP_VARIANT_ID || !env.LS_SUB_VARIANT_ID) {
+    return new Response("Internal Server Error", { status: 500 });
+  }
+
+  // Fix 1: For top-up variants, resolve the subscriber BEFORE writing the ledger.
+  // Old flow (buggy): ledger insert → lookup → 404 on miss. On retry: 23505 → 200,
+  // grant permanently lost. New flow: lookup first → 500 on miss (retryable, no
+  // tombstone written) → ledger insert → grant. Exactly-once guarantee preserved.
+  let licenseKey: string | null = null;
+  if (isTopupVariant(variantId, env)) {
+    const { data: sub, error: subErr } = await db
+      .from("subscriptions")
+      .select("license_key")
+      .eq("user_email", attrs.user_email)
+      .single();
+    if (subErr || !sub) return new Response("Internal Server Error", { status: 500 });
+    licenseKey = (sub as { license_key: string }).license_key;
+  }
+
   // Record ALL order_created events in the idempotency ledger regardless of variant.
   // This covers top-up packs, subscription-product initial orders, and unknown variants.
   const { error: ledgerErr } = await db
@@ -340,7 +362,7 @@ async function handleTopupOrder(
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
 
-  if (!isTopupVariant(variantId, env)) {
+  if (!licenseKey) {
     // Subscription-variant or unknown-variant order — no credits action.
     // Subscription variants: lifecycle handled via subscription_* events.
     // Unknown variants: idempotent no-op (already ledger-recorded above).
@@ -348,16 +370,7 @@ async function handleTopupOrder(
     return new Response(null, { status: 200 });
   }
 
-  // Top-up variant: find the subscriber by email and grant credits.
-  const { data: sub, error: subErr } = await db
-    .from("subscriptions")
-    .select("license_key")
-    .eq("user_email", attrs.user_email)
-    .single();
-  if (subErr || !sub) return new Response("Not Found", { status: 404 });
-
-  const licenseKey = (sub as { license_key: string }).license_key;
-
+  // Top-up variant: grant credits to the resolved subscriber.
   await db.rpc("topup_credits", {
     p_license_key: licenseKey,
     p_amount: TOPUP_PACK_AMOUNT,

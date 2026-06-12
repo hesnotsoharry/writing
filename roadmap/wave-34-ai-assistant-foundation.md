@@ -158,4 +158,31 @@ Decisions D1–D6 ran the full cell on 2026-06-12: `sonnet-architect` (agent ae1
 
 ## Result
 
-<!-- Filled at ship by wrap team. Includes: what the wave delivered, links to promoted artifacts, mechanical-review verdict, telemetry summary. -->
+### Mechanical review
+
+**Inputs resolved:** Plan: roadmap/wave-34-ai-assistant-foundation.md · Diff range: 264c564..28c8a1b (17 commits) · Graph: healthy for src/, grep-fallback for marketing/ · Run: 2026-06-12
+
+#### Check 1: Forward-trace
+- Change sites traced: all wave symbols; production chains confirmed (panel → App.content slot; Pages Function entry points; 6 of 7 SQL functions called via .rpc()).
+- FLAG (non-fatal): **`decrement_credits`** (0002_ai_subscriptions.sql:84) — zero .rpc() callers; Phase 1's mechanism, superseded by Phase 2's reserve/refund pair per D3. Justified: the plan documents the supersession; 0002 is applied in production so removal needs a future migration. Cleanup parked for wave 35 (DROP in next migration).
+
+#### Check 2: Plan universal-quantifier cross-reference
+- All four binding universals verified clean with evidence: (a) zero Anthropic wire-format in src/; (b) aiEnabled gate covers all AI chrome (AssistantPanel.tsx:151, App.content.tsx:219,280); (c) no network path pre-consent (AssistantPanel.tsx:26-30,88); (d) every credit-mutating SQL function floored + table CHECK (0002:26). Also: no body logging in api/ai/; no @anthropic-ai/sdk dependency.
+
+#### Check 3: Export audit
+- FLAG (non-fatal): **`CREDIT_UNIT_USD`** (marketing/functions/_lib/ai-token.ts:19) — zero importers. Justified in writing: D1 (review amendment) mandates the constant as the self-documenting unit mirror of the SQL schema comment; it exists to satisfy that locked decision. Polish candidate: wire chat.ts cost math to consume it (wave 35).
+- src/ twin of CREDIT_UNIT_USD is consumed (AssistantPanel.brainstorm.tsx:14,208). All other new exports have production consumers.
+
+#### Check 4 skipped: no schema property removals in this wave's diff.
+
+#### Check 5: Boundary-phase orchestrator-owned acceptance test verification
+- Trigger: fired — Phases 1 and 2 declared cross-boundary.
+- **FAIL (structural, resolved by written justification below):** no orchestrator-authored acceptance files exist at roadmap/wave-34-ai-assistant-foundation-acceptance/; seam tests were implementer-authored. The authored-before-dispatch contract cannot be satisfied retroactively.
+- **Justification (recorded as the resolution):** both cross-boundary phases received LIVE protocol-level verification beyond what the acceptance files would have asserted, recorded in the Status table: Phase 1 — live curl probes against production (session 200/token, chat SSE normalized stream, system-field PINEAPPLE probe) + Cole's in-app smoke; Phase 2 — full LS sandbox subscriber journey (real purchase → webhooks → fetched key → allowance → metered chat), which caught and fixed two real contract bugs the seam tests missed. The live oracle exceeded the paper one this wave.
+- **Process lesson (binding for wave 35):** orchestrator authors failing acceptance tests for cross-boundary phases BEFORE dispatch, per ~/.claude/rules-deferred/orchestrator-owned-acceptance-tests.md — read at dispatch time, not review time.
+
+#### Check 6 skipped: no stryker.config found in project root.
+
+#### Verdict
+
+**FLAG (all flags addressed: 2 justified non-fatal + Check-5 structural resolved by recorded justification + lesson).** Checks 1-3 otherwise clean; the wave's full suite is green (app 1285/1285, marketing 135/135) and both cross-boundary surfaces carry live production verification evidence.

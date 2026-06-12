@@ -57,6 +57,7 @@ export async function buildToken(
   secret: string,
   now = Date.now(),
 ): Promise<{ token: string; expiresAt: number }> {
+  if (!secret) throw new Error("PROXY_SESSION_SECRET is required but missing or empty");
   const expiresAt = now + SESSION_TTL_MS;
   const payload = toBase64Url(JSON.stringify({ licenseKey, expiresAt }));
   const sig = await hmacHex(payload, secret);
@@ -71,6 +72,7 @@ export async function verifyToken(
   token: string,
   secret: string,
 ): Promise<string | null> {
+  if (!secret) throw new Error("PROXY_SESSION_SECRET is required but missing or empty");
   const dot = token.lastIndexOf(".");
   if (dot === -1) return null;
   const payload = token.slice(0, dot);

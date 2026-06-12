@@ -47,10 +47,13 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     return new Response("Forbidden", { status: 403, headers: cors });
   }
 
-  const { token, expiresAt } = await buildToken(
-    licenseKey,
-    context.env.PROXY_SESSION_SECRET,
-  );
+  let token: string;
+  let expiresAt: number;
+  try {
+    ({ token, expiresAt } = await buildToken(licenseKey, context.env.PROXY_SESSION_SECRET));
+  } catch {
+    return new Response("Internal Server Error", { status: 500, headers: cors });
+  }
   return new Response(JSON.stringify({ token, expiresAt }), {
     status: 200,
     headers: { "Content-Type": "application/json", ...cors },
