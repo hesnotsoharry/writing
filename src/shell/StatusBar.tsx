@@ -40,6 +40,13 @@ export interface StatusBarProps {
    * When absent, renders the honest "Local only · {clock}" fallback.
    */
   backupStatus?: BackupStatus;
+  /**
+   * Days left in the 14-day trial (wave-33). Non-null renders the trial pill
+   * in sb-right; null/absent (activated users) renders no pill.
+   */
+  trialDaysLeft?: number | null;
+  /** Click handler for the trial pill — opens the activation screen. */
+  onTrialPillClick?: () => void;
 }
 
 function clockNow(): string {

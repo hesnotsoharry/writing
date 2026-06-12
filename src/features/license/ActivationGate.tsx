@@ -31,6 +31,14 @@ type GatePhase =
 
 export interface ActivationGateProps {
   onActivated: () => void;
+  /** Wave-33: true when shown because the 14-day trial ran out (copy variant). */
+  trialExpired?: boolean;
+  /**
+   * Wave-33: present only while a trial is still active (pill-opened view) —
+   * renders a "Continue trial" link that returns to the app. Absent on the
+   * hard gate (no trial / expired), where the app stays unreachable.
+   */
+  onDismiss?: () => void;
 }
 
 // ─── Error copy ───────────────────────────────────────────────────────────────
