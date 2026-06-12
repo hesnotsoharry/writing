@@ -313,6 +313,7 @@ export default function App() {
     setShowHistory, setHistorySceneId,
     entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
   const { setHistorySnapshots } = snap;
+  // Phase 3 will consume daysLeft and trialExpired for the StatusBar trial pill.
   const { gateStatus, onActivated } = useLicenseGate(!loading);
 
   if (loading || gateStatus === "checking") return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;

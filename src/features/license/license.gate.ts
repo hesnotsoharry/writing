@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { loadActivation } from "./license.store";
+import { computeTrialStatus, TRIAL_DURATION_DAYS } from "./trial";
+import { loadTrial, saveTrial } from "./trial.store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,46 @@ export interface LicenseGateResult {
   /** True when gateStatus is 'needed' because a trial ran out (copy variant). */
   trialExpired: boolean;
   onActivated: () => void;
+}
+
+// ─── Async gate resolver (module-level to keep hook under 40-line lint cap) ──
+
+type GateResolution = Omit<LicenseGateResult, "onActivated">;
+
+/**
+ * Determine the full gate state from current DB contents and wall-clock time.
+ * loadActivation errors fall through to the trial path (no crash on DB error).
+ */
+async function resolveGate(now: Date): Promise<GateResolution> {
+  let hasLicense = false;
+  try {
+    const rec = await loadActivation();
+    hasLicense = rec !== null;
+  } catch { /* fall through to trial path on DB error */ }
+
+  if (hasLicense) {
+    return { gateStatus: "cleared", daysLeft: null, trialExpired: false };
+  }
+
+  const trial = await loadTrial();
+  const nowISO = now.toISOString();
+
+  if (trial === null) {
+    await saveTrial({ trialStartedAt: nowISO, lastSeenAt: nowISO });
+    return { gateStatus: "trial", daysLeft: TRIAL_DURATION_DAYS, trialExpired: false };
+  }
+
+  const { state, daysLeft } = computeTrialStatus(trial, now);
+  // Persist lastSeenAt bump: monotonically non-decreasing (clock-rollback defence).
+  const newLastSeenAt = new Date(
+    Math.max(now.getTime(), Date.parse(trial.lastSeenAt)),
+  ).toISOString();
+  await saveTrial({ trialStartedAt: trial.trialStartedAt, lastSeenAt: newLastSeenAt });
+
+  if (state === "expired") {
+    return { gateStatus: "needed", daysLeft: null, trialExpired: true };
+  }
+  return { gateStatus: "trial", daysLeft, trialExpired: false };
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -59,15 +101,20 @@ export function useLicenseGate(dbReady: boolean): LicenseGateResult {
   const [gateStatus, setGateStatus] = useState<GateStatus>(
     bypassed ? "cleared" : "checking",
   );
+  const [daysLeft, setDaysLeft] = useState<number | null>(null);
+  const [trialExpired, setTrialExpired] = useState(false);
 
   useEffect(() => {
     if (!dbReady || bypassed) return;
-    loadActivation()
-      .then((rec) => setGateStatus(rec !== null ? "cleared" : "needed"))
+    resolveGate(new Date())
+      .then(({ gateStatus: gs, daysLeft: dl, trialExpired: te }) => {
+        setGateStatus(gs);
+        setDaysLeft(dl);
+        setTrialExpired(te);
+      })
       .catch(() => setGateStatus("needed"));
   }, [dbReady, bypassed]);
 
   const onActivated = useCallback(() => setGateStatus("cleared"), []);
-  // Trial wiring lands in wave-33 Phase 2; until then these are inert.
-  return { gateStatus, daysLeft: null, trialExpired: false, onActivated };
+  return { gateStatus, daysLeft, trialExpired, onActivated };
 }

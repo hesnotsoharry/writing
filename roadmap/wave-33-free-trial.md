@@ -106,7 +106,9 @@ durable: candidate
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
 | 0 (oracle) | 2026-06-11 (orchestrator + haiku-test-author) | 2026-06-11 | e870b22 | Internal — oracle confirmed failing for the right reason (13/14 "not implemented") |
-| 1 | 2026-06-11 · run-phase `wf_6279ff85-963` | 2026-06-11 · gates green · reviewer PASS (4/4 angles) | (phase-1 commit) | Internal — no observation point (oracle: 14/14 pass) |
+| 1 | 2026-06-11 · run-phase `wf_6279ff85-963` | 2026-06-11 · gates green · reviewer PASS (4/4 angles) | 3877c22 | Internal — no observation point (oracle: 14/14 pass) |
+| 2 (oracle) | 2026-06-11 (orchestrator + haiku-test-author) | 2026-06-11 | a743a3c | Internal — oracle confirmed failing for the right reason (10/12 pre-impl) |
+| 2 | 2026-06-11 · run-phase `wf_8f07c851-71b` | — | — | — |
 
 ## Follow-up candidates
 
