@@ -111,7 +111,7 @@ durable: candidate
 | 2 | 2026-06-11 · run-phase `wf_8f07c851-71b` | 2026-06-11 · oracle 12/12 · reviewer FLAG adjudicated (setup.ts shim accepted) | 683130b | Deferred to Phase 3 smoke (gates were red on pre-existing test debt at smoke time; fixed in ffc1132) |
 | 2b (inline fix) | 2026-06-11 (sonnet-implementer) | 2026-06-11 | ffc1132 | Internal — stale ActivationGate tests aligned to shipped UUID validation (15/15) |
 | 3 (oracle) | 2026-06-11 (orchestrator + haiku-test-author) | 2026-06-11 | 60912f9 | Internal — oracle failing for the right reason (5/10 pre-impl) |
-| 3 | 2026-06-11 · run-phase `wf_e1fa24b1-f1c` | 2026-06-11 · oracle 10/10 · reviewer FLAG_UNCERTAIN adjudicated (cosmetic) | 49ec20a | PENDING — capabilityHalt: smoke CANNOT-LAUNCH (no .claude/smoke-config.json; dev+installed builds share %APPDATA%\com.coles.writing\writing.db, so trial-state seeding needs Cole's go-ahead). Full suite 1251/1251 green. |
+| 3 | 2026-06-11 · run-phase `wf_e1fa24b1-f1c` | 2026-06-11 · oracle 10/10 · reviewer FLAG_UNCERTAIN adjudicated (cosmetic) | 49ec20a | HIT — Cole-authorized DB-swap smoke via CDP (2026-06-11): fresh DB → app opens on trial, pill "14 days left" in StatusBar; pill click → full-screen gate with "Continue trial" → returns to app; backdated trial → "Your 14-day free trial has ended." with no dismiss; restored real DB (hash-verified) → no pill, no gate, app_meta keys = ["license"] only. Full suite 1251/1251. |
 
 ## Follow-up candidates
 
@@ -119,4 +119,63 @@ durable: candidate
 
 ## Result
 
-<!-- filled at ship by wrap team -->
+### Mechanical review
+
+**Inputs resolved:**
+- Plan: roadmap/wave-33-free-trial.md
+- Diff range: c146c84..9b4b036 (9 commits)
+- Graph: healthy (traces via wave-end reviewer's graph queries + grep)
+- Run timestamp: 2026-06-11T23:35:00-06:00
+
+#### Check 1: Forward-trace
+- Change sites traced: 11 (computeTrialStatus, TRIAL_DURATION_DAYS, read/writeTrialRecord, load/saveTrial, resolveGate, useLicenseGate daysLeft/trialExpired fields, renderTrialPill, GateHead/GateDismiss, StatusBarProps/AppContentProps new fields)
+- Paths reaching production consumer: 11 (chain: trial.ts → trial.store → resolveGate → useLicenseGate → App → AppContent/StatusBar + ActivationGate render; graph-verified single production call chain, no forks)
+- Paths flagged as dead: 0. No silent drops — daysLeft and trialExpired both consumed at App (StatusBar pill / ActivationGate copy).
+
+#### Check 2: Plan universal-quantifier cross-reference
+- Universals found in plan: 6 ("Activated users see zero change", "no trial record is ever created" (activated), "license-record presence takes precedence ... on subsequent boots", "lastSeenAt never moves backwards", "license-key form stays present in every variant", "trial path unreachable for activated users")
+- Universals where diff covers all instances: 6 (trialGate case 2 + clamp tests + oracle case 10 + runtime smoke: restored real DB → app_meta keys ["license"] only, no pill)
+- Universals flagged as narrowed: 0
+
+#### Check 3: Export audit
+- New exports added: 10 (trial.ts ×5, trial.store.ts ×4, LicenseGateResult)
+- Exports with production consumers: 10 (license.gate.ts imports computeTrialStatus/TRIAL_DURATION_DAYS/loadTrial/saveTrial; trial.store imports TrialRecord; write/readTrialRecord consumed by same-file wrappers on the production path — exact license.store.ts pattern, exported for db-handle testability)
+- Exports flagged as dead: 0
+
+#### Check 4: Schema-removal migration safety
+Check 4 skipped: no schema property removals in this wave's diff (additive app_meta KV key only).
+
+#### Check 5: Boundary-phase orchestrator-owned acceptance test verification
+- Trigger: fired (Phase 1 declared cross-boundary, persistent storage)
+- Cross-boundary phases declared: 1; valid: 1
+- Acceptance file `src/test/trial.acceptance.test.ts`: created e870b22 (orchestrator, own commit, pre-impl) → phase-1 impl 3877c22 never touched it. Post-phase modifications 11565fe (orchestrator lint-fix) and 9b4b036 (orchestrator-added NaN-guard case from wave-end review) are orchestrator-authored and additive — the failing-first contract for the implementing phase was never broken.
+- Run evidence: Status table — pre-impl 13/14 failing for the right reason; post-impl 14/14; post-NaN-guard 15/15; full suite 1251/1251.
+
+#### Check 6: Test theater detection via mutation score
+Check 6 skipped: no stryker.config found in project root (and no mutation:test script). Non-fatal flag (new test files without mutation testing) — justified: all three wave oracles were validated failing-first (red pre-impl for the stated reason, green post-impl), which is direct evidence they assert behavior, not tautology.
+
+#### Verdict
+
+**FLAG — all flags addressed.** Checks 1–3 ran clean (zero dead paths, zero narrowed universals, zero dead exports). Check 5's two post-phase acceptance-file modifications are orchestrator-authored and justified above; Check 6's no-Stryker flag is justified by failing-first oracle validation. Proceeds to wrap.
+
+### Delivered
+
+14-day local-first free trial before license activation, shipped as v0.5.0. Fresh installs boot into the full app on a 14-day trial (`app_meta` "trial" record, no migration); the gate is three-state (cleared / trial / needed) with license-record precedence; a StatusBar pill ("N days left") opens the activation screen with a "Continue trial" dismiss; expired trials hit the full-screen gate with trial-ended copy; clock rollback is clamped via monotonic `lastSeenAt`; hand-edited garbage dates read as no-record (NaN guard from wave-end review). All states verified at runtime via Cole-authorized DB-swap CDP smoke; activated users verified unchanged against the restored real DB. Wave-end adversarial review FLAG fixed (9b4b036); mechanical review FLAG-addressed. Promoted: `roadmap/decisions/local-only-trial-no-server-issuance.md`. Known repo gap (not a qualified follow-up): no `.claude/smoke-config.json`, so run-phase auto-smoke reports CANNOT-LAUNCH — this wave smoked manually via tauri-devtools CDP.
+
+### Telemetry summary
+
+Wave session IDs: 8f43485c-0ac0-43f6-b8ee-b80d42d4430f
+Window: 2026-06-11 (single session)
+
+| Surface | Events in wave | Notes |
+|---|---|---|
+| hook | ~1,060 (pre/post_tool_use 852; graph_vs_grep 59; meta_boundary 54; others) | no HABITUATED/DEAD-LETTER flags surfaced in-wave |
+| agent | 75 dispatches (workflow-subagent 20, haiku-explorer 14, haiku-test-author 9, sonnet-adversarial-reviewer 8, sonnet-implementer 8, gate-runner 6, smoke-runner 2, explorers 2) + 3 phase_review_outcome records (PASS/FLAG/FLAG) | no ADJUST verdicts |
+| command | run-phase ×3 | — |
+| rule | 9 distinct rules loaded ×1 | thin data |
+| skill | wave-plan-lite ×1, review ×1 | thin data |
+| adr | 0 | thin data |
+
+**Flagged items:** none
+
+Auto-filled via: `mcp__telemetry__query({ session_id: '8f43485c-…', aggregate: 'count_by_name', since: '24h' })`
