@@ -43,6 +43,7 @@ import {
   actualCredits,
   estimateCredits,
 } from "../../_lib/credits";
+import { shouldAttachCache } from "../../_lib/prompt-cache";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
 import type { FallbackVerbConfig, VerbConfig, VerbKey } from "../../_lib/verb-config";
 import { FALLBACK_VERB_CONFIG, VERB_CONFIG } from "../../_lib/verb-config";
@@ -79,6 +80,10 @@ interface SubscriptionRow {
 interface SseState {
   inputTokens: number;
   outputTokens: number;
+  /** Tokens written to cache on this request (usage.cache_creation_input_tokens). */
+  cacheCreationTokens: number;
+  /** Tokens retrieved from cache on this request (usage.cache_read_input_tokens). */
+  cacheReadTokens: number;
 }
 
 type ResolvedConfig = VerbConfig | FallbackVerbConfig;
@@ -140,8 +145,16 @@ function processAnthropicLine(line: string, state: SseState): string | null {
   }
   const type = event.type as string | undefined;
   if (type === "message_start") {
-    const msg = event.message as { usage?: { input_tokens?: number } } | undefined;
+    const msg = event.message as {
+      usage?: {
+        input_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+      };
+    } | undefined;
     state.inputTokens = msg?.usage?.input_tokens ?? 0;
+    state.cacheCreationTokens = msg?.usage?.cache_creation_input_tokens ?? 0;
+    state.cacheReadTokens = msg?.usage?.cache_read_input_tokens ?? 0;
     return null;
   }
   if (type === "content_block_delta") {
@@ -164,7 +177,7 @@ async function pumpAnthropicToClient(
 ): Promise<SseState> {
   const reader = upstreamBody.getReader();
   const decoder = new TextDecoder();
-  const state: SseState = { inputTokens: 0, outputTokens: 0 };
+  const state: SseState = { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
   let buffer = "";
   while (true) {
     const { done, value } = await reader.read();
@@ -198,7 +211,20 @@ async function callAnthropic(
     stream: true,
     messages,
   };
-  if (system) requestBody["system"] = system;
+  if (system) {
+    // Gate caching on the model's minimum cacheable-prefix threshold (research sidecar §2).
+    // Haiku requires ≥ 4096 tokens; smaller prefixes silently skip caching server-side anyway,
+    // but we avoid the content-block form unnecessarily to keep the request shape simple.
+    const estimatedPrefixTokens = Math.ceil(system.length / 4);
+    if (shouldAttachCache(estimatedPrefixTokens, config.model)) {
+      // Content-block array form with ephemeral (5-minute TTL) cache breakpoint.
+      // Per research sidecar §1: top-level and per-block forms are both valid; we use
+      // per-block here for explicit control. TTL defaults to 5 minutes (this wave).
+      requestBody["system"] = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+    } else {
+      requestBody["system"] = system;
+    }
+  }
   // Mutual exclusion: thinking and temperature cannot both be present (temp+thinking = 400).
   if (config.thinking) {
     // Extended thinking enabled — temperature is intentionally omitted.
@@ -262,7 +288,17 @@ async function runStream(args: StreamArgs): Promise<void> {
       return;
     }
     const state = await pumpAnthropicToClient(anthropicRes.body, writer, encoder);
-    const actual = actualCredits(state.inputTokens, state.outputTokens, verbConfig.model);
+    // Pass cache buckets separately — input_tokens is non-cached input only (research §5).
+    // Do not double-count: cacheCreationTokens and cacheReadTokens are billed at their
+    // own rates (1.25x and 0.1x respectively), not at the base input rate.
+    const actual = actualCredits(
+      state.inputTokens,
+      state.outputTokens,
+      verbConfig.model,
+      state.cacheCreationTokens,
+      state.cacheReadTokens,
+      '5m',
+    );
     const refundAmount = Math.max(0, reserve - actual);
     const charged = reserve - refundAmount; // what was actually consumed
     if (refundAmount > 0) {

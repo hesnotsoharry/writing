@@ -605,3 +605,155 @@ describe("verb-based request resolution", () => {
     expect(sentBody).not.toHaveProperty("temperature");
   });
 });
+
+// ── Prompt-cache request shape (Wave 37 Phase 5) ──────────────────────────────
+//
+// These tests verify the conditional system-field shape: when the estimated
+// prefix meets the Haiku 4096-token threshold (≥16384 chars), body.system
+// becomes a content-block array with cache_control; when it does not, body.system
+// remains a plain string with no cache_control.
+
+describe("prompt-cache request shape", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("system prefix >= 4096 tokens (Haiku) sends system as content-block array with cache_control", async () => {
+    // 17000 chars → Math.ceil(17000/4) = 4250 tokens → ≥ 4096 → cache gate opens.
+    const largeSystem = "x".repeat(17000);
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], system: largeSystem, verb: "brainstorm" },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
+    // system must be an array (not a string)
+    expect(Array.isArray(sentBody["system"])).toBe(true);
+    const blocks = sentBody["system"] as Array<{ type: string; text: string; cache_control?: { type: string } }>;
+    expect(blocks.length).toBe(1);
+    expect(blocks[0].type).toBe("text");
+    expect(blocks[0].text).toBe(largeSystem);
+    // cache_control must be present with ephemeral type
+    expect(blocks[0].cache_control).toEqual({ type: "ephemeral" });
+  });
+
+  it("system prefix < 4096 tokens (Haiku) sends system as plain string with no cache_control", async () => {
+    // 100 chars → Math.ceil(100/4) = 25 tokens → < 4096 → cache gate stays closed.
+    const smallSystem = "You are a brainstorm assistant. ".repeat(3); // ~96 chars
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], system: smallSystem, verb: "brainstorm" },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
+    // system must remain a plain string — no array, no cache_control
+    expect(typeof sentBody["system"]).toBe("string");
+    expect(sentBody["system"]).toBe(smallSystem);
+  });
+});
+
+// ── Usage passthrough — cache tokens reconcile credits (Wave 37 Phase 5) ──────
+//
+// Verifies that cache_creation_input_tokens and cache_read_input_tokens from
+// the Anthropic streaming response are forwarded to actualCredits and reflected
+// in the done event's creditsCost.
+//
+// Expected values computed from Haiku rates (RATES['claude-haiku-4-5-20251001']):
+//   input=0.1, output=0.5, cacheWrite5m=0.125, cacheRead=0.01
+//
+// Cache-write case: actualCredits(5, 7, haiku, 500, 0, '5m')
+//   = Math.ceil(5×0.1 + 7×0.5 + 500×0.125 + 0×0.01) = Math.ceil(0.5+3.5+62.5) = 67
+//
+// Cache-read case: actualCredits(5, 7, haiku, 0, 500, '5m')
+//   = Math.ceil(5×0.1 + 7×0.5 + 0×0.125 + 500×0.01) = Math.ceil(0.5+3.5+5) = 9
+
+function makeAnthropicResponseWithCache(
+  cacheCreationTokens: number,
+  cacheReadTokens: number,
+): Response {
+  const inputTokens = 5;
+  const outputTokens = 7;
+  const sse = [
+    `event: message_start\ndata: {"type":"message_start","message":{"id":"msg_cache","usage":{"input_tokens":${inputTokens},"output_tokens":1,"cache_creation_input_tokens":${cacheCreationTokens},"cache_read_input_tokens":${cacheReadTokens}}}}\n\n`,
+    `event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n`,
+    `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}\n\n`,
+    `event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n`,
+    `event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":${outputTokens}}}\n\n`,
+    `event: message_stop\ndata: {"type":"message_stop"}\n\n`,
+  ].join("");
+  return new Response(sse, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
+describe("usage passthrough — cache tokens reconcile credits", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("cache-write: done event creditsCost reflects cache_creation_input_tokens at 1.25× rate (expected: 67)", async () => {
+    // 500 cache-creation tokens at haiku cacheWrite5m=0.125 adds 62.5 units
+    // total: ceil(5×0.1 + 7×0.5 + 500×0.125) = ceil(66.5) = 67
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponseWithCache(500, 0)));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    const done = events.find((e) => (e as { type: string }).type === "done") as {
+      type: string;
+      inputTokens: number;
+      outputTokens: number;
+      creditsCost: number;
+    } | undefined;
+    expect(done).toBeDefined();
+    expect(done!.creditsCost).toBe(67);
+  });
+
+  it("cache-read: done event creditsCost reflects cache_read_input_tokens at 0.1× rate (expected: 9)", async () => {
+    // 500 cache-read tokens at haiku cacheRead=0.01 adds 5 units
+    // total: ceil(5×0.1 + 7×0.5 + 500×0.01) = ceil(9) = 9
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponseWithCache(0, 500)));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    const done = events.find((e) => (e as { type: string }).type === "done") as {
+      type: string;
+      inputTokens: number;
+      outputTokens: number;
+      creditsCost: number;
+    } | undefined;
+    expect(done).toBeDefined();
+    expect(done!.creditsCost).toBe(9);
+  });
+});
