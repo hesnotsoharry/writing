@@ -1,7 +1,7 @@
 ---
 vendor: tauri-plugin-sql
 sdkVersion: "2"
-lastVerified: 2026-06-05
+lastVerified: 2026-06-13
 related:
   - src/db/schema.ts
   - src/db/migrations.ts
@@ -58,3 +58,17 @@ This is atomic in SQLite (runs in a single statement), avoiding a separate
 INSERT-or-skip. Especially useful in label assignment workflows where the row may
 not exist yet but should default to a sensible initial value (e.g., position 0)
 before incrementing.
+
+## 2026-06-13 — FK `ON DELETE CASCADE` not guaranteed per-connection; explicitly delete child rows instead
+Source: wave-35-assistant-redesign-port, commit e053852
+
+**Gotcha:** Foreign key constraints with `ON DELETE CASCADE` are a SQL feature, but SQLite enforces them only when `PRAGMA foreign_keys=ON` is set per-connection. The tauri-plugin-sql wrapper does not guarantee this pragma is set; depending on the connection state or if a connection pool is ever recycled, `ON DELETE CASCADE` may silently do nothing, leaving orphan child rows after a parent delete.
+
+**Workaround:** Keep the FK constraint declaration in the schema (for documentation + integrity during live SQL operations), but **always explicitly delete child rows in the application code** before deleting the parent. For example, when deleting an AI conversation with its messages:
+```typescript
+await db.execute('DELETE FROM ai_messages WHERE conversation_id = ?', [conversationId]);
+await db.execute('DELETE FROM ai_conversations WHERE id = ?', [conversationId]);
+```
+Do NOT rely on the cascade to clean up messages. Verify in acceptance tests that child rows are indeed deleted (not orphaned) after a parent delete.
+
+**Why:** tauri-plugin-sql does not document or enforce a per-connection pragma state, and SQLite's default is `PRAGMA foreign_keys=OFF`. The cascade feature is always available in the schema layer, but enforcement is connection-dependent. Code that assumes cascade works will ship with orphan rows if the pragma is ever off (e.g., after a connection reset or on a fresh session in a test environment). Explicit deletes are defensive and db-independent.

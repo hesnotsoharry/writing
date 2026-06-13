@@ -1,29 +1,26 @@
 ---
 project: writing
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 
 ## Current state
-- Branch: master · **wave-34 (AI assistant foundation) SHIPPED 2026-06-12** · v0.6.0 tag + Cole's `publish.ps1` desktop release pending
-- WritersNook has its first AI feature + first revenue spine: Supabase credit schema (0002+0003 applied), Cloudflare AI proxy (`marketing/functions/api/ai/`), LS subscription webhooks (real key fetched via `/v1/license-keys`), Assistant panel (brainstorm verb, context chips, credit meter), consent-gated opt-in lifecycle
-- Proven end-to-end in LS test mode: purchase → webhook → emailed key → consent → metered streamed chat; wave-end adversarial panel (billing + privacy lenses) findings all fixed and deployed
-- 5 durable decisions promoted to [decisions/](decisions/) (proxy home, identity, credit ledger, streaming protocol, lapsed-sub behavior) · vendor-gotchas updated (anthropic, lemonsqueezy, cloudflare-pages)
+- Branch: master · Tag: v0.6.0 (desktop) · Package version: 0.6.0
+- **Wave 35 (AI assistant redesign port) SHIPPED to master** — pushed with the wrap commit (deploys marketing `balance.ts` + billing-code improvements via Cloudflare Pages; all TEST-mode, no live LS flip). Desktop release (v0.7.0) pending Cole's `publish.ps1`.
+- Wave 35 delivered: persisted conversations, 4 verbs + multi-turn history, context assembly w/ D4 entity-shield, redesigned panel, consent + Settings section, selection pill, and full billing (new `GET /api/ai/balance`, real meter/guardrails, wave-34 billing fixes). Verified live via CDP through phase F; G/H/I smoked as far as pre-deploy allows.
 
 ## Next 3 steps
-1. **Cole:** bump version + tag v0.6.0 happens with the desktop release — run `.\publish.ps1` when ready; consider rotating the Anthropic API key (it transited this session's chat log) — two-minute swap via `wrangler pages secret put`.
-2. **Wave 35 planning** (`/wave-plan 35`): 3 more verbs (critique/beta-read/proof) + selected-text + pickers + exclude-flags + marketing site AI/pricing pages. Inputs: [discovery/2026-06-12-ai-assistant-v2-context-and-conversations.md](discovery/2026-06-12-ai-assistant-v2-context-and-conversations.md) (harness pass, manuscript-level conversations, synopsis context) + parked wave-34 polish (below).
-3. **Launch checklist (pre-revenue, wave 35/36):** swap `LS_SUB_VARIANT_ID`/`LS_TOPUP_VARIANT_ID` to live-mode IDs (test: 1782093/1782092; blank/missing now fails loud); create live-mode LS webhook for the subscription handler; wire Resend in `sendSubscriptionKeyEmail` (currently no-op seam, only matters if LS key-email ever insufficient).
+1. **Cole — desktop release:** bump v0.7.0 in the 4 files (package.json, src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}), tag `v0.7.0`, run `.\publish.ps1`. The git push already deployed the marketing/proxy side; this ships the desktop app + lights up the live credit meter (balance.ts is now deployed).
+2. **Cole — aiEnabled production default flip (Decision 8):** `TWEAK_DEFAULTS.aiEnabled` stays `true` this wave; design canon wants production default-OFF. One-line flip in `settings.store.ts` — your call (affects whether existing users keep the AI tab on next launch). Pairs with launch.
+3. **Wave 36 launch half (monetization):** I'm building the safe parts overnight in a worktree (marketing AI/pricing pages + Resend wiring). The IRREVERSIBLE/real-money flips are LEFT FOR YOU: swap LS test→live variant IDs (test sub 1782093 / topup 1782092), create the live LS webhook, deploy the public pricing page in a money-taking state, enable real Resend sends. GDPR/DPA review remains your pre-revenue blocker.
 
 ## Active work
-- No wave in flight. Open follow-ups: 13 in [inbox](follow-ups/) (all pre-wave-34, untouched this wave).
-- **Cole-owned, non-software:** GDPR/DPA + privacy-policy formalization for the AI data path — rejected by the follow-up auditor as legal (not software) work, but real: the "never trains on your manuscript" promise ships in consent copy while the Anthropic DPA / data-residency posture is unreviewed. Needs Cole + counsel/policy pass before real-money launch.
-- Parked wave-34 polish (fold into wave 35): wire `chat.ts` cost math to `CREDIT_UNIT_USD`; DROP superseded `decrement_credits` in next migration; `reset_at` drift (use LS `renews_at` when available); blank reset-date in first-month 429 body; entity-notes content not chip-visible (context-strip redesign covers it); panel reacts to Settings-side key clear only on next mount.
-- Process lesson (binding for wave 35, recorded in wave file): orchestrator authors failing acceptance tests for cross-boundary phases BEFORE dispatch (`~/.claude/rules-deferred/orchestrator-owned-acceptance-tests.md`) — wave-34 substituted live verification (which caught more bugs than the paper tests would have) but it's a Check-5 FAIL on record.
-- Phase 2 product deferrals unchanged: board features (side-panel, drag-to-editor, images, quick-note), live sync, mobile.
+- No wave in flight (35 shipped). Wave 36 launch half: in progress overnight (worktree), stops at the money-line above.
+- Open follow-ups: 14 · [inbox](follow-ups/) — new this wave: [D4 entity-context-strip staleness](follow-ups/2026-06-13-assistant-entity-context-strip-staleness.md) (narrow same-session entity-staleness; needs a store mutation-event mechanism).
+- 2 phase-0 candidates routed for the next AI-panel-touching wave: meta run-phase smoke unusable for this repo (meta-boundary), and the AiConvoList "No messages yet" subtitle on lazy-loaded convos.
+- Decisions promoted: 2 → [decisions/](decisions/). Vendor-gotchas: [tauri-plugin-sql.md](../.claude/vendor-gotchas/tauri-plugin-sql.md) (FK CASCADE pragma).
 
 ## Reference index
-- Project conventions: [CLAUDE.md](../CLAUDE.md) (AI stance updated this wave) · ADR-0001 amended with the dated pivot
-- Wave record: [wave-34-ai-assistant-foundation.md](wave-34-ai-assistant-foundation.md) — status table, mechanical review, observation evidence
-- Secrets on Pages project `writing` (NOT "writers-nook-marketing" — wrangler.toml name is stale): ANTHROPIC_API_KEY, PROXY_SESSION_SECRET, LS_API_KEY, LS_SUB_VARIANT_ID, LS_TOPUP_VARIANT_ID (all set 2026-06-12; missing-secret paths fail loud)
-- Build & release: `npm run tauri dev` (CDP 9222) · `npm run test` · `npm run lint:fix` · `.\publish.ps1` (Cole-run, interactive; bump version in 4 files + tag first)
-- Smoke: dev panel hits the production proxy by default; set `VITE_AI_PROXY_URL` in `.env.local` for local wrangler; dev license key `DEV-AI-LICENSE-2026` (seeded Supabase row)
+- Project conventions: [CLAUDE.md](../CLAUDE.md)
+- Wave record (stub): [wave-35-assistant-redesign-port.md](wave-35-assistant-redesign-port.md) · full detail `git log e053852..900aa50`
+- Durable decisions: [decisions/](decisions/) · Vendor-gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/)
+- Wave 36 kickoff prompt: in the session log (launch/monetization half; BYOK deferred to a later wave per Decision 6)
