@@ -9,12 +9,17 @@
 
 **Do not execute any step below until Cole explicitly confirms the following are cleared:**
 
-- [ ] GDPR / DPA review complete. `marketing/public/privacy.html` covers the AI data path:
-      what data is sent to Anthropic, retention, how to request deletion. If this section
-      is missing or vague, update `privacy.html` before launch.
+- [ ] GDPR / DPA review complete. `marketing/public/privacy.html` now has an **"AI Writing
+      Assistant"** section (what's sent to Anthropic, relay-not-stored/logged/trained, what's
+      retained = license key + credit balance, deletion path) — **DRAFTED 2026-06-13**, but the
+      file still carries the "have terms checked by counsel before launch" banner. **Counsel
+      must sign off on this copy before the flip.**
 - [ ] Pricing copy is final (`pricing.html`) — live charges are difficult to refund retroactively.
-- [ ] Wave 35 desktop AI feature is live in the latest signed release (the subscription is
-      useless to the customer without the desktop feature).
+- [ ] Wave 35 desktop AI feature is live in the latest signed release — **v0.8.0 ships it**
+      (cut via `publish.ps1`).
+- [ ] **Step 0 done (see below): migration `0005_topup_credits_dedup.sql` applied to the
+      production Supabase project, THEN the webhook atomicity fix deployed — in that order.**
+      Applying 0005 after the code ships leaves a double-credit window on top-up retries.
 - [ ] Test-mode dress rehearsal (see section below) has been completed successfully.
 
 **Cole signs off in this conversation before the flip begins.**
@@ -73,6 +78,22 @@ Do not proceed to the live flip until steps 4 and 5 are both green.
 ---
 
 ## Step-by-step live flip (ordered — execute top to bottom)
+
+### Step 0 — Apply migration 0005, then deploy the webhook atomicity fix
+
+The webhook handler was rewritten (commit `fb23433`) to call the credits RPC BEFORE writing
+the idempotency tombstone (the prior order silently orphaned grants on RPC failure).
+`topup_credits` is only safe under that ordering once migration `0005_topup_credits_dedup.sql`
+makes it idempotent. Order is load-bearing:
+
+1. **Apply `marketing/supabase/0005_topup_credits_dedup.sql` to production Supabase** (dashboard
+   SQL editor or CLI — AUTHOR-ONLY, agents don't apply it). It redefines `topup_credits` with a
+   `p_request_id` dedup guard + a partial unique index on `credit_events`.
+2. **Then deploy the webhook fix** — it's committed locally on `master` (`fb23433`) but **not yet
+   pushed**. Pushing master deploys it (Cloudflare Pages). Push after 0005 is confirmed applied.
+
+Reversing this order opens a tombstone-fail double-credit window on every top-up retry (inert
+until the live top-up product exists, but sequence it correctly).
 
 ### Step 1 — Switch LS store to live mode and read the new IDs
 
