@@ -1,6 +1,7 @@
 ---
-status: IN-PROGRESS
+status: SHIPPED
 created: 2026-06-04
+note: status corrected 2026-06-13 — foundation deliverables shipped in commit 7addfa4 and were consumed by downstream waves now in v0.6.0 production; the IN-PROGRESS marker was stale bookkeeping.
 ---
 
 # Wave 17 — Canon-polish foundation (shared contracts)
