@@ -1,7 +1,7 @@
 ---
-status: IN-PROGRESS
+status: SHIPPED
 created: 2026-06-13
-note: implemented + locally committed 2026-06-13; NOT pushed — awaiting Cole's merge + deploy (see ## Result). Collapse to stub at true ship.
+note: SHIPPED 2026-06-13 — pushed to master (HEAD 22808a3) + marketing AI proxy DEPLOYED via Cloudflare Pages + tagged v0.8.0. Remaining: Cole runs publish.ps1 (interactive) to cut the desktop installer, and the post-deploy behavioral CDP smoke (both noted in ## Result → Cole's to-do). File kept full (not stub-collapsed).
 ---
 
 # Wave 37 — AI Harness Optimization (prompts + server-side verb config + caching)
@@ -120,7 +120,9 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Result
 
-**IMPLEMENTED — not shipped (2026-06-13).** All 5 phases complete + committed locally on `master`; **NOT pushed** (push deploys the marketing proxy). The wave's ship — merge coordination, push/deploy, desktop release, behavioral smoke — is Cole's.
+**SHIPPED (2026-06-13).** All 5 phases complete; merged with Wave 36 (merge commit `e261f8d`), version-bumped to v0.8.0, and **pushed to `master` (HEAD `22808a3`)** — the marketing AI proxy is now DEPLOYED via Cloudflare Pages, and tag `v0.8.0` is pushed. A merge-time wave-end adversarial review (attack-diff, agent a56d2068) returned FLAG-no-BLOCK: all AI-proxy angles PASS (backward-compat for un-updated v0.6.0 clients confirmed, billing math clean, caching request-shape valid); the single FLAG is a Wave-36 webhook bug (inert in this deploy — filed as a Phase-D launch-blocker in wave-36). **Two steps remain, both Cole's:** (1) run `.\publish.ps1` to cut the signed desktop installer + GitHub release (interactive — needs the updater-key password + AZURE_* signing env; the v0.8.0 tag is already pinned at `22808a3`, so the release will be deterministic); (2) the post-deploy behavioral CDP smoke (see Cole's to-do below — still DEFERRED, now runnable against the live proxy).
+
+_Original pre-ship state (for history):_ implemented + committed locally, NOT pushed — the wave's ship (merge coordination, push/deploy, desktop release, behavioral smoke) was Cole's; the merge + push + tag + proxy-deploy were completed in the 2026-06-13 ship-coordination session.
 
 - **Delivered:** anti-sycophancy verb prompts (P1) · scene-truncation honesty (P2) · privacy-footgun removal (P3) · server-side `VERB_CONFIG` + model-aware billing `[F]` (P4) · prompt caching `[6]` (P5). All verbs remain on `claude-haiku-4-5-20251001`; the Haiku→Sonnet model upgrade is deliberately deferred (Cole-gated cost decision — `[F]` makes the flip a one-line, correctly-billed change).
 - **Commits:** `fa46ccf` `f94399f` `fd57f1c` `ac6ce41` `ca0369d` `b6f29b3` (plan `3086584`; the About-persistence bug fix `f59e8b2` + discovery doc `7de1b37` preceded execution).

@@ -1,6 +1,7 @@
 ---
-status: PLANNED
+status: SHIPPED
 created: 2026-06-13
+note: phases A-C MERGED into master + deployed to writersnook.app 2026-06-13 (commit e261f8d, with v0.8.0). Phase D (live LS checkout flip + GDPR/DPA clearance) is deliberately DEFERRED — Cole-executed; tracked in ## Follow-up candidates (incl. the webhook RPC-error launch-blocker) + marketing/LAUNCH-AI-SUBSCRIPTION.md runbook. Marked SHIPPED (not IN-PROGRESS) so the held-D activation does not falsely gate unrelated future pushes.
 ---
 
 # Wave 36 — Launch / AI-subscription monetization (marketing)
@@ -120,12 +121,17 @@ Before declaring a phase complete, restate the observation point from the Phases
 ## Follow-up candidates
 
 - [marketing] `marketing/wrangler.toml` `name = "writers-nook-marketing"` is stale — the deployed Pages project is `writing` (HANDOFF 2026-06-12). Documented defensively in the runbook + cloudflare-pages.md gotcha this wave, but the source drift remains. Not fixed in-wave: changing the deploy-config `name` field mid-launch-wave is the wrong risk without confirming it won't affect the git-connected deploy. | present-harm: K2 — a wave-36 adversarial reviewer (run ad926ac-context, 2026-06-13) was tripped into a false-positive BLOCK by the mismatch; future launchers/agents will hit the same trap until the source value is corrected.
+- **[LAUNCH-BLOCKER for Phase D] webhook credits-RPC error swallowed after the idempotency tombstone** — in `marketing/functions/api/webhooks/lemon-squeezy-subscription.ts`, `handlePaymentSuccess` (~lines 280-299) and `handleTopupOrder` (~lines 371-393) commit the idempotency tombstone to the ledger BEFORE calling `reset_credits` / `topup_credits`, and discard the RPC return/error. If the credits RPC fails after the tombstone is written, Lemon Squeezy's retry hits a 23505 duplicate on the tombstone and returns 200 — the credit reset/topup is permanently orphaned (subscriber paid, gets no allowance, no auto-retry). Fix: move the credits operation before the ledger insert (matching `handleCreated`'s `upsert_subscription`-before-ledger ordering) OR capture the RPC error and return 500; add a test simulating an RPC failure (current tests at `lemon-squeezy-subscription.test.ts:109-113` mock RPC as always-success). | present-harm: K2 — money-path correctness bug at `lemon-squeezy-subscription.ts` handlePaymentSuccess/handleTopupOrder (wave-37 merge-time adversarial review, agent a56d2068, 2026-06-13). INERT in the current deploy (subscribe CTA is a dead placeholder `pricing.html:106` `href="#ai-subscribe-url-set-at-launch"` — no live subscription events can fire), but MUST be fixed before Phase D points the CTA at a live checkout URL.
 
 ## Result
 
-**PAUSED pre-merge (2026-06-13) — awaiting GDPR/DPA clearance + launch merge (Cole, morning).**
+**A–C MERGED + DEPLOYED (2026-06-13). Phase D (live activation) HELD — Cole-executed, GDPR/DPA-gated.**
 
-Phases A–C complete on branch `wave-36-launch-monetization` (4 commits: e0d9a12, 35550c0, a33d9e2, f463814). Phase D (live flip) held — Cole-executed, GDPR-gated; runbook ready at `marketing/LAUNCH-AI-SUBSCRIPTION.md`.
+Merged into `master` at commit `e261f8d` (merge of `wave-36-launch-monetization` after Wave 37; the one overlapping file `lemon-squeezy-subscription.ts` auto-merged clean) and pushed with `v0.8.0` (HEAD `22808a3`) — Cloudflare Pages auto-deploys `marketing/` on push, so the $14.99/mo AI-subscription pricing presentation is now LIVE on writersnook.app. Verified on the merged tree before push: marketing vitest 201/201, tsc clean. A merge-time wave-end adversarial review (attack-diff, agent a56d2068) returned FLAG-no-BLOCK — the deployed surface is clean; the one finding (webhook credits-RPC error after the idempotency tombstone) is INERT in this deploy and is filed above as a Phase-D launch-blocker.
+
+**Phase D remains held** (live LS checkout flip + GDPR/DPA clearance) — Cole-executed; runbook at `marketing/LAUNCH-AI-SUBSCRIPTION.md`. The subscribe CTA on the live pricing page is a deliberate placeholder (`href="#ai-subscribe-url-set-at-launch"` — no checkout) until Phase D fills the live URL.
+
+_Original pre-merge state (for history): phases A–C completed on branch `wave-36-launch-monetization` (4 commits: e0d9a12, 35550c0, a33d9e2, f463814); merge verified clean against master before the launch merge._
 
 - **Acceptance-criteria self-audit (2026-06-13): all PASS** — `$14.99`/`/ month` on pricing; zero BYOK in `public/`; AI card on features + teaser on index; `sendSubscriptionKeyEmail` wired (no-op gone, `idempotencyKey` present); placeholder CTA (no test UUID); all three LS vars in `.dev.vars.example`; runbook present; full marketing suite 141/141; tsc clean.
 - **Merge readiness:** `git merge-tree master wave-36-launch-monetization` → **zero conflicts** against master `6dd381d` (Wave 35 advanced during this wave; disjoint surfaces held). Morning merge into master is verified clean.
