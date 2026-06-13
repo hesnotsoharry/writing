@@ -4,7 +4,7 @@
  */
 import type { AiMessage } from "../ai.client";
 import type { AssembledContext } from "../ai.types";
-import { buildGrounding } from "./shared";
+import { buildGrounding, SHARED_PRINCIPLES } from "./shared";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,7 @@ export function buildProofreadMessages(
     "You may write a single optional one-line preamble before the block.",
     "Never make stylistic edits. Do not suggest changes to sentence structure, word choice, or style.",
     "Correct only: typos, spelling errors, grammar mistakes, punctuation errors, and factual consistency issues.",
+    SHARED_PRINCIPLES,
   ];
 
   parts.push(...buildGrounding(ctx));

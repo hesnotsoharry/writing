@@ -4,7 +4,7 @@
  */
 import type { AiMessage } from "../ai.client";
 import type { AssembledContext } from "../ai.types";
-import { buildGrounding } from "./shared";
+import { buildGrounding, SHARED_PRINCIPLES } from "./shared";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ export function buildCritiqueMessages(
   const parts: string[] = [
     "You are a trusted writing partner giving honest craft feedback on a fiction manuscript.",
     "Be specific, direct, and grounded in what is actually on the page.",
+    SHARED_PRINCIPLES,
     "Structure your response with exactly these three ### headers in this order:",
     "### What's working",
     "### Questions to sit with",

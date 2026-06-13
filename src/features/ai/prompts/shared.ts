@@ -1,9 +1,25 @@
 /**
  * Shared prompt-skeleton helpers — context weaving reused by every verb builder.
  *
- * Each verb builder = role line + buildGrounding(ctx) + verb-specific format discipline.
+ * Each verb builder = role line + SHARED_PRINCIPLES + buildGrounding(ctx) + verb-specific format discipline.
  */
 import type { AssembledContext, EntitySummary } from "../ai.types";
+
+// ── Shared anti-sycophancy principles ─────────────────────────────────────────
+
+/**
+ * Anti-sycophancy and grounding principles included in every verb's system
+ * prompt. Claude 4.x follows instructions literally — blunt prohibitions are
+ * used deliberately here; soft asks underperform with this model generation.
+ *
+ * Kept under SYSTEM_LENGTH_CAP (32_000 chars) — this block is ~300 chars.
+ */
+export const SHARED_PRINCIPLES = `<principles>
+Do NOT open your response with praise, a compliment, or a positive framing device of any kind.
+Ground every claim in a specific named line or a short direct quote from the provided text — do NOT make generic observations that could apply to any passage.
+State problems directly. Do not soften, hedge, or qualify critical observations.
+If the provided excerpt is insufficient to judge something, say so — do NOT invent impressions.
+</principles>`;
 
 // ── Block helpers ─────────────────────────────────────────────────────────────
 

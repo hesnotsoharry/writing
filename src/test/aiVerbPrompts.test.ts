@@ -97,3 +97,46 @@ describe("buildMessages — multi-turn history", () => {
     expect(out.messages[0]).toEqual({ role: "user", content: "solo ask" });
   });
 });
+
+// ── Wave 37 Phase 1 — anti-sycophancy principles assertions ───────────────────
+// These are STRUCTURAL assertions only. Behavioral quality (non-sycophantic
+// output) is verified by the deferred live CDP smoke at wave-end — NOT by these
+// tests. Unit tests cannot observe model output.
+
+describe("buildMessages — shared <principles> block present in every verb (Wave 37 P1)", () => {
+  for (const verb of VERBS) {
+    it(`${verb}: system prompt contains the shared <principles> opening tag`, () => {
+      const sys = buildMessages(verb, CTX, "x").system;
+      expect(sys).toContain("<principles>");
+    });
+
+    it(`${verb}: system prompt contains the 'Do NOT open' prohibition`, () => {
+      const sys = buildMessages(verb, CTX, "x").system;
+      expect(sys).toContain("Do NOT open");
+    });
+
+    it(`${verb}: system prompt contains the specificity requirement`, () => {
+      const sys = buildMessages(verb, CTX, "x").system;
+      expect(sys).toContain("specific named line");
+    });
+  }
+
+  it("critique retains all three locked section headers alongside the <principles> block", () => {
+    const sys = buildMessages("critique", CTX, "x").system;
+    expect(sys).toContain("<principles>");
+    expect(sys).toContain("What's working");
+    expect(sys).toContain("Questions to sit with");
+    expect(sys).toContain("If I pushed on one thing");
+  });
+
+  it("brainstorm includes the non-conventional-option instruction", () => {
+    const sys = buildMessages("brainstorm", CTX, "x").system;
+    expect(sys).toContain("non-conventional");
+  });
+
+  it("betaread prohibits line-editing and copy-editing", () => {
+    const sys = buildMessages("betaread", CTX, "x").system;
+    expect(sys).toContain("NOT an editor");
+    expect(sys).toContain("Do NOT line-edit");
+  });
+});

@@ -6,7 +6,7 @@
  */
 import type { AiMessage } from "../ai.client";
 import type { AssembledContext, EntitySummary } from "../ai.types";
-import { buildGrounding } from "./shared";
+import { buildGrounding, SHARED_PRINCIPLES } from "./shared";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,8 @@ export function buildBrainstormMessages(
     "Help the writer explore ideas, solve story problems, and develop their world.",
     "Stay true to the established characters, locations, and worldbuilding shown below.",
     "Be concise, creative, and collaborative. Respond in 2–4 short paragraphs.",
+    SHARED_PRINCIPLES,
+    "Include at least one non-conventional or unexpected option — do NOT default to the most obvious direction.",
   ];
 
   parts.push(...buildGrounding(ctx));

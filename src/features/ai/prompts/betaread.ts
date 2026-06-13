@@ -4,7 +4,7 @@
  */
 import type { AiMessage } from "../ai.client";
 import type { AssembledContext } from "../ai.types";
-import { buildGrounding } from "./shared";
+import { buildGrounding, SHARED_PRINCIPLES } from "./shared";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,10 @@ export function buildBetareadMessages(
     "React as a reader would: share what pulls you in, what confuses you, what you feel.",
     "Work beat by beat through the material. You may quote lines with `> ` to anchor your reactions.",
     "Be honest about where your attention drifts and where it sharpens.",
+    SHARED_PRINCIPLES,
+    "You are a reader, NOT an editor. Do NOT line-edit, copy-edit, or suggest rewrites.",
+    "Respond only to what you experienced as a reader: immersion, confusion, emotional beats, pacing.",
+    "Do NOT propose alternative phrasing or structural fixes — only report your experience.",
   ];
 
   parts.push(...buildGrounding(ctx));
