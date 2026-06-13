@@ -128,6 +128,14 @@ Before declaring a phase complete, restate the observation point from the Phases
 **Context:** The ratified consent copy promises "or bring your own API key," and the design's plan states include `byok` (no meter, key local-only) — but production has no BYOK path at all (explorer risk F4): it needs key storage, a second streaming route (direct Anthropic call with the CORS-enabling header, or via the Tauri shell), and an SSE-normalization adapter. **Recommendation:** build BYOK in **wave 36, before real-money launch** — the copy ships in 35 as written (the promise is honored before any paying user sees it, since live LS mode also lands in 36); wave 35's Settings plan row renders subscription-only, and the `byok` plan state lands with its plumbing. Alternative: include BYOK as wave-35 phase J if shipping copy that references a not-yet-real tier for the days between 35 and 36 is unacceptable.
 **Pick:** BYOK → wave 36.  **Enforcement:** out-of-scope list above; phases G/H briefs render subscription-only plan state.
 
+### Decision 7: Full billing pulled into Wave 35 + dedicated balance endpoint (Cole, 2026-06-13)
+
+**Context:** Phase G grounding found NO credit-balance endpoint — the panel meter ran on stub data (usedPct=0). Cole chose "Full billing now (pull 36 work in)" over deferring to wave 36. The client needs balance/allowance/reset/status, and the explorer surfaced two delivery options: extend `/api/ai/session` vs a dedicated read endpoint.
+**Pick:** Dedicated `GET /api/ai/balance` (authed with the session bearer token) returning `{ creditsBalance, monthlyAllowance, resetAt, status }`; client fetches on panel mount + after each `done` event. Renew/Top-up buttons open the EXISTING test-mode LS checkout/portal URLs via the Tauri opener (live-variant swap stays a wave-36 Cole-gated flip).
+**Rationale:** Refreshable without re-running session auth; keeps session-exchange single-purpose; matches REST convention; `monthlyAllowance` in the response avoids a hardcoded client denominator (server-only `MONTHLY_ALLOWANCE`). Test-mode checkout URLs are reversible; the real-money flip is explicitly NOT in this wave.
+**Consequences:** Wave 35 now owns the billing data path + guardrail wiring; wave 36's billing remainder shrinks to the irreversible flips (live LS variant IDs, live webhook, real Resend) + marketing pages.
+**Enforcement:** Phase G acceptance tests (balance contract + meter mapping + reset-date fixes); checkout buttons point at test-mode variants until the wave-36 live flip. `durable: candidate`.
+
 ## Status
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
