@@ -39,6 +39,7 @@ vi.mock("../features/ai/ai.context", () => ({
     about: null,
     selectionText: null,
     boundaryLine: null,
+    sceneExcerptTruncated: false,
   }),
   // filterAiEntities is used by useContextAssembly for D4 display parity.
   // Tests pass sceneEntityGroups: [] so the filter always returns [].

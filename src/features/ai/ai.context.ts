@@ -169,7 +169,9 @@ export async function assembleContext(
 ): Promise<AssembledContext> {
   const { cfg, sceneTitle, sceneId, doc, store, projectId, selectionText } = input;
 
-  const sceneExcerpt = (doc ? extractPlainText(doc) : "").slice(0, SCENE_EXCERPT_CHARS);
+  const rawSceneText = doc ? extractPlainText(doc) : "";
+  const sceneExcerptTruncated = rawSceneText.length > SCENE_EXCERPT_CHARS;
+  const sceneExcerpt = rawSceneText.slice(0, SCENE_EXCERPT_CHARS);
 
   const rawGroups = sceneId
     ? await store.loadSceneEntities(sceneId).catch(() => [])
@@ -184,6 +186,7 @@ export async function assembleContext(
   return {
     sceneTitle,
     sceneExcerpt,
+    sceneExcerptTruncated,
     extraScenes,
     entitySummaries,
     about,

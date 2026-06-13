@@ -41,6 +41,7 @@ vi.mock("../features/ai/ai.context", () => ({
     about: null,
     selectionText: null,
     boundaryLine: null,
+    sceneExcerptTruncated: false,
   }),
 }));
 

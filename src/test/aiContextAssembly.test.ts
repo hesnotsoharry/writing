@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import * as Y from "yjs";
 
 import type { StoryBibleStore } from "../db/storyBibleStore";
-import { assembleContext } from "../features/ai/ai.context";
+import { assembleContext, SCENE_EXCERPT_CHARS } from "../features/ai/ai.context";
 import type { AiCtxConfig } from "../features/ai/ai.types";
 
 // Orchestrator-authored Phase E acceptance test (Wave 35). Implementer extends
@@ -131,5 +132,44 @@ describe("assembleContext — scene identity", () => {
   it("carries the open scene title through", async () => {
     const ctx = await assembleContext(baseInput({}));
     expect(ctx.sceneTitle).toBe("Chapter One");
+  });
+});
+
+// ── Wave 37 Phase 2 — sceneExcerptTruncated flag ──────────────────────────────
+
+/** Build a Y.Doc with a single paragraph containing `text`. */
+function makeDocWithText(text: string): Y.Doc {
+  const doc = new Y.Doc();
+  const frag = doc.getXmlFragment("content");
+  const para = new Y.XmlElement("paragraph");
+  const xt = new Y.XmlText();
+  xt.insert(0, text);
+  para.insert(0, [xt]);
+  frag.insert(0, [para]);
+  return doc;
+}
+
+describe("assembleContext — sceneExcerptTruncated (Wave 37 P2)", () => {
+  it("sets sceneExcerptTruncated to true when scene text exceeds SCENE_EXCERPT_CHARS", async () => {
+    const doc = makeDocWithText("A".repeat(SCENE_EXCERPT_CHARS + 1));
+    const ctx = await assembleContext(baseInput({}, { doc }));
+    expect(ctx.sceneExcerptTruncated).toBe(true);
+  });
+
+  it("sets sceneExcerptTruncated to false when scene text is exactly SCENE_EXCERPT_CHARS", async () => {
+    const doc = makeDocWithText("A".repeat(SCENE_EXCERPT_CHARS));
+    const ctx = await assembleContext(baseInput({}, { doc }));
+    expect(ctx.sceneExcerptTruncated).toBe(false);
+  });
+
+  it("sets sceneExcerptTruncated to false when scene text is shorter than the cap", async () => {
+    const doc = makeDocWithText("Short scene.");
+    const ctx = await assembleContext(baseInput({}, { doc }));
+    expect(ctx.sceneExcerptTruncated).toBe(false);
+  });
+
+  it("sets sceneExcerptTruncated to false when doc is null (empty scene)", async () => {
+    const ctx = await assembleContext(baseInput({}));
+    expect(ctx.sceneExcerptTruncated).toBe(false);
   });
 });

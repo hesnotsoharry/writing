@@ -66,6 +66,15 @@ export function buildGrounding(ctx: AssembledContext): string[] {
     ctx.sceneExcerpt
       ? `Scene excerpt:\n${ctx.sceneExcerpt}`
       : "(Scene is empty — no prose yet)",
+  );
+
+  if (ctx.sceneExcerptTruncated) {
+    parts.push(
+      "NOTE: You are seeing only the first ~2000 characters of this scene — do not comment on its ending or overall completeness; scope your feedback to the visible portion.",
+    );
+  }
+
+  parts.push(
     "",
     "Linked worldbuilding entities:",
     buildEntityBlock(ctx.entitySummaries),

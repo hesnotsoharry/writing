@@ -158,6 +158,12 @@ export interface AssembledContext {
   sceneTitle: string;
   /** Scene plain-text, capped at SCENE_EXCERPT_CHARS. */
   sceneExcerpt: string;
+  /**
+   * True when the raw scene text exceeded SCENE_EXCERPT_CHARS and was sliced.
+   * Prompt builders use this to emit a notice telling the model it has not seen
+   * the full scene and should not comment on its ending or completeness.
+   */
+  sceneExcerptTruncated: boolean;
   /** Extra scene excerpts requested via cfg.extraSceneIds. */
   extraScenes: { title: string; excerpt: string }[];
   /** Filtered entity list (exclude_from_ai + offEntityNames both applied). */

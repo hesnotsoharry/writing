@@ -14,6 +14,7 @@ import { buildMessages, VERB_MAX_TOKENS } from "../features/ai/prompts";
 const CTX: AssembledContext = {
   sceneTitle: "Chapter One",
   sceneExcerpt: "The tide came in fast across the causeway.",
+  sceneExcerptTruncated: false,
   extraScenes: [],
   entitySummaries: [{ type: "character", name: "Maren", keyFacts: "the keeper" }],
   about: {
@@ -139,4 +140,30 @@ describe("buildMessages — shared <principles> block present in every verb (Wav
     expect(sys).toContain("NOT an editor");
     expect(sys).toContain("Do NOT line-edit");
   });
+});
+
+// ── Wave 37 Phase 2 — scene-excerpt truncation notice ─────────────────────────
+// Structural assertions only: the notice string is assembled into the system
+// prompt when truncated=true and absent when truncated=false. Behavioral
+// quality (model scoping feedback to the visible portion) is deferred to the
+// wave-end CDP smoke — cannot be observed at the unit boundary.
+
+const TRUNCATED_CTX: AssembledContext = {
+  ...CTX,
+  sceneExcerptTruncated: true,
+};
+
+describe("buildMessages — scene-excerpt truncation notice (Wave 37 P2)", () => {
+  for (const verb of VERBS) {
+    it(`${verb}: system prompt contains the truncation notice when sceneExcerptTruncated is true`, () => {
+      const sys = buildMessages(verb, TRUNCATED_CTX, "x").system;
+      expect(sys).toContain("only the first ~2000 characters");
+      expect(sys).toContain("do not comment on its ending or overall completeness");
+    });
+
+    it(`${verb}: system prompt does NOT contain the truncation notice when sceneExcerptTruncated is false`, () => {
+      const sys = buildMessages(verb, CTX, "x").system;
+      expect(sys).not.toContain("only the first ~2000 characters");
+    });
+  }
 });
