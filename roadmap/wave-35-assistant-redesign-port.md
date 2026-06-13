@@ -135,7 +135,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 0 (plan + oracle) | — | 2026-06-12 | e053852 + c6b351a | n/a — oracle confirmed failing 14/14 for "migrations absent" |
 | A | 2026-06-12 (run-phase `wf_322c4431-c7c`, panel tier) | 2026-06-12 | (this commit) | Internal — no observation point; oracle 14/14 green, full suite 1308 green, panel PASS (1 FLAG: stale header — fixed by orchestrator) |
 | B | 2026-06-12 (run-phase `wf_6d6361ad-5b2`, skip→single auto-escalated) | 2026-06-12 | 36ff41e | HIT (orchestrator CDP smoke, 2026-06-12): Settings nav renders the sparkle icon on the AI assistant row; app renders with zero regressions under the compat styling. |
-| C | 2026-06-12 (run-phase `wf_e16dc984-489`, single tier, 2 scout slices) | — | — | — |
+| C | 2026-06-12 (run-phase `wf_e16dc984-489`, single tier, 2 scout slices) | 2026-06-12 | f2f1163 | HIT (orchestrator CDP smoke): Assistant tab renders the redesigned panel (empty-state verb grid, starters, WHAT-I-CAN-SEE strip w/ test1 chip, composer + Brainstorm verb chip, "Plenty left this month" meter); a real brainstorm ask streamed a scene-grounded 2-angle reply into the new thread UI, you-message receipt showed "Saw test1", stream completed + composer restored cleanly. BLOCK (buildCtxSnapshot field-name mismatch + icon types) fixed via re-dispatch; adversarial re-review PASS. |
+| D | — | — | — | — |
 
 ## Follow-up candidates
 
