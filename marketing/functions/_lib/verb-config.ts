@@ -30,11 +30,17 @@ export interface StandardVerbConfig {
  * thinking → 400 from the Anthropic API (research sidecar §8).
  *
  * No thinking-enabled verb ships in Wave 37; this guards the future upgrade path.
+ * `thinking` carries the Anthropic extended-thinking object (Decision 1 D4), passed to
+ * the API verbatim. For the `enabled` variant, `budget_tokens` MUST be < maxTokens per
+ * the Anthropic API. (A prior boolean shape would have sent `true` and 400'd a future
+ * thinking verb.)
  */
 export interface ThinkingVerbConfig {
   model: string;
   maxTokens: number;
-  thinking: true;
+  thinking:
+    | { type: 'enabled'; budget_tokens: number }
+    | { type: 'adaptive'; effort: 'low' | 'medium' | 'high' | 'max' };
   /** Intentionally excluded — compile-time mutual exclusion against temp+thinking = 400 */
   temperature?: never;
 }

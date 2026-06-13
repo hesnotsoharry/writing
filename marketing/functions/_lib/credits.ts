@@ -69,7 +69,13 @@ export const OUTPUT_UNITS_PER_TOKEN = 5e-6 / CREDIT_UNIT_USD;  // $5/MTok → 0.
 /**
  * Estimate the maximum credits a request may consume (reserve before sending).
  * Reserve = input ceiling (chars÷4 heuristic) + per-verb max_tokens × output rate.
- * Always ≥ actualCredits for the same inputs — the reserve is refund-only (D3).
+ * Refund-only reconciliation (D3): the full max_tokens output reservation almost always
+ * exceeds real usage, so reserve ≥ actual in normal operation. EXCEPTION: on a first-turn
+ * cache-WRITE (system ≥ the model's cacheable minimum), actualCredits applies the 1.25×
+ * cache-write premium to the cached system tokens that this estimate bills at the base
+ * input rate, so actual MAY slightly exceed reserve on that turn. Reconcile charges
+ * min(reserve, actual) — the USER is never over-charged or driven negative; the service
+ * absorbs the small premium. Follow-up: reserve the cache-write rate when caching fires.
  *
  * @param charCount - total character count of all messages + system prompt
  * @param maxTokens - per-verb max output tokens (from VERB_CONFIG or FALLBACK_VERB_CONFIG)
