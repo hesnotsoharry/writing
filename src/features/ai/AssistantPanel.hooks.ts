@@ -16,7 +16,7 @@ import type { BinderTree } from "../../binder/buildTree";
 import { type AiConversationStore,deriveConversationTitle } from "../../db/aiConversationStore";
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak } from "../settings/settings.store";
-import { acquireSession, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
+import { acquireSession, type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
 import {
@@ -30,7 +30,7 @@ import {
   type ProseSelection,
   type VerbKey,
 } from "./ai.types";
-import { BRAINSTORM_MAX_TOKENS, buildBrainstormMessages } from "./prompts/brainstorm";
+import { buildMessages, VERB_MAX_TOKENS } from "./prompts";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CtxArgs {
@@ -97,6 +97,7 @@ interface StreamArgs {
   ctrl: AbortController;
   convId: string;
   msgId: string;
+  history: AiMessage[];
   setConvos: Dispatch<SetStateAction<ConversationRecord[]>>;
   convStore?: AiConversationStore;
 }
@@ -145,7 +146,7 @@ async function acquireTokenCached(key: string, ref: MutableRefObject<SessionResu
 
 async function streamAiResponse(a: StreamArgs): Promise<void> {
   const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
-  const { system, messages } = buildBrainstormMessages(ctx, a.userQuestion);
+  const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
   let accumulated = "";
   let terminalError: string | null = null;
   let doneCost: number | null = null;
@@ -157,16 +158,13 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
     } else if (ev.type === "done") {
       doneCost = ev.creditsCost;
     } else if (ev.type === "error") {
-      // Phase G: rich guardrail states
       terminalError = `[Something went wrong — ${ev.message}]`;
     } else if (ev.type === "credits-exhausted") {
-      // Phase G: rich guardrail states
       terminalError = "[Monthly allowance used up — resets " + (ev.resetAt || "soon") + "]";
     } else if (ev.type === "session-expired") {
-      // Phase G: rich guardrail states
       terminalError = "[Session expired — check your subscription in Settings]";
     }
-  }, { maxTokens: BRAINSTORM_MAX_TOKENS, system, signal: a.ctrl.signal });
+  }, { maxTokens: VERB_MAX_TOKENS[a.verb], system, signal: a.ctrl.signal });
   const finalText = terminalError ?? accumulated;
   a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
   if (a.convStore) {
@@ -201,14 +199,25 @@ async function persistSend(
   await convStore.appendMessage(cid, { role: "you", verb: opts.verb, body: opts.q, contextJson: JSON.stringify(opts.snapshot), creditsCost: null });
 }
 
+/**
+ * Prior-turn history for a conversation, mapped to the proxy's AiMessage shape.
+ * `convos` MUST be the pre-send snapshot: setConvos builds a new array and never
+ * mutates the captured snapshot, so its messages are exactly the prior completed
+ * turns. Do NOT slice off a "current turn" — the current turn isn't in this snapshot.
+ */
+export function buildHistory(convos: ConversationRecord[], cid: string): AiMessage[] {
+  return (convos.find((c) => c.id === cid)?.messages ?? [])
+    .filter((m) => !m.streaming)
+    .map((m) => ({ role: m.role === "you" ? ("user" as const) : ("assistant" as const), content: m.text }));
+}
+
 function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, ids: { cid: string; msgId: string }): StreamArgs {
+  const history = buildHistory(a.convos, ids.cid);
   return {
     token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
     verb: a.verb, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
-    sceneTitle: a.sceneName ?? "Untitled",
-    aiCtx: a.ctxArgs.aiCtx,
-    selectionText: a.attachedSel?.text ?? null,
-    projectId: a.projectId ?? null,
+    sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx,
+    selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history,
   };
 }
 
@@ -291,10 +300,7 @@ export function useConvoOps(
 
 export function useContextAssembly(a: ContextAssemblyArgs) {
   const linked: string[] = [];
-  const allScenes: AiSceneRow[] = [
-    ...a.tree.chapters.flatMap((ch) => ch.scenes),
-    ...a.tree.shortPieces,
-  ];
+  const allScenes = [...a.tree.chapters.flatMap((ch) => ch.scenes), ...a.tree.shortPieces];
   const extras = (a.aiCtx.extraSceneIds ?? [])
     .filter((id) => id !== a.sceneId)
     .map((id) => allScenes.find((s) => s.id === id))
@@ -302,10 +308,7 @@ export function useContextAssembly(a: ContextAssemblyArgs) {
   const extraWords = extras.reduce((sum, s) => sum + s.words, 0);
   const hasAbout = Boolean(a.about?.synopsis);
   const turns = a.active ? Math.ceil(a.active.messages.length / 2) : 0;
-  const est = aiEstimate({
-    sceneWords: a.sceneWords, extraWords, entityCount: linked.length,
-    about: a.aiCtx.about !== false && hasAbout, turns,
-  });
+  const est = aiEstimate({ sceneWords: a.sceneWords, extraWords, entityCount: linked.length, about: a.aiCtx.about !== false && hasAbout, turns });
   const boundaryLabel = a.aiCtx.boundary
     ? (a.tree.chapters.find((c) => c.id === a.aiCtx.boundary)?.title ?? null) : null;
   return { linked, extras, extraWords, hasAbout, turns, est, boundaryLabel };

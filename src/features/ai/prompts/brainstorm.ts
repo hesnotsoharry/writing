@@ -6,6 +6,7 @@
  */
 import type { AiMessage } from "../ai.client";
 import type { AssembledContext, EntitySummary } from "../ai.types";
+import { buildGrounding } from "./shared";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -30,37 +31,16 @@ export interface BrainstormMessages {
   messages: AiMessage[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function buildEntityBlock(summaries: EntitySummary[]): string {
-  if (summaries.length === 0) return "(No linked entities)";
-  return summaries
-    .map((e) => `- ${e.type}: ${e.name}${e.keyFacts ? ` — ${e.keyFacts}` : ""}`)
-    .join("\n");
-}
-
-function buildAboutBlock(ctx: AssembledContext): string {
-  if (!ctx.about) return "";
-  const { synopsis, genre, tone, pov, notes } = ctx.about;
-  const lines: string[] = ["About this manuscript:"];
-  if (synopsis) lines.push(`Synopsis: ${synopsis}`);
-  if (genre) lines.push(`Genre: ${genre}`);
-  if (tone) lines.push(`Tone: ${tone}`);
-  if (pov) lines.push(`POV: ${pov}`);
-  if (notes) lines.push(`Notes: ${notes}`);
-  return lines.join("\n");
-}
-
 // ── Template ──────────────────────────────────────────────────────────────────
 
 /**
- * Build the system prompt + user messages array for a brainstorm request.
- * Accepts the full AssembledContext so About, boundary, and selection are
- * woven in when present. All assembled data reaches the proxy (D4 complete).
+ * Build the system prompt + messages array for a brainstorm request.
+ * Accepts optional prior-turn history for multi-turn conversations.
  */
 export function buildBrainstormMessages(
   ctx: AssembledContext,
   userQuestion: string,
+  history?: AiMessage[],
 ): BrainstormMessages {
   const parts: string[] = [
     "You are a manuscript-grounded brainstorming partner for a fiction writer.",
@@ -69,36 +49,10 @@ export function buildBrainstormMessages(
     "Be concise, creative, and collaborative. Respond in 2–4 short paragraphs.",
   ];
 
-  if (ctx.boundaryLine) {
-    parts.push("", ctx.boundaryLine);
-  }
-
-  const aboutBlock = buildAboutBlock(ctx);
-  if (aboutBlock) parts.push("", aboutBlock);
-
-  parts.push(
-    "",
-    `Current scene: "${ctx.sceneTitle}"`,
-    "",
-    ctx.sceneExcerpt ? `Scene excerpt:\n${ctx.sceneExcerpt}` : "(Scene is empty — no prose yet)",
-    "",
-    "Linked worldbuilding entities:",
-    buildEntityBlock(ctx.entitySummaries),
-  );
-
-  if (ctx.selectionText) {
-    parts.push("", `Selected passage:\n${ctx.selectionText}`);
-  }
-
-  if (ctx.extraScenes.length > 0) {
-    parts.push("", "Additional scenes for context:");
-    for (const s of ctx.extraScenes) {
-      parts.push(`\n[${s.title}]\n${s.excerpt}`);
-    }
-  }
+  parts.push(...buildGrounding(ctx));
 
   return {
     system: parts.join("\n"),
-    messages: [{ role: "user", content: userQuestion }],
+    messages: [...(history ?? []), { role: "user", content: userQuestion }],
   };
 }
