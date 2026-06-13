@@ -35,14 +35,14 @@ type SectionId = "appearance" | "editor" | "writing" | "ai" | "backup" | "about"
 interface NavItem {
   id: SectionId;
   label: string;
-  icon: "palette" | "type" | "feather" | "archive" | "info";
+  icon: "palette" | "type" | "feather" | "sparkle" | "archive" | "info";
 }
 
 const SET_NAV: NavItem[] = [
   { id: "appearance", label: "Appearance",    icon: "palette"  },
   { id: "editor",     label: "Editor",        icon: "type"     },
   { id: "writing",    label: "Writing",       icon: "feather"  },
-  { id: "ai",         label: "AI assistant",  icon: "feather"  },
+  { id: "ai",         label: "AI assistant",  icon: "sparkle"  },
   { id: "backup",     label: "Backup & data", icon: "archive"  },
   { id: "about",      label: "About",         icon: "info"     },
 ];
