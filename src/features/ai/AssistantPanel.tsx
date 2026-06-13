@@ -8,17 +8,20 @@
  * Sub-components live in AssistantPanel.parts.tsx;
  * hooks + pure helpers live in AssistantPanel.hooks.ts.
  */
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 
 import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
+import { type AiConversationStore,makeProductionAiConversationStore } from "../../db/aiConversationStore";
 import type { Scene } from "../../db/binderStore";
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak, setStoredTweak } from "../settings/settings.store";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
+  type AiMessageRecord,
+  type ContextSnapshot,
   type ConversationRecord,
   EMPTY_ABOUT,
   type ManuscriptAbout,
@@ -66,6 +69,8 @@ export interface AssistantPanelProps {
   onOpenContext: () => void;
   onToast: (msg: string) => void;
   onSaveNote: (body: string) => void;
+  convStore?: AiConversationStore;
+  projectId?: string | null;
 }
 
 /** Props consumed by wrapInspectorSlot — App.content.tsx passes a superset. */
@@ -106,6 +111,8 @@ interface SlotPanelProps {
   store: StoryBibleStore;
   onOpenConsent: () => void;
   onOpenContext: () => void;
+  convStore: AiConversationStore;
+  projectId: string | null;
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
@@ -123,7 +130,7 @@ function PanelReady(p: AssistantPanelProps) {
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
     prompt, setPrompt, verb, attachedSel, setAttachedSel, streamingId, setStreamingId,
     canCompose, ctxArgs, sceneId: p.sceneId, sceneName: p.sceneName,
-    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote,
+    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId,
   });
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -186,6 +193,57 @@ export function InspectorTabs({ tab, setTab, scenePane, assistantPane }: Inspect
   );
 }
 
+// ── useConvoPersistence (internal hook) ───────────────────────────────────────
+
+/**
+ * Owns conversation + message state backed by SQLite.
+ * On project change: lists conversations (messages empty — lazy on open).
+ * setActiveId wraps the raw setter to load messages when a conversation is opened.
+ */
+function useConvoPersistence(activeProjectId: string | null) {
+  const convStore = useMemo(() => makeProductionAiConversationStore(), []);
+  const [convos, setConvos] = useState<ConversationRecord[]>([]);
+  const [activeId, setActiveId_] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const rows = activeProjectId ? await convStore.listConversations(activeProjectId) : [];
+      if (cancelled) return;
+      setConvos(rows.map((r) => ({ id: r.id, title: r.title, verb: r.lastVerb, when: "now", messages: [] })));
+      setActiveId_(null);
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [activeProjectId, convStore]);
+
+  const setActiveId: Dispatch<SetStateAction<string | null>> = useCallback((action) => {
+    // Resolve the next id — we only load messages for direct-value calls (the common path).
+    // Function-updater calls (SetStateAction's function form) skip message loading
+    // since the previous state isn't available here without an extra ref.
+    if (typeof action === "function") { setActiveId_(action); return; }
+    setActiveId_(action);
+    if (!action) return;
+    convStore.listMessages(action).then((msgs) => {
+      setConvos((cs) => cs.map((c) => {
+        if (c.id !== action) return c;
+        // Guard: if messages are already in local state (e.g. in-flight after newConvo + send),
+        // skip the DB result so an empty/stale read never clobbers an in-flight message.
+        if (c.messages.length > 0) return c;
+        return {
+          ...c,
+          messages: msgs.map((m): AiMessageRecord => ({
+            id: m.id, role: m.role, verb: m.verb as VerbKey, when: "now", text: m.body,
+            ctx: m.contextJson ? (JSON.parse(m.contextJson) as ContextSnapshot) : null,
+          })),
+        };
+      }));
+    }).catch(console.error);
+  }, [convStore]);
+
+  return { convStore, convos, setConvos, activeId, setActiveId };
+}
+
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
 
 function SlotPanel(p: SlotPanelProps) {
@@ -202,6 +260,7 @@ function SlotPanel(p: SlotPanelProps) {
         resetLabel="Resets soon" plan="active" offline={!navigator.onLine} consented={p.consented}
         sel={null} onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext}
         onToast={onToast} onSaveNote={onSaveNote}
+        convStore={p.convStore} projectId={p.projectId}
       />
     </AiErrorBoundary>
   );
@@ -210,8 +269,7 @@ function SlotPanel(p: SlotPanelProps) {
 function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const [inspTab, setInspTab] = useState<"scene" | "assistant">("scene");
   const [overlay, setOverlay] = useState<"consent" | "context" | null>(null);
-  const [convos, setConvos] = useState<ConversationRecord[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const { convStore, convos, setConvos, activeId, setActiveId } = useConvoPersistence(p.activeProjectId);
   const [about, setAbout] = useState<ManuscriptAbout>(EMPTY_ABOUT);
   const [aiCtx, setAiCtx] = useState<AiCtxConfig>(INIT_AI_CTX);
   const [neverNames, setNeverNames] = useState<string[]>([]);
@@ -235,7 +293,8 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
           neverNames={neverNames} toggleNever={toggleNever} consented={consented}
           aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
           doc={p.doc ?? null} store={p.storyBibleStore}
-          onOpenConsent={() => setOverlay("consent")} onOpenContext={() => setOverlay("context")} />
+          onOpenConsent={() => setOverlay("consent")} onOpenContext={() => setOverlay("context")}
+          convStore={convStore} projectId={p.activeProjectId} />
       } />
       {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
       {overlay === "context" && (

@@ -7,7 +7,6 @@ import {
 } from "../db/aiConversationStore";
 import { runMigrations } from "../db/migrations";
 import type { DbHandle } from "../db/schema";
-
 import { makeSqlJsDb } from "./support/sqljsDb";
 
 // Orchestrator-authored Phase D acceptance test (Wave 35). The implementer
@@ -80,6 +79,8 @@ describe("aiConversationStore", () => {
 
       expect(you.id).toBeTruthy();
       expect(you.conversationId).toBe(conv.id);
+      expect(ai.id).toBeTruthy();
+      expect(ai.id).not.toBe(you.id);
 
       const msgs = await store.listMessages(conv.id);
       expect(msgs).toHaveLength(2);

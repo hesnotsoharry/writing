@@ -13,6 +13,7 @@ import {
 import type * as Y from "yjs";
 
 import type { BinderTree } from "../../binder/buildTree";
+import { type AiConversationStore,deriveConversationTitle } from "../../db/aiConversationStore";
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak } from "../settings/settings.store";
 import { acquireSession, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
@@ -75,9 +76,11 @@ export interface PanelMsgArgs {
   sessionRef: MutableRefObject<SessionResult | null>;
   onToast: (msg: string) => void;
   onSaveNote: (body: string) => void;
+  convStore?: AiConversationStore;
+  projectId?: string | null;
 }
 
-export type ExecSendArgs = PanelMsgArgs & { q: string; newConvo: () => string };
+export type ExecSendArgs = PanelMsgArgs & { q: string; newConvo: () => Promise<string> };
 type ConvoUpdater = (cs: ConversationRecord[]) => ConversationRecord[];
 
 interface StreamArgs {
@@ -92,6 +95,7 @@ interface StreamArgs {
   convId: string;
   msgId: string;
   setConvos: Dispatch<SetStateAction<ConversationRecord[]>>;
+  convStore?: AiConversationStore;
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -141,11 +145,14 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
   const { system, messages } = buildBrainstormMessages(ctx, a.userQuestion);
   let accumulated = "";
   let terminalError: string | null = null;
+  let doneCost: number | null = null;
   const isProofread = a.verb === "proofread";
   await streamChat(a.token, messages, (ev: NormalizedEvent) => {
     if (ev.type === "token") {
       accumulated += ev.text;
       if (!isProofread) a.setConvos(patchMessage(a.convId, a.msgId, { text: accumulated }));
+    } else if (ev.type === "done") {
+      doneCost = ev.creditsCost;
     } else if (ev.type === "error") {
       // Phase G: rich guardrail states
       terminalError = `[Something went wrong — ${ev.message}]`;
@@ -157,37 +164,57 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
       terminalError = "[Session expired — check your subscription in Settings]";
     }
   }, { maxTokens: BRAINSTORM_MAX_TOKENS, system, signal: a.ctrl.signal });
-  a.setConvos(patchMessage(a.convId, a.msgId, { text: terminalError ?? accumulated, streaming: false }));
+  const finalText = terminalError ?? accumulated;
+  a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
+  if (a.convStore) {
+    await a.convStore.appendMessage(a.convId, { role: "ai", verb: a.verb, body: finalText, contextJson: null, creditsCost: doneCost });
+  }
+}
+
+interface ApplyMsgOpts { currentTitle: string; derived: string; verb: VerbKey; youMsg: AiMessageRecord; aiMsg: AiMessageRecord }
+interface PersistSendOpts { currentTitle: string; derived: string; verb: VerbKey; q: string; snapshot: ContextSnapshot }
+
+/** Apply new messages + optional title derivation to convos state. */
+function applyMessageToState(
+  setConvos: Dispatch<SetStateAction<ConversationRecord[]>>,
+  cid: string,
+  opts: ApplyMsgOpts,
+): void {
+  setConvos((cs) => cs.map((c) => c.id !== cid ? c : {
+    ...c,
+    title: opts.currentTitle === "New conversation" ? opts.derived : c.title,
+    verb: opts.verb, when: "now",
+    messages: [...c.messages, opts.youMsg, opts.aiMsg],
+  }));
+}
+
+/** Persist the you-message (and optionally update the title) before streaming. */
+async function persistSend(
+  convStore: AiConversationStore,
+  cid: string,
+  opts: PersistSendOpts,
+): Promise<void> {
+  if (opts.currentTitle === "New conversation") await convStore.updateTitle(cid, opts.derived);
+  await convStore.appendMessage(cid, { role: "you", verb: opts.verb, body: opts.q, contextJson: JSON.stringify(opts.snapshot), creditsCost: null });
 }
 
 export async function execSend(a: ExecSendArgs): Promise<void> {
-  const cid = a.activeId ?? a.newConvo();
-  const youMsg: AiMessageRecord = {
-    id: aiMsgId(), role: "you", verb: a.verb, when: "now", text: a.q, ctx: buildCtxSnapshot(a.ctxArgs, a.sceneId),
-  };
-  const aiMsg: AiMessageRecord = {
-    id: aiMsgId(), role: "ai", verb: a.verb, when: "now", text: "", streaming: true, ctx: null,
-  };
-  const titleFn = (t: string) =>
-    t === "New conversation" ? (a.q.length > 36 ? a.q.slice(0, 36).trimEnd() + "…" : a.q) : t;
-  a.setConvos((cs) =>
-    cs.map((c) =>
-      c.id !== cid ? c
-        : { ...c, title: titleFn(c.title), verb: a.verb, when: "now", messages: [...c.messages, youMsg, aiMsg] },
-    ),
-  );
+  const currentTitle = a.convos.find((c) => c.id === a.activeId)?.title ?? "New conversation";
+  const cid = a.activeId ?? await a.newConvo();
+  const snapshot = buildCtxSnapshot(a.ctxArgs, a.sceneId);
+  const youMsg: AiMessageRecord = { id: aiMsgId(), role: "you", verb: a.verb, when: "now", text: a.q, ctx: snapshot };
+  const aiMsg: AiMessageRecord = { id: aiMsgId(), role: "ai", verb: a.verb, when: "now", text: "", streaming: true, ctx: null };
+  const derived = deriveConversationTitle(a.q);
+  applyMessageToState(a.setConvos, cid, { currentTitle, derived, verb: a.verb, youMsg, aiMsg });
   a.setPrompt("");
   a.setAttachedSel(null);
   a.setStreamingId(aiMsg.id);
   const ctrl = new AbortController();
   a.abortRef.current = ctrl;
   try {
+    if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
     const token = await acquireTokenCached(getTweak("aiLicenseKey", ""), a.sessionRef);
-    await streamAiResponse({
-      token, sceneTitle: a.sceneName ?? "Untitled", doc: a.doc, sceneId: a.sceneId,
-      store: a.store, userQuestion: a.q, verb: a.verb,
-      ctrl, convId: cid, msgId: aiMsg.id, setConvos: a.setConvos,
-    });
+    await streamAiResponse({ token, sceneTitle: a.sceneName ?? "Untitled", doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q, verb: a.verb, ctrl, convId: cid, msgId: aiMsg.id, setConvos: a.setConvos, convStore: a.convStore });
   } catch (err: unknown) {
     if (!ctrl.signal.aborted) {
       const msg = err instanceof Error ? err.message : "";
@@ -217,25 +244,34 @@ export function usePanelState(
   return { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel, streamingId, setStreamingId, abortRef, sessionRef };
 }
 
+interface ConvoOpsOpts { onToast: (msg: string) => void; convStore?: AiConversationStore; projectId?: string | null }
+
 export function useConvoOps(
   setConvos: Dispatch<SetStateAction<ConversationRecord[]>>,
   activeId: string | null,
   setActiveId: Dispatch<SetStateAction<string | null>>,
-  onToast: (msg: string) => void,
+  opts: ConvoOpsOpts,
 ) {
-  const newConvo = useCallback((): string => {
-    const c: ConversationRecord = {
-      id: aiConvoId(), title: "New conversation", verb: null, when: "now", messages: [],
-    };
+  const { onToast, convStore, projectId } = opts;
+  const newConvo = useCallback(async (): Promise<string> => {
+    if (convStore && projectId) {
+      const row = await convStore.createConversation(projectId, { title: "New conversation" });
+      const c: ConversationRecord = { id: row.id, title: row.title, verb: row.lastVerb, when: "now", messages: [] };
+      setConvos((cs) => [c, ...cs]);
+      setActiveId(c.id);
+      return c.id;
+    }
+    const c: ConversationRecord = { id: aiConvoId(), title: "New conversation", verb: null, when: "now", messages: [] };
     setConvos((cs) => [c, ...cs]);
     setActiveId(c.id);
     return c.id;
-  }, [setConvos, setActiveId]);
-  const deleteConvo = useCallback((id: string) => {
+  }, [setConvos, setActiveId, convStore, projectId]);
+  const deleteConvo = useCallback(async (id: string) => {
+    if (convStore) await convStore.deleteConversation(id);
     setConvos((cs) => cs.filter((c) => c.id !== id));
     if (activeId === id) setActiveId(null);
     onToast("Conversation deleted");
-  }, [activeId, setConvos, setActiveId, onToast]);
+  }, [activeId, setConvos, setActiveId, onToast, convStore]);
   return { newConvo, deleteConvo };
 }
 
@@ -262,7 +298,7 @@ export function useContextAssembly(a: ContextAssemblyArgs) {
 }
 
 export function usePanelMessages(a: PanelMsgArgs) {
-  const { newConvo, deleteConvo } = useConvoOps(a.setConvos, a.activeId, a.setActiveId, a.onToast);
+  const { newConvo, deleteConvo } = useConvoOps(a.setConvos, a.activeId, a.setActiveId, { onToast: a.onToast, convStore: a.convStore, projectId: a.projectId });
   const send = () => {
     if (!a.prompt.trim() || a.streamingId || !a.canCompose) return;
     void execSend({ ...a, q: a.prompt.trim(), newConvo });
