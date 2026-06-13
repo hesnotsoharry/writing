@@ -246,3 +246,20 @@ export function PanelThread(p: PanelThreadProps) {
     </div>
   );
 }
+
+// ── AiToast (fixed-position transient message) ────────────────────────────────
+
+export function AiToast({ msg }: { msg: string | null }) {
+  if (msg === null) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: 32, left: "50%",
+      transform: "translateX(-50%)",
+      background: "var(--ink)", color: "var(--paper)",
+      padding: "8px 20px", borderRadius: 8,
+      fontSize: "var(--text-sm)", pointerEvents: "none", zIndex: 9999,
+    }}>
+      {msg}
+    </div>
+  );
+}

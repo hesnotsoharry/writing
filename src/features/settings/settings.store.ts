@@ -13,6 +13,9 @@ export type { AccentPalette, Theme };
 /** Namespace prefix for all settings keys in localStorage — matches existing `writing.goalTarget`. */
 export const SETTINGS_NS = "writing.";
 
+/** Custom event dispatched by Settings 'Show again'; AiSlot listens to re-open consent walkthrough. */
+export const AI_REPLAY_EVENT = "ai:replay-walkthrough";
+
 // ── Wave-16 cross-wave key contract ──────────────────────────────────────────
 // Wave 16 (Spelling & Grammar) imports these exact constants as its read contract.
 // The string values are camelCase — do NOT rename.
@@ -53,6 +56,11 @@ export interface Tweaks {
   aiConsentGiven: boolean;
   /** Stored subscription license key (session token is kept in React state only). */
   aiLicenseKey: string;
+  // ── AI selection affordances (Wave 35) ────────────────────────────────────
+  /** true = show brainstorm pill when text is selected in the editor. */
+  aiSelPill: boolean;
+  /** true = show AI items in the editor right-click context menu. */
+  aiSelMenu: boolean;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -77,6 +85,8 @@ export const TWEAK_DEFAULTS: Tweaks = {
   aiEnabled: true,
   aiConsentGiven: false,
   aiLicenseKey: "",
+  aiSelPill: true,
+  aiSelMenu: false,
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────

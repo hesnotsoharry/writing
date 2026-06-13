@@ -247,6 +247,37 @@ describe("wrapInspectorSlot — consent modal dismissal", () => {
   });
 });
 
+// ── 7. handleEnable persists both aiConsentGiven and aiEnabled ───────────────
+
+describe("wrapInspectorSlot — handleEnable consent persistence", () => {
+  it("clicking 'Turn on the assistant' persists aiConsentGiven=true and aiEnabled=true", () => {
+    const store = makeMockStore();
+    const base = <div />;
+    const result = wrapInspectorSlot(base, {
+      selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
+      storyBibleStore: store,
+      aiEnabled: true,
+    });
+    render(<>{result}</>);
+
+    // Open consent modal via dormant affordance
+    fireEvent.click(screen.getByText(/see how it works/i));
+    expect(screen.queryByText(/a collaborator in the margins/i)).not.toBeNull();
+
+    // Complete consent by clicking the enable button
+    fireEvent.click(screen.getByRole("button", { name: /enable ai/i }));
+
+    // Both flags must be persisted
+    const consentStored = JSON.parse(localStorage.getItem("writing.aiConsentGiven") ?? "false");
+    const enabledStored = JSON.parse(localStorage.getItem("writing.aiEnabled") ?? "false");
+    expect(consentStored).toBe(true);
+    expect(enabledStored).toBe(true);
+  });
+});
+
 // ── 8. Settings — AiSection change license key ────────────────────────────────
 
 describe("AiSection — change license key button", () => {

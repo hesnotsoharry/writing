@@ -16,7 +16,7 @@ import { Icon } from "../../components/Icon";
 import { type AiConversationStore,makeProductionAiConversationStore } from "../../db/aiConversationStore";
 import type { Scene } from "../../db/binderStore";
 import type { StoryBibleStore } from "../../db/storyBibleStore";
-import { getTweak, setStoredTweak } from "../settings/settings.store";
+import { getTweak } from "../settings/settings.store";
 import { getBalance, type SessionResult } from "./ai.client";
 import { computeUsedPct, formatResetLabel } from "./ai.helpers";
 import {
@@ -34,7 +34,8 @@ import { AiDormant, AiMeter } from "./AiComponents";
 import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
 import { acquireTokenCached, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
-import { ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
+import { AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
+import { useAiSlotHandlers } from "./AssistantPanel.slot";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,8 @@ interface SlotPanelProps {
   store: StoryBibleStore;
   onOpenConsent: () => void;
   onOpenContext: () => void;
+  onToast: (msg: string) => void;
+  onSaveNote: (body: string) => void;
   convStore: AiConversationStore;
   projectId: string | null;
   usedPct: number;
@@ -297,8 +300,6 @@ function useAiBalance(consented: boolean) {
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
 
 function SlotPanel(p: SlotPanelProps) {
-  const onToast = (msg: string) => { console.warn("[Phase H: real toast]", msg); };
-  const onSaveNote = (body: string) => { console.warn("[Phase H: real save note]", body); };
   return (
     <AiErrorBoundary>
       <AssistantPanel
@@ -310,7 +311,7 @@ function SlotPanel(p: SlotPanelProps) {
         usedPct={p.usedPct} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
         consented={p.consented} sel={null}
         onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext}
-        onToast={onToast} onSaveNote={onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
+        onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
         convStore={p.convStore} projectId={p.projectId}
       />
     </AiErrorBoundary>
@@ -326,11 +327,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const [neverNames, setNeverNames] = useState<string[]>([]);
   const toggleNever = useCallback((n: string) =>
     setNeverNames((ns) => (ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n])), []);
-  const handleEnable = useCallback(() => {
-    setStoredTweak("aiConsentGiven", true);
-    setOverlay(null);
-    setInspTab("assistant");
-  }, []);
+  const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
   const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented);
   const aiTree = toAiTree(p.tree);
@@ -344,9 +341,11 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
           about={about} setAbout={setAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
           neverNames={neverNames} toggleNever={toggleNever} consented={consented}
           aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
-          doc={p.doc ?? null} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")} onOpenContext={() => setOverlay("context")}
+          doc={p.doc ?? null} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")}
+          onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
           convStore={convStore} projectId={p.activeProjectId}
-          usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline} onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} />
+          usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline}
+          onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} />
       } />
       {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
       {overlay === "context" && (
@@ -354,6 +353,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
           entities={[]} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
           about={about} setAbout={setAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
       )}
+      <AiToast msg={toast} />
     </>
   );
 }
