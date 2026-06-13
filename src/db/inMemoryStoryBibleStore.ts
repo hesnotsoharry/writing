@@ -3,6 +3,8 @@
  * Mirrors the same seam discipline as InMemoryBinderStore.
  * Extracted from storyBibleStore.ts to keep that file within the 300-line limit.
  */
+import type { ManuscriptAbout } from "../features/ai/ai.types";
+import { EMPTY_ABOUT } from "../features/ai/ai.types";
 import {
   imAddEntityField,
   imAddLink,
@@ -285,5 +287,17 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
 
   async allRelations(projectId: string): Promise<Relation[]> {
     return this.listRelations(projectId);
+  }
+
+  // ── Wave 35 Phase E stubs ─────────────────────────────────────────────────
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getManuscriptAbout(_projectId: string): Promise<ManuscriptAbout> {
+    return { ...EMPTY_ABOUT };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getSceneText(_sceneId: string): Promise<{ title: string; text: string } | null> {
+    return null;
   }
 }

@@ -5,6 +5,7 @@
  * assembled messages array and a system string; it never inspects content.
  */
 import type { AiMessage } from "../ai.client";
+import type { AssembledContext, EntitySummary } from "../ai.types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -13,13 +14,9 @@ export const BRAINSTORM_MAX_TOKENS = 1024;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface EntitySummary {
-  type: string;
-  name: string;
-  /** First ENTITY_NOTES_CHARS characters of the entity's notes field. */
-  keyFacts: string;
-}
+export type { EntitySummary };
 
+/** Legacy brainstorm-only context shape (kept for assembleBrainstormContext). */
 export interface BrainstormContext {
   sceneTitle: string;
   /** Scene plain-text, capped at SCENE_EXCERPT_CHARS. */
@@ -42,35 +39,66 @@ function buildEntityBlock(summaries: EntitySummary[]): string {
     .join("\n");
 }
 
+function buildAboutBlock(ctx: AssembledContext): string {
+  if (!ctx.about) return "";
+  const { synopsis, genre, tone, pov, notes } = ctx.about;
+  const lines: string[] = ["About this manuscript:"];
+  if (synopsis) lines.push(`Synopsis: ${synopsis}`);
+  if (genre) lines.push(`Genre: ${genre}`);
+  if (tone) lines.push(`Tone: ${tone}`);
+  if (pov) lines.push(`POV: ${pov}`);
+  if (notes) lines.push(`Notes: ${notes}`);
+  return lines.join("\n");
+}
+
 // ── Template ──────────────────────────────────────────────────────────────────
 
 /**
  * Build the system prompt + user messages array for a brainstorm request.
- * The system string is sent separately (proxy forwards it to Anthropic's
- * system field); messages contains the single user question turn.
+ * Accepts the full AssembledContext so About, boundary, and selection are
+ * woven in when present. All assembled data reaches the proxy (D4 complete).
  */
 export function buildBrainstormMessages(
-  ctx: BrainstormContext,
+  ctx: AssembledContext,
   userQuestion: string,
 ): BrainstormMessages {
-  const system = [
+  const parts: string[] = [
     "You are a manuscript-grounded brainstorming partner for a fiction writer.",
     "Help the writer explore ideas, solve story problems, and develop their world.",
     "Stay true to the established characters, locations, and worldbuilding shown below.",
     "Be concise, creative, and collaborative. Respond in 2–4 short paragraphs.",
+  ];
+
+  if (ctx.boundaryLine) {
+    parts.push("", ctx.boundaryLine);
+  }
+
+  const aboutBlock = buildAboutBlock(ctx);
+  if (aboutBlock) parts.push("", aboutBlock);
+
+  parts.push(
     "",
     `Current scene: "${ctx.sceneTitle}"`,
     "",
-    ctx.sceneExcerpt
-      ? `Scene excerpt:\n${ctx.sceneExcerpt}`
-      : "(Scene is empty — no prose yet)",
+    ctx.sceneExcerpt ? `Scene excerpt:\n${ctx.sceneExcerpt}` : "(Scene is empty — no prose yet)",
     "",
     "Linked worldbuilding entities:",
     buildEntityBlock(ctx.entitySummaries),
-  ].join("\n");
+  );
+
+  if (ctx.selectionText) {
+    parts.push("", `Selected passage:\n${ctx.selectionText}`);
+  }
+
+  if (ctx.extraScenes.length > 0) {
+    parts.push("", "Additional scenes for context:");
+    for (const s of ctx.extraScenes) {
+      parts.push(`\n[${s.title}]\n${s.excerpt}`);
+    }
+  }
 
   return {
-    system,
+    system: parts.join("\n"),
     messages: [{ role: "user", content: userQuestion }],
   };
 }

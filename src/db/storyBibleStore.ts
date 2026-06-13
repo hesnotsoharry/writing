@@ -1,4 +1,5 @@
 /** Domain types and interface for the Story Bible data model. */
+import type { ManuscriptAbout } from "../features/ai/ai.types";
 
 export interface Character {
   id: string;
@@ -41,7 +42,12 @@ export interface Entity {
   name: string;
   notes: string | null;
   aliases: string | null;
+  /** AI context shield flag — when true assembleContext drops this entity. Optional because
+   *  the characters/locations tables do not carry this column; absent = false. */
+  exclude_from_ai?: boolean;
 }
+
+export { ManuscriptAbout };
 
 export type FieldKind = "fact" | "section";
 
@@ -312,6 +318,18 @@ export interface StoryBibleStore {
    * spec-surface name used by map views.
    */
   allRelations(projectId: string): Promise<Relation[]>;
+
+  // ── Wave 35 Phase E — AI context v2 read paths ────────────────────────────
+  /**
+   * Return the manuscript_about row for the project.
+   * If no row exists (user has not filled it in), returns EMPTY_ABOUT.
+   */
+  getManuscriptAbout(projectId: string): Promise<ManuscriptAbout>;
+  /**
+   * Return a scene's title and its plain-text content decoded from the
+   * scene_docs Yjs state.  Returns null if the scene or its doc row is absent.
+   */
+  getSceneText(sceneId: string): Promise<{ title: string; text: string } | null>;
 }
 
 // InMemoryStoryBibleStore lives in ./inMemoryStoryBibleStore.ts (extracted to stay under 300 lines).

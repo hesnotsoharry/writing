@@ -31,6 +31,15 @@ vi.mock("../features/ai/ai.context", () => ({
     sceneExcerpt: "",
     entitySummaries: [],
   }),
+  assembleContext: vi.fn().mockResolvedValue({
+    sceneTitle: "Test Scene",
+    sceneExcerpt: "",
+    extraScenes: [],
+    entitySummaries: [],
+    about: null,
+    selectionText: null,
+    boundaryLine: null,
+  }),
 }));
 
 vi.mock("../features/ai/prompts/brainstorm", () => ({

@@ -144,3 +144,31 @@ export interface AiEntity {
   id: string;
   name: string;
 }
+
+/** A condensed entity entry sent in the AI context block. */
+export interface EntitySummary {
+  type: string;
+  name: string;
+  /** First ENTITY_NOTES_CHARS characters of the entity's notes field. */
+  keyFacts: string;
+}
+
+/** The assembled context object passed to prompt builders and sent to the AI proxy. */
+export interface AssembledContext {
+  sceneTitle: string;
+  /** Scene plain-text, capped at SCENE_EXCERPT_CHARS. */
+  sceneExcerpt: string;
+  /** Extra scene excerpts requested via cfg.extraSceneIds. */
+  extraScenes: { title: string; excerpt: string }[];
+  /** Filtered entity list (exclude_from_ai + offEntityNames both applied). */
+  entitySummaries: EntitySummary[];
+  /** Manuscript About fields when cfg.about === true; null otherwise. */
+  about: ManuscriptAbout | null;
+  /** Selected prose text attached to this ask; null if none. */
+  selectionText: string | null;
+  /**
+   * Instruction telling the model not to reference events past cfg.boundary.
+   * Null when no boundary is set.
+   */
+  boundaryLine: string | null;
+}

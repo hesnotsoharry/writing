@@ -1,4 +1,6 @@
+import type { ManuscriptAbout } from "../features/ai/ai.types";
 import { getDb } from "./schema";
+import { sqliteGetManuscriptAbout, sqliteGetSceneText } from "./sqliteAiContextStore";
 import {
   sqliteAddEntityField,
   sqliteAddLink,
@@ -191,8 +193,10 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     // One read per distinct entity_type present in scene_links for this scene.
     // tauri-plugin-sql has no multi-statement execute; sequential reads are the only option.
     // Single-user local app — no concurrent writer, so the non-atomic sequence is safe.
-    type Row = { id: string; project_id: string; name: string; notes: string | null; aliases: string | null };
-    const toEnt = (r: Row, t: string): Entity => ({ id: r.id, projectId: r.project_id, type: t, name: r.name, notes: r.notes, aliases: r.aliases });
+    type PlainRow = { id: string; project_id: string; name: string; notes: string | null; aliases: string | null };
+    type GenRow = PlainRow & { exclude_from_ai: number };
+    const toPlain = (r: PlainRow, t: string): Entity => ({ id: r.id, projectId: r.project_id, type: t, name: r.name, notes: r.notes, aliases: r.aliases, exclude_from_ai: false });
+    const toGen = (r: GenRow, t: string): Entity => ({ id: r.id, projectId: r.project_id, type: t, name: r.name, notes: r.notes, aliases: r.aliases, exclude_from_ai: r.exclude_from_ai !== 0 });
     const typeRows = await db.select<{ entity_type: string }[]>(
       "SELECT DISTINCT entity_type FROM scene_links WHERE scene_id = $1", [sceneId]
     );
@@ -205,21 +209,22 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     });
     const groups: SceneEntityGroup[] = [];
     for (const type of sortedTypes) {
-      let rows: Row[];
       if (type === "character") {
-        rows = await db.select<Row[]>(
+        const rows = await db.select<PlainRow[]>(
           "SELECT c.id, c.project_id, c.name, c.notes, c.aliases FROM scene_links sl JOIN characters c ON c.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'character' ORDER BY c.name", [sceneId]
         );
+        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toPlain(r, type)) });
       } else if (type === "location") {
-        rows = await db.select<Row[]>(
+        const rows = await db.select<PlainRow[]>(
           "SELECT l.id, l.project_id, l.name, l.notes, l.aliases FROM scene_links sl JOIN locations l ON l.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'location' ORDER BY l.name", [sceneId]
         );
+        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toPlain(r, type)) });
       } else {
-        rows = await db.select<Row[]>(
-          "SELECT e.id, e.project_id, e.name, e.notes, e.aliases FROM scene_links sl JOIN entities e ON e.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = $2 ORDER BY e.name", [sceneId, type]
+        const rows = await db.select<GenRow[]>(
+          "SELECT e.id, e.project_id, e.name, e.notes, e.aliases, e.exclude_from_ai FROM scene_links sl JOIN entities e ON e.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = $2 ORDER BY e.name", [sceneId, type]
         );
+        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toGen(r, type)) });
       }
-      if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toEnt(r, type)) });
     }
     return groups;
   }
@@ -322,4 +327,8 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   async deleteRelation(id: string): Promise<void> { return sqliteDeleteRelation(id); }
   async updateRelationLabel(id: string, label: string): Promise<void> { return sqliteUpdateRelationLabel(id, label); }
   async allRelations(projectId: string): Promise<Relation[]> { return this.listRelations(projectId); }
+
+  // ── Wave 35 Phase E — AI context v2 read paths ────────────────────────────
+  async getManuscriptAbout(projectId: string): Promise<ManuscriptAbout> { return sqliteGetManuscriptAbout(await getDb(), projectId); }
+  async getSceneText(sceneId: string): Promise<{ title: string; text: string } | null> { return sqliteGetSceneText(await getDb(), sceneId); }
 }

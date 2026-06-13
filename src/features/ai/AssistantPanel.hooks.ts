@@ -17,7 +17,7 @@ import { type AiConversationStore,deriveConversationTitle } from "../../db/aiCon
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak } from "../settings/settings.store";
 import { acquireSession, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
-import { assembleBrainstormContext } from "./ai.context";
+import { assembleContext } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
 import {
   type AiCtxConfig,
@@ -91,6 +91,9 @@ interface StreamArgs {
   store: StoryBibleStore;
   userQuestion: string;
   verb: VerbKey;
+  aiCtx: AiCtxConfig;
+  selectionText: string | null;
+  projectId: string | null;
   ctrl: AbortController;
   convId: string;
   msgId: string;
@@ -141,7 +144,7 @@ async function acquireTokenCached(key: string, ref: MutableRefObject<SessionResu
 }
 
 async function streamAiResponse(a: StreamArgs): Promise<void> {
-  const ctx = await assembleBrainstormContext({ sceneTitle: a.sceneTitle, doc: a.doc, sceneId: a.sceneId, store: a.store });
+  const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
   const { system, messages } = buildBrainstormMessages(ctx, a.userQuestion);
   let accumulated = "";
   let terminalError: string | null = null;
@@ -198,6 +201,17 @@ async function persistSend(
   await convStore.appendMessage(cid, { role: "you", verb: opts.verb, body: opts.q, contextJson: JSON.stringify(opts.snapshot), creditsCost: null });
 }
 
+function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, ids: { cid: string; msgId: string }): StreamArgs {
+  return {
+    token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
+    verb: a.verb, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
+    sceneTitle: a.sceneName ?? "Untitled",
+    aiCtx: a.ctxArgs.aiCtx,
+    selectionText: a.attachedSel?.text ?? null,
+    projectId: a.projectId ?? null,
+  };
+}
+
 export async function execSend(a: ExecSendArgs): Promise<void> {
   const currentTitle = a.convos.find((c) => c.id === a.activeId)?.title ?? "New conversation";
   const cid = a.activeId ?? await a.newConvo();
@@ -214,7 +228,7 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   try {
     if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
     const token = await acquireTokenCached(getTweak("aiLicenseKey", ""), a.sessionRef);
-    await streamAiResponse({ token, sceneTitle: a.sceneName ?? "Untitled", doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q, verb: a.verb, ctrl, convId: cid, msgId: aiMsg.id, setConvos: a.setConvos, convStore: a.convStore });
+    await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id }));
   } catch (err: unknown) {
     if (!ctrl.signal.aborted) {
       const msg = err instanceof Error ? err.message : "";

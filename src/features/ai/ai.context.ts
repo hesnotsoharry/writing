@@ -1,15 +1,27 @@
 /**
- * Brainstorm context assembly — client-side (Decision 4).
+ * AI context assembly — client-side (Decision 4).
  *
- * Gathers the current scene's plain text and linked entity summaries,
- * applies caps, and returns a BrainstormContext ready for the prompt template.
- * Pure async function — testable with mocked store calls.
+ * `assembleBrainstormContext` (legacy) — gathers scene text + entities for the
+ * brainstorm verb only. Kept for existing unit tests.
+ *
+ * `assembleContext` (Phase E) — verb-aware multi-source assembly. Applies both
+ * D4 privacy filters (persistent exclude_from_ai flag + per-ask offEntityNames)
+ * as the single auditable gate before anything is sent to the proxy.
+ *
+ * Pure async functions — testable with mocked store calls.
  */
 import type * as Y from "yjs";
 
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { extractPlainText } from "../../yjs/serialize";
-import type { BrainstormContext, EntitySummary } from "./prompts/brainstorm";
+import type {
+  AiCtxConfig,
+  AssembledContext,
+  EntitySummary,
+  ManuscriptAbout,
+  VerbKey,
+} from "./ai.types";
+import type { BrainstormContext } from "./prompts/brainstorm";
 
 // ── Caps ──────────────────────────────────────────────────────────────────────
 
@@ -19,7 +31,7 @@ export const SCENE_EXCERPT_CHARS = 2000;
 /** Max entity notes characters per entity in the context block. */
 export const ENTITY_NOTES_CHARS = 200;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Legacy assembly input (kept for assembleBrainstormContext) ────────────────
 
 export interface AssemblyInput {
   sceneTitle: string;
@@ -28,7 +40,80 @@ export interface AssemblyInput {
   store: StoryBibleStore;
 }
 
+// ── Phase E assembly input ────────────────────────────────────────────────────
+
+export interface AssembleContextInput {
+  verb: VerbKey;
+  cfg: AiCtxConfig;
+  sceneTitle: string;
+  sceneId: string | null;
+  doc: Y.Doc | null;
+  store: StoryBibleStore;
+  projectId: string | null;
+  selectionText?: string | null;
+}
+
+// ── Re-export AssembledContext so callers can import from one place ───────────
+export type { AssembledContext };
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Filter raw entity groups to EntitySummary[], applying D4 privacy filters. */
+function filterEntityGroups(
+  groups: Awaited<ReturnType<StoryBibleStore["loadSceneEntities"]>>,
+  cfg: AiCtxConfig,
+): EntitySummary[] {
+  const offSet = new Set(cfg.offEntityNames.map((n) => n.toLowerCase()));
+  return groups.flatMap((g) =>
+    g.entities
+      .filter((e) => e.exclude_from_ai !== true)
+      .filter((e) => !offSet.has(e.name.toLowerCase()))
+      .map((e) => ({
+        type: g.type,
+        name: e.name,
+        keyFacts: (e.notes ?? "").slice(0, ENTITY_NOTES_CHARS).trim(),
+      })),
+  );
+}
+
+/** Build the spoiler-boundary instruction line (must contain the boundary id). */
+function buildBoundaryLine(boundary: string | null): string | null {
+  if (!boundary) return null;
+  return `Treat this conversation as if you have not read past ${boundary}: do not reference or reveal events, revelations, or character arcs that occur after that point.`;
+}
+
+/** Fetch title + capped text for a list of extra scene ids. */
+async function loadExtraSceneExcerpts(
+  store: StoryBibleStore,
+  ids: string[],
+): Promise<{ title: string; excerpt: string }[]> {
+  const results: { title: string; excerpt: string }[] = [];
+  for (const id of ids) {
+    try {
+      const row = await store.getSceneText(id);
+      if (row) results.push({ title: row.title, excerpt: row.text.slice(0, SCENE_EXCERPT_CHARS) });
+    } catch {
+      // Non-fatal: skip missing extra scenes.
+    }
+  }
+  return results;
+}
+
+/** Fetch manuscript About when requested; return null otherwise. */
+async function fetchAbout(
+  store: StoryBibleStore,
+  projectId: string | null,
+  include: boolean,
+): Promise<ManuscriptAbout | null> {
+  if (!include || !projectId) return null;
+  try {
+    return await store.getManuscriptAbout(projectId);
+  } catch {
+    return null;
+  }
+}
+
+// ── Legacy assembly (kept for backward-compat / existing tests) ───────────────
 
 async function loadEntitySummaries(
   store: StoryBibleStore,
@@ -50,11 +135,9 @@ async function loadEntitySummaries(
   }
 }
 
-// ── Assembly ──────────────────────────────────────────────────────────────────
-
 /**
  * Assemble a BrainstormContext from the active scene's doc + store entities.
- * All content stays local — the assembled object is what's sent to the proxy.
+ * Legacy function — superseded by assembleContext for the send path.
  */
 export async function assembleBrainstormContext(
   input: AssemblyInput,
@@ -64,4 +147,40 @@ export async function assembleBrainstormContext(
   const sceneExcerpt = rawText.slice(0, SCENE_EXCERPT_CHARS);
   const entitySummaries = await loadEntitySummaries(store, sceneId);
   return { sceneTitle, sceneExcerpt, entitySummaries };
+}
+
+// ── Phase E assembly ──────────────────────────────────────────────────────────
+
+/**
+ * Assemble the full AI context for any verb.
+ * Privacy guarantee (D4): both entity-exclusion filters are applied here —
+ * `exclude_from_ai` (persistent shield) and `cfg.offEntityNames` (per-ask).
+ * The assembled object is what is sent to the proxy; nothing shielded escapes.
+ */
+export async function assembleContext(
+  input: AssembleContextInput,
+): Promise<AssembledContext> {
+  const { cfg, sceneTitle, sceneId, doc, store, projectId, selectionText } = input;
+
+  const sceneExcerpt = (doc ? extractPlainText(doc) : "").slice(0, SCENE_EXCERPT_CHARS);
+
+  const rawGroups = sceneId
+    ? await store.loadSceneEntities(sceneId).catch(() => [])
+    : [];
+  const entitySummaries = filterEntityGroups(rawGroups, cfg);
+
+  const [about, extraScenes] = await Promise.all([
+    fetchAbout(store, projectId, cfg.about),
+    loadExtraSceneExcerpts(store, cfg.extraSceneIds),
+  ]);
+
+  return {
+    sceneTitle,
+    sceneExcerpt,
+    extraScenes,
+    entitySummaries,
+    about,
+    selectionText: selectionText ?? null,
+    boundaryLine: buildBoundaryLine(cfg.boundary),
+  };
 }
