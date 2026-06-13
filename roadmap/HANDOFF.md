@@ -24,3 +24,4 @@ updated: 2026-06-13
 - Wave record (stub): [wave-35-assistant-redesign-port.md](wave-35-assistant-redesign-port.md) · full detail `git log e053852..900aa50`
 - Durable decisions: [decisions/](decisions/) · Vendor-gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/)
 - Wave 36 kickoff prompt: in the session log (launch/monetization half; BYOK deferred to a later wave per Decision 6)
+- AI optimization research (2026-06-13): [discovery/2026-06-13-ai-feature-optimization.md](discovery/2026-06-13-ai-feature-optimization.md) — verified optimization plan + new-feature backlog from a 16-agent workflow (uncommitted). NB: surfaced a live bug — `setManuscriptAbout` write path is missing, so manuscript "About" edits never persist and the About block is never injected into prompts.
