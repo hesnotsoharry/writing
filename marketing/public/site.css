@@ -263,7 +263,7 @@ p { text-wrap: pretty; }
 .frow-list .ic { width: 19px; height: 19px; color: var(--accent); flex: none; margin-top: 2px; }
 
 /* ---- Pricing ------------------------------------------------------------- */
-.price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; max-width: 880px; margin: 0 auto; align-items: stretch; }
+.price-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 26px; max-width: 1160px; margin: 0 auto; align-items: stretch; }
 .pcard {
   background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-xl);
   padding: 38px 34px; display: flex; flex-direction: column;
@@ -331,7 +331,7 @@ p { text-wrap: pretty; }
 @media (max-width: 680px) { .acct-grid { grid-template-columns: 1fr; } .acct-card.span2 { grid-column: span 1; } .bill-table th:nth-child(2), .bill-table td:nth-child(2) { display: none; } }
 
 /* compact home pricing teaser (full detail lives on pricing.html) */
-.price-teaser { display: flex; align-items: stretch; justify-content: center; max-width: 720px; margin: 48px auto 0; border: 1px solid var(--line); border-radius: var(--r-xl); background: var(--paper); box-shadow: var(--shadow-card); overflow: hidden; }
+.price-teaser { display: flex; align-items: stretch; justify-content: center; max-width: 980px; margin: 48px auto 0; border: 1px solid var(--line); border-radius: var(--r-xl); background: var(--paper); box-shadow: var(--shadow-card); overflow: hidden; }
 .price-teaser .pt-item { flex: 1; padding: 34px 28px; text-align: center; }
 .price-teaser .pt-item.lead { background: linear-gradient(180deg, var(--accent-tint), var(--paper) 62%); }
 .pt-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }

@@ -5,3 +5,14 @@ LEMON_SQUEEZY_SIGNING_SECRET=replace-with-ls-webhook-secret
 RESEND_API_KEY=replace-with-resend-api-key
 RESEND_FROM="Writers Nook <noreply@writersnook.app>"
 CONTACT_TO=replace-with-support-email
+# ── Lemon Squeezy subscription webhook vars (required for subscription + top-up paths) ──
+# TEST-MODE reference values (for local dev / dress rehearsal against the test webhook):
+#   LS_SUB_VARIANT_ID=1782093    (WritersNook Plus — test variant)
+#   LS_TOPUP_VARIANT_ID=1782092  (Top-up credits pack — test variant)
+# At launch, replace both with the LIVE variant IDs from the LS dashboard (live mode →
+# product → Share link / API). Test→live flips mint NEW IDs — do not reuse test values.
+LS_SUB_VARIANT_ID=replace-with-ls-subscription-variant-id
+LS_TOPUP_VARIANT_ID=replace-with-ls-topup-variant-id
+# LS API key for fetching order-scoped license keys (GET /v1/license-keys?filter[order_id]=).
+# Keys are NOT in subscription webhook payloads; this key is required to fetch them.
+LS_API_KEY=replace-with-ls-api-key
