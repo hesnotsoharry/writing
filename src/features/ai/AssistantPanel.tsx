@@ -25,7 +25,6 @@ import {
   type AiMessageRecord,
   type ContextSnapshot,
   type ConversationRecord,
-  EMPTY_ABOUT,
   type ManuscriptAbout,
   type ProseSelection,
   type VerbKey,
@@ -35,7 +34,7 @@ import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
 import { acquireTokenCached, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
-import { useAiPanelSeed, useAiSlotHandlers, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
+import { useAiPanelSeed, useAiSlotHandlers, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -323,7 +322,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const [inspTab, setInspTab] = useState<"scene" | "assistant">("scene");
   const [overlay, setOverlay] = useState<"consent" | "context" | null>(null);
   const { convStore, convos, setConvos, activeId, setActiveId } = useConvoPersistence(p.activeProjectId);
-  const [about, setAbout] = useState<ManuscriptAbout>(EMPTY_ABOUT);
+  const { about, saveAbout } = useManuscriptAbout(p.activeProjectId, p.storyBibleStore);
   const [aiCtx, setAiCtx] = useState<AiCtxConfig>(INIT_AI_CTX);
   const [neverNames, setNeverNames] = useState<string[]>([]);
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
@@ -340,7 +339,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   return (<>
     <InspectorTabs tab={inspTab} setTab={setInspTab} scenePane={base} assistantPane={
       <SlotPanel key={panelKey} convos={convos} setConvos={setConvos} activeId={activeId} setActiveId={setActiveId}
-        about={about} setAbout={setAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
+        about={about} setAbout={saveAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
         neverNames={neverNames} toggleNever={toggleNever} consented={consented}
         aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
         sceneEntityGroups={sceneEntityGroups}
@@ -355,7 +354,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
     {overlay === "context" && (
       <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
         entities={allEntities} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
-        about={about} setAbout={setAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
+        about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
     )}
     <AiToast msg={toast} />
   </>);

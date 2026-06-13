@@ -9,7 +9,8 @@ import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
 import { SqliteQuickNoteStore } from "../quickcapture/SqliteQuickNoteStore";
 import { AI_ASK_FROM_EDITOR, AI_REPLAY_EVENT, setStoredTweak } from "../settings/settings.store";
 import { parseProseSelection } from "./ai.helpers";
-import type { ProseSelection, VerbKey } from "./ai.types";
+import type { ManuscriptAbout, ProseSelection, VerbKey } from "./ai.types";
+import { EMPTY_ABOUT } from "./ai.types";
 
 /**
  * Load SceneEntityGroup[] for sceneId; reloads on change. Uses async iife to
@@ -139,4 +140,22 @@ export function useAiPanelSeed(setInspTab: Dispatch<SetStateAction<"scene" | "as
     return () => window.removeEventListener(AI_ASK_FROM_EDITOR, h);
   }, [seedAsk]);
   return { panelKey, initialVerb, initialSel, seedAsk };
+}
+
+/** Loads About from DB on mount/project-switch and provides a write-through save handler. */
+export function useManuscriptAbout(activeProjectId: string | null, storyBibleStore: StoryBibleStore) {
+  const [about, setAbout] = useState<ManuscriptAbout>(EMPTY_ABOUT);
+  useEffect(() => {
+    if (!activeProjectId) return;
+    let cancelled = false;
+    storyBibleStore.getManuscriptAbout(activeProjectId)
+      .then((a) => { if (!cancelled) setAbout(a); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeProjectId, storyBibleStore]);
+  const saveAbout = useCallback(async (a: ManuscriptAbout) => {
+    setAbout(a);
+    if (!activeProjectId) return;
+    try { await storyBibleStore.setManuscriptAbout(activeProjectId, a); } catch { /* non-fatal */ }
+  }, [activeProjectId, storyBibleStore]);
+  return { about, saveAbout };
 }

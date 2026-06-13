@@ -78,6 +78,7 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   private portraits = new Map<string, string>();
   private relations: Relation[] = [];
   private customTypes: CustomEntityType[] = [];
+  private aboutByProject = new Map<string, ManuscriptAbout>();
 
   async listCharacters(projectId: string): Promise<Character[]> {
     return this.characters.filter((c) => c.projectId === projectId);
@@ -289,11 +290,14 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     return this.listRelations(projectId);
   }
 
-  // ── Wave 35 Phase E stubs ─────────────────────────────────────────────────
+  // ── Wave 35 Phase E — AI context v2 ──────────────────────────────────────
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getManuscriptAbout(_projectId: string): Promise<ManuscriptAbout> {
-    return { ...EMPTY_ABOUT };
+  async getManuscriptAbout(projectId: string): Promise<ManuscriptAbout> {
+    return { ...(this.aboutByProject.get(projectId) ?? EMPTY_ABOUT) };
+  }
+
+  async setManuscriptAbout(projectId: string, about: ManuscriptAbout): Promise<void> {
+    this.aboutByProject.set(projectId, { ...about });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

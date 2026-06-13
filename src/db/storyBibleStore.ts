@@ -326,6 +326,11 @@ export interface StoryBibleStore {
    */
   getManuscriptAbout(projectId: string): Promise<ManuscriptAbout>;
   /**
+   * Upsert the manuscript_about row for the project.
+   * Creates a new row if absent; overwrites all fields if present.
+   */
+  setManuscriptAbout(projectId: string, about: ManuscriptAbout): Promise<void>;
+  /**
    * Return a scene's title and its plain-text content decoded from the
    * scene_docs Yjs state.  Returns null if the scene or its doc row is absent.
    */

@@ -24,6 +24,22 @@ export async function sqliteGetManuscriptAbout(
   return { synopsis: r.synopsis ?? "", genre: r.genre ?? "", tone: r.tone ?? "", pov: r.pov ?? "", notes: r.notes ?? "" };
 }
 
+/** Upsert the manuscript_about row; creates or overwrites all fields. */
+export async function sqliteSetManuscriptAbout(
+  db: DbHandle,
+  projectId: string,
+  about: ManuscriptAbout,
+): Promise<void> {
+  await db.execute(
+    `INSERT INTO manuscript_about (project_id, synopsis, genre, tone, pov, notes)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT(project_id) DO UPDATE SET
+       synopsis=excluded.synopsis, genre=excluded.genre, tone=excluded.tone,
+       pov=excluded.pov, notes=excluded.notes`,
+    [projectId, about.synopsis, about.genre, about.tone, about.pov, about.notes],
+  );
+}
+
 /** Load a scene's title and decoded plain-text from scene_docs. */
 export async function sqliteGetSceneText(
   db: DbHandle,
