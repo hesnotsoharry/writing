@@ -61,7 +61,10 @@ export const onRequestGet: PagesFunction<AiEnv> = async (context) => {
     .select("status, credits_balance, reset_at")
     .eq("license_key", licenseKey)
     .single();
-  if (error) return new Response("Internal Server Error", { status: 500, headers: cors });
+  // Real transport error (any error except PGRST116 "no rows") → 500.
+  // PGRST116 = no subscription row — treat as "not subscribed" → 401.
+  const errCode = (error as { code?: string } | null)?.code;
+  if (error && errCode !== "PGRST116") return new Response("Internal Server Error", { status: 500, headers: cors });
   if (!data) return new Response("Unauthorized", { status: 401, headers: cors });
   const sub = data as unknown as SubscriptionRow;
 

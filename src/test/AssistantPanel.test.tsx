@@ -40,6 +40,9 @@ vi.mock("../features/ai/ai.context", () => ({
     selectionText: null,
     boundaryLine: null,
   }),
+  // filterAiEntities is used by useContextAssembly for D4 display parity.
+  // Tests pass sceneEntityGroups: [] so the filter always returns [].
+  filterAiEntities: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock("../features/ai/prompts/brainstorm", () => ({
@@ -148,6 +151,7 @@ function makeProps(overrides: Partial<AssistantPanelProps> = {}): AssistantPanel
     setAiCtx: vi.fn(),
     neverNames: [],
     toggleNever: vi.fn(),
+    sceneEntityGroups: [],
     usedPct: 0,
     resetLabel: "Resets soon",
     plan: "active",

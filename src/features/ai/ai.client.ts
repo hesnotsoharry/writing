@@ -161,11 +161,14 @@ export async function streamChat(
   });
   if (res.status === 429) {
     const raw = await res.json().catch(() => null);
-    const resetAt =
-      raw !== null && typeof raw === "object" && "resetAt" in raw
-        ? parseResetAt((raw as { resetAt: unknown }).resetAt)
-        : "";
-    onEvent({ type: "credits-exhausted", resetAt });
+    const body = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    // Rate-cap (retryAfterSeconds) vs credits-exhausted (resetAt) — two distinct 429 shapes.
+    if (body["error"] === "rate_limit_exceeded") {
+      onEvent({ type: "error", message: "Too many requests — wait a moment and try again" });
+    } else {
+      const resetAt = "resetAt" in body ? parseResetAt(body["resetAt"]) : "";
+      onEvent({ type: "credits-exhausted", resetAt });
+    }
     return;
   }
   if (res.status === 403) {

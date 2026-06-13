@@ -15,7 +15,7 @@ import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import { type AiConversationStore,makeProductionAiConversationStore } from "../../db/aiConversationStore";
 import type { Scene } from "../../db/binderStore";
-import type { StoryBibleStore } from "../../db/storyBibleStore";
+import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak } from "../settings/settings.store";
 import { getBalance, type SessionResult } from "./ai.client";
 import { computeUsedPct, formatResetLabel } from "./ai.helpers";
@@ -35,7 +35,7 @@ import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
 import { acquireTokenCached, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
-import { useAiPanelSeed, useAiSlotHandlers, useProseSelection } from "./AssistantPanel.slot";
+import { useAiPanelSeed, useAiSlotHandlers, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,8 @@ export interface AssistantPanelProps {
   sceneWords: number;
   doc: Y.Doc | null;
   store: StoryBibleStore;
+  /** Raw entity groups for the active scene — used by PanelReady for D4 display parity. */
+  sceneEntityGroups: SceneEntityGroup[];
   tree: AiManuscriptTree;
   convos: ConversationRecord[];
   setConvos: React.Dispatch<React.SetStateAction<ConversationRecord[]>>;
@@ -112,6 +114,7 @@ interface SlotPanelProps {
   sceneId: string | null;
   sceneName: string | null;
   sceneWords: number;
+  sceneEntityGroups: SceneEntityGroup[];
   doc: Y.Doc | null | undefined;
   store: StoryBibleStore;
   onOpenConsent: () => void;
@@ -137,9 +140,11 @@ function PanelReady(p: AssistantPanelProps) {
     streamingId, setStreamingId, abortRef, sessionRef } = usePanelState(p.initialVerb, p.initialSel);
   const footerRef = useRef<PanelFooterHandle | null>(null);
   const active = p.convos.find((c) => c.id === p.activeId) ?? null;
-  const ctx = useContextAssembly({ sceneId: p.sceneId, sceneWords: p.sceneWords, aiCtx: p.aiCtx, neverNames: p.neverNames, tree: p.tree, about: p.about, active });
+  // D4: merge neverNames into offEntityNames so display + send use the same filter.
+  const effectiveAiCtx: AiCtxConfig = { ...p.aiCtx, offEntityNames: [...new Set([...p.aiCtx.offEntityNames, ...p.neverNames])] };
+  const ctx = useContextAssembly({ sceneId: p.sceneId, sceneWords: p.sceneWords, aiCtx: effectiveAiCtx, neverNames: p.neverNames, tree: p.tree, about: p.about, active, sceneEntityGroups: p.sceneEntityGroups });
   const ctxArgs: CtxArgs = { sceneName: p.sceneName, sceneWords: p.sceneWords, linked: ctx.linked,
-    extras: ctx.extras, attachedSel, aiCtx: p.aiCtx, hasAbout: ctx.hasAbout, boundaryLabel: ctx.boundaryLabel };
+    extras: ctx.extras, attachedSel, aiCtx: effectiveAiCtx, hasAbout: ctx.hasAbout, boundaryLabel: ctx.boundaryLabel };
   const canCompose = !p.offline && p.plan !== "expired" && p.usedPct < 100;
   const { send, stop, copyMsg, saveMsg, newConvo, deleteConvo } = usePanelMessages({
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
@@ -150,8 +155,7 @@ function PanelReady(p: AssistantPanelProps) {
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => { abortRef.current?.abort(); }, []);
-  const listMode = !active;
-  const msgCount = active?.messages.length ?? 0;
+  const listMode = !active; const msgCount = active?.messages.length ?? 0;
   const lastLen = msgCount ? active!.messages[msgCount - 1].text.length : 0;
   return (
     <div className="ai-panel">
@@ -178,9 +182,7 @@ function PanelReady(p: AssistantPanelProps) {
 // ── AssistantPanel ─────────────────────────────────────────────────────────────
 
 export function AssistantPanel(props: AssistantPanelProps) {
-  if (!props.consented) {
-    return <div className="ai-panel"><AiDormant onWake={props.onOpenConsent} /></div>;
-  }
+  if (!props.consented) return <div className="ai-panel"><AiDormant onWake={props.onOpenConsent} /></div>;
   return <PanelReady {...props} />;
 }
 
@@ -305,7 +307,7 @@ function SlotPanel(p: SlotPanelProps) {
   return (
     <AiErrorBoundary>
       <AssistantPanel
-        sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords} store={p.store} tree={p.aiTree}
+        sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords} store={p.store} tree={p.aiTree} sceneEntityGroups={p.sceneEntityGroups}
         convos={p.convos} setConvos={p.setConvos} activeId={p.activeId} setActiveId={p.setActiveId}
         about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx} neverNames={p.neverNames} toggleNever={p.toggleNever}
         usedPct={p.usedPct} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
@@ -324,23 +326,24 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const [about, setAbout] = useState<ManuscriptAbout>(EMPTY_ABOUT);
   const [aiCtx, setAiCtx] = useState<AiCtxConfig>(INIT_AI_CTX);
   const [neverNames, setNeverNames] = useState<string[]>([]);
-  const toggleNever = useCallback((n: string) =>
-    setNeverNames((ns) => (ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n])), []);
+  const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
   const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented);
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
-  const sceneId = p.selectedSceneId;
-  const sceneName = p.activeScene?.title ?? null;
-  const sceneWords = p.activeScene?.word_count ?? 0;
+  const sceneId = p.selectedSceneId; const sceneName = p.activeScene?.title ?? null; const sceneWords = p.activeScene?.word_count ?? 0;
+  // D4: load raw entity groups; derive picker-facing list (all non-excluded entities).
+  const sceneEntityGroups = useSceneEntityGroups(sceneId, p.storyBibleStore);
+  const allEntities = sceneEntityGroups.flatMap((g) => g.entities.filter((e) => e.exclude_from_ai !== true).map((e) => ({ id: e.id, name: e.name })));
   return (<>
     <InspectorTabs tab={inspTab} setTab={setInspTab} scenePane={base} assistantPane={
       <SlotPanel key={panelKey} convos={convos} setConvos={setConvos} activeId={activeId} setActiveId={setActiveId}
         about={about} setAbout={setAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
         neverNames={neverNames} toggleNever={toggleNever} consented={consented}
         aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
+        sceneEntityGroups={sceneEntityGroups}
         doc={p.doc} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")}
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
@@ -351,7 +354,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
     {overlay === "context" && (
       <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
-        entities={[]} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
+        entities={allEntities} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
         about={about} setAbout={setAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
     )}
     <AiToast msg={toast} />

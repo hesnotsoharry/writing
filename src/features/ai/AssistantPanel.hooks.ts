@@ -14,10 +14,10 @@ import type * as Y from "yjs";
 
 import type { BinderTree } from "../../binder/buildTree";
 import { type AiConversationStore,deriveConversationTitle } from "../../db/aiConversationStore";
-import type { StoryBibleStore } from "../../db/storyBibleStore";
+import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak } from "../settings/settings.store";
 import { acquireSession, type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
-import { assembleContext } from "./ai.context";
+import { assembleContext,filterAiEntities } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
 import {
   type AiCtxConfig,
@@ -52,6 +52,8 @@ export interface ContextAssemblyArgs {
   tree: AiManuscriptTree;
   about: ManuscriptAbout;
   active: ConversationRecord | null;
+  /** Raw entity groups for the current scene — loaded by AiSlot, passed down. */
+  sceneEntityGroups: SceneEntityGroup[];
 }
 
 export interface PanelMsgArgs {
@@ -220,8 +222,7 @@ function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, 
 
 function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgId: string; setConvos: Dispatch<SetStateAction<ConversationRecord[]>>; onNetworkError?: () => void }): void {
   if (ctrl.signal.aborted) return;
-  const msg = err instanceof Error ? err.message : "";
-  const is403 = msg.includes("403");
+  const is403 = (err instanceof Error ? err.message : "").includes("403");
   r.setConvos(patchMessage(cid, r.msgId, { streaming: false, text: is403 ? "[Session expired — check your subscription]" : "[Connection failed — try again]" }));
   if (!is403) r.onNetworkError?.();
 }
@@ -234,9 +235,7 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   const aiMsg: AiMessageRecord = { id: aiMsgId(), role: "ai", verb: a.verb, when: "now", text: "", streaming: true, ctx: null };
   const derived = deriveConversationTitle(a.q);
   applyMessageToState(a.setConvos, cid, { currentTitle, derived, verb: a.verb, youMsg, aiMsg });
-  a.setPrompt("");
-  a.setAttachedSel(null);
-  a.setStreamingId(aiMsg.id);
+  a.setPrompt(""); a.setAttachedSel(null); a.setStreamingId(aiMsg.id);
   const ctrl = new AbortController();
   a.abortRef.current = ctrl;
   try {
@@ -300,7 +299,8 @@ export function useConvoOps(
 }
 
 export function useContextAssembly(a: ContextAssemblyArgs) {
-  const linked: string[] = [];
+  // D4 parity: merge neverNames into offEntityNames so display and send use the same filter.
+  const linked = filterAiEntities(a.sceneEntityGroups, [...new Set([...a.aiCtx.offEntityNames, ...a.neverNames])]).map((e) => e.name);
   const allScenes = [...a.tree.chapters.flatMap((ch) => ch.scenes), ...a.tree.shortPieces];
   const extras = (a.aiCtx.extraSceneIds ?? []).filter((id) => id !== a.sceneId).map((id) => allScenes.find((s) => s.id === id)).filter((s): s is AiSceneRow => s !== undefined);
   const extraWords = extras.reduce((sum, s) => sum + s.words, 0);

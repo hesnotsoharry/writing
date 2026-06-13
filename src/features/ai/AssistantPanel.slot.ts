@@ -4,11 +4,29 @@
  */
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 
+import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
 import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
 import { SqliteQuickNoteStore } from "../quickcapture/SqliteQuickNoteStore";
 import { AI_ASK_FROM_EDITOR, AI_REPLAY_EVENT, setStoredTweak } from "../settings/settings.store";
 import { parseProseSelection } from "./ai.helpers";
 import type { ProseSelection, VerbKey } from "./ai.types";
+
+/**
+ * Load SceneEntityGroup[] for sceneId; reloads on change. Uses async iife to
+ * avoid synchronous setState inside the effect body (React 19 lint requirement).
+ */
+export function useSceneEntityGroups(sceneId: string | null, store: StoryBibleStore): SceneEntityGroup[] {
+  const [groups, setGroups] = useState<SceneEntityGroup[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const g = sceneId ? await store.loadSceneEntities(sceneId).catch(() => []) : [];
+      if (!cancelled) setGroups(g);
+    })();
+    return () => { cancelled = true; };
+  }, [sceneId, store]);
+  return groups;
+}
 
 /** Saves body to quick notes or falls back to clipboard when no project is active. */
 async function saveOrCopyNote(

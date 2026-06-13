@@ -28,6 +28,8 @@ interface SubRow {
 let subRow: SubRow = { status: "active", credits_balance: 600_000, reset_at: "2026-07-01T00:00:00Z" };
 let subFound = true;
 let subError = false;
+/** When true, .single() returns { data: null, error: { code: 'PGRST116' } } — real Supabase no-row shape. */
+let subPgrst116 = false;
 
 function makeMockClient() {
   return {
@@ -36,6 +38,7 @@ function makeMockClient() {
         eq: () => ({
           single: () => {
             if (subError) return Promise.resolve({ data: null, error: { message: "db transport error" } });
+            if (subPgrst116) return Promise.resolve({ data: null, error: { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" } });
             if (!subFound) return Promise.resolve({ data: null, error: null });
             return Promise.resolve({ data: subRow, error: null });
           },
@@ -81,6 +84,7 @@ describe("GET /api/ai/balance contract", () => {
     subRow = { status: "active", credits_balance: 600_000, reset_at: "2026-07-01T00:00:00Z" };
     subFound = true;
     subError = false;
+    subPgrst116 = false;
   });
 
   it("returns 401 when Authorization header is missing", async () => {
@@ -138,6 +142,14 @@ describe("GET /api/ai/balance contract", () => {
 
   it("returns 401 when no subscription row is found (key not registered)", async () => {
     subFound = false;
+    const token = await makeValidToken();
+    const ctx = fakeContext(`Bearer ${token}`);
+    const res = await onRequestGet(ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when Supabase .single() returns PGRST116 (no rows — real Supabase shape)", async () => {
+    subPgrst116 = true;
     const token = await makeValidToken();
     const ctx = fakeContext(`Bearer ${token}`);
     const res = await onRequestGet(ctx);

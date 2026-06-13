@@ -136,6 +136,13 @@ Before declaring a phase complete, restate the observation point from the Phases
 **Consequences:** Wave 35 now owns the billing data path + guardrail wiring; wave 36's billing remainder shrinks to the irreversible flips (live LS variant IDs, live webhook, real Resend) + marketing pages.
 **Enforcement:** Phase G acceptance tests (balance contract + meter mapping + reset-date fixes); checkout buttons point at test-mode variants until the wave-36 live flip. `durable: candidate`.
 
+### Decision 8: aiEnabled default stays `true` this wave (production-OFF flip deferred) (2026-06-13)
+
+**Context:** Design canon (HANDOFF Phase 8) says `ai_enabled` defaults OFF in production. But it currently defaults `true`, and flipping it risks hiding the AI tab from existing users (Cole + partner) on next launch depending on whether their setting is explicitly persisted. Surfaced by the wave-end review as a spec deviation recorded only in a phase status row, not a locked decision.
+**Pick:** Keep `TWEAK_DEFAULTS.aiEnabled = true` this wave; the production default-OFF flip is a Cole/launch decision (pairs naturally with the wave-36 launch). The dormant-card experience is gated by `aiConsentGiven` (default false) regardless, so a fresh install still shows "the assistant is asleep" until opted in.
+**Consequences:** New installs see the AI tab (in dormant state) without user action — a deliberate, documented deviation from design-canon default-OFF until Cole flips it.
+**Enforcement:** advisory-only — `TWEAK_DEFAULTS.aiEnabled` in settings.store.ts; flip is a one-line change at launch. **durable: candidate** (cross-wave: wave-36 launch must decide the flip).
+
 ## Status
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |

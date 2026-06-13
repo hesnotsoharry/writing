@@ -58,12 +58,19 @@ export type { AssembledContext };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Filter raw entity groups to EntitySummary[], applying D4 privacy filters. */
-function filterEntityGroups(
+/**
+ * Filter raw entity groups to EntitySummary[], applying D4 privacy filters.
+ * Exported so the display path (chips / context picker) uses the IDENTICAL
+ * filter as assembleContext — parity by construction.
+ *
+ * @param groups  Raw SceneEntityGroup[] from store.loadSceneEntities.
+ * @param offEntityNames  Combined off-list: aiCtx.offEntityNames ++ neverNames.
+ */
+export function filterAiEntities(
   groups: Awaited<ReturnType<StoryBibleStore["loadSceneEntities"]>>,
-  cfg: AiCtxConfig,
+  offEntityNames: string[],
 ): EntitySummary[] {
-  const offSet = new Set(cfg.offEntityNames.map((n) => n.toLowerCase()));
+  const offSet = new Set(offEntityNames.map((n) => n.toLowerCase()));
   return groups.flatMap((g) =>
     g.entities
       .filter((e) => e.exclude_from_ai !== true)
@@ -167,7 +174,7 @@ export async function assembleContext(
   const rawGroups = sceneId
     ? await store.loadSceneEntities(sceneId).catch(() => [])
     : [];
-  const entitySummaries = filterEntityGroups(rawGroups, cfg);
+  const entitySummaries = filterAiEntities(rawGroups, cfg.offEntityNames);
 
   const [about, extraScenes] = await Promise.all([
     fetchAbout(store, projectId, cfg.about),
