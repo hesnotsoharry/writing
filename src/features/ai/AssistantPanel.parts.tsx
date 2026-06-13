@@ -2,6 +2,7 @@
  * AssistantPanel.parts.tsx — sub-components for AssistantPanel.
  * Not part of the public module boundary; consumed only by AssistantPanel.tsx.
  */
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import { Icon } from "../../components/Icon";
@@ -73,6 +74,21 @@ interface PanelThreadProps {
   msgCount: number;
   lastLen: number;
   activeId: string | null;
+}
+
+// ── LS checkout URLs (test-mode — wave-36 live flip is Cole-gated) ────────────
+
+const LS_STORE = "writersnookapp";
+// Checkout URLs use the variant's public UUID slug (NOT the numeric webhook ID).
+// Set VITE_LS_AI_SUB_CHECKOUT_VARIANT / VITE_LS_AI_TOPUP_CHECKOUT_VARIANT in .env.local
+// to the test-mode variant slugs from the LS dashboard.
+// Fallback to pricing page when env var is absent (test-mode without real checkout slug).
+const AI_SUB_VARIANT = import.meta.env.VITE_LS_AI_SUB_CHECKOUT_VARIANT as string | undefined;
+const AI_TOPUP_VARIANT = import.meta.env.VITE_LS_AI_TOPUP_CHECKOUT_VARIANT as string | undefined;
+
+function buildLsCheckoutUrl(variant: string | undefined): string {
+  if (!variant) return "https://writersnook.app/pricing";
+  return `https://${LS_STORE}.lemonsqueezy.com/checkout/buy/${variant}`;
 }
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -156,7 +172,7 @@ function ExpiredPlanGuard({ onToast }: { onToast: (msg: string) => void }) {
       <div className="gtitle"><Icon name="clock" className="ic" /> Your assistant plan has lapsed</div>
       <p>Old conversations stay readable. New asks need an active plan — or your own API key, in Settings.</p>
       <div className="gacts">
-        <button className="btn btn-primary" onClick={() => onToast("Renew — wired in Phase G")}>Renew · $14.99/mo</button>
+        <button className="btn btn-primary" onClick={() => openUrl(buildLsCheckoutUrl(AI_SUB_VARIANT)).catch(() => { onToast("Couldn't open checkout — try again"); })}>Renew · $14.99/mo</button>
         <button className="btn btn-ghost" onClick={() => onToast("Use own key — see Settings → Assistant")}>Use my own key</button>
       </div>
     </div>
@@ -169,7 +185,7 @@ function ExhaustedAllowanceGuard({ resetLabel, onToast }: { resetLabel: string; 
       <div className="gtitle"><Icon name="moon" className="ic" /> This month&apos;s allowance is used up</div>
       <p>{resetLabel}. The assistant stops here rather than running up a bill.</p>
       <div className="gacts">
-        <button className="btn btn-primary" onClick={() => onToast("Top up — wired in Phase G")}>Top up</button>
+        <button className="btn btn-primary" onClick={() => openUrl(buildLsCheckoutUrl(AI_TOPUP_VARIANT)).catch(() => { onToast("Couldn't open checkout — try again"); })}>Top up</button>
         <button className="btn btn-ghost" onClick={() => onToast("Resets automatically")}>Wait for reset</button>
       </div>
     </div>

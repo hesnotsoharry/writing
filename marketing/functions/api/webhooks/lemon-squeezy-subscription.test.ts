@@ -426,6 +426,53 @@ describe("order_created — top-up pack", () => {
   });
 });
 
+describe("subscription_payment_success — renews_at preferred over Date.now()+30d", () => {
+  function invoicePayloadWithRenewsAt(subId: string, invoiceId: string, renewsAt: string) {
+    return JSON.stringify({
+      meta: { event_name: "subscription_payment_success" },
+      data: {
+        type: "subscription-invoices",
+        id: invoiceId,
+        attributes: {
+          subscription_id: subId,
+          updated_at: "2026-07-01T00:00:00Z",
+          renews_at: renewsAt,
+        },
+      },
+    });
+  }
+
+  it("uses renews_at from the invoice as reset date when present (not Date.now()+30d)", async () => {
+    const renewsAt = "2026-08-01T00:00:00Z";
+    const body = invoicePayloadWithRenewsAt("sub_001", "inv_renews_001", renewsAt);
+    const ctx = makeContext(body);
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(200);
+    const reset = rpcCalls.find((c) => c.fn === "reset_credits");
+    expect(reset).toBeDefined();
+    // p_reset_at must equal the invoice's renews_at, not a Date.now()+30d approximation
+    expect(reset!.args["p_reset_at"]).toBe(new Date(renewsAt).toISOString());
+    // Sanity: it is NOT approximately now+30d (which would be ≠ 2026-08-01)
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+    expect(reset!.args["p_reset_at"]).not.toBe(thirtyDaysFromNow);
+  });
+
+  it("falls back to Date.now()+30d when renews_at is absent from the invoice", async () => {
+    const body = invoicePayload("sub_001", "inv_nora_001"); // no renews_at
+    const before = Date.now();
+    const ctx = makeContext(body);
+    const res = await onRequestPost(ctx);
+    const after = Date.now();
+    expect(res.status).toBe(200);
+    const reset = rpcCalls.find((c) => c.fn === "reset_credits");
+    expect(reset).toBeDefined();
+    const resetAtMs = new Date(reset!.args["p_reset_at"] as string).getTime();
+    // Must be approximately 30 days from the call time (±5 seconds)
+    expect(resetAtMs).toBeGreaterThanOrEqual(before + 30 * 24 * 3600 * 1000 - 5000);
+    expect(resetAtMs).toBeLessThanOrEqual(after + 30 * 24 * 3600 * 1000 + 5000);
+  });
+});
+
 describe("order_created — top-up out-of-order delivery and config guard", () => {
   it("returns 500 with NO webhook_events tombstone when subscriber email not found (out-of-order); retry after subscriber row exists grants exactly once", async () => {
     const missingEmail = "latecomer@example.com";

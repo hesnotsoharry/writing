@@ -63,6 +63,8 @@ interface SubscriptionPayload {
 interface InvoiceAttributes {
   subscription_id: string;
   updated_at: string;
+  /** LS sends the next renewal date on the invoice when available. Prefer this over Date.now()+30d. */
+  renews_at?: string | null;
   [key: string]: unknown;
 }
 
@@ -275,7 +277,11 @@ async function handlePaymentSuccess(payload: InvoicePayload, env: WebhookEnv): P
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
 
-  const nextResetAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  // Prefer the invoice's renews_at when present (matches handleCreated/handleStatusUpdate pattern).
+  // Fallback to Date.now()+30d so existing subscriptions without renews_at still reset correctly.
+  const nextResetAt = payload.data.attributes.renews_at
+    ? new Date(payload.data.attributes.renews_at)
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await db.rpc("reset_credits", {
     p_license_key: existing.license_key,
     p_allowance: MONTHLY_ALLOWANCE,

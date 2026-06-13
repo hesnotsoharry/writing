@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aiMeterStatus, computeUsedPct, parseResetAt } from "../features/ai/ai.helpers";
+import { aiMeterStatus, computeUsedPct, formatResetLabel, parseResetAt } from "../features/ai/ai.helpers";
 
 // Orchestrator-authored Phase G acceptance test (Wave 35) — the client-side billing
 // helpers. Implementer adds computeUsedPct + parseResetAt to ai.helpers.ts and may NOT
@@ -70,5 +70,22 @@ describe("parseResetAt (fixes the first-month 'resets null' bug)", () => {
 
   it("returns '' for an empty string", () => {
     expect(parseResetAt("")).toBe("");
+  });
+});
+
+describe("formatResetLabel", () => {
+  it("returns 'soon' for an empty string", () => {
+    expect(formatResetLabel("")).toBe("soon");
+  });
+
+  it("returns 'soon' for an unparseable date", () => {
+    expect(formatResetLabel("not-a-date")).toBe("soon");
+  });
+
+  it("formats a valid ISO date as 'Resets {Mon D}' (locale-fixed, TZ-robust)", () => {
+    const out = formatResetLabel("2026-07-01T12:00:00Z");
+    expect(out.startsWith("Resets ")).toBe(true);
+    expect(out).not.toBe("soon");
+    expect(out).toMatch(/\d/); // carries a day number
   });
 });

@@ -8,6 +8,8 @@
  * The credit value reported in 'done' events is in these units.
  */
 
+import { parseResetAt } from "./ai.helpers";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AiMessage {
@@ -81,10 +83,29 @@ function parseSseLine(line: string): NormalizedEvent | null {
  * - system: system prompt forwarded to Anthropic's `system` field by the proxy.
  * - signal: AbortSignal for stop-button support.
  */
+export interface BalanceResult {
+  creditsBalance: number;
+  monthlyAllowance: number;
+  resetAt: string;
+  status: "active" | "expired";
+}
+
 export interface StreamChatOptions {
   maxTokens?: number;
   system?: string;
   signal?: AbortSignal;
+}
+
+/**
+ * Fetch the current credit balance for a session token.
+ * Throws on network error or non-200 response.
+ */
+export async function getBalance(token: string): Promise<BalanceResult> {
+  const res = await fetch(`${API_BASE}/api/ai/balance`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Balance fetch failed: ${res.status}`);
+  return res.json() as Promise<BalanceResult>;
 }
 
 function buildChatBody(
@@ -142,7 +163,7 @@ export async function streamChat(
     const raw = await res.json().catch(() => null);
     const resetAt =
       raw !== null && typeof raw === "object" && "resetAt" in raw
-        ? String((raw as { resetAt: unknown }).resetAt)
+        ? parseResetAt((raw as { resetAt: unknown }).resetAt)
         : "";
     onEvent({ type: "credits-exhausted", resetAt });
     return;

@@ -78,6 +78,8 @@ export interface PanelMsgArgs {
   onSaveNote: (body: string) => void;
   convStore?: AiConversationStore;
   projectId?: string | null;
+  onStreamDone?: () => void; // Called after each stream attempt completes (success or failure) to refresh balance.
+  onNetworkError?: () => void; // Called when a stream fetch fails with a network-class error (not 403, not abort).
 }
 
 export type ExecSendArgs = PanelMsgArgs & { q: string; newConvo: () => Promise<string> };
@@ -136,7 +138,7 @@ function patchMessage(convId: string, msgId: string, patch: Partial<AiMessageRec
     );
 }
 
-async function acquireTokenCached(key: string, ref: MutableRefObject<SessionResult | null>) {
+export async function acquireTokenCached(key: string, ref: MutableRefObject<SessionResult | null>) {
   const existing = ref.current;
   if (existing && Date.now() < existing.expiresAt - 60_000) return existing.token;
   const fresh = await acquireSession(key);
@@ -199,12 +201,7 @@ async function persistSend(
   await convStore.appendMessage(cid, { role: "you", verb: opts.verb, body: opts.q, contextJson: JSON.stringify(opts.snapshot), creditsCost: null });
 }
 
-/**
- * Prior-turn history for a conversation, mapped to the proxy's AiMessage shape.
- * `convos` MUST be the pre-send snapshot: setConvos builds a new array and never
- * mutates the captured snapshot, so its messages are exactly the prior completed
- * turns. Do NOT slice off a "current turn" — the current turn isn't in this snapshot.
- */
+/** Prior-turn history for a conversation. `convos` MUST be the pre-send snapshot — current turn is never included. */
 export function buildHistory(convos: ConversationRecord[], cid: string): AiMessage[] {
   return (convos.find((c) => c.id === cid)?.messages ?? [])
     .filter((m) => !m.streaming)
@@ -219,6 +216,14 @@ function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, 
     sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx,
     selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history,
   };
+}
+
+function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgId: string; setConvos: Dispatch<SetStateAction<ConversationRecord[]>>; onNetworkError?: () => void }): void {
+  if (ctrl.signal.aborted) return;
+  const msg = err instanceof Error ? err.message : "";
+  const is403 = msg.includes("403");
+  r.setConvos(patchMessage(cid, r.msgId, { streaming: false, text: is403 ? "[Session expired — check your subscription]" : "[Connection failed — try again]" }));
+  if (!is403) r.onNetworkError?.();
 }
 
 export async function execSend(a: ExecSendArgs): Promise<void> {
@@ -239,14 +244,10 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
     const token = await acquireTokenCached(getTweak("aiLicenseKey", ""), a.sessionRef);
     await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id }));
   } catch (err: unknown) {
-    if (!ctrl.signal.aborted) {
-      const msg = err instanceof Error ? err.message : "";
-      const text = msg.includes("403") ? "[Session expired — check your subscription]" : "[Connection failed — try again]";
-      a.setConvos(patchMessage(cid, aiMsg.id, { streaming: false, text }));
-    }
+    onSendCatch(err, ctrl, cid, { msgId: aiMsg.id, setConvos: a.setConvos, onNetworkError: a.onNetworkError });
   } finally {
     a.setStreamingId(null);
-    a.abortRef.current = null;
+    a.abortRef.current = null; a.onStreamDone?.();
   }
 }
 
@@ -301,16 +302,12 @@ export function useConvoOps(
 export function useContextAssembly(a: ContextAssemblyArgs) {
   const linked: string[] = [];
   const allScenes = [...a.tree.chapters.flatMap((ch) => ch.scenes), ...a.tree.shortPieces];
-  const extras = (a.aiCtx.extraSceneIds ?? [])
-    .filter((id) => id !== a.sceneId)
-    .map((id) => allScenes.find((s) => s.id === id))
-    .filter((s): s is AiSceneRow => s !== undefined);
+  const extras = (a.aiCtx.extraSceneIds ?? []).filter((id) => id !== a.sceneId).map((id) => allScenes.find((s) => s.id === id)).filter((s): s is AiSceneRow => s !== undefined);
   const extraWords = extras.reduce((sum, s) => sum + s.words, 0);
   const hasAbout = Boolean(a.about?.synopsis);
   const turns = a.active ? Math.ceil(a.active.messages.length / 2) : 0;
   const est = aiEstimate({ sceneWords: a.sceneWords, extraWords, entityCount: linked.length, about: a.aiCtx.about !== false && hasAbout, turns });
-  const boundaryLabel = a.aiCtx.boundary
-    ? (a.tree.chapters.find((c) => c.id === a.aiCtx.boundary)?.title ?? null) : null;
+  const boundaryLabel = a.aiCtx.boundary ? (a.tree.chapters.find((c) => c.id === a.aiCtx.boundary)?.title ?? null) : null;
   return { linked, extras, extraWords, hasAbout, turns, est, boundaryLabel };
 }
 

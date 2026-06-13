@@ -1,13 +1,13 @@
 /**
  * Shared credit constants and helpers for the AI proxy.
  *
- * Credit unit: 1 unit = $0.00001 USD.
- * Canonical definition: migration 0002_ai_subscriptions.sql; CREDIT_UNIT_USD in ai-token.ts.
+ * Credit unit: 1 unit = $0.00001 USD  (CREDIT_UNIT_USD in ai-token.ts — canonical definition).
  *
  * Rate model (Haiku 4.5):
- *   Input:  $1/MTok  → 0.1 units/token
- *   Output: $5/MTok  → 0.5 units/token
+ *   Input:  $1/MTok  → 1e-6 / CREDIT_UNIT_USD = 0.1 units/token
+ *   Output: $5/MTok  → 5e-6 / CREDIT_UNIT_USD = 0.5 units/token
  */
+import { CREDIT_UNIT_USD } from "./ai-token";
 
 /** Monthly credit allowance per active subscription (D3). 1,000,000 units ≈ $10.00 API value. */
 export const MONTHLY_ALLOWANCE = 1_000_000;
@@ -27,9 +27,9 @@ export const TOPUP_PACK_AMOUNT = 600_000;
 export const RATE_CAP_PER_MINUTE = 20;
 export const RATE_WINDOW_SECONDS = 60;
 
-// Token → unit rates (mirrors 0002 comment)
-export const INPUT_UNITS_PER_TOKEN = 0.1;
-export const OUTPUT_UNITS_PER_TOKEN = 0.5;
+// Token → unit rates derived from CREDIT_UNIT_USD (wave-34 follow-up: gives CREDIT_UNIT_USD its first server importer).
+export const INPUT_UNITS_PER_TOKEN = 1e-6 / CREDIT_UNIT_USD;   // $1/MTok → 0.1 units/token
+export const OUTPUT_UNITS_PER_TOKEN = 5e-6 / CREDIT_UNIT_USD;  // $5/MTok → 0.5 units/token
 
 /**
  * Estimate the maximum credits a request may consume (reserve before sending).

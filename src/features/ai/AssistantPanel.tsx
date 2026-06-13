@@ -8,7 +8,7 @@
  * Sub-components live in AssistantPanel.parts.tsx;
  * hooks + pure helpers live in AssistantPanel.hooks.ts.
  */
-import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 
 import type { BinderTree } from "../../binder/buildTree";
@@ -17,6 +17,8 @@ import { type AiConversationStore,makeProductionAiConversationStore } from "../.
 import type { Scene } from "../../db/binderStore";
 import type { StoryBibleStore } from "../../db/storyBibleStore";
 import { getTweak, setStoredTweak } from "../settings/settings.store";
+import { getBalance, type SessionResult } from "./ai.client";
+import { computeUsedPct, formatResetLabel } from "./ai.helpers";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
@@ -31,7 +33,7 @@ import {
 import { AiDormant, AiMeter } from "./AiComponents";
 import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
-import { type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
+import { acquireTokenCached, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -69,6 +71,8 @@ export interface AssistantPanelProps {
   onOpenContext: () => void;
   onToast: (msg: string) => void;
   onSaveNote: (body: string) => void;
+  onStreamDone?: () => void;
+  onNetworkError?: () => void;
   convStore?: AiConversationStore;
   projectId?: string | null;
 }
@@ -113,6 +117,12 @@ interface SlotPanelProps {
   onOpenContext: () => void;
   convStore: AiConversationStore;
   projectId: string | null;
+  usedPct: number;
+  resetLabel: string;
+  plan: "active" | "expired";
+  offline: boolean;
+  onStreamDone: () => void;
+  onNetworkError?: () => void;
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
@@ -130,7 +140,7 @@ function PanelReady(p: AssistantPanelProps) {
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
     prompt, setPrompt, verb, attachedSel, setAttachedSel, streamingId, setStreamingId,
     canCompose, ctxArgs, sceneId: p.sceneId, sceneName: p.sceneName,
-    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId,
+    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError,
   });
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,18 +240,58 @@ function useConvoPersistence(activeProjectId: string | null) {
         // Guard: if messages are already in local state (e.g. in-flight after newConvo + send),
         // skip the DB result so an empty/stale read never clobbers an in-flight message.
         if (c.messages.length > 0) return c;
-        return {
-          ...c,
-          messages: msgs.map((m): AiMessageRecord => ({
-            id: m.id, role: m.role, verb: m.verb as VerbKey, when: "now", text: m.body,
-            ctx: m.contextJson ? (JSON.parse(m.contextJson) as ContextSnapshot) : null,
-          })),
-        };
+        return { ...c, messages: msgs.map((m): AiMessageRecord => ({ id: m.id, role: m.role, verb: m.verb as VerbKey, when: "now", text: m.body, ctx: m.contextJson ? (JSON.parse(m.contextJson) as ContextSnapshot) : null })) };
       }));
     }).catch(console.error);
   }, [convStore]);
 
   return { convStore, convos, setConvos, activeId, setActiveId };
+}
+
+// ── useAiBalance ──────────────────────────────────────────────────────────────
+
+/** Fetches balance on mount + on each refresh() call; derives meter + plan + offline state. */
+function useAiBalance(consented: boolean) {
+  const [usedPct, setUsedPct] = useState(0);
+  const [plan, setPlan] = useState<"active" | "expired">("active");
+  const [resetLabel, setResetLabel] = useState("soon");
+  const [offline, setOffline] = useState(!navigator.onLine);
+  const [balanceKey, setBalanceKey] = useState(0);
+  const sessionRef = useRef<SessionResult | null>(null);
+
+  useEffect(() => {
+    if (!consented) return;
+    let cancelled = false;
+    const load = async () => {
+      const key = getTweak("aiLicenseKey", "");
+      if (!key) return;
+      try {
+        const token = await acquireTokenCached(key, sessionRef as MutableRefObject<SessionResult | null>);
+        const data = await getBalance(token);
+        if (cancelled) return;
+        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance));
+        setPlan(data.status);
+        setResetLabel(formatResetLabel(data.resetAt));
+        setOffline(false);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("403")) { setPlan("expired"); setOffline(false); } else { setOffline(true); }
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [consented, balanceKey]); // acquireTokenCached, getBalance, computeUsedPct, formatResetLabel are stable module-level fns
+
+  useEffect(() => {
+    const goOnline = () => { setOffline(false); };
+    const goOffline = () => { setOffline(true); };
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
+  }, []);
+  const refresh = useCallback(() => setBalanceKey((k) => k + 1), []);
+  return { usedPct, plan, resetLabel, offline, setOffline, refresh };
 }
 
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
@@ -256,10 +306,11 @@ function SlotPanel(p: SlotPanelProps) {
         doc={p.doc} store={p.store} tree={p.aiTree}
         convos={p.convos} setConvos={p.setConvos} activeId={p.activeId} setActiveId={p.setActiveId}
         about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx}
-        neverNames={p.neverNames} toggleNever={p.toggleNever} usedPct={0}
-        resetLabel="Resets soon" plan="active" offline={!navigator.onLine} consented={p.consented}
-        sel={null} onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext}
-        onToast={onToast} onSaveNote={onSaveNote}
+        neverNames={p.neverNames} toggleNever={p.toggleNever}
+        usedPct={p.usedPct} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
+        consented={p.consented} sel={null}
+        onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext}
+        onToast={onToast} onSaveNote={onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
         convStore={p.convStore} projectId={p.projectId}
       />
     </AiErrorBoundary>
@@ -281,6 +332,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
     setInspTab("assistant");
   }, []);
   const consented = getTweak("aiConsentGiven", false);
+  const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented);
   const aiTree = toAiTree(p.tree);
   const sceneId = p.selectedSceneId;
   const sceneName = p.activeScene?.title ?? null;
@@ -292,15 +344,15 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
           about={about} setAbout={setAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
           neverNames={neverNames} toggleNever={toggleNever} consented={consented}
           aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
-          doc={p.doc ?? null} store={p.storyBibleStore}
-          onOpenConsent={() => setOverlay("consent")} onOpenContext={() => setOverlay("context")}
-          convStore={convStore} projectId={p.activeProjectId} />
+          doc={p.doc ?? null} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")} onOpenContext={() => setOverlay("context")}
+          convStore={convStore} projectId={p.activeProjectId}
+          usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline} onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} />
       } />
       {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
       {overlay === "context" && (
         <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
           entities={[]} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
-          about={about} setAbout={setAbout} resetLabel="Resets soon" onClose={() => setOverlay(null)} />
+          about={about} setAbout={setAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
       )}
     </>
   );

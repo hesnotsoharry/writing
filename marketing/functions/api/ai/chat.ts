@@ -336,7 +336,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const reserved = await reserveCredits(db, licenseKey, reserve, requestId);
   if (!reserved) {
     return new Response(
-      JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at }),
+      JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at ?? "" }),
       { status: 429, headers: { "Content-Type": "application/json", ...cors } },
     );
   }

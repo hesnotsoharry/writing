@@ -9,12 +9,30 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { CREDIT_UNIT_USD } from "./ai-token";
 import {
   INPUT_UNITS_PER_TOKEN,
   OUTPUT_UNITS_PER_TOKEN,
   actualCredits,
   estimateCredits,
 } from "./credits";
+
+// ── Wave 35 Phase G: verify derived constants (no magic numbers) ──────────────
+
+describe("rate constants derived from CREDIT_UNIT_USD (no magic numbers)", () => {
+  it("INPUT_UNITS_PER_TOKEN is 1e-6 / CREDIT_UNIT_USD — formula, not a hardcoded literal", () => {
+    // Strict equality: the module expression and the test expression use the same floating-point computation.
+    expect(INPUT_UNITS_PER_TOKEN).toBe(1e-6 / CREDIT_UNIT_USD);
+    // Numeric proximity: confirms the value is approximately 0.1 (rate model: $1/MTok input).
+    expect(INPUT_UNITS_PER_TOKEN).toBeCloseTo(0.1, 10);
+  });
+
+  it("OUTPUT_UNITS_PER_TOKEN is 5e-6 / CREDIT_UNIT_USD — formula, not a hardcoded literal", () => {
+    expect(OUTPUT_UNITS_PER_TOKEN).toBe(5e-6 / CREDIT_UNIT_USD);
+    // Numeric proximity: confirms the value is approximately 0.5 (rate model: $5/MTok output).
+    expect(OUTPUT_UNITS_PER_TOKEN).toBeCloseTo(0.5, 10);
+  });
+});
 
 describe("estimateCredits", () => {
   it("returns inputEst + outputReserve for round numbers", () => {
