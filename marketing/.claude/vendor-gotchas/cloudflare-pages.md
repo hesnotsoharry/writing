@@ -3,6 +3,13 @@
 > lastVerified: 2026-06-10 · project: writers-nook-marketing (`marketing/wrangler.toml`,
 > `pages_build_output_dir = "public"`, custom domain `writersnook.app`)
 
+> **CORRECTION (2026-06-13):** The DEPLOYED Cloudflare Pages project is named **`writing`**, not
+> `writers-nook-marketing`. The `name = "writers-nook-marketing"` in `marketing/wrangler.toml` is
+> stale and does not match the deployed project. Per HANDOFF.md (2026-06-12): the live site,
+> live secrets (`LS_SUB_VARIANT_ID`, etc.), and the correct `--project-name` for `wrangler pages
+> secret put` are all on project **`writing`**. Do not use `writers-nook-marketing` as a target
+> for any dashboard action or CLI command involving the deployed site.
+
 ## Push to master IS the production deploy
 
 The Pages project is **git-connected** to `github.com/hesnotsoharry/writing` (master). Every push to

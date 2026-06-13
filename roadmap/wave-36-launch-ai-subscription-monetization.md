@@ -110,11 +110,16 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit SHA | Observation point hit |
+|---|---|---|---|---|
+| A (AI subscription copy) | 2026-06-13 (sonnet-implementer + haiku CSS fix) | 2026-06-13 | e0d9a12 | DEFERRED — visual browser smoke could not run (chrome-devtools-mcp profile held by the concurrent wave-35 session; CANNOT-LAUNCH). Adjudicated on the reviewer's definitive CSS read: content contract PASS (BYOK-clean grep-confirmed, placeholder CTA, $14.99/mo); the FLAGged 2-col-grid orphan fixed (`.price-grid` → 3 cols @1160px, teaser @980px). Fold visual confirm into the next smoke window. |
+| B (Resend wiring) | 2026-06-13 (haiku-test-author oracle → sonnet-implementer) | 2026-06-13 | 35550c0 (oracle) + a33d9e2 (impl) | Oracle proves the code POSTs to `api.resend.com/emails` with the subscriber email + key + idempotency header (2/2 green; subscription suite 22/22). NOT directly observed in a live Resend inbox — no live/test purchase triggered in-session; real inbox delivery is observed at the test-mode dress rehearsal (runbook). Review FLAG_UNCERTAIN (idempotency) adjudicated not-a-bug: `upsert_subscription` RETURNs the persisted key (0003_credit_reserve.sql:44,60-61). |
+| C (launch readiness) | 2026-06-13 (sonnet-implementer ×2) | 2026-06-13 | (this commit) | Internal — no observation point. Automated dress-rehearsal path-proof: full marketing suite 141/141 green (signed webhook → ledger → key fetch → Resend send). Review BLOCK (project name) adjudicated false-positive (`writing` correct per HANDOFF 2026-06-12; wrangler.toml `name` stale — now documented in runbook + gotcha); review FLAG (rehearsal event sequence) fixed to match the handler. |
+| D (live flip) | HELD — Cole-executed, GDPR/DPA-gated | — | — | Not started. HARD PRECONDITION: GDPR/DPA + privacy-policy review cleared. Runbook ready at `marketing/LAUNCH-AI-SUBSCRIPTION.md`. |
 
 ## Follow-up candidates
 
-<!-- DEFAULT: empty. Stage only Tier-3 TRIPLE-gate items with present-harm: pointers. -->
+- [marketing] `marketing/wrangler.toml` `name = "writers-nook-marketing"` is stale — the deployed Pages project is `writing` (HANDOFF 2026-06-12). Documented defensively in the runbook + cloudflare-pages.md gotcha this wave, but the source drift remains. Not fixed in-wave: changing the deploy-config `name` field mid-launch-wave is the wrong risk without confirming it won't affect the git-connected deploy. | present-harm: K2 — a wave-36 adversarial reviewer (run ad926ac-context, 2026-06-13) was tripped into a false-positive BLOCK by the mismatch; future launchers/agents will hit the same trap until the source value is corrected.
 
 ## Result
 
