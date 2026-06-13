@@ -1,6 +1,8 @@
 import type { Editor } from "@tiptap/react";
 
-import type { MenuDescriptor } from "../components/menu/ContextMenu";
+import type { MenuDescriptor, MenuItem } from "../components/menu/ContextMenu";
+import { parseProseSelection } from "../features/ai/ai.helpers";
+import { AI_ASK_FROM_EDITOR, getTweak } from "../features/settings/settings.store";
 
 // ---------------------------------------------------------------------------
 // buildAlLinkMenu — right-click menu for .al-link spans.
@@ -89,6 +91,23 @@ function onPaste(editor: Editor): () => void {
 const DEFAULT_HIGHLIGHT_COLOR = "rgba(176,125,46,0.28)";
 
 // ---------------------------------------------------------------------------
+// buildAiMenuItems — optional AI items gated on aiEnabled + aiSelMenu tweaks.
+// ---------------------------------------------------------------------------
+
+function buildAiMenuItems(selText: string): MenuItem[] {
+  if (!getTweak("aiEnabled", true) || !getTweak("aiSelMenu", false)) return [];
+  const parsed = parseProseSelection(selText);
+  if (!parsed) return [];
+  const detail = { verb: "brainstorm" as const, sel: { text: parsed.text, words: parsed.words } };
+  const dispatch = () => { window.dispatchEvent(new CustomEvent(AI_ASK_FROM_EDITOR, { detail })); };
+  return [
+    { type: "sep" as const },
+    { type: "label" as const, text: `Selection · ${parsed.words} words` },
+    { label: "Brainstorm on selection", icon: "sparkle" as const, onClick: dispatch },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // buildEditorContextMenu — assembles the plain-text right-click MenuDescriptor.
 // Exported for unit testing; callers pass editor + pointer coords.
 // ---------------------------------------------------------------------------
@@ -115,6 +134,7 @@ export function buildEditorContextMenu(
       { label: "Strikethrough", onClick: () => { editor.chain().focus().toggleStrike().run(); } },
       { label: "Highlight", disabled: empty, swatch: DEFAULT_HIGHLIGHT_COLOR,
         onClick: () => { editor.chain().focus().toggleHighlight({ color: DEFAULT_HIGHLIGHT_COLOR }).run(); } },
+      ...buildAiMenuItems(selText),
     ],
   };
 }

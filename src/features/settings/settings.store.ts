@@ -15,6 +15,8 @@ export const SETTINGS_NS = "writing.";
 
 /** Custom event dispatched by Settings 'Show again'; AiSlot listens to re-open consent walkthrough. */
 export const AI_REPLAY_EVENT = "ai:replay-walkthrough";
+/** Custom event dispatched by the editor context menu; AiSlot listens to seed a new ask. */
+export const AI_ASK_FROM_EDITOR = "ai:ask-from-editor";
 
 // ── Wave-16 cross-wave key contract ──────────────────────────────────────────
 // Wave 16 (Spelling & Grammar) imports these exact constants as its read contract.

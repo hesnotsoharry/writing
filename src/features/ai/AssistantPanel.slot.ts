@@ -6,7 +6,9 @@ import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, use
 
 import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
 import { SqliteQuickNoteStore } from "../quickcapture/SqliteQuickNoteStore";
-import { AI_REPLAY_EVENT, setStoredTweak } from "../settings/settings.store";
+import { AI_ASK_FROM_EDITOR, AI_REPLAY_EVENT, setStoredTweak } from "../settings/settings.store";
+import { parseProseSelection } from "./ai.helpers";
+import type { ProseSelection, VerbKey } from "./ai.types";
 
 /** Saves body to quick notes or falls back to clipboard when no project is active. */
 async function saveOrCopyNote(
@@ -61,4 +63,62 @@ export function useAiSlotHandlers(
     return () => window.removeEventListener(AI_REPLAY_EVENT, h);
   }, [setOverlay]);
   return { toast, onToast, onSaveNote, handleEnable };
+}
+
+// ── useProseSelection ─────────────────────────────────────────────────────────
+
+/** Returns the innermost Element from a selection anchor node, or null when outside .prose. */
+function proseElFromSelection(s: Selection): Element | null {
+  const n = s.anchorNode;
+  if (!n) return null;
+  const el = n.nodeType === 3 ? (n as Text).parentElement : n instanceof Element ? n : null;
+  return el?.closest(".prose") ? el : null;
+}
+
+/** Listens to DOM selectionchange; returns the current .prose selection or null. */
+export function useProseSelection(): ProseSelection | null {
+  const [sel, setSel] = useState<ProseSelection | null>(null);
+  useEffect(() => {
+    const read = () => {
+      const s = document.getSelection();
+      if (!s || s.isCollapsed) { setSel(null); return; }
+      if (!proseElFromSelection(s)) { setSel(null); return; }
+      const parsed = parseProseSelection(s.toString());
+      if (!parsed) { setSel(null); return; }
+      let rect: DOMRect | null = null;
+      try { rect = s.getRangeAt(0).getBoundingClientRect(); } catch { /* geometry unavailable */ }
+      if (!rect) { setSel(null); return; }
+      setSel({ text: parsed.text, words: parsed.words, rect });
+    };
+    document.addEventListener("selectionchange", read);
+    return () => document.removeEventListener("selectionchange", read);
+  }, []);
+  return sel;
+}
+
+// ── useAiPanelSeed ────────────────────────────────────────────────────────────
+
+type SeedSel = Pick<ProseSelection, "text" | "words">;
+
+/** Owns panelKey + initial seed state; also listens for AI_ASK_FROM_EDITOR window events. */
+export function useAiPanelSeed(setInspTab: Dispatch<SetStateAction<"scene" | "assistant">>) {
+  const [panelKey, setPanelKey] = useState(0);
+  const [initialVerb, setInitialVerb] = useState<VerbKey>("brainstorm");
+  const [initialSel, setInitialSel] = useState<SeedSel | null>(null);
+  const seedAsk = useCallback((verb: VerbKey, sel: SeedSel) => {
+    setInitialVerb(verb);
+    setInitialSel(sel);
+    setInspTab("assistant");
+    setPanelKey((k) => k + 1);
+  }, [setInspTab]);
+  useEffect(() => {
+    const h = (e: Event) => {
+      const ev = e as CustomEvent<{ verb: VerbKey; sel: SeedSel }>;
+      if (!ev.detail?.sel) return;
+      seedAsk(ev.detail.verb ?? "brainstorm", ev.detail.sel);
+    };
+    window.addEventListener(AI_ASK_FROM_EDITOR, h);
+    return () => window.removeEventListener(AI_ASK_FROM_EDITOR, h);
+  }, [seedAsk]);
+  return { panelKey, initialVerb, initialSel, seedAsk };
 }

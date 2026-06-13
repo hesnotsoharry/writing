@@ -34,8 +34,8 @@ import { AiDormant, AiMeter } from "./AiComponents";
 import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
 import { acquireTokenCached, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
-import { AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
-import { useAiSlotHandlers } from "./AssistantPanel.slot";
+import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
+import { useAiPanelSeed, useAiSlotHandlers, useProseSelection } from "./AssistantPanel.slot";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ interface SlotPanelProps {
   sceneId: string | null;
   sceneName: string | null;
   sceneWords: number;
-  doc: Y.Doc | null;
+  doc: Y.Doc | null | undefined;
   store: StoryBibleStore;
   onOpenConsent: () => void;
   onOpenContext: () => void;
@@ -126,6 +126,8 @@ interface SlotPanelProps {
   offline: boolean;
   onStreamDone: () => void;
   onNetworkError?: () => void;
+  sel?: ProseSelection | null;
+  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
@@ -303,16 +305,13 @@ function SlotPanel(p: SlotPanelProps) {
   return (
     <AiErrorBoundary>
       <AssistantPanel
-        sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords}
-        doc={p.doc} store={p.store} tree={p.aiTree}
+        sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords} store={p.store} tree={p.aiTree}
         convos={p.convos} setConvos={p.setConvos} activeId={p.activeId} setActiveId={p.setActiveId}
-        about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx}
-        neverNames={p.neverNames} toggleNever={p.toggleNever}
+        about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx} neverNames={p.neverNames} toggleNever={p.toggleNever}
         usedPct={p.usedPct} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
-        consented={p.consented} sel={null}
-        onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext}
-        onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
-        convStore={p.convStore} projectId={p.projectId}
+        consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
+        onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
+        convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null}
       />
     </AiErrorBoundary>
   );
@@ -330,32 +329,33 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
   const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented);
+  const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
+  const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
   const sceneId = p.selectedSceneId;
   const sceneName = p.activeScene?.title ?? null;
   const sceneWords = p.activeScene?.word_count ?? 0;
-  return (
-    <>
-      <InspectorTabs tab={inspTab} setTab={setInspTab} scenePane={base} assistantPane={
-        <SlotPanel convos={convos} setConvos={setConvos} activeId={activeId} setActiveId={setActiveId}
-          about={about} setAbout={setAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
-          neverNames={neverNames} toggleNever={toggleNever} consented={consented}
-          aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
-          doc={p.doc ?? null} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")}
-          onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
-          convStore={convStore} projectId={p.activeProjectId}
-          usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline}
-          onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} />
-      } />
-      {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
-      {overlay === "context" && (
-        <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
-          entities={[]} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
-          about={about} setAbout={setAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
-      )}
-      <AiToast msg={toast} />
-    </>
-  );
+  return (<>
+    <InspectorTabs tab={inspTab} setTab={setInspTab} scenePane={base} assistantPane={
+      <SlotPanel key={panelKey} convos={convos} setConvos={setConvos} activeId={activeId} setActiveId={setActiveId}
+        about={about} setAbout={setAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
+        neverNames={neverNames} toggleNever={toggleNever} consented={consented}
+        aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
+        doc={p.doc} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")}
+        onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
+        convStore={convStore} projectId={p.activeProjectId}
+        usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline}
+        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} />
+    } />
+    {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("brainstorm", liveSel)} />}
+    {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
+    {overlay === "context" && (
+      <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
+        entities={[]} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
+        about={about} setAbout={setAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
+    )}
+    <AiToast msg={toast} />
+  </>);
 }
 
 // ── wrapInspectorSlot ─────────────────────────────────────────────────────────

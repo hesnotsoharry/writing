@@ -4,8 +4,10 @@
  */
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import { Icon } from "../../components/Icon";
+import { getTweak } from "../settings/settings.store";
 import {
   AI_VERB_ORDER,
   AI_VERBS,
@@ -244,6 +246,31 @@ export function PanelThread(p: PanelThreadProps) {
         ? <AiEmptyState verb={p.verb} setVerb={p.setVerb} onStarter={(s) => { p.onStarter(s); }} />
         : msgs.map((m) => <AiMessage key={m.id} msg={m} onCopy={p.onCopy} onSaveNote={p.onSaveNote} />)}
     </div>
+  );
+}
+
+// ── AiToast (fixed-position transient message) ────────────────────────────────
+
+// ── AiAskPill (portaled floating pill above prose selection) ─────────────────
+
+interface AiAskPillProps {
+  sel: { rect: DOMRect; words: number };
+  onAsk: () => void;
+}
+
+export function AiAskPill({ sel, onAsk }: AiAskPillProps) {
+  if (!getTweak("aiSelPill", true)) return null;
+  const top = Math.max(8, sel.rect.top - 40);
+  const left = sel.rect.left;
+  return createPortal(
+    <div
+      className="ai-askpill"
+      style={{ position: "fixed", top, left }}
+      onMouseDown={(e) => { e.preventDefault(); onAsk(); }}
+    >
+      <Icon name="sparkle" className="ic" /> Ask the assistant · {sel.words}w
+    </div>,
+    document.body,
   );
 }
 

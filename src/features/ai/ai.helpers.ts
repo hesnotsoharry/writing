@@ -65,3 +65,15 @@ export function formatResetLabel(resetAt: string): string {
 let __aiMsgN = 100;
 export function aiMsgId(): string { return "m-" + (__aiMsgN++); }
 export function aiConvoId(): string { return "cv-" + Date.now().toString(36); }
+
+/**
+ * Parse a raw prose selection string into a word-counted record.
+ * Returns null when the selection is empty or below the 3-word minimum.
+ */
+export function parseProseSelection(raw: string): { text: string; words: number } | null {
+  const text = raw.trim();
+  if (!text) return null;
+  const words = text.split(/\s+/).filter((w) => w.length > 0).length;
+  if (words < 3) return null;
+  return { text, words };
+}
