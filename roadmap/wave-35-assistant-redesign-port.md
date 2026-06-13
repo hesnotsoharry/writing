@@ -52,7 +52,7 @@ The Assistant panel is replaced by the design-canon redesign from `assistant-han
 | H | Consent + settings + removal | sonnet-implementer | trophy · internal-only · `reviewTier: single` + smoke. 3-step walkthrough modal (verbatim copy), Settings Assistant section per WIRING.md (enable, selection toggles, replay, privacy block), `ai_enabled` default OFF, tweaks-store extension (`aiSelPill`/`aiSelMenu`), live reaction to Settings changes (no next-mount lag). | Toggling "Enable the assistant" off in Settings removes the Assistant tab, pill, and menu items everywhere instantly; first enable shows the dormant "asleep" card, and "See how it works" runs the 3-step walkthrough ending in "Turn on the assistant" |
 | I | Selection affordances | sonnet-implementer | trophy · internal-only · `reviewTier: single` + smoke. `useProseSelection` on editor `selectionUpdate` (ProseMirror-native read, `coordsAtPos` for pill position, min 3 words), `AiAskPill` (default on), right-click items in `buildEditorContextMenu` (default off); both attach selection snapshot + switch to Assistant tab. | Selecting 3+ words in the editor floats the ask-pill above the selection; clicking it switches to the Assistant tab with a "Selection · N words" chip attached to the composer |
 
-Wave verification strategy (declared once, per Site 4): every UI phase (B, C, G, H, I — and D/E/F via their panel-visible effects) is smoked agent-side via the dev app's CDP port 9222 + tauri-devtools MCP (`smoke: true` in the run-phase brief); dnd is not involved this wave, so CDP covers the full surface. The first UI-phase smoke doubles as the capability probe.
+Wave verification strategy (declared once, per Site 4): every UI phase (B, C, G, H, I — and D/E/F via their panel-visible effects) is smoked agent-side via the dev app's CDP port 9222 + tauri-devtools MCP; dnd is not involved this wave, so CDP covers the full surface. The first UI-phase smoke doubles as the capability probe. **Amended after Phase B (2026-06-12):** run-phase's `sonnet-smoke-runner` cannot drive this app (no `.claude/smoke-config.json`, and the runner's tool allowlist lacks the tauri-devtools MCP) — UI phases run with `smoke: false` and the ORCHESTRATOR performs the CDP smoke directly via `mcp__tauri-devtools__*` at each UI phase boundary (the proven wave-31/34 path), recording evidence in the Status rows. Requires the dev app running (`npm run tauri dev`).
 
 ### Acceptance criteria
 
@@ -134,11 +134,14 @@ Before declaring a phase complete, restate the observation point from the Phases
 |---|---|---|---|---|
 | 0 (plan + oracle) | — | 2026-06-12 | e053852 + c6b351a | n/a — oracle confirmed failing 14/14 for "migrations absent" |
 | A | 2026-06-12 (run-phase `wf_322c4431-c7c`, panel tier) | 2026-06-12 | (this commit) | Internal — no observation point; oracle 14/14 green, full suite 1308 green, panel PASS (1 FLAG: stale header — fixed by orchestrator) |
-| B | 2026-06-12 (run-phase, skip tier + smoke) | — | — | — |
+| B | 2026-06-12 (run-phase `wf_6d6361ad-5b2`, skip→single auto-escalated) | 2026-06-12 | 36ff41e | HIT (orchestrator CDP smoke, 2026-06-12): Settings nav renders the sparkle icon on the AI assistant row; app renders with zero regressions under the compat styling. |
+| C | 2026-06-12 (run-phase `wf_e16dc984-489`, single tier, 2 scout slices) | — | — | — |
 
 ## Follow-up candidates
 
 <!-- DEFAULT: empty. Stage only Tier-3 TRIPLE-gate items with present-harm: pointers. -->
+
+- [meta] run-phase smoke is unusable for this repo: no `.claude/smoke-config.json` schema fits a Tauri/CDP-attach app, and `sonnet-smoke-runner`'s tool allowlist lacks the tauri-devtools MCP — needs a meta wave (agent allowlist + smoke-config shape for CDP-attach targets); cannot be done in-wave (meta-boundary: agent files are `~/.claude/`-owned) | present-harm: K2 — wave-35 Phase B smoke returned CANNOT-LAUNCH (run `wf_6d6361ad-5b2`, 2026-06-12), forcing orchestrator-manual CDP smoke for all UI phases this wave.
 
 ## Result
 

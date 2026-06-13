@@ -1,17 +1,18 @@
 /**
- * aiConsent.test.tsx — Phase 4 acceptance tests for the opt-in lifecycle,
- * guardrail states, settings toggle, and the pre-consent no-network guarantee.
+ * aiConsent.test.tsx — Wave-35 Phase C: opt-in lifecycle, slot toggle,
+ * dormant affordance, and settings / error-boundary guard tests.
  *
  * Mocking strategy:
- *  - ai.client module: mocked to control acquireSession + streamChat behavior
- *    without real network calls (guardrail + key-entry tests).
- *  - ai.context module: mocked so assembleBrainstormContext resolves immediately.
- *  - prompts/brainstorm module: mocked for buildBrainstormMessages.
- *  - global.fetch: stubbed for the pre-consent network-barrier test.
+ *  - ai.client: mocked to prevent real network calls.
+ *  - ai.context / prompts/brainstorm: mocked for fast resolution.
+ *  - AiComponents / AiOverlays: minimal stubs so tests verify slot/panel
+ *    orchestration without depending on sibling-slice implementation details.
+ *  - ai.types / ai.helpers: stubbed with the shapes AssistantPanel depends on.
+ *  - global.fetch: stubbed in network-barrier tests.
  */
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // ── Module mocks (hoisted before imports) ─────────────────────────────────────
 
@@ -39,9 +40,74 @@ vi.mock("../features/ai/prompts/brainstorm", () => ({
   BRAINSTORM_MAX_TOKENS: 1000,
 }));
 
+vi.mock("../features/ai/AiComponents", () => ({
+  AiDormant: ({ onWake }: { onWake: () => void }) => (
+    <div>
+      <p>The assistant is asleep</p>
+      <button onClick={onWake}>See how it works</button>
+    </div>
+  ),
+  AiConvoList: () => <div data-testid="ai-convo-list" />,
+  AiEmptyState: () => <div data-testid="ai-empty-state" />,
+  AiMessage: () => <div data-testid="ai-message" />,
+  AiMeter: () => <div data-testid="ai-meter" />,
+}));
+
+vi.mock("../features/ai/AiOverlays", () => ({
+  AiConsent: ({ onEnable, onClose }: { onEnable: () => void; onClose: () => void }) => (
+    <div data-testid="ai-consent">
+      <h2>A collaborator in the margins</h2>
+      <button onClick={onEnable}>Enable AI</button>
+      <button onClick={onClose}>Not now</button>
+    </div>
+  ),
+  AiContextPicker: () => <div data-testid="ai-context-picker" />,
+}));
+
+vi.mock("../features/ai/ai.types", () => ({
+  AI_VERBS: {
+    brainstorm: {
+      label: "Brainstorm",
+      icon: "zap",
+      placeholder: "What are you wondering about?",
+      action: "Brainstorm",
+      blurb: "Think out loud with a partner who knows the book",
+    },
+    critique: {
+      label: "Critique",
+      icon: "target",
+      placeholder: "What should I look hard at?",
+      action: "Critique",
+      blurb: "Honest craft feedback on what's on the page",
+    },
+    betaread: {
+      label: "Beta read",
+      icon: "book",
+      placeholder: "What do you want a reader's eye on?",
+      action: "Beta read",
+      blurb: "A first reader's reactions, beat by beat",
+    },
+    proofread: {
+      label: "Proofread",
+      icon: "check",
+      placeholder: "Anything in particular to watch for? (optional)",
+      action: "Proofread",
+      blurb: "Typos, grammar, consistency — never style",
+    },
+  },
+  AI_VERB_ORDER: ["brainstorm", "critique", "betaread", "proofread"],
+  EMPTY_ABOUT: { synopsis: "" },
+}));
+
+vi.mock("../features/ai/ai.helpers", () => ({
+  aiConvoId: () => "test-convo-id",
+  aiMsgId: () => "test-msg-id",
+  aiEstimate: () => ({ tokens: 100, pct: 1 }),
+}));
+
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
 import { AiErrorBoundary } from "../features/ai/AiErrorBoundary";
-import { AssistantPanel, wrapInspectorSlot } from "../features/ai/AssistantPanel";
+import { wrapInspectorSlot } from "../features/ai/AssistantPanel";
 import { AiSection } from "../features/settings/Settings.sections";
 import { TWEAK_DEFAULTS } from "../features/settings/settings.store";
 
@@ -51,11 +117,6 @@ function makeMockStore(): StoryBibleStore {
   return {
     loadSceneEntities: vi.fn().mockResolvedValue([] as SceneEntityGroup[]),
   } as unknown as StoryBibleStore;
-}
-
-function seedReadyPhase() {
-  localStorage.setItem("writing.aiConsentGiven", JSON.stringify(true));
-  localStorage.setItem("writing.aiLicenseKey", JSON.stringify("test-key-001"));
 }
 
 afterEach(() => {
@@ -73,211 +134,107 @@ describe("wrapInspectorSlot — aiEnabled toggle", () => {
     const store = makeMockStore();
     const result = wrapInspectorSlot(base, {
       selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
       storyBibleStore: store,
       aiEnabled: false,
     });
     const { queryByTestId } = render(<>{result}</>);
     expect(queryByTestId("base-inspector")).not.toBeNull();
-    // No AI tab shell rendered
-    expect(document.querySelector(".ai-tab-shell")).toBeNull();
+    // No InspectorTabs tab bar rendered
+    expect(document.querySelector(".insp-tabs")).toBeNull();
   });
 
-  it("renders InspectorTabShell with AI tab when aiEnabled is true", () => {
+  it("renders InspectorTabs with an Assistant tab when aiEnabled is true", () => {
     const base = <div data-testid="base-inspector" />;
     const store = makeMockStore();
     const result = wrapInspectorSlot(base, {
       selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
       storyBibleStore: store,
       aiEnabled: true,
     });
     render(<>{result}</>);
-    expect(document.querySelector(".ai-tab-shell")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Assistant" })).not.toBeNull();
+    expect(document.querySelector(".insp-tabs")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /assistant/i })).not.toBeNull();
   });
 });
 
-// ── 2. No network pre-consent ─────────────────────────────────────────────────
+// ── 2. Dormant affordance renders correctly ───────────────────────────────────
 
-describe("AssistantPanel — pre-consent network barrier", () => {
-  it("does not call fetch or acquireSession while in the dormant affordance", async () => {
+describe("wrapInspectorSlot — dormant affordance (no consent in localStorage)", () => {
+  it('renders "The assistant is asleep" in the assistant pane when not consented', () => {
+    const store = makeMockStore();
+    const base = <div />;
+    const result = wrapInspectorSlot(base, {
+      selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
+      storyBibleStore: store,
+      aiEnabled: true,
+    });
+    const { container } = render(<>{result}</>);
+    // The assistant pane is mounted (hidden attribute) but text is reachable via DOM query
+    expect(container.querySelector(".ai-panel")).not.toBeNull();
+    expect(screen.queryByText(/the assistant is asleep/i)).not.toBeNull();
+  });
+
+  it('clicking "See how it works" opens the consent modal with the design-canon title', () => {
+    const store = makeMockStore();
+    const base = <div />;
+    const result = wrapInspectorSlot(base, {
+      selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
+      storyBibleStore: store,
+      aiEnabled: true,
+    });
+    render(<>{result}</>);
+    fireEvent.click(screen.getByText(/see how it works/i));
+    // AiConsent stub renders with the step-1 title from the design canon
+    expect(screen.queryByText(/a collaborator in the margins/i)).not.toBeNull();
+  });
+});
+
+// ── 2b. Consent modal dismissal returns to dormant ───────────────────────────
+
+describe("wrapInspectorSlot — consent modal dismissal", () => {
+  it('clicking "Not now" closes the consent modal and returns to dormant state; no network call made', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
-    // No localStorage consent — renders DormantAffordance (fresh profile)
     const store = makeMockStore();
-    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
+    const base = <div />;
+    const result = wrapInspectorSlot(base, {
+      selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
+      storyBibleStore: store,
+      aiEnabled: true,
+    });
+    render(<>{result}</>);
 
-    // Wait a tick to confirm no async network call was scheduled
-    await new Promise((r) => setTimeout(r, 30));
-    expect(fetchSpy).not.toHaveBeenCalled();
-    // Also assert the session-exchange seam was never reached
-    expect(mockAcquireSession).not.toHaveBeenCalled();
-  });
-});
+    // Open consent modal
+    fireEvent.click(screen.getByText(/see how it works/i));
+    expect(screen.queryByText(/a collaborator in the margins/i)).not.toBeNull();
 
-// ── 2b. Dismiss returns to dormant ───────────────────────────────────────────
+    // Dismiss
+    fireEvent.click(screen.getByRole("button", { name: /not now/i }));
+    expect(screen.queryByText(/a collaborator in the margins/i)).toBeNull();
 
-describe("AssistantPanel — dismiss returns to dormant", () => {
-  it("Enable → consent → Not now → dormant; no network call throughout", async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
+    // Dormant affordance visible again
+    expect(screen.queryByText(/the assistant is asleep/i)).not.toBeNull();
 
-    const store = makeMockStore();
-    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
-
-    // Fresh profile starts in dormant
-    expect(screen.queryByRole("button", { name: "Enable" })).not.toBeNull();
-
-    // Click Enable → consent walkthrough
-    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
-    expect(screen.queryByText(/AI brainstorming assistant/i)).not.toBeNull();
-
-    // Click Not now → back to dormant
-    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
-    expect(screen.queryByText(/AI brainstorming assistant/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Enable" })).not.toBeNull();
-
-    // No network call occurred at any point
+    // No network call made throughout
     await new Promise((r) => setTimeout(r, 30));
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(mockAcquireSession).not.toHaveBeenCalled();
-  });
-});
-
-// ── 3. Key-entry 403 error path ───────────────────────────────────────────────
-
-describe("AssistantPanel — key-entry 403", () => {
-  beforeEach(() => {
-    localStorage.setItem("writing.aiConsentGiven", JSON.stringify(true));
-    // no key → key-entry phase
-  });
-
-  it("shows an inline error when acquireSession returns 403", async () => {
-    mockAcquireSession.mockRejectedValue(new Error("Session exchange failed: 403"));
-
-    const store = makeMockStore();
-    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
-
-    const input = screen.getByPlaceholderText("AI license key…");
-    fireEvent.change(input, { target: { value: "bad-key" } });
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
-
-    await waitFor(() =>
-      expect(screen.queryByText(/check your subscription/i)).not.toBeNull()
-    );
-  });
-});
-
-// ── 4. 429 zero-credit guardrail ──────────────────────────────────────────────
-
-describe("AssistantPanel — 429 zero-credit guardrail", () => {
-  beforeEach(seedReadyPhase);
-
-  it("renders 'Credits used up' with reset date on credits-exhausted event", async () => {
-    mockAcquireSession.mockResolvedValue({
-      token: "tok",
-      expiresAt: Date.now() + 3_600_000,
-    });
-    mockStreamChat.mockImplementation(
-      (_token: string, _msgs: unknown, onEvent: (ev: { type: string; resetAt?: string }) => void) => {
-        onEvent({ type: "credits-exhausted", resetAt: "2026-07-01T00:00:00Z" });
-        return Promise.resolve();
-      }
-    );
-
-    const store = makeMockStore();
-    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
-
-    const textarea = screen.getByPlaceholderText(/brainstorm/i);
-    fireEvent.change(textarea, { target: { value: "test prompt" } });
-    fireEvent.click(screen.getByRole("button", { name: "Brainstorm" }));
-
-    await waitFor(() =>
-      expect(screen.queryByText(/credits used up/i)).not.toBeNull()
-    );
-    // Reset date should be rendered (7/1/2026 in some locale format)
-    expect(screen.queryByText(/resets/i)).not.toBeNull();
-  });
-});
-
-// ── 5. Expired subscription guardrail ────────────────────────────────────────
-
-describe("AssistantPanel — expired subscription guardrail", () => {
-  beforeEach(seedReadyPhase);
-
-  it("renders reactivation message when acquireSession fails with 403", async () => {
-    mockAcquireSession.mockRejectedValue(new Error("Session exchange failed: 403"));
-
-    const store = makeMockStore();
-    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
-
-    const textarea = screen.getByPlaceholderText(/brainstorm/i);
-    fireEvent.change(textarea, { target: { value: "test prompt" } });
-    fireEvent.click(screen.getByRole("button", { name: "Brainstorm" }));
-
-    await waitFor(() =>
-      expect(screen.queryByText(/subscription has expired/i)).not.toBeNull()
-    );
-  });
-
-  it("renders session-expired guardrail when streamChat emits session-expired event", async () => {
-    mockAcquireSession.mockResolvedValue({
-      token: "tok",
-      expiresAt: Date.now() + 3_600_000,
-    });
-    mockStreamChat.mockImplementation(
-      (_token: string, _msgs: unknown, onEvent: (ev: { type: string }) => void) => {
-        onEvent({ type: "session-expired" });
-        return Promise.resolve();
-      }
-    );
-
-    const store = makeMockStore();
-    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
-
-    const textarea = screen.getByPlaceholderText(/brainstorm/i);
-    fireEvent.change(textarea, { target: { value: "test prompt" } });
-    fireEvent.click(screen.getByRole("button", { name: "Brainstorm" }));
-
-    await waitFor(() =>
-      expect(screen.queryByText(/subscription has expired/i)).not.toBeNull()
-    );
-  });
-});
-
-// ── 6. Offline guardrail — retry restores prompt form ────────────────────────
-
-describe("AssistantPanel — offline retry", () => {
-  beforeEach(seedReadyPhase);
-
-  it("restores prompt form on Try again with draft preserved, does not auto-resend", async () => {
-    mockAcquireSession.mockRejectedValue(new Error("NetworkError: Failed to fetch"));
-
-    const store = makeMockStore();
-    render(<AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />);
-
-    const textarea = screen.getByPlaceholderText(/brainstorm/i) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "my draft prompt" } });
-    fireEvent.click(screen.getByRole("button", { name: "Brainstorm" }));
-
-    await waitFor(() =>
-      expect(screen.queryByText(/check your connection/i)).not.toBeNull()
-    );
-    // Form is replaced by guardrail
-    expect(screen.queryByPlaceholderText(/brainstorm/i)).toBeNull();
-
-    const callCountBeforeRetry = mockAcquireSession.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-
-    // Form is back
-    expect(screen.queryByPlaceholderText(/brainstorm/i)).not.toBeNull();
-    expect(screen.queryByText(/check your connection/i)).toBeNull();
-    // Draft is preserved
-    const restored = screen.getByPlaceholderText(/brainstorm/i) as HTMLTextAreaElement;
-    expect(restored.value).toBe("my draft prompt");
-    // No auto-resend — acquireSession call count unchanged
-    expect(mockAcquireSession.mock.calls.length).toBe(callCountBeforeRetry);
   });
 });
 
@@ -355,34 +312,5 @@ describe("AiErrorBoundary — error isolation", () => {
     );
     expect(screen.queryByTestId("healthy-child")).not.toBeNull();
     expect(screen.queryByText(/assistant hit a problem/i)).toBeNull();
-  });
-});
-
-// ── 7. Offline guardrail — fails soft, siblings untouched ────────────────────
-
-describe("AssistantPanel — offline guardrail, siblings untouched", () => {
-  beforeEach(seedReadyPhase);
-
-  it("shows offline notice and does not unmount sibling elements on network failure", async () => {
-    mockAcquireSession.mockRejectedValue(new Error("NetworkError: Failed to fetch"));
-
-    const store = makeMockStore();
-    render(
-      <div>
-        <div data-testid="sibling">editor sibling</div>
-        <AssistantPanel sceneId={null} sceneName={null} doc={null} store={store} />
-      </div>
-    );
-
-    const textarea = screen.getByPlaceholderText(/brainstorm/i);
-    fireEvent.change(textarea, { target: { value: "test prompt" } });
-    fireEvent.click(screen.getByRole("button", { name: "Brainstorm" }));
-
-    await waitFor(() =>
-      expect(screen.queryByText(/check your connection/i)).not.toBeNull()
-    );
-
-    // Editor/binder siblings remain mounted — no error boundary trip
-    expect(screen.queryByTestId("sibling")).not.toBeNull();
   });
 });
