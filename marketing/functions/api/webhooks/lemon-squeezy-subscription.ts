@@ -215,10 +215,6 @@ function isTopupVariant(variantId: number | undefined, env: WebhookEnv): boolean
   return matchesVariantEnv(variantId, env.LS_TOPUP_VARIANT_ID);
 }
 
-function isSubscriptionVariant(variantId: number | undefined, env: WebhookEnv): boolean {
-  return matchesVariantEnv(variantId, env.LS_SUB_VARIANT_ID);
-}
-
 // ── Subscription event handlers ───────────────────────────────────────────────
 
 /**
@@ -267,6 +263,13 @@ async function handleCreated(payload: SubscriptionPayload, env: WebhookEnv): Pro
  * Bug B fix (2026-06-12): payload data is a subscription-invoice object.
  *   Subscription id = data.attributes.subscription_id (NOT data.id = invoice id).
  * Never creates rows; resolves existing row or returns 500 (retryable).
+ *
+ * Ordering (fixed): RPC first, tombstone second.
+ * Tombstone-before-RPC would permanently orphan the grant on RPC failure:
+ * a retry hits the 23505 unique violation on the tombstone and returns 200
+ * without ever calling reset_credits.
+ * reset_credits is idempotent (SET credits_balance = p_allowance, not +=),
+ * so reordering is safe — a retry after tombstone failure re-runs the RPC harmlessly.
  */
 async function handlePaymentSuccess(payload: InvoicePayload, env: WebhookEnv): Promise<Response> {
   const invoiceId = payload.data.id;
@@ -277,24 +280,29 @@ async function handlePaymentSuccess(payload: InvoicePayload, env: WebhookEnv): P
   const existing = await resolveSubscription(db, subId);
   if (!existing) return new Response("Internal Server Error", { status: 500 });
 
+  // Prefer the invoice's renews_at when present (matches handleCreated/handleStatusUpdate pattern).
+  // Fallback to Date.now()+30d so existing subscriptions without renews_at still reset correctly.
+  const nextResetAt = payload.data.attributes.renews_at
+    ? new Date(payload.data.attributes.renews_at)
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  // RPC FIRST: reset_credits before the tombstone so a LS retry after RPC failure re-invokes
+  // the grant rather than short-circuiting on a committed tombstone.
+  const { data: newBalance, error: resetErr } = await db.rpc("reset_credits", {
+    p_license_key: existing.license_key,
+    p_allowance: MONTHLY_ALLOWANCE,
+    p_reset_at: nextResetAt.toISOString(),
+    p_request_id: idempotencyKey,
+  });
+  if (resetErr || newBalance === null) return new Response("Internal Server Error", { status: 500 });
+
+  // Tombstone SECOND: once the grant succeeds, write the idempotency ledger.
   const { error: ledgerErr } = await db
     .from("webhook_events")
     .insert({ event_name: "subscription_payment_success", order_id: idempotencyKey });
   const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
-
-  // Prefer the invoice's renews_at when present (matches handleCreated/handleStatusUpdate pattern).
-  // Fallback to Date.now()+30d so existing subscriptions without renews_at still reset correctly.
-  const nextResetAt = payload.data.attributes.renews_at
-    ? new Date(payload.data.attributes.renews_at)
-    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await db.rpc("reset_credits", {
-    p_license_key: existing.license_key,
-    p_allowance: MONTHLY_ALLOWANCE,
-    p_reset_at: nextResetAt.toISOString(),
-    p_request_id: idempotencyKey,
-  });
 
   return new Response(null, { status: 200 });
 }
@@ -351,10 +359,9 @@ async function handleTopupOrder(
     return new Response("Internal Server Error", { status: 500 });
   }
 
-  // Fix 1: For top-up variants, resolve the subscriber BEFORE writing the ledger.
-  // Old flow (buggy): ledger insert → lookup → 404 on miss. On retry: 23505 → 200,
-  // grant permanently lost. New flow: lookup first → 500 on miss (retryable, no
-  // tombstone written) → ledger insert → grant. Exactly-once guarantee preserved.
+  // Resolve subscriber for top-up variants BEFORE writing the ledger.
+  // 500 on miss is retryable — no tombstone is written, so LS will retry until
+  // the subscription_created event arrives and creates the row.
   let licenseKey: string | null = null;
   if (isTopupVariant(variantId, env)) {
     const { data: sub, error: subErr } = await db
@@ -366,7 +373,20 @@ async function handleTopupOrder(
     licenseKey = (sub as { license_key: string }).license_key;
   }
 
-  // Record ALL order_created events in the idempotency ledger regardless of variant.
+  // RPC FIRST (top-up variant only): call topup_credits before the tombstone so a LS
+  // retry after RPC failure re-invokes the grant rather than short-circuiting on a
+  // committed tombstone. p_request_id matches the tombstone order_id so the SQL-level
+  // dedup guard (0005_topup_credits_dedup.sql) catches any double-grant on retry.
+  if (licenseKey) {
+    const { data: newBalance, error: topupErr } = await db.rpc("topup_credits", {
+      p_license_key: licenseKey,
+      p_amount: TOPUP_PACK_AMOUNT,
+      p_request_id: `order:${orderId}`,
+    });
+    if (topupErr || newBalance === null) return new Response("Internal Server Error", { status: 500 });
+  }
+
+  // Tombstone SECOND: record ALL order_created events regardless of variant.
   // This covers top-up packs, subscription-product initial orders, and unknown variants.
   const { error: ledgerErr } = await db
     .from("webhook_events")
@@ -374,21 +394,6 @@ async function handleTopupOrder(
   const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
-
-  if (!licenseKey) {
-    // Subscription-variant or unknown-variant order — no credits action.
-    // Subscription variants: lifecycle handled via subscription_* events.
-    // Unknown variants: idempotent no-op (already ledger-recorded above).
-    void isSubscriptionVariant(variantId, env); // acknowledgement; no branch needed
-    return new Response(null, { status: 200 });
-  }
-
-  // Top-up variant: grant credits to the resolved subscriber.
-  await db.rpc("topup_credits", {
-    p_license_key: licenseKey,
-    p_amount: TOPUP_PACK_AMOUNT,
-    p_request_id: `order:${orderId}`,
-  });
 
   return new Response(null, { status: 200 });
 }

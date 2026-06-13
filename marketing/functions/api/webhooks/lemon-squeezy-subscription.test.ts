@@ -64,6 +64,8 @@ let rpcCalls: RpcCall[];
 let upsertRows: Array<Record<string, unknown>>;
 let updateCalls: UpdateCall[];
 let subRows: SubRow[];
+/** Per-test RPC failure injection: fn name → error object to return as { data: null, error }. */
+let rpcErrors: Map<string, { message: string; code?: string }>;
 
 function makeMockClient() {
   return {
@@ -108,6 +110,8 @@ function makeMockClient() {
     }),
     rpc: (fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args });
+      const injectedErr = rpcErrors.get(fn);
+      if (injectedErr) return Promise.resolve({ data: null, error: injectedErr });
       return Promise.resolve({ data: args["p_license_key"] ?? "WN-AI-TEST", error: null });
     },
   };
@@ -211,6 +215,7 @@ beforeEach(() => {
   rpcCalls = [];
   upsertRows = [];
   updateCalls = [];
+  rpcErrors = new Map();
   // sub_001 is the default row — non-created events resolve against ls_subscription_id
   subRows = [{ license_key: "WN-AI-EXISTING", user_email: "alice@example.com", ls_subscription_id: "sub_001" }];
 });
@@ -364,20 +369,27 @@ describe("subscription_expired — frozen balance", () => {
 });
 
 describe("duplicate event idempotency via webhook_events", () => {
-  it("returns 200 without calling reset_credits on a duplicate payment_success event", async () => {
+  // With the RPC-first ordering, reset_credits executes before the tombstone check.
+  // On a duplicate delivery, reset_credits is called again before the tombstone 23505
+  // short-circuits. That is safe: reset_credits uses SET credits_balance = p_allowance
+  // (absolute, not +=), so re-calling it is a no-op in terms of credit value.
+  it("returns 200 on a duplicate payment_success event (reset_credits idempotent via absolute SET)", async () => {
     const body = invoicePayload("sub_001", "inv_dup_001");
-    const ctx1 = makeContext(body);
-    await onRequestPost(ctx1);
+    await onRequestPost(makeContext(body));
     const firstResetCalls = rpcCalls.filter((c) => c.fn === "reset_credits").length;
-
-    // Deliver the SAME event again (same idempotency key → 23505)
-    rpcCalls = [];
-    const ctx2 = makeContext(body);
-    const res = await onRequestPost(ctx2);
-    expect(res.status).toBe(200);
-    // reset_credits must NOT be called again
-    expect(rpcCalls.filter((c) => c.fn === "reset_credits")).toHaveLength(0);
     expect(firstResetCalls).toBe(1);
+    const firstResetCall = rpcCalls.find((c) => c.fn === "reset_credits");
+    const firstRequestId = firstResetCall?.args["p_request_id"];
+
+    // Deliver the SAME event again (same idempotency key → 23505 on tombstone)
+    rpcCalls = [];
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(200);
+    // reset_credits may be called before the tombstone 23505 fires — that is acceptable
+    // because it is idempotent (absolute SET). The no-double-credit invariant holds.
+    const secondResetCall = rpcCalls.find((c) => c.fn === "reset_credits");
+    expect(secondResetCall).toBeDefined();
+    expect(secondResetCall!.args["p_request_id"]).toBe(firstRequestId);
   });
 });
 
@@ -414,15 +426,28 @@ describe("order_created — top-up pack", () => {
     expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
   });
 
-  it("duplicate top-up order is idempotent via webhook_events", async () => {
+  // With the RPC-first ordering, topup_credits executes before the tombstone check.
+  // On a duplicate delivery, topup_credits is called again before the tombstone 23505
+  // short-circuits. Double-credit is prevented by the SQL dedup guard added in
+  // 0005_topup_credits_dedup.sql: when p_request_id matches an existing credit_events
+  // row, the function returns the current balance as a no-op. The mock does not
+  // implement the SQL guard, so we verify the handler contract: stable p_request_id.
+  it("duplicate top-up order returns 200 via tombstone; p_request_id is stable for SQL dedup guard", async () => {
     const body = orderPayload("order_topup_dup", Number(TEST_TOPUP_VARIANT));
     await onRequestPost(makeContext(body));
     const firstCalls = rpcCalls.filter((c) => c.fn === "topup_credits").length;
+    expect(firstCalls).toBe(1);
+    const firstRequestId = rpcCalls.find((c) => c.fn === "topup_credits")!.args["p_request_id"];
 
     rpcCalls = [];
-    await onRequestPost(makeContext(body));
-    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
-    expect(firstCalls).toBe(1);
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(200);
+    // If topup_credits is called on the retry, its p_request_id must match the first call
+    // so the SQL dedup guard can detect and prevent the double-grant.
+    const retryCall = rpcCalls.find((c) => c.fn === "topup_credits");
+    if (retryCall) {
+      expect(retryCall.args["p_request_id"]).toBe(firstRequestId);
+    }
   });
 });
 
@@ -473,6 +498,48 @@ describe("subscription_payment_success — renews_at preferred over Date.now()+3
   });
 });
 
+describe("RPC-first ordering — money-path failure regression", () => {
+  // These tests verify the fix to the bug where tombstone-before-RPC would permanently
+  // orphan a credit grant: if the RPC failed after the tombstone committed, LS retries
+  // would hit the 23505 unique violation and return 200 without ever granting credits.
+  // The fix reorders to RPC-first, tombstone-second. These tests confirm that when the
+  // RPC fails, the tombstone is NOT written, so a LS retry re-invokes the RPC.
+
+  it("reset_credits failure returns 500 and does NOT write the tombstone (retry will re-invoke the RPC)", async () => {
+    rpcErrors.set("reset_credits", { message: "connection refused" });
+    const body = invoicePayload("sub_001", "inv_rpcfail_001");
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(500);
+    // Tombstone must NOT be written — a subsequent retry must reach reset_credits again
+    expect(ledger.size).toBe(0);
+    // The RPC was attempted (before the tombstone)
+    expect(rpcCalls.find((c) => c.fn === "reset_credits")).toBeDefined();
+  });
+
+  it("topup_credits failure returns 500 and does NOT write the tombstone (retry will re-invoke the RPC)", async () => {
+    rpcErrors.set("topup_credits", { message: "connection refused" });
+    const body = orderPayload("order_rpcfail_001", Number(TEST_TOPUP_VARIANT));
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(500);
+    // Tombstone must NOT be written — a subsequent retry must reach topup_credits again
+    expect(ledger.size).toBe(0);
+    // The RPC was attempted (before the tombstone)
+    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeDefined();
+  });
+
+  it("topup_credits p_request_id equals the tombstone order_id so the SQL dedup guard and ledger agree", async () => {
+    const body = orderPayload("order_stableid_001", Number(TEST_TOPUP_VARIANT));
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(200);
+    const topup = rpcCalls.find((c) => c.fn === "topup_credits");
+    expect(topup).toBeDefined();
+    // The request_id passed to the SQL dedup guard must equal the tombstone's order_id
+    expect(topup!.args["p_request_id"]).toBe("order:order_stableid_001");
+    // Confirm the tombstone uses the same key
+    expect(ledger.has("order:order_stableid_001::order_created")).toBe(true);
+  });
+});
+
 describe("order_created — top-up out-of-order delivery and config guard", () => {
   it("returns 500 with NO webhook_events tombstone when subscriber email not found (out-of-order); retry after subscriber row exists grants exactly once", async () => {
     const missingEmail = "latecomer@example.com";
@@ -495,11 +562,18 @@ describe("order_created — top-up out-of-order delivery and config guard", () =
     expect(rpcCalls.filter((c) => c.fn === "topup_credits")).toHaveLength(1);
     expect(rpcCalls.find((c) => c.fn === "topup_credits")!.args["p_license_key"]).toBe("WN-AI-LATECOMER");
 
-    // LS delivers again (network glitch): 23505 on ledger → 200, no second grant
+    // LS delivers again (network glitch): tombstone 23505 → 200.
+    // With RPC-first ordering, topup_credits may be called before the tombstone check;
+    // the SQL dedup guard (0005_topup_credits_dedup.sql) prevents double-credit in
+    // production by detecting the matching (license_key, event_type, request_id) row.
     rpcCalls = [];
     const res3 = await onRequestPost(makeContext(body));
     expect(res3.status).toBe(200);
-    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
+    // If topup_credits fires on retry, it must carry the same p_request_id for SQL dedup.
+    const thirdCall = rpcCalls.find((c) => c.fn === "topup_credits");
+    if (thirdCall) {
+      expect(thirdCall.args["p_request_id"]).toBe("order:order_oo_001");
+    }
   });
 
   it("returns 500 with no ledger write when LS_TOPUP_VARIANT_ID is blank (missing config)", async () => {
