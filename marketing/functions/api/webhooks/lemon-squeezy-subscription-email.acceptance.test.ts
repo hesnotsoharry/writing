@@ -60,7 +60,7 @@ let ledger: Set<string>;
 
 function makeMockClient() {
   return {
-    from: (table: string) => ({
+    from: (_table: string) => ({
       insert: (row: { event_name: string; order_id: string }) => {
         const key = `${row.order_id}::${row.event_name}`;
         const dup = ledger.has(key);

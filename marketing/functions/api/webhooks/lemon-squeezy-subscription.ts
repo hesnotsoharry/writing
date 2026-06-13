@@ -27,6 +27,7 @@
 import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 import { MONTHLY_ALLOWANCE, TOPUP_PACK_AMOUNT } from "../../_lib/credits";
+import { sendEmail } from "../../_lib/resend";
 import { WebhookEnv, makeServiceClient } from "../../_lib/supabase";
 import { verifySignature } from "../../_lib/verify-signature";
 
@@ -177,18 +178,24 @@ async function resolveSubscription(
 // ── Email seam ────────────────────────────────────────────────────────────────
 
 /**
- * SEAM: Email dispatch for the subscription license key.
- * No-op stub this phase — wire Resend in wave 35.
+ * Email dispatch for the subscription license key (wired to Resend, wave 36).
  * NOTE: licenseKey must be the PERSISTED key from the upsert RETURNING, not
- *   the locally-minted variable, to guard against out-of-order delivery.
+ *   the locally-minted variable, to guard against out-of-order delivery. The
+ *   Resend idempotency key (sub-key-<key>) is stable across LS retries because
+ *   upsert_subscription RETURNs the existing persisted key (0003_credit_reserve.sql).
  */
 async function sendSubscriptionKeyEmail(
   env: WebhookEnv,
   email: string,
   licenseKey: string,
 ): Promise<void> {
-  // SEAM: intentional no-op stub — wire Resend in wave 35.
-  void env; void email; void licenseKey;
+  await sendEmail(env, {
+    to: email,
+    subject: "Your Writers Nook AI assistant subscription key",
+    html: `<p>Hi there,</p><p>Thank you for subscribing to Writers Nook! Your AI assistant license key is:</p><p><strong>${licenseKey}</strong></p><p>Enter it in the app under <strong>Settings → AI Assistant</strong> to activate your subscription.</p><p>Visit your <a href="https://writersnook.app/account">account page</a> any time to manage your subscription.</p>`,
+    text: `Thank you for subscribing to Writers Nook!\n\nYour AI assistant license key is: ${licenseKey}\n\nEnter it in the app under Settings → AI Assistant to activate your subscription.\n\nVisit https://writersnook.app/account to manage your subscription.`,
+    idempotencyKey: `sub-key-${licenseKey}`,
+  });
 }
 
 // ── Variant helpers ───────────────────────────────────────────────────────────
