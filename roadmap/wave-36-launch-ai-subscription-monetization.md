@@ -123,4 +123,14 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+**PAUSED pre-merge (2026-06-13) — awaiting GDPR/DPA clearance + launch merge (Cole, morning).**
+
+Phases A–C complete on branch `wave-36-launch-monetization` (4 commits: e0d9a12, 35550c0, a33d9e2, f463814). Phase D (live flip) held — Cole-executed, GDPR-gated; runbook ready at `marketing/LAUNCH-AI-SUBSCRIPTION.md`.
+
+- **Acceptance-criteria self-audit (2026-06-13): all PASS** — `$14.99`/`/ month` on pricing; zero BYOK in `public/`; AI card on features + teaser on index; `sendSubscriptionKeyEmail` wired (no-op gone, `idempotencyKey` present); placeholder CTA (no test UUID); all three LS vars in `.dev.vars.example`; runbook present; full marketing suite 141/141; tsc clean.
+- **Merge readiness:** `git merge-tree master wave-36-launch-monetization` → **zero conflicts** against master `6dd381d` (Wave 35 advanced during this wave; disjoint surfaces held). Morning merge into master is verified clean.
+- **Deferred:** Phase A visual browser smoke (chrome-devtools-mcp profile held by the concurrent Wave 35 dev app) — adjudicated on the reviewer's definitive CSS read; fold into the next smoke window.
+- **Morning sequence:** (1) confirm GDPR/DPA + privacy-policy review cleared; (2) merge branch → master; (3) follow `LAUNCH-AI-SUBSCRIPTION.md` for the LS live flip; (4) push (= deploy), timed with the desktop AI release.
+- **Open items for Cole:** GDPR/DPA review (hard blocker) · `privacy.html` AI-data-path coverage · coordinated-launch timing · `wrangler.toml` name drift (documented, not fixed — deploy-config risk) · desktop `license.rs` variant gate (likely a non-issue — AI key is proxy-validated).
+
+_Wrap team fills the full Result at actual ship (post-merge)._
