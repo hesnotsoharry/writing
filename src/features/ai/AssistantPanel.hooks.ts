@@ -30,7 +30,7 @@ import {
   type ProseSelection,
   type VerbKey,
 } from "./ai.types";
-import { buildMessages, VERB_MAX_TOKENS } from "./prompts";
+import { buildMessages } from "./prompts";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CtxArgs {
@@ -168,7 +168,7 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
     } else if (ev.type === "session-expired") {
       terminalError = "[Session expired — check your subscription in Settings]";
     }
-  }, { maxTokens: VERB_MAX_TOKENS[a.verb], system, signal: a.ctrl.signal });
+  }, { verb: a.verb, system, signal: a.ctrl.signal });
   const finalText = terminalError ?? accumulated;
   a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
   if (a.convStore) {

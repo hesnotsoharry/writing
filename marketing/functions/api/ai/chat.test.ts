@@ -511,3 +511,97 @@ describe("CORS contract — /api/ai/chat", () => {
     expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 });
+
+// ── Verb-resolution contract (Wave 37 Decision 1 D2) ─────────────────────────
+
+describe("verb-based request resolution", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("no verb → 200, Anthropic called with Haiku model and max_tokens 1536 (fallback config)", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalled();
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
+    expect(sentBody["model"]).toBe("claude-haiku-4-5-20251001");
+    expect(sentBody["max_tokens"]).toBe(1536);
+  });
+
+  it("unknown verb string → 400 Bad Request", async () => {
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], verb: "xyz" },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it("verb: 'constructor' → 400 Bad Request (prototype-chain bypass closed)", async () => {
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], verb: "constructor" },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it("verb: 'toString' → 400 Bad Request (prototype-chain bypass closed)", async () => {
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }], verb: "toString" },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(400);
+  });
+
+  it("{verb:'brainstorm'} → Anthropic called with haiku model, temperature 1.0, max_tokens 2048", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Ideas for my scene?" }], verb: "brainstorm" },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
+    expect(sentBody["model"]).toBe("claude-haiku-4-5-20251001");
+    expect(sentBody["temperature"]).toBe(1.0);
+    expect(sentBody["max_tokens"]).toBe(2048);
+  });
+
+  it("when verbConfig has no temperature (fallback/thinking path), temperature is omitted from Anthropic body", async () => {
+    // No verb → FALLBACK_VERB_CONFIG (temperature: undefined) → temperature must be absent.
+    // Same code path fires for thinking-enabled configs (ThinkingVerbConfig.temperature?: never).
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1]!.body as string) as Record<string, unknown>;
+    expect(sentBody).not.toHaveProperty("temperature");
+  });
+});

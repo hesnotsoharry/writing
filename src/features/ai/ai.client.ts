@@ -9,6 +9,7 @@
  */
 
 import { parseResetAt } from "./ai.helpers";
+import type { VerbKey } from "./ai.types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,9 @@ function parseSseLine(line: string): NormalizedEvent | null {
 
 /**
  * Optional parameters for streamChat.
- * - maxTokens: per-verb output cap (proxy uses this to reserve credits).
+ * - verb: the verb key — proxy resolves model / temperature / max_tokens from it server-side.
+ * - maxTokens: @deprecated Not sent to the proxy — verb resolves maxTokens server-side.
+ *   Kept one wave to avoid breaking callers; will be removed in a future wave.
  * - system: system prompt forwarded to Anthropic's `system` field by the proxy.
  * - signal: AbortSignal for stop-button support.
  */
@@ -91,7 +94,10 @@ export interface BalanceResult {
 }
 
 export interface StreamChatOptions {
+  /** @deprecated Not sent — verb resolves maxTokens server-side. Kept one wave. */
   maxTokens?: number;
+  /** Verb key forwarded to the proxy so it can resolve model / temperature / max_tokens. */
+  verb?: VerbKey;
   system?: string;
   signal?: AbortSignal;
 }
@@ -113,7 +119,9 @@ function buildChatBody(
   options: StreamChatOptions | undefined,
 ): Record<string, unknown> {
   const body: Record<string, unknown> = { messages };
-  if (options?.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+  // Send verb so the proxy resolves model / temperature / max_tokens server-side.
+  // maxTokens is intentionally NOT sent — proxy owns that policy (Wave 37 Decision 1 D2).
+  if (options?.verb) body.verb = options.verb;
   if (options?.system) body.system = options.system;
   return body;
 }

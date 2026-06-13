@@ -6,6 +6,9 @@
  *   - actualCredits: ceil(inputTokens * INPUT_RATE + outputTokens * OUTPUT_RATE)
  *   - Non-negative invariant: when inputTokens ≤ chars/4 AND outputTokens ≤ maxTokens,
  *     actualCredits ≤ estimateCredits (reserve always covers actual, no overdraft).
+ *
+ * All migrated tests pass 'claude-haiku-4-5-20251001' as the model arg (Wave 37 D3 —
+ * estimateCredits and actualCredits now require a model parameter).
  */
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +19,8 @@ import {
   actualCredits,
   estimateCredits,
 } from "./credits";
+
+const HAIKU = "claude-haiku-4-5-20251001";
 
 // ── Wave 35 Phase G: verify derived constants (no magic numbers) ──────────────
 
@@ -38,17 +43,17 @@ describe("estimateCredits", () => {
   it("returns inputEst + outputReserve for round numbers", () => {
     // 400 chars → 100 input-tokens est → 100 * 0.1 = 10 units
     // maxTokens=1000 → 1000 * 0.5 = 500 units
-    expect(estimateCredits(400, 1000)).toBe(510);
+    expect(estimateCredits(400, 1000, HAIKU)).toBe(510);
   });
 
   it("ceils fractional input estimate", () => {
     // 10 chars → 2.5 tokens est → 0.25 units → ceil = 1
     // maxTokens=1 → 0.5 units → ceil = 1
-    expect(estimateCredits(10, 1)).toBe(2);
+    expect(estimateCredits(10, 1, HAIKU)).toBe(2);
   });
 
   it("returns 0 for empty message with 0 max_tokens", () => {
-    expect(estimateCredits(0, 0)).toBe(0);
+    expect(estimateCredits(0, 0, HAIKU)).toBe(0);
   });
 
   it("uses the exported rate constants", () => {
@@ -57,24 +62,24 @@ describe("estimateCredits", () => {
     const expected =
       Math.ceil((chars / 4) * INPUT_UNITS_PER_TOKEN) +
       Math.ceil(max * OUTPUT_UNITS_PER_TOKEN);
-    expect(estimateCredits(chars, max)).toBe(expected);
+    expect(estimateCredits(chars, max, HAIKU)).toBe(expected);
   });
 });
 
 describe("actualCredits", () => {
   it("calculates from Anthropic reported token counts", () => {
     // 10 * 0.1 + 7 * 0.5 = 1 + 3.5 = 4.5 → ceil = 5
-    expect(actualCredits(10, 7)).toBe(5);
+    expect(actualCredits(10, 7, HAIKU)).toBe(5);
   });
 
   it("returns 0 for zero tokens", () => {
-    expect(actualCredits(0, 0)).toBe(0);
+    expect(actualCredits(0, 0, HAIKU)).toBe(0);
   });
 
   it("uses the exported rate constants", () => {
     const inp = 50;
     const out = 200;
-    expect(actualCredits(inp, out)).toBe(
+    expect(actualCredits(inp, out, HAIKU)).toBe(
       Math.ceil(inp * INPUT_UNITS_PER_TOKEN + out * OUTPUT_UNITS_PER_TOKEN),
     );
   });
@@ -89,8 +94,8 @@ describe("non-negative invariant: actualCredits ≤ estimateCredits", () => {
     const maxTokens = 100;
     const inputTokens = chars / 4;
     const outputTokens = maxTokens;
-    expect(actualCredits(inputTokens, outputTokens)).toBeLessThanOrEqual(
-      estimateCredits(chars, maxTokens),
+    expect(actualCredits(inputTokens, outputTokens, HAIKU)).toBeLessThanOrEqual(
+      estimateCredits(chars, maxTokens, HAIKU),
     );
   });
 
@@ -100,8 +105,8 @@ describe("non-negative invariant: actualCredits ≤ estimateCredits", () => {
     const maxTokens = 2000;
     const actualInput = 800; // ≤ chars/4 = 1000
     const actualOutput = 300; // ≤ maxTokens
-    expect(actualCredits(actualInput, actualOutput)).toBeLessThanOrEqual(
-      estimateCredits(chars, maxTokens),
+    expect(actualCredits(actualInput, actualOutput, HAIKU)).toBeLessThanOrEqual(
+      estimateCredits(chars, maxTokens, HAIKU),
     );
   });
 });

@@ -22,6 +22,12 @@
  *   Zero-credit:  {creditsRemaining:0, resetAt:string|null}
  *   Rate-cap:     {error:'rate_limit_exceeded', retryAfterSeconds:number}
  *
+ * Verb resolution (Decision 1 D1–D2, Wave 37):
+ *   Present + valid → VERB_CONFIG[verb] (model / temperature / maxTokens)
+ *   Present + unknown → 400
+ *   Absent (un-updated client) → FALLBACK_VERB_CONFIG (Haiku, maxTokens 1536)
+ *   Client-sent max_tokens is IGNORED — proxy owns policy.
+ *
  * No request/response body logging anywhere in this file (Decision 4 privacy).
  * Credit unit: 1 unit = $0.00001 USD (see migration 0002_ai_subscriptions.sql).
  */
@@ -38,18 +44,16 @@ import {
   estimateCredits,
 } from "../../_lib/credits";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
+import type { FallbackVerbConfig, VerbConfig, VerbKey } from "../../_lib/verb-config";
+import { FALLBACK_VERB_CONFIG, VERB_CONFIG } from "../../_lib/verb-config";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-// Model for Phase 1/2. Pinned to dated variant per reviewer fix (wave-34).
-const MODEL = "claude-haiku-4-5-20251001";
-const DEFAULT_MAX_TOKENS = 1024;
-const MAX_TOKENS_CAP = 4096;
 const SYSTEM_LENGTH_CAP = 32_000;
 
-// Re-export for consumers that import from chat.ts (e.g. tests checking rates).
+// Re-export deprecated Haiku rate constants for consumers that import from chat.ts.
 export { INPUT_UNITS_PER_TOKEN, OUTPUT_UNITS_PER_TOKEN };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -61,8 +65,9 @@ interface Message {
 
 interface ChatBody {
   messages?: unknown;
-  max_tokens?: unknown;
   system?: unknown;
+  /** Optional verb key — determines model / temperature / max_tokens server-side. */
+  verb?: unknown;
 }
 
 interface SubscriptionRow {
@@ -76,10 +81,12 @@ interface SseState {
   outputTokens: number;
 }
 
+type ResolvedConfig = VerbConfig | FallbackVerbConfig;
+
 interface StreamArgs {
   apiKey: string;
   messages: Message[];
-  maxTokens: number;
+  verbConfig: ResolvedConfig;
   system?: string;
   writer: WritableStreamDefaultWriter<Uint8Array>;
   encoder: TextEncoder;
@@ -181,12 +188,24 @@ async function pumpAnthropicToClient(
 
 async function callAnthropic(
   messages: Message[],
-  maxTokens: number,
+  config: ResolvedConfig,
   apiKey: string,
   system?: string,
 ): Promise<Response> {
-  const requestBody: Record<string, unknown> = { model: MODEL, max_tokens: maxTokens, stream: true, messages };
+  const requestBody: Record<string, unknown> = {
+    model: config.model,
+    max_tokens: config.maxTokens,
+    stream: true,
+    messages,
+  };
   if (system) requestBody["system"] = system;
+  // Mutual exclusion: thinking and temperature cannot both be present (temp+thinking = 400).
+  if (config.thinking) {
+    // Extended thinking enabled — temperature is intentionally omitted.
+    requestBody["thinking"] = config.thinking;
+  } else if (config.temperature !== undefined) {
+    requestBody["temperature"] = config.temperature;
+  }
   return fetch(ANTHROPIC_API, {
     method: "POST",
     headers: {
@@ -232,10 +251,10 @@ async function refundCredits(
 // ── Stream runner (runs in waitUntil) ─────────────────────────────────────────
 
 async function runStream(args: StreamArgs): Promise<void> {
-  const { apiKey, messages, maxTokens, system, writer, encoder, db, licenseKey, reserve, requestId } = args;
+  const { apiKey, messages, verbConfig, system, writer, encoder, db, licenseKey, reserve, requestId } = args;
   let refunded = false;
   try {
-    const anthropicRes = await callAnthropic(messages, maxTokens, apiKey, system);
+    const anthropicRes = await callAnthropic(messages, verbConfig, apiKey, system);
     if (!anthropicRes.ok || !anthropicRes.body) {
       await refundCredits(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
       refunded = true;
@@ -243,14 +262,14 @@ async function runStream(args: StreamArgs): Promise<void> {
       return;
     }
     const state = await pumpAnthropicToClient(anthropicRes.body, writer, encoder);
-    const actual = actualCredits(state.inputTokens, state.outputTokens);
+    const actual = actualCredits(state.inputTokens, state.outputTokens, verbConfig.model);
     const refundAmount = Math.max(0, reserve - actual);
     const charged = reserve - refundAmount; // what was actually consumed
     if (refundAmount > 0) {
       await refundCredits(db, licenseKey, refundAmount, requestId, {
         input_tokens: state.inputTokens,
         output_tokens: state.outputTokens,
-        model: MODEL,
+        model: verbConfig.model,
       });
     }
     await writeSse(writer, encoder, {
@@ -298,10 +317,16 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     if (body.system.length > SYSTEM_LENGTH_CAP) return new Response("Bad Request", { status: 400, headers: cors });
   }
   const system = typeof body.system === "string" && body.system.length > 0 ? body.system : undefined;
-  const maxTokens =
-    typeof body.max_tokens === "number"
-      ? Math.min(body.max_tokens, MAX_TOKENS_CAP)
-      : DEFAULT_MAX_TOKENS;
+
+  // Verb resolution (Decision 1 D2): proxy owns the model/maxTokens/temperature policy.
+  // Client-sent max_tokens is intentionally ignored.
+  const verbStr = typeof body.verb === "string" ? body.verb.toLowerCase() : undefined;
+  if (verbStr !== undefined && !Object.hasOwn(VERB_CONFIG, verbStr)) {
+    return new Response("Bad Request", { status: 400, headers: cors });
+  }
+  const verbConfig: ResolvedConfig = verbStr
+    ? VERB_CONFIG[verbStr as VerbKey]
+    : FALLBACK_VERB_CONFIG;
 
   const db = makeServiceClient(context.env);
 
@@ -330,7 +355,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
 
   // Reserve credits (max possible cost for this request)
   const totalChars = messages.reduce((s, m) => s + m.content.length, 0) + (system?.length ?? 0);
-  const reserve = estimateCredits(totalChars, maxTokens);
+  const reserve = estimateCredits(totalChars, verbConfig.maxTokens, verbConfig.model);
   const requestId = crypto.randomUUID();
 
   const reserved = await reserveCredits(db, licenseKey, reserve, requestId);
@@ -348,7 +373,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     runStream({
       apiKey: context.env.ANTHROPIC_API_KEY,
       messages,
-      maxTokens,
+      verbConfig,
       system,
       writer,
       encoder,
