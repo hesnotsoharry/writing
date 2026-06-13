@@ -1,10 +1,7 @@
 /**
  * AI context assembly — client-side (Decision 4).
  *
- * `assembleBrainstormContext` (legacy) — gathers scene text + entities for the
- * brainstorm verb only. Kept for existing unit tests.
- *
- * `assembleContext` (Phase E) — verb-aware multi-source assembly. Applies both
+ * `assembleContext` — verb-aware multi-source assembly. Applies both
  * D4 privacy filters (persistent exclude_from_ai flag + per-ask offEntityNames)
  * as the single auditable gate before anything is sent to the proxy.
  *
@@ -21,7 +18,6 @@ import type {
   ManuscriptAbout,
   VerbKey,
 } from "./ai.types";
-import type { BrainstormContext } from "./prompts/brainstorm";
 
 // ── Caps ──────────────────────────────────────────────────────────────────────
 
@@ -30,15 +26,6 @@ export const SCENE_EXCERPT_CHARS = 2000;
 
 /** Max entity notes characters per entity in the context block. */
 export const ENTITY_NOTES_CHARS = 200;
-
-// ── Legacy assembly input (kept for assembleBrainstormContext) ────────────────
-
-export interface AssemblyInput {
-  sceneTitle: string;
-  doc: Y.Doc | null;
-  sceneId: string | null;
-  store: StoryBibleStore;
-}
 
 // ── Phase E assembly input ────────────────────────────────────────────────────
 
@@ -118,42 +105,6 @@ async function fetchAbout(
   } catch {
     return null;
   }
-}
-
-// ── Legacy assembly (kept for backward-compat / existing tests) ───────────────
-
-async function loadEntitySummaries(
-  store: StoryBibleStore,
-  sceneId: string | null,
-): Promise<EntitySummary[]> {
-  if (!sceneId) return [];
-  try {
-    const groups = await store.loadSceneEntities(sceneId);
-    return groups.flatMap((g) =>
-      g.entities.map((e) => ({
-        type: g.type,
-        name: e.name,
-        keyFacts: (e.notes ?? "").slice(0, ENTITY_NOTES_CHARS).trim(),
-      })),
-    );
-  } catch (err: unknown) {
-    console.error("[ai.context] loadSceneEntities failed", err);
-    return [];
-  }
-}
-
-/**
- * Assemble a BrainstormContext from the active scene's doc + store entities.
- * Legacy function — superseded by assembleContext for the send path.
- */
-export async function assembleBrainstormContext(
-  input: AssemblyInput,
-): Promise<BrainstormContext> {
-  const { sceneTitle, doc, sceneId, store } = input;
-  const rawText = doc ? extractPlainText(doc) : "";
-  const sceneExcerpt = rawText.slice(0, SCENE_EXCERPT_CHARS);
-  const entitySummaries = await loadEntitySummaries(store, sceneId);
-  return { sceneTitle, sceneExcerpt, entitySummaries };
 }
 
 // ── Phase E assembly ──────────────────────────────────────────────────────────

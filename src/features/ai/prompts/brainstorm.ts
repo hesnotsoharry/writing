@@ -17,14 +17,6 @@ export const BRAINSTORM_MAX_TOKENS = 1024;
 
 export type { EntitySummary };
 
-/** Legacy brainstorm-only context shape (kept for assembleBrainstormContext). */
-export interface BrainstormContext {
-  sceneTitle: string;
-  /** Scene plain-text, capped at SCENE_EXCERPT_CHARS. */
-  sceneExcerpt: string;
-  entitySummaries: EntitySummary[];
-}
-
 /** Return shape of buildBrainstormMessages — system + user messages. */
 export interface BrainstormMessages {
   system: string;

@@ -28,11 +28,6 @@ vi.mock("../features/ai/ai.client", () => ({
 }));
 
 vi.mock("../features/ai/ai.context", () => ({
-  assembleBrainstormContext: vi.fn().mockResolvedValue({
-    sceneTitle: "Test Scene",
-    sceneExcerpt: "",
-    entitySummaries: [],
-  }),
   assembleContext: vi.fn().mockResolvedValue({
     sceneTitle: "Test Scene",
     sceneExcerpt: "",
