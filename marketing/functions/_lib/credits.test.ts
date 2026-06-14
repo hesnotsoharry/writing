@@ -16,6 +16,7 @@ import { CREDIT_UNIT_USD } from "./ai-token";
 import {
   INPUT_UNITS_PER_TOKEN,
   OUTPUT_UNITS_PER_TOKEN,
+  RATES,
   actualCredits,
   estimateCredits,
 } from "./credits";
@@ -108,5 +109,36 @@ describe("non-negative invariant: actualCredits ≤ estimateCredits", () => {
     expect(actualCredits(actualInput, actualOutput, HAIKU)).toBeLessThanOrEqual(
       estimateCredits(chars, maxTokens, HAIKU),
     );
+  });
+});
+
+describe("W44 OpenAI rates", () => {
+  it("actualCredits for gpt-5.4: 1000 input + 1000 output = ceil(1000*0.25 + 1000*1.5) = 1750", () => {
+    expect(actualCredits(1000, 1000, "gpt-5.4")).toBe(1750);
+  });
+
+  it("actualCredits for gpt-5.4-mini: 1000 input + 1000 output = ceil(1000*0.075 + 1000*0.45) = 525", () => {
+    expect(actualCredits(1000, 1000, "gpt-5.4-mini")).toBe(525);
+  });
+
+  it("actualCredits for gpt-5.5: 1000 input + 1000 output = ceil(1000*0.5 + 1000*3.0) = 3500", () => {
+    expect(actualCredits(1000, 1000, "gpt-5.5")).toBe(3500);
+  });
+
+  it("cache-read billed at cacheRead rate: actualCredits(0, 0, 'gpt-5.4', 0, 1000) = ceil(1000*0.025) = 25", () => {
+    expect(actualCredits(0, 0, "gpt-5.4", 0, 1000)).toBe(25);
+  });
+
+  it("OpenAI models have no cache-write premium: cacheWrite5m = cacheWrite1h = input", () => {
+    const openaiModels = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.5"];
+    for (const model of openaiModels) {
+      const rates = RATES[model];
+      expect(rates.cacheWrite5m).toBe(rates.input);
+      expect(rates.cacheWrite1h).toBe(rates.input);
+    }
+  });
+
+  it("estimateCredits for gpt-5.4: ceil(4000/4*0.25) + ceil(1000*1.5) = 250 + 1500 = 1750", () => {
+    expect(estimateCredits(4000, 1000, "gpt-5.4")).toBe(1750);
   });
 });

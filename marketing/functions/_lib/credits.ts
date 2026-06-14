@@ -30,6 +30,8 @@ export const RATE_WINDOW_SECONDS = 60;
 
 /** Per-model credit rates (units/token) */
 export interface ModelRates {
+  /** AI provider ('anthropic' or 'openai') — required for adapter routing (Decision 1) */
+  provider: 'anthropic' | 'openai';
   /** Input tokens (normal) */
   input: number;
   /** Output tokens */
@@ -43,15 +45,20 @@ export interface ModelRates {
 }
 
 /**
- * Credit rate table keyed by Anthropic model ID.
+ * Credit rate table keyed by model ID (Anthropic + OpenAI).
  * Units/token = $/MTok × 0.1
  *   (formula: price_per_MTok / 1e6 / CREDIT_UNIT_USD = price_per_MTok × 0.1)
  * Unknown models fall back to Haiku rates (safe, conservative).
  */
 export const RATES: Record<string, ModelRates> = {
-  'claude-haiku-4-5-20251001': { input: 0.1,  output: 0.5,  cacheWrite5m: 0.125, cacheWrite1h: 0.2, cacheRead: 0.01 },
-  'claude-sonnet-4-6':         { input: 0.3,  output: 1.5,  cacheWrite5m: 0.375, cacheWrite1h: 0.6, cacheRead: 0.03 },
-  'claude-opus-4-8':           { input: 0.5,  output: 2.5,  cacheWrite5m: 0.625, cacheWrite1h: 1.0, cacheRead: 0.05 },
+  'claude-haiku-4-5-20251001': { provider: 'anthropic', input: 0.1,  output: 0.5,  cacheWrite5m: 0.125, cacheWrite1h: 0.2, cacheRead: 0.01 },
+  'claude-sonnet-4-6':         { provider: 'anthropic', input: 0.3,  output: 1.5,  cacheWrite5m: 0.375, cacheWrite1h: 0.6, cacheRead: 0.03 },
+  'claude-opus-4-8':           { provider: 'anthropic', input: 0.5,  output: 2.5,  cacheWrite5m: 0.625, cacheWrite1h: 1.0, cacheRead: 0.05 },
+
+  // OpenAI rates — source: developers.openai.com/api/docs/pricing, confirmed 2026-06-14. units/token = $/MTok × 0.1. No cache-write premium (cacheWrite* = input).
+  'gpt-5.4':      { provider: 'openai', input: 0.25,  output: 1.5,  cacheWrite5m: 0.25,  cacheWrite1h: 0.25,  cacheRead: 0.025  },
+  'gpt-5.4-mini': { provider: 'openai', input: 0.075, output: 0.45, cacheWrite5m: 0.075, cacheWrite1h: 0.075, cacheRead: 0.0075 },
+  'gpt-5.5':      { provider: 'openai', input: 0.5,   output: 3.0,  cacheWrite5m: 0.5,   cacheWrite1h: 0.5,   cacheRead: 0.05   },
 };
 
 /**

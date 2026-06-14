@@ -2002,6 +2002,43 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-stop { background: var(--parchment-deep); color: var(--ink-2); border: 1px solid var(--parchment-edge); box-shadow: none; }
 .ai-stop:hover { background: var(--parchment-edge); }
 
+/* model chip (furniture — neutral hover, not accent-colored) */
+.ai-modelchip {
+  display: flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: var(--r-pill);
+  font-size: var(--text-2xs); font-weight: 500; color: var(--ink-3);
+  background: var(--parchment); border: 1px solid transparent; cursor: pointer;
+  transition: border-color var(--dur-fast);
+}
+.ai-modelchip:hover { border-color: var(--parchment-edge); }
+.ai-modelchip:disabled { opacity: 0.55; cursor: default; }
+.ai-modelchip .chev { width: 10px; height: 10px; opacity: 0.6; }
+
+/* model popover */
+.ai-modelpop {
+  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px; z-index: 7; width: 218px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md); padding: 4px; display: flex; flex-direction: column;
+  animation: ai-pop var(--dur) var(--ease-out);
+}
+.ai-modelpop button { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: var(--r-md);
+  text-align: left; cursor: pointer; width: 100%; }
+.ai-modelpop button:hover { background: var(--parchment); }
+.ai-modelpop .nm { font-size: var(--text-xs); font-weight: 500; color: var(--ink); }
+.ai-modelpop .tick { margin-left: auto; display: flex; }
+.ai-modelpop .tick .ic { width: 12px; height: 12px; color: var(--accent); }
+.ai-modelpop-provider {
+  font-size: var(--text-2xs); font-weight: 600; color: var(--ink-4);
+  padding: 6px 8px 2px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.ai-modelpop-premium-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  font-size: var(--text-2xs); color: var(--ink-4); padding: 6px 8px; cursor: pointer;
+  border-radius: var(--r-md); border-top: 1px solid var(--line); margin-top: 4px;
+}
+.ai-modelpop-premium-toggle .ic { width: 10px; height: 10px; flex: none; }
+.ai-modelpop-premium-toggle:hover { background: var(--parchment); }
+.ai-modelpop-cost { margin-left: auto; font-size: var(--text-2xs); color: var(--ink-4); }
+
 /* verb popover */
 .ai-verbpop {
   position: absolute; bottom: 100%; left: 0; margin-bottom: 6px; z-index: 7; width: 218px;

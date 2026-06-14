@@ -15,7 +15,7 @@ import type * as Y from "yjs";
 import type { BinderTree } from "../../binder/buildTree";
 import { type AiConversationStore,deriveConversationTitle } from "../../db/aiConversationStore";
 import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
-import { getTweak } from "../settings/settings.store";
+import { getTweak, setStoredTweak } from "../settings/settings.store";
 import { acquireSession, type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext,filterAiEntities } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
@@ -26,6 +26,8 @@ import {
   type AiSceneRow,
   type ContextSnapshot,
   type ConversationRecord,
+  DEFAULT_MODEL,
+  type ManagedModel,
   type ManuscriptAbout,
   type ProseSelection,
   type VerbKey,
@@ -65,6 +67,7 @@ export interface PanelMsgArgs {
   prompt: string;
   setPrompt: (v: string) => void;
   verb: VerbKey;
+  model: ManagedModel;
   attachedSel: Pick<ProseSelection, "text" | "words"> | null;
   setAttachedSel: (s: Pick<ProseSelection, "text" | "words"> | null) => void;
   streamingId: string | null;
@@ -98,6 +101,7 @@ interface StreamArgs {
   store: StoryBibleStore;
   userQuestion: string;
   verb: VerbKey;
+  model: ManagedModel;
   aiCtx: AiCtxConfig;
   selectionText: string | null;
   projectId: string | null;
@@ -171,7 +175,7 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
     } else if (ev.type === "session-expired") {
       terminalError = "[Session expired — check your subscription in Settings]";
     }
-  }, { verb: a.verb, system, signal: a.ctrl.signal });
+  }, { verb: a.verb, model: a.model, system, signal: a.ctrl.signal });
   const finalText = terminalError ?? accumulated;
   a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
   if (a.convStore) {
@@ -217,7 +221,7 @@ function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, 
   const history = buildHistory(a.convos, ids.cid);
   return {
     token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
-    verb: a.verb, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
+    verb: a.verb, model: a.model, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
     sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx,
     selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history,
   };
@@ -266,32 +270,27 @@ export function usePanelState(
   const [verbPop, setVerbPop] = useState(false);
   const [attachedSel, setAttachedSel] = useState<Pick<ProseSelection, "text" | "words"> | null>(initialSel ?? null);
   const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [model, setModelInner] = useState<ManagedModel>(() => getTweak("aiModel", DEFAULT_MODEL));
+  const [modelPop, setModelPop] = useState(false);
+  // Lazy-initialized from localStorage (satisfies react19-no-setstate-in-effect); persists on change.
+  const setModel = useCallback((m: ManagedModel) => { setStoredTweak("aiModel", m); setModelInner(m); }, []);
   const abortRef = useRef<AbortController | null>(null);
   const sessionRef = useRef<SessionResult | null>(null);
-  return { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel, streamingId, setStreamingId, abortRef, sessionRef };
+  return { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel, streamingId, setStreamingId, model, setModel, modelPop, setModelPop, abortRef, sessionRef };
 }
 
 interface ConvoOpsOpts { onToast: (msg: string) => void; convStore?: AiConversationStore; projectId?: string | null }
 
-export function useConvoOps(
-  setConvos: Dispatch<SetStateAction<ConversationRecord[]>>,
-  activeId: string | null,
-  setActiveId: Dispatch<SetStateAction<string | null>>,
-  opts: ConvoOpsOpts,
-) {
+export function useConvoOps(setConvos: Dispatch<SetStateAction<ConversationRecord[]>>, activeId: string | null, setActiveId: Dispatch<SetStateAction<string | null>>, opts: ConvoOpsOpts) {
   const { onToast, convStore, projectId } = opts;
   const newConvo = useCallback(async (): Promise<string> => {
     if (convStore && projectId) {
       const row = await convStore.createConversation(projectId, { title: "New conversation" });
       const c: ConversationRecord = { id: row.id, title: row.title, verb: row.lastVerb, when: "now", messages: [] };
-      setConvos((cs) => [c, ...cs]);
-      setActiveId(c.id);
-      return c.id;
+      setConvos((cs) => [c, ...cs]); setActiveId(c.id); return c.id;
     }
     const c: ConversationRecord = { id: aiConvoId(), title: "New conversation", verb: null, when: "now", messages: [] };
-    setConvos((cs) => [c, ...cs]);
-    setActiveId(c.id);
-    return c.id;
+    setConvos((cs) => [c, ...cs]); setActiveId(c.id); return c.id;
   }, [setConvos, setActiveId, convStore, projectId]);
   const deleteConvo = useCallback(async (id: string) => {
     if (convStore) await convStore.deleteConversation(id);

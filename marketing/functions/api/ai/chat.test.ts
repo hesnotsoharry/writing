@@ -20,6 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildToken } from "../../_lib/ai-token";
 import { ALLOWED_ORIGINS } from "../../_lib/cors";
+import { estimateCredits } from "../../_lib/credits";
+import { VERB_CONFIG } from "../../_lib/verb-config";
 import { onRequestOptions, onRequestPost } from "./chat";
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
@@ -120,6 +122,7 @@ function fakeContext(authHeader: string | null, body: unknown, origin?: string):
       SUPABASE_ANON_KEY: "placeholder-anon",
       LEMON_SQUEEZY_SIGNING_SECRET: "placeholder-ls",
       ANTHROPIC_API_KEY: "placeholder-anthropic",
+      OPENAI_API_KEY: "placeholder-openai",
       PROXY_SESSION_SECRET: TEST_SECRET,
     },
     request: new Request("https://writersnook.app/api/ai/chat", {
@@ -755,5 +758,172 @@ describe("usage passthrough — cache tokens reconcile credits", () => {
     } | undefined;
     expect(done).toBeDefined();
     expect(done!.creditsCost).toBe(9);
+  });
+});
+
+// ── Model selection integration (W44 Phase C) ────────────────────────────────
+//
+// Three contracts under test:
+//   1. An allowlisted OpenAI model (gpt-5.4) → outgoing fetch targets api.openai.com
+//      and body.model === 'gpt-5.4'.
+//   2. An unlisted model string → handler returns 400; no fetch, no reserve.
+//   3. proofread + a premium model → outgoing fetch targets api.anthropic.com
+//      and body.model === HAIKU (proofread override holds end-to-end).
+//
+// The existing Anthropic SSE mock is reused as the fetch response for cases 1 and 3.
+// For case 1 the OpenAI adapter's pump produces all-zero usage from the Anthropic SSE
+// (non-OpenAI format lines are silently ignored) — we only assert the OUTGOING request.
+
+describe("W44 Phase C — model selection integration", () => {
+  const HAIKU = "claude-haiku-4-5-20251001";
+
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("brainstorm + allowlisted OpenAI model (gpt-5.4) → fetch targets api.openai.com, body.model === 'gpt-5.4', and reserve computed at gpt-5.4 rates", async () => {
+    const messageContent = "Ideas?";
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: messageContent }], verb: "brainstorm", model: "gpt-5.4" },
+    );
+    const res = await onRequestPost(ctx);
+    // wait for the stream runner (pump may produce 0-usage from the Anthropic mock — that's fine)
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalled();
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+    expect(String(calledUrl)).toContain("api.openai.com");
+    const sentBody = JSON.parse(calledInit!.body as string) as Record<string, unknown>;
+    expect(sentBody["model"]).toBe("gpt-5.4");
+    // Guard the reserve line (chat.ts estimateCredits call): a regression that passed
+    // verbConfig.model (Haiku) instead of effectiveConfig.model (gpt-5.4) would silently
+    // under-reserve at the Haiku rate. Assert the exact reserve amount at gpt-5.4 rates.
+    // totalChars = messageContent.length (no system prompt in this request).
+    const totalChars = messageContent.length;
+    const expectedReserve = estimateCredits(totalChars, VERB_CONFIG.brainstorm.maxTokens, "gpt-5.4");
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    expect(reserveCall).toBeDefined();
+    expect(Number(reserveCall!.args["p_amount"])).toBe(expectedReserve);
+  });
+
+  it("brainstorm + unlisted model string → 400; fetch is never called, no reserve", async () => {
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Ideas?" }], verb: "brainstorm", model: "bogus-not-allowed" },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(400);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    expect(reserveCall).toBeUndefined();
+  });
+
+  it("proofread + premium model (gpt-5.5) → fetch targets api.anthropic.com with body.model === Haiku (proofread override holds)", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Proofread this." }], verb: "proofread", model: "gpt-5.5" },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalled();
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+    expect(String(calledUrl)).toContain("api.anthropic.com");
+    const sentBody = JSON.parse(calledInit!.body as string) as Record<string, unknown>;
+    expect(sentBody["model"]).toBe(HAIKU);
+  });
+});
+
+// ── Refund-on-stream-error after partial emission (W44 Phase B acceptance criterion) ──
+//
+// Wave-44 requires: a malformed/early-error stream routes through the refund path
+// (Q4 outage policy) and the full reserve is returned even after partial tokens have
+// been emitted. This exercises runStream's catch block, which is provider-agnostic —
+// the same path fires for both Anthropic and OpenAI mid-stream failures.
+//
+// The OpenAI-format wire data in the throwing stream documents the intent: an OpenAI
+// stream that delivers partial content and then aborts hits this same catch-and-refund
+// path. (Phase C will add per-request model routing; the catch is provider-agnostic
+// and already covers OpenAI as confirmed by the W44 adapter seam.)
+
+/** 200 response whose body yields one SSE chunk then errors — simulates mid-stream abort. */
+function makeThrowingStreamResponse(): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      // Emit one partial token chunk (OpenAI Chat Completions wire format)
+      controller.enqueue(
+        encoder.encode('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'),
+      );
+      // Then abort the stream — reader.read() on the next iteration rejects
+      controller.error(new Error("stream aborted mid-flight"));
+    },
+  });
+  return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
+
+describe("refund-on-stream-error — full reserve returned after partial emission (W44 Q4 policy)", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("full reserve is refunded when the upstream stream errors after emitting partial tokens", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeThrowingStreamResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+
+    // The stream errored: the catch block must fire refund_credits with the full reserve
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    expect(refundCall).toBeDefined();
+    expect(Number(refundCall!.args["p_amount"])).toBe(
+      Math.abs(Number(reserveCall!.args["p_amount"])),
+    );
+
+    // A {type:'error'} SSE event must be written to the client
+    const errorEvent = events.find((e) => (e as { type: string }).type === "error");
+    expect(errorEvent).toBeDefined();
+  });
+
+  it("request IDs match between reserve and error-path refund", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeThrowingStreamResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    expect(refundCall).toBeDefined();
+    expect(refundCall!.args["p_request_id"]).toBe(reserveCall!.args["p_request_id"]);
   });
 });

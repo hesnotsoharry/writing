@@ -118,6 +118,21 @@ vi.mock("../features/ai/ai.types", () => ({
   },
   AI_VERB_ORDER: ["brainstorm", "critique", "betaread", "proofread"],
   EMPTY_ABOUT: { synopsis: "" },
+  // W44 model picker — needed by ModelPop + usePanelState (lazy initializer calls DEFAULT_MODEL)
+  DEFAULT_MODEL: "claude-haiku-4-5-20251001",
+  AI_MODELS: {
+    "claude-haiku-4-5-20251001": { label: "Claude Haiku",  provider: "claude",  tier: "standard" },
+    "claude-sonnet-4-6":         { label: "Claude Sonnet", provider: "claude",  tier: "standard" },
+    "gpt-5.4-mini":              { label: "GPT-5.4 mini",  provider: "chatgpt", tier: "standard" },
+    "gpt-5.4":                   { label: "GPT-5.4",       provider: "chatgpt", tier: "standard" },
+    "claude-opus-4-8":           { label: "Claude Opus",   provider: "claude",  tier: "premium"  },
+    "gpt-5.5":                   { label: "GPT-5.5",       provider: "chatgpt", tier: "premium"  },
+  },
+  AI_MODEL_ORDER: [
+    "claude-haiku-4-5-20251001", "claude-sonnet-4-6",
+    "gpt-5.4-mini", "gpt-5.4",
+    "claude-opus-4-8", "gpt-5.5",
+  ],
 }));
 
 vi.mock("../features/ai/ai.helpers", () => ({
@@ -376,5 +391,15 @@ describe("AssistantPanel — consented", () => {
     vi.mocked(aiEstimate).mockReturnValueOnce({ tokens: 500, pct: 5 });
     const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
     expect(container.querySelector(".ai-costcue")).not.toBeNull();
+  });
+
+  it("hides model picker button when byokMode=true (Anthropic-key-only; OpenAI models unavailable)", () => {
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    expect(container.querySelector(".ai-modelchip")).toBeNull();
+  });
+
+  it("shows model picker button when byokMode=false (managed path supports multi-provider)", () => {
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+    expect(container.querySelector(".ai-modelchip")).not.toBeNull();
   });
 });
