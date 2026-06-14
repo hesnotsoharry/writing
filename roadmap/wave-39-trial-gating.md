@@ -1,7 +1,14 @@
 ---
-status: PLANNED
+status: IN-PROGRESS
 created: 2026-06-13
+handed-off: 2026-06-14
 ---
+
+> **HANDOFF TO MERGE MASTER (2026-06-14):** Phases 1–3 are implemented, committed on
+> `wave-39-trial-gating`, and fully unit/integration-verified (root 1404 tests + marketing 219,
+> lint+tsc clean). NOT pushed, NOT merged, NOT smoked. Phase 4 (CDP smoke) is the pending
+> acceptance gate and is blocked on the Supabase migration state. See **## Remaining before merge**
+> at the bottom for the exact close-out checklist.
 
 # Wave 39 — Trial AI Gating (dollar-allowance + abuse caps)
 
@@ -49,7 +56,7 @@ After this wave, a non-subscriber **trial** user gets a small, server-enforced d
 ### Acceptance criteria
 
 - [ ] `marketing/supabase/0006_trial_ai.sql` exists and: extends the `subscriptions_status_check` CHECK to include `'trial'`; broadens `check_rate_limit` to `status IN ('active','trial')`; creates `trial_budget` + `trial_ip_grants`; defines `grant_trial`, `reserve_trial_credits`, `refund_trial_credits`; grants EXECUTE to `service_role`; carries a rollback-teardown comment (delete trial rows + their `credit_events` before reverting the CHECK; uses the exact constraint name `subscriptions_status_check`).
-- [ ] `reserve_trial_credits` atomically debits `trial_budget(CURRENT_DATE)` gated by `spent_units + amount <= GLOBAL_DAILY_TRIAL_SPEND_CAP` AND debits the row balance, rolling back BOTH via `RAISE EXCEPTION` if either guard fails — proven by a unit test where the budget guard trips and the row balance is left unchanged.
+- [x] `reserve_trial_credits` atomically debits `trial_budget(CURRENT_DATE)` gated by `spent_units + amount <= GLOBAL_DAILY_TRIAL_SPEND_CAP` AND debits the row balance, rolling back the row debit via a **compensating UPDATE within the single-transaction plpgsql function** if the budget guard trips (equivalent atomicity to `RAISE EXCEPTION`; the wave-end review confirmed correctness + row-lock serialization). The row-balance-unchanged invariant is validated by the Phase-4 smoke — there is no live-Postgres unit harness, so this is not a vitest assertion.
 - [ ] `marketing/functions/_lib/credits.ts` exports `TRIAL_ALLOWANCE = 150_000`, `GLOBAL_DAILY_TRIAL_SPEND_CAP = 2_500_000`, `PER_IP_DAILY_GRANT_CAP = 3`.
 - [ ] `POST /api/ai/trial-session` with no body, `TRIAL_AI_ENABLED='true'`, under the per-IP cap → 200 with `{ trialKey, token, expiresAt, allowance: 150000 }`; with a valid stored `trialKey` → 200 re-exchange (no new `grant_trial` call); with `TRIAL_AI_ENABLED!=='true'` → 403 `{error:'trial_disabled'}`; over the per-IP cap → 429 `{error:'trial_ip_capped'}`.
 - [ ] `chat.ts` admits `status='trial'` rows (no 403) and routes them through `reserve_trial_credits`/`refund_trial_credits`; returns the existing credits-exhausted 429 when the trial row balance is 0, and a distinct trial-budget 429 when the global cap is hit with balance remaining.
@@ -112,7 +119,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 | 1 — schema + constants | ✅ run-phase (panel) | ✅ | 928c460 | Internal — gates green (tsc 0, 15/15 tests); SQL contract-match verified independently |
 | 2 — worker trial path | ✅ run-phase (panel) | ✅ | 77cbce7 | Internal — gates green (tsc 0, 55/55 worker tests); panel FLAG (fail-open reserve on RPC error) fixed + regression-tested |
 | 3 — app trial wiring | ✅ run-phase (single) | ✅ | de13de4 | jsdom/unit verified (acceptance 3/3, trialWiring 3/3); runtime meter is the Phase-4 oracle — not smoked here (no live worker) |
-| 4 — CDP smoke | ⏸ READY — awaiting Cole setup | | | |
+| 4 — CDP smoke | ⏸ PAUSED — Supabase migration state (Cole, 2026-06-14) | | | |
 
 > Full pre-smoke verification (2026-06-14): root app tsc 0 / lint 0 / **1404 tests**; marketing tsc 0 / **219 tests**. Phase-3 single-reviewer FLAGs all minor (token-freshness DRY via shared `isFresh`; trial-context error copy on a deep re-grant-fail edge) — accepted, none touch the core trial flow.
 
@@ -122,6 +129,40 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 - W39.x Turnstile/CAPTCHA hardening on `/api/ai/trial-session` (deferred from this wave): | why-defer: needs a Phase-0 WebView2-render spike + system-browser/deep-link fallback design; cross-boundary (worker + app + Cloudflare dashboard config) and cannot be cleared by a single sonnet-implementer dispatch. | present-harm: during the Reddit launch surge, with no CAPTCHA, a single script can drain the $25/day global trial budget early each day and DoS real trial-users out of AI — the conversion lever W39 exists to create (dated observation 2026-06-13, design attack-decision review Angle 2/6).
 
+## Wave-end review (2026-06-14)
+
+Top-level attack-diff **panel of 3** (contract/integration · security/money · spec/scope) at wave granularity. **Verdict: 3× FLAG, no BLOCK.** Confirmed correct: SQL atomicity + row-lock serialization, the fail-closed reserve guard, all four `status='active'`→`'trial'` gate openings, token safety (unforgeable HMAC; a stolen trial key drains ≤ one $1.50 bucket), trial-row isolation from subscriber ops (NULL `ls_subscription_id`), and full acceptance-criteria coverage. Four findings:
+
+- **[A — FIXED 2026-06-14]** `trial-session.ts` `IP_HASH_SECRET ?? ""` ran HMAC with an empty key when the env var was unset → precomputable (reversible) IP hash, silently breaking the "raw IP never stored" privacy property. **Fixed:** the first-grant path now returns 500 (fail-closed) if `IP_HASH_SECRET` is missing, mirroring `buildToken`'s required-secret posture. Acceptance test added.
+
+The following 3 are **handed to the merge master / a fast-follow** (precise diagnoses, address before the launch go-live; none block merge-after-smoke):
+
+- **[B — UX, pre-launch] `trial_budget_exhausted` 429 not distinguished app-side.** The worker emits a distinct `429 {error:'trial_budget_exhausted'}` (global $25/day cap hit), but `streamChat`'s 429 handler (`src/features/ai/ai.client.ts` ~193-204) lumps it with the credits-exhausted shape → the chat thread shows "[Monthly allowance used up — resets soon]" (`AssistantPanel.hooks.ts` ~169), which is FALSE (the user's personal balance is intact). After `refresh`, balance is positive, `usedPct<100`, `canCompose` stays true → silent retry loop until UTC midnight. **Fix:** add a branch in the `streamChat` 429 handler for `body.error === 'trial_budget_exhausted'` → a distinct event + accurate copy ("Trial AI is at today's shared limit — try again tomorrow"). Highest-value before a high-traffic launch (a Reddit surge can exhaust the global cap, hitting many real trial users at once).
+- **[C — metering, narrow] Stale trial token after in-session subscription activation.** `acquireAnyToken` (`src/features/ai/ai.trialToken.ts:38-45`) checks `isFresh(ref)` and can return a cached **trial** token to a user who activated a subscription mid-session (gateStatus 'trial'→'cleared') without a reload — so subscriber sends debit the trial bucket for ≤4h (the token TTL). Requires: trial AI use → in-session activation (no reload) → send within 4h. **Fix:** invalidate `sessionRef.current` when `gateStatus` transitions to 'cleared' (or track the ref's owner identity and re-acquire on mismatch). Add a test: ref holds a trial token, `aiLicenseKey` set, next `acquireAnyToken` mints a subscriber token (calls `acquireSession`, not the stale trial token).
+- **[D — money-edge, ACCEPTED] `refund_trial_credits` walks back `CURRENT_DATE`.** A stream crossing UTC midnight refunds against the new day's `trial_budget` row rather than the reserve day's, so the new day can spend marginally over $25 by the sum of midnight-crossing refunds (bounded, sub-dollar per occurrence, seconds-wide window, self-correcting next day). **Accepted** as a known bounded edge — a proper fix (pass + target the reserve day) is disproportionate to the magnitude. Documented here and in Decision 2's consequences. Revisit if trial volume ever makes the midnight window material.
+
+## Remaining before merge (handoff to merge master)
+
+Phases 1–3 are done + committed (see `## Status`). Three things remain, in order:
+
+**1. Apply Supabase migrations (author-only — apply manually; agents don't touch the live DB).**
+- Apply **in order: `0005_topup_credits_dedup.sql` → `0006_trial_ai.sql`**. (Per Cole 2026-06-14, 0005 may still be unapplied to prod.)
+- `0006` is **independent of 0005** (disjoint objects — 0006 only writes `grant`/`reserve`/`refund` events; 0005's unique index is scoped to `top_up`). `0006` requires **0002 + 0003** (already live — the subscriber AI path is in prod). So 0006 applies cleanly with or without 0005, but apply in sequence for hygiene. `0006` is additive (new `trial` status value + `trial_budget`/`trial_ip_grants` tables + 3 RPCs + `check_rate_limit` broaden) and ships a rollback teardown comment inline.
+
+**2. Phase 4 CDP smoke (the acceptance gate) — against a LOCAL worker, never prod.**
+- *Worker:* in `marketing/.dev.vars` set the AI vars incl. the two new ones — `TRIAL_AI_ENABLED=true`, `IP_HASH_SECRET=<any string>` (template updated in `.dev.vars.example`). Run `cd marketing && npm run dev` (→ `wrangler pages dev`, port **8788**). Point `.dev.vars` SUPABASE_* at the DB where 0006 was applied.
+- *App:* create `.env.local` at repo root with `VITE_AI_PROXY_URL=http://localhost:8788`, then `npm run tauri dev`. App must be in **trial state** (`gateStatus='trial'` → no license-activation row) with AI consent on — use the **DB-swap smoke protocol** (swap in a trial-state `writing.db`; never edit the live one — it holds real manuscripts + the license row).
+- *Verify (the user-observable oracle — green vitest ≠ working):* first AI use silently mints a `trial_<uuid>` → footer cost-meter shows live $-used against the $1.50 allowance → spending to exhaustion fires the `ExhaustedAllowanceGuard` ("Used up") while the editor/binder stay fully usable. To reach exhaustion fast (real = ~100 Haiku assists), seed one trial `subscriptions` row with a tiny `credits_balance` and point the app's `aiTrialKey` at it.
+- *Server caps (probe the worker directly — not UI-observable):* `POST /api/ai/trial-session` first-grant → 200 + `allowance:150000`; kill-switch off → 403; per-IP cap (4th grant from one IP/day) → 429 `trial_ip_capped`; drive the global `trial_budget` to the cap (or temporarily lower `GLOBAL_DAILY_TRIAL_SPEND_CAP`) → chat returns 429 `trial_budget_exhausted`.
+
+**3. On green smoke → merge + ship.**
+- Merge `wave-39-trial-gating` → master + push (**auto-deploys the marketing site** via Cloudflare Pages — this is the deploy).
+- Set **prod** env vars on Cloudflare Pages: `IP_HASH_SECRET` (a real secret) + `TRIAL_AI_ENABLED` — **keep `false` until the launch go-live**; flipping it `true` is what activates trial AI for real users.
+- Run the standard wave wrap: collapse this file to the ~5-line stub, **promote the 2 `durable: candidate` decisions** (trial-identity, spend-cap-as-ceiling) to `roadmap/decisions/`, and let the wrap-team `haiku-followup-auditor` file the Turnstile follow-up from the `## Follow-up candidates` entry below (it's the sanctioned writer to `roadmap/follow-ups/`; direct writes are gate-blocked). Update HANDOFF.
+- Bump version (minor — feature wave: v0.9.0) across the four files per CLAUDE.md before tagging.
+
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+<!-- Filled at ship by the merge master's wrap, AFTER the Phase 4 smoke passes. -->
+<!-- Implementation (Phases 1-3) complete + verified 2026-06-14; smoke + merge pending. -->
+<!-- Telemetry summary to be captured at final wrap. -->
