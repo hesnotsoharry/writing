@@ -15,6 +15,7 @@ updated: 2026-06-13
 3. Cole: Phase D go-live (GDPR/DPA-gated per marketing/LAUNCH-AI-SUBSCRIPTION.md); blocker first: fix webhook RPC-error (wave-36, handlePaymentSuccess/handleTopupOrder silent allowance loss); flip aiEnabled default OFF per design canon.
 
 ## Active work
+- **Branch `followups-ui-batch` (unmerged, pending merge to master):** closed + archived 13 UI follow-ups — 10 already resolved by prior waves, find-mentions mock-toast double-fire fixed (`Editor.tsx:254`). Rejected full-window transparency (buggy WebView2 alpha-blending on Win11); delivered the clean alternative instead — Win11 **DWM rounded corners** + **theme-aware DWM window border** (`src-tauri/src/lib.rs` + `src/theme/useTheme.ts`, new `windows`/`raw-window-handle` deps). Smoke-verified via CDP; gates green.
 - Waves 36 + 37 shipped (code on master, proxy live); desktop installer signing + smoke + Phase-D pending Cole
 - Open follow-ups: 3 · Phase-D webhook RPC-error blocker (top), precise-cache-write-reserve, remove vestigial StreamChatOptions.maxTokens
 - Bookkeeping: wave-17-foundation status corrected (IN-PROGRESS→SHIPPED, shipped in 7addfa4)

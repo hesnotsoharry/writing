@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: screen-port-batch
 qualifying-criterion: schema
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -30,3 +32,8 @@ The CSS class is defined at `src/styles/app.css` line 228 (unused).
 ## Suggested resolution path
 
 Feature wave owning "Scene metadata" (status + other properties). Depends on a post-screen-port schema migration pass. Pairs naturally with scene-status-indicators throughout the app (Inspector, Story Bible, etc.).
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: `SceneStatus` schema (`binderStore.ts`) + `SceneStatusIndicator` per row, wired via `onSetSceneStatus` (prior wave).

@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: screen-port-batch
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -26,3 +28,8 @@ This is a multi-file, multi-step feature that cannot be cleared by a single sonn
 ## Suggested resolution path
 
 Future feature wave owning "Inspector interactivity" (entity-link picker + synopsis editing). Depends on the UI-primitive design and the App.tsx threading discipline. Likely a Tier-2 wave after Corkboard/Settings/Quick Capture.
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: `InspPicker` entity picker + inline synopsis edit + working add/link handlers that persist (prior wave).

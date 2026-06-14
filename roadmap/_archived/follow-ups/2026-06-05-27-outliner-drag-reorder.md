@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-05
+updated: 2026-06-13
 source: wave-27-story-planning-batch
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -36,3 +38,8 @@ but onDragEnd / DndContext are absent.
 Standalone wave or early phase: add DndContext + SortableContext to Outliner, wire
 onDragEnd to binderStore.moveScene, confirm with smoke (drag row, verify binder reorders).
 Low risk — all pieces exist; this is wiring only.
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: full dnd-kit wiring in `src/features/outliner/OutlinerDrag.tsx` (DndContext/SortableContext/onDragEnd → moveScene) (prior wave).

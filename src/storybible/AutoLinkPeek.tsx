@@ -17,7 +17,7 @@ export interface AutoLinkPeekProps {
   store: StoryBibleStore;
   anchorEl: HTMLElement;
   onOpenEntry: (id: string, kind: string) => void;
-  /** Called when the user clicks "Find mentions" — mock action, wire to Find & Replace later. */
+  /** Called when the user clicks "Find mentions" — opens Find & Replace pre-filled with the entity name. */
   onFindMentions?: () => void;
   onClose: () => void;
 }

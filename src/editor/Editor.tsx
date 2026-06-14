@@ -251,7 +251,7 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
   const [editorMenu, setEditorMenu] = useState<MenuDescriptor | null>(null);
   const [mockNotice, setMockNotice] = useState<string | null>(null);
   const fireNotice = (msg: string) => { setMockNotice(msg); setTimeout(() => setMockNotice(null), 2200); };
-  const handleFind = (name: string) => onFindMentions?.(name) ?? fireNotice(`Find mentions: ${name} — coming soon`);
+  const handleFind = (name: string) => { if (onFindMentions) { onFindMentions(name); } else { fireNotice(`Find mentions: ${name} — coming soon`); } };
   function handleEditorContextMenu(e: React.MouseEvent<HTMLDivElement>): void {
     const target = e.target as HTMLElement;
     const alEl = target.closest<HTMLElement>(".al-link");

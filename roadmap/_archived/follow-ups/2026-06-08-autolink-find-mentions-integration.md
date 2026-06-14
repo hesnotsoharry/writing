@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-08
+updated: 2026-06-13
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
 present-harm: K3 — the context-menu "Find mentions" item and the AutoLinkPeek "Find mentions" button are observable but inert (mock-toasts). User-facing dead affordances: the buttons exist and look interactive but don't perform the stated action until wired to real Find&Replace integration.
@@ -48,3 +50,8 @@ Wave post-28: dispatch a sonnet-implementer with the brief: "Wire the auto-link 
 ---
 
 *Qualified from wave-28 follow-up candidates. Multi-file threading, user-facing dead affordance, not clearable by single dispatch.*
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Fixed 2026-06-13 (this batch): `src/editor/Editor.tsx:254` `??` always fired the mock toast alongside the real action; replaced with an if/else guard. Find&Replace integration itself was already wired; verified live via CDP smoke.
