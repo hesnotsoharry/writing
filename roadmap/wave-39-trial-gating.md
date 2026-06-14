@@ -107,7 +107,16 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 — schema + constants | ✅ run-phase (panel) | ✅ | 928c460 | Internal — gates green (tsc 0, 15/15 tests); SQL contract-match verified independently |
+| 2 — worker trial path | ✅ run-phase (panel) | ✅ | 77cbce7 | Internal — gates green (tsc 0, 55/55 worker tests); panel FLAG (fail-open reserve on RPC error) fixed + regression-tested |
+| 3 — app trial wiring | ✅ run-phase (single) | ✅ | de13de4 | jsdom/unit verified (acceptance 3/3, trialWiring 3/3); runtime meter is the Phase-4 oracle — not smoked here (no live worker) |
+| 4 — CDP smoke | ⏸ READY — awaiting Cole setup | | | |
+
+> Full pre-smoke verification (2026-06-14): root app tsc 0 / lint 0 / **1404 tests**; marketing tsc 0 / **219 tests**. Phase-3 single-reviewer FLAGs all minor (token-freshness DRY via shared `isFresh`; trial-context error copy on a deep re-grant-fail edge) — accepted, none touch the core trial flow.
+
+> Phase 1 note: panel returned BLOCK on an orchestrator acceptance-test bug (a gratuitous `cap % allowance === 0` assertion — $25/day isn't an even multiple of $1.50, nor need it be). Corrected the test; constants are the Cole-locked values. Marketing sub-project deps installed (tsc gate needs `@cloudflare/workers-types`); package-lock own-version sync reverted (out of W39 scope).
 
 ## Follow-up candidates
 
