@@ -91,17 +91,3 @@ export async function streamByokChat(
   });
 }
 
-// ── TEMP Wave-40 P1 dev harness — removed in P3 ──────────────────────────────
-// Exposes `window.__byokSmoke()` in dev builds so the end-to-end slice can be
-// exercised from a CDP evaluate_script call without wiring real UI.
-// NOT wired into any production UI path.
-if (import.meta.env.DEV) {
-  (window as Window & { __byokSmoke?: () => void }).__byokSmoke = () => {
-    void streamByokChat(
-      `smoke-${Date.now()}`,
-      [{ role: "user", content: "Say hello in one word." }],
-      (ev) => console.warn("[byok-smoke]", ev),
-      { verb: "brainstorm" },
-    );
-  };
-}

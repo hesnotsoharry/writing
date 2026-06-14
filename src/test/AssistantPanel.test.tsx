@@ -13,7 +13,7 @@
  *  - ai.helpers: stubbed pure functions (aiConvoId, aiMsgId, aiEstimate).
  *  - ai.client / ai.context / prompts/brainstorm: mocked at the network boundary.
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +23,14 @@ vi.mock("../features/ai/ai.client", () => ({
   acquireSession: vi.fn(),
   streamChat: vi.fn(),
   CREDIT_UNIT_USD: 0.00001,
+}));
+
+vi.mock("../features/ai/byok.client", () => ({
+  streamByokChat: vi.fn().mockResolvedValue(undefined),
+  byokSetKey: vi.fn().mockResolvedValue(undefined),
+  byokHasKey: vi.fn().mockResolvedValue(false),
+  byokClearKey: vi.fn().mockResolvedValue(undefined),
+  byokStop: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../features/ai/ai.context", () => ({
@@ -112,8 +120,10 @@ vi.mock("../features/ai/ai.helpers", () => ({
 }));
 
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
+import { acquireSession, streamChat } from "../features/ai/ai.client";
 import type { AssistantPanelProps } from "../features/ai/AssistantPanel";
 import { AssistantPanel, InspectorTabs } from "../features/ai/AssistantPanel";
+import { streamByokChat } from "../features/ai/byok.client";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -320,5 +330,17 @@ describe("AssistantPanel — consented", () => {
   it("does not render AiMeter when byokMode is true", () => {
     render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
     expect(screen.queryByTestId("ai-meter")).toBeNull();
+  });
+
+  it("with byokMode=true, streamByokChat is called and acquireSession/streamChat are not", async () => {
+    render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "Write me a chapter" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("Brainstorm"));
+    });
+    await waitFor(() => expect(vi.mocked(streamByokChat)).toHaveBeenCalledOnce());
+    expect(vi.mocked(acquireSession)).not.toHaveBeenCalled();
+    expect(vi.mocked(streamChat)).not.toHaveBeenCalled();
   });
 });

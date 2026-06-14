@@ -150,7 +150,7 @@ function PanelReady(p: AssistantPanelProps) {
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
     prompt, setPrompt, verb, attachedSel, setAttachedSel, streamingId, setStreamingId,
     canCompose, ctxArgs, sceneId: p.sceneId, sceneName: p.sceneName,
-    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError,
+    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError, byokMode: p.byokMode,
   });
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,17 +257,18 @@ function useConvoPersistence(activeProjectId: string | null) {
 
 // ── useAiBalance ──────────────────────────────────────────────────────────────
 
-/** Fetches balance on mount + on each refresh() call; derives meter + plan + offline state. */
-function useAiBalance(consented: boolean) {
+/** Fetches balance on mount + on each refresh() call; derives meter + plan + offline state.
+ *  When byokMode is true: skips all managed-meter fetches; returns safe no-op values so
+ *  canCompose stays true (Decision 4: BYOK errors surface in thread, not the offline banner). */
+function useAiBalance(consented: boolean, byokMode: boolean) {
   const [usedPct, setUsedPct] = useState(0);
   const [plan, setPlan] = useState<"active" | "expired">("active");
   const [resetLabel, setResetLabel] = useState("soon");
   const [offline, setOffline] = useState(!navigator.onLine);
   const [balanceKey, setBalanceKey] = useState(0);
   const sessionRef = useRef<SessionResult | null>(null);
-
   useEffect(() => {
-    if (!consented) return;
+    if (!consented || byokMode) return; // BYOK: no managed-meter fetch
     let cancelled = false;
     const load = async () => {
       const key = getTweak("aiLicenseKey", "");
@@ -276,10 +277,7 @@ function useAiBalance(consented: boolean) {
         const token = await acquireTokenCached(key, sessionRef as MutableRefObject<SessionResult | null>);
         const data = await getBalance(token);
         if (cancelled) return;
-        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance));
-        setPlan(data.status);
-        setResetLabel(formatResetLabel(data.resetAt));
-        setOffline(false);
+        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance)); setPlan(data.status); setResetLabel(formatResetLabel(data.resetAt)); setOffline(false);
       } catch (err: unknown) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : "";
@@ -288,8 +286,7 @@ function useAiBalance(consented: boolean) {
     };
     void load();
     return () => { cancelled = true; };
-  }, [consented, balanceKey]); // acquireTokenCached, getBalance, computeUsedPct, formatResetLabel are stable module-level fns
-
+  }, [consented, balanceKey, byokMode]); // stable module-level fns omitted from deps
   useEffect(() => {
     const goOnline = () => { setOffline(false); };
     const goOffline = () => { setOffline(true); };
@@ -298,6 +295,8 @@ function useAiBalance(consented: boolean) {
     return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
   }, []);
   const refresh = useCallback(() => setBalanceKey((k) => k + 1), []);
+  // Decision 4: BYOK has no managed meter; offline is always false so canCompose stays true.
+  if (byokMode) return { usedPct: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} };
   return { usedPct, plan, resetLabel, offline, setOffline, refresh };
 }
 
@@ -329,7 +328,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
-  const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented); const byokMode = useByokMode();
+  const byokMode = useByokMode(); const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode);
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
