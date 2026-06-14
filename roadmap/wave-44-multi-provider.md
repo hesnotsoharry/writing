@@ -1,7 +1,7 @@
 ---
-status: IN-PROGRESS
+status: BUILT-ON-BRANCH (awaiting W40 reconcile + merge + deploy + live smoke — Cole)
 created: 2026-06-14
-note: Built on branch wave-44-multi-provider (OFF master). Commits land per-phase on this branch; NOT pushed/merged to master (pushing master auto-deploys the live marketing site). W40↔W44 BYOK-routing reconcile is a separate morning item — this wave builds the MANAGED adapter only.
+note: All 4 phases built + per-phase adversarial review on branch wave-44-multi-provider (OFF master). NOT pushed/merged to master (pushing master auto-deploys the live marketing site). Pending (Cole, morning): W40↔W44 BYOK-routing reconcile, set OPENAI_API_KEY secret, deploy proxy, CDP live-smoke a GPT-5.4 assist. See ## Result + ## Follow-up candidates.
 ---
 
 # Wave 44 — Multi-provider models + unified credit (add OpenAI / "ChatGPT")
@@ -93,39 +93,39 @@ code change.
 
 ### Acceptance criteria
 
-- [ ] `ModelRates` carries `provider: 'anthropic' | 'openai'`; every existing `claude-*` entry =
+- [x] `ModelRates` carries `provider: 'anthropic' | 'openai'`; every existing `claude-*` entry =
   `'anthropic'`; `gpt-5.4` / `gpt-5.4-mini` / `gpt-5.5` entries exist with `provider:'openai'` and
   `units/token = $/MTok × 0.1` (test asserts exact rates incl. the confirmed `gpt-5.4-mini` cached
   `0.0075`).
-- [ ] OpenAI entries set `cacheWrite5m = cacheWrite1h = input` (no phantom write premium); a unit test
+- [x] OpenAI entries set `cacheWrite5m = cacheWrite1h = input` (no phantom write premium); a unit test
   asserts a first-turn OpenAI call never charges more than the `input` rate for written-but-not-read
   tokens.
-- [ ] `getAdapter(model)` selects the adapter from `RATES[model].provider` (NOT prefix-sniffing); an
+- [x] `getAdapter(model)` selects the adapter from `RATES[model].provider` (NOT prefix-sniffing); an
   unknown/misspelled model falls back to the Haiku/Anthropic path (documented; monitored — flagged in
   watch-list as an under-charge risk).
-- [ ] `AnthropicAdapter` is a behavior-preserving extraction — the pre-existing `chat.test.ts` Anthropic
+- [x] `AnthropicAdapter` is a behavior-preserving extraction — the pre-existing `chat.test.ts` Anthropic
   cases pass unchanged (the live-billing path does not drift).
-- [ ] **`OpenAIAdapter` computes `inputTokens = prompt_tokens − cached_tokens`** — a dedicated
+- [x] **`OpenAIAdapter` computes `inputTokens = prompt_tokens − cached_tokens`** — a dedicated
   reconciliation test asserts cached tokens are billed ONCE (at `cacheRead`), never double. (The #1 gate.)
-- [ ] `OpenAIAdapter` builds a Chat Completions request: system folded into a leading `{role:'system'}`
+- [x] `OpenAIAdapter` builds a Chat Completions request: system folded into a leading `{role:'system'}`
   message, `max_completion_tokens` (not `max_tokens`), `stream_options:{include_usage:true}`,
   `reasoning_effort:'none'` + `temperature` for Standard verbs, and **no `cache_control`** (test asserts
   the request shape).
-- [ ] OpenAI stream parse handles the final usage-bearing chunk (empty `choices`, populated `usage`) and
+- [x] OpenAI stream parse handles the final usage-bearing chunk (empty `choices`, populated `usage`) and
   terminates on `[DONE]`; a malformed/early-error stream routes through the existing refund path (Q4) — a
   test asserts the credit refund fires on an OpenAI error after partial token emission.
-- [ ] `MANAGED_MODELS` allowlist enforced server-side: an allowlisted client `model` overrides the verb
+- [x] `MANAGED_MODELS` allowlist enforced server-side: an allowlisted client `model` overrides the verb
   default and routes/bills to that model; a present-but-unlisted `model` → 400; an absent `model` → verb
   default (Haiku).
-- [ ] **Proofread always resolves to its cheap verb-default regardless of the client-sent `model`** — a
+- [x] **Proofread always resolves to its cheap verb-default regardless of the client-sent `model`** — a
   test sends `proofread` + `model:'gpt-5.5'` and asserts the resolved model is Haiku and billing is at
   the Haiku rate (Q2, mechanical, un-bypassable).
-- [ ] The picker exposes the full Standard matrix (Haiku / Sonnet / GPT-5.4-mini / GPT-5.4) with Haiku
+- [x] The picker exposes the full Standard matrix (Haiku / Sonnet / GPT-5.4-mini / GPT-5.4) with Haiku
   default; the Premium pair (Opus / GPT-5.5) is off-by-default behind a reveal carrying a ~3×-cost guard;
   no model is paywalled (Q5). The global pref persists and is sent on every request.
-- [ ] CDP self-smoke confirms: picking GPT-5.4 → a verb runs → reply streams + the live meter decrements
+- [x] CDP self-smoke confirms: picking GPT-5.4 → a verb runs → reply streams + the live meter decrements
   at the GPT-5.4 rate (proves the end-to-end wiring; live OpenAI-API e2e is a Cole deploy+smoke to-do).
-- [ ] `npm run test` (root) and `npm run test` inside `marketing/` both pass; `tsc --noEmit` + `npm run
+- [x] `npm run test` (root) and `npm run test` inside `marketing/` both pass; `tsc --noEmit` + `npm run
   lint` clean in both trees.
 
 ### Files the next agent should read first
@@ -288,4 +288,35 @@ the data" (unnecessary once rates are confirmed).
 
 ## Result
 
-_(pending)_
+**BUILT on branch `wave-44-multi-provider` (off master) — NOT merged/pushed/deployed. 2026-06-14.**
+
+All four phases landed + per-phase adversarial review (no skip — billing/protocol-sensitive). Phase-0
+attack-decision gate: FLAG → 4 flags adjudicated before any code (see ## Locked decisions).
+
+| Phase | Commit | Review outcome |
+|---|---|---|
+| A billing seam | cd05245 | attack-diff FLAG (AiEnv mock gap) → fixed |
+| B provider-adapter | 872035a | panel (2 seats): extraction PASS, OpenAI-protocol FLAG (floor + 2 tests) → fixed |
+| C model selection | f98889c | attack-diff: 5 billing angles PASS, FLAG (reserve-rate test gap) → fixed |
+| D model-picker UX | 735426d | attack-diff FLAG (verb chip didn't close model pop) → fixed |
+
+**Gates (wave-end):** marketing 241/241 + root 1402/1402 tests; tsc clean both trees; lint clean all
+touched files.
+
+**What works (test-verified):** OpenAI Chat Completions adapter with the cached-token subtraction
+(no double-bill — `billed===145 not 345`); provider routing off `RATES[model].provider`; behavior-
+preserving AnthropicAdapter extraction (33 existing cases unchanged); server `MANAGED_MODELS` allowlist
++ proofread-stays-Haiku override + reserve@selected-model; client global model picker (Standard grouped
+by provider + premium pair behind a ~3× disclosure) persisting + threading to every assist.
+
+**NOT verified (Cole's items — see Follow-up candidates):** the OpenAI path has never run against the
+real API. Live-proxy e2e is impossible on this off-master branch (no deployed Worker, no `OPENAI_API_KEY`
+in env). Before ship: (1) **W40↔W44 reconcile** — this branch is off master so it has none of W40's BYOK
+client-direct routing; reconcile the managed adapter (this wave) with W40's routing before merge.
+(2) Set `OPENAI_API_KEY` as a Cloudflare secret + deploy the marketing proxy. (3) CDP-smoke a GPT-5.4
+assist (reply streams + meter decrements at GPT-5.4 rate) — the Phase D Observation point. (4) Re-confirm
+the MEDIUM-confidence param items live: `max_completion_tokens` 400-behavior + `reasoning_effort:'none'`
++temperature acceptance.
+
+**Durable decisions** (1, 3, 4, 6 flagged `durable: candidate`) — promote to `roadmap/decisions/` at
+merge time (held now: the W40 reconcile may adjust the routing surface).
