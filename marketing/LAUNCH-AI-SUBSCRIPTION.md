@@ -3,6 +3,13 @@
 > Audience: AI agent + Cole executing the flip together.
 > This is a **real-money launch**. Read every section before touching a dashboard.
 
+> **STATUS: EXECUTED 2026-06-14.** The flip was run; the AI subscription is live. Live IDs in
+> use: subscription variant `1782075` (checkout UUID `b91dbbb2-aa07-40d1-91f7-70c1bec061d5`),
+> top-up variant `1789940` (checkout UUID `3f2a09d4-050d-4daf-9845-7b38f8976892`). This doc is
+> retained as the canonical procedure for the NEXT flip (e.g. Device Sync subscription) and as the
+> rollback reference. Sections below were corrected post-launch to match what actually shipped
+> (two webhooks, full env-var set, license-key-linked top-ups).
+
 ---
 
 ## Pre-flight gate (HARD — human sign-off required)
@@ -122,19 +129,43 @@ pay, but no key is issued.
 
 Verify: the test-mode product has this enabled; the live product should match.
 
-### Step 3 — Create the LIVE webhook in LS
+### Step 3 — Create the LIVE webhook(s) in LS
+
+**There are TWO webhooks, because there are two separate purchase products** — the one-time app
+purchase and the AI subscription. They route to two different Cloudflare Pages Functions. Webhooks
+do NOT carry over from test→live, so each must be (re)created in live mode.
 
 **Dashboard location:** LS live mode → **Settings** → **Webhooks** → **Add webhook**
 
+> Note: **Webhook 1 (app purchase) likely already exists** from the original app launch (it went live
+> 2026-06-10). If so, only Webhook 2 is new for the AI-subscription flip. Confirm Webhook 1 is present
+> in live mode before assuming it's there.
+
+**Webhook 1 — app one-time purchase** (handler: `functions/api/webhooks/lemon-squeezy.ts`)
+- **URL:** `https://writersnook.app/api/webhooks/lemon-squeezy`
+- **Events:** `order_created`, `order_refunded`, `license_key_created`
+- Records the sale in the `purchases` table; emails the LS-issued app license key on
+  `license_key_created`; marks refunded on `order_refunded`.
+
+**Webhook 2 — AI subscription + credit top-ups** (handler: `functions/api/webhooks/lemon-squeezy-subscription.ts`)
 - **URL:** `https://writersnook.app/api/webhooks/lemon-squeezy-subscription`
-- **Events to subscribe:**
-  - `subscription_created`
-  - `subscription_updated`
-  - `subscription_expired`
-  - `subscription_payment_success`
-  - `order_created` (required for top-up packs)
-- **Signing secret:** use the same value stored as `LEMON_SQUEEZY_SIGNING_SECRET` on the
-  Cloudflare Pages project. Do not generate a new one unless you simultaneously update that secret.
+- **Events:** `subscription_created`, `subscription_updated`, `subscription_expired`,
+  `subscription_payment_success`, `order_created` (the last is required for top-up packs).
+- `subscription_created` creates the `subscriptions` row, fetches the AI key via the LS API
+  (`GET /v1/license-keys?filter[order_id]=…`, using `LS_API_KEY`) and emails it;
+  `subscription_payment_success` resets monthly credits; `order_created` (matching
+  `LS_TOPUP_VARIANT_ID` only) credits top-ups.
+
+> **`order_created` is subscribed on BOTH webhooks** — LS fires both endpoints for every order. This
+> is intentional: each handler ignores orders whose variant isn't "its own" (the subscription handler
+> no-ops a non-top-up variant; the app handler records any order to `purchases`). Harmless cross-fire
+> by design, tested.
+
+- **Signing secret (shared):** BOTH webhooks use the SAME `LEMON_SQUEEZY_SIGNING_SECRET` value on the
+  Cloudflare Pages project. Type the same value into each webhook's signing-secret field (or generate
+  one fresh and update the Cloudflare secret to match — but it MUST be identical in all three places,
+  or signature verification fails and no keys issue). The handler code reads one env var for both; it
+  does not support per-webhook secrets without a code change.
 
 ### Step 4 — Set live secrets on Cloudflare Pages
 
@@ -146,17 +177,37 @@ Verify: the test-mode product has this enabled; the live product should match.
 > site, and the correct target for `wrangler pages secret put` are all on project **`writing`**.
 > Do not be misled by the wrangler.toml name or any older doc that references `writers-nook-marketing`.
 
-Set (or update) the following secrets to their **live** values:
+Set (or update) the following. **Set in the `Production` scope** (what `master` deploys to — NOT
+Preview). Env-var changes apply only to deployments created AFTER they're set, so set these BEFORE
+the go-live push.
 
-| Variable | Value |
-|---|---|
-| `LS_SUB_VARIANT_ID` | Live subscription variant ID from Step 1 |
-| `LS_TOPUP_VARIANT_ID` | Live top-up variant ID from Step 1 |
-| `LS_API_KEY` | Your LS API key (same key works for both modes) |
+**MUST set / update for the flip:**
+
+| Variable | Value | Breaks if absent |
+|---|---|---|
+| `LS_SUB_VARIANT_ID` | Live subscription variant ID (Step 1) — e.g. `1782075` | Subscription webhook 500s (fail-loud) |
+| `LS_TOPUP_VARIANT_ID` | Live top-up variant ID (Step 1) — e.g. `1789940` | Top-up routing 500s (fail-loud) |
+| `LS_API_KEY` | LS API key (Settings → API; same key both modes) | Subscription key-fetch fails → no key issued |
+| `LEMON_SQUEEZY_SIGNING_SECRET` | Shared secret matching BOTH webhooks (Step 3) | All webhooks 401 → nothing processes |
+| `TRIAL_AI_ENABLED` | `true` to enable the free trial at launch | Trial endpoint returns 403 `trial_disabled` |
+| `IP_HASH_SECRET` | **Strong random salt** (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) | **Trial endpoint fail-closes with 500 — NOBODY can start a free trial.** Easy to miss: it's only exercised by the trial path, which a subscription-only rehearsal never hits. |
+| `OPENAI_API_KEY` | OpenAI key — REQUIRED (the model picker exposes ChatGPT models in the managed path) | ChatGPT-model chats fail with an error event |
+| `CONTACT_TO` | Operator email (e.g. `colestacey@icloud.com`) | Contact form defaults to `support@…`; **top-up orphan alerts can't email** — falls to log-only |
+
+**Already set (proven by working flows — do NOT need touching at flip time):**
+`ANTHROPIC_API_KEY`, `PROXY_SESSION_SECRET` (AI chat works ⇒ set), `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `RESEND_FROM` (key-emails work ⇒ set).
 
 > Fail-loud guard: the webhook handler 500s if `LS_SUB_VARIANT_ID` or `LS_TOPUP_VARIANT_ID` is
 > blank or missing. A 500 causes LS to retry — no silent data loss, but customers see errors until
 > the config is corrected.
+
+> **Desktop build env (separate from Cloudflare — set in `.env.local` at the repo root BEFORE
+> `.\publish`):** `VITE_LS_AI_SUB_CHECKOUT_VARIANT` and `VITE_LS_AI_TOPUP_CHECKOUT_VARIANT` =
+> the live **checkout UUID slugs** (b91dbbb2… / 3f2a09d4…), NOT the numeric IDs. Without them the
+> in-app "Renew" and "Top up" buttons fall back to the pricing page. `VITE_AI_PROXY_URL` is left
+> unset (defaults to `https://writersnook.app`). `.env.local` is gitignored — these are public
+> slugs, not secrets.
 
 Alternative (CLI): `wrangler pages secret put LS_SUB_VARIANT_ID --project-name writing`
 (requires `CLOUDFLARE_API_TOKEN` env var; Cole runs this interactively — `npm run deploy` fails
@@ -199,15 +250,29 @@ this push or revert after confirming the feature is live.
 
 ## Post-flip verification
 
-After the push, place a **single live test purchase** (use a real card, or ask the writing
-partner to run one):
+After the push, place a **single live test SUBSCRIPTION purchase** (real card, or ask the writing
+partner). Confirm on the **Webhook 2** (`…/lemon-squeezy-subscription`) live log:
 
-- [ ] `order_created` event appears in the LS live webhook log with a 200 response.
-- [ ] `subscription_created` event appears with a 200 response.
-- [ ] `license_key_created` event appears with a 200 response.
+- [ ] `subscription_created` appears with a **200**. (This single event does the work: row upsert +
+      API key-fetch + key email.)
 - [ ] Supabase `subscriptions` table has a row for the test email with a non-null `license_key`.
 - [ ] Resend dashboard shows the key email delivered to the purchaser's inbox.
-- [ ] The key activates successfully in the desktop app (Settings → AI → Activate License).
+- [ ] The key activates in the desktop app (Settings → AI Writing Assistant → activate).
+
+> **Do NOT expect `license_key_created` on the subscription webhook.** That event is handled ONLY by
+> Webhook 1 (the app-purchase handler) and is absent from the subscription handler's `HANDLED_EVENTS`.
+> The subscription flow gets its key via the LS API on `subscription_created`, not via that event.
+> (The old runbook listed a `license_key_created` 200 check here — that was wrong; it only applies to
+> an APP-purchase test, which fires on Webhook 1.)
+
+**Optional — verify a top-up** (only after a subscription exists for the test account): buy a top-up
+pack from inside the app (Settings/exhausted-allowance → "Top up"). Confirm on the Webhook 2 log:
+
+- [ ] `order_created` appears with a **200**, and the test account's `credits_balance` increases by
+      the top-up pack amount.
+- [ ] The checkout URL carried `?checkout[custom][license_key]=…` (the app attaches the AI key so the
+      top-up links by license key, not by typed email). If a top-up ever can't be linked, the handler
+      returns 500 (LS retries) and emails `CONTACT_TO` an orphan alert for manual crediting.
 
 > Gotcha (2026-06-12): verify ONE purchase generates a key before trusting prod. If the key
 > fetch returns empty, revisit Step 2 (license key toggle on the live product).
