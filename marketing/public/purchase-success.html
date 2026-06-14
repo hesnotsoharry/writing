@@ -58,8 +58,8 @@
 
 <section class="section-pad-sm" style="padding-top:30px">
   <div class="wrap" style="max-width:760px">
-    <!-- download -->
-    <div class="acct-card io" style="padding:30px">
+    <!-- download (app purchase only; hidden for subscription orders by purchase-success.js) -->
+    <div id="app-dl-card" class="acct-card io" style="padding:30px">
       <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download Writers Nook</div>
       <div class="platform-row">
         <!-- macOS not yet available — shown as coming-soon -->
@@ -69,8 +69,14 @@
       <div class="dl-meta"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>These links are authenticated to your purchase — no extra sign-in needed. Version 1.0 · also valid from your account.</div>
     </div>
 
-    <!-- license key / receipt -->
-    <div class="acct-card io" style="padding:30px;margin-top:22px">
+    <!-- subscription activated note (shown for subscription orders only) -->
+    <div id="sub-note" style="display:none;margin-top:22px" class="acct-card io">
+      <div class="acct-eyebrow" style="padding:24px 30px 0"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Subscription active</div>
+      <p style="padding:12px 30px 24px;margin:0">Your AI Writing Assistant subscription is live. Open Writers Nook and go to <strong>Settings → AI Writing Assistant</strong> to get started. Your confirmation email has your receipt and subscription details.</p>
+    </div>
+
+    <!-- license key / receipt (app purchase only; hidden for subscription orders by purchase-success.js) -->
+    <div id="app-license-card" class="acct-card io" style="padding:30px;margin-top:22px">
       <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg>Your license key</div>
       <p style="margin:10px 0 14px">Your license key is in your confirmation email and on your <a href="account.html">account page</a>.</p>
       <a id="receipt-link" class="m-btn m-btn-ghost" href="#" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px">
@@ -81,7 +87,7 @@
 
     <!-- next steps + order -->
     <div class="acct-grid io" style="margin-top:22px">
-      <div class="acct-card">
+      <div id="app-next-steps" class="acct-card">
         <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Next steps</div>
         <ol class="steps-ol">
           <li><div><div class="st-t">Download &amp; install</div><div class="st-d">Open the file and drag Writers Nook in.</div></div></li>

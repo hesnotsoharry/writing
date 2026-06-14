@@ -88,23 +88,47 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
     },
   });
 
+  // Generic overlay trigger: any element with data-ls-checkout="<configKey>"
+  // opens the LS overlay for the variant stored under that key in window.WN_LS.
+  // The element keeps its href as a full-page fallback — the click handler is
+  // only attached when lemon.js has loaded, so if the script is unavailable the
+  // element falls back to its natural navigation.
+  var lsEls = document.querySelectorAll("[data-ls-checkout]");
+  for (var i = 0; i < lsEls.length; i++) {
+    (function (el) {
+      var configKey = el.getAttribute("data-ls-checkout");
+      var variant = cfg[configKey];
+      if (!variant) {
+        console.warn("[checkout.js] data-ls-checkout=\"" + configKey + "\" not found in WN_LS config.");
+        return;
+      }
+      el.addEventListener("click", function (e) {
+        e.preventDefault();
+        window.LemonSqueezy.Url.Open(
+          buildCheckoutUrl({ store: cfg.store, variant: variant, embed: true })
+        );
+      });
+    })(lsEls[i]);
+  }
+
   // Pay button → open LS overlay with email + coupon pre-filled.
+  // checkout.html specific; guarded so pages without #payBtn skip this block.
   var payBtn = document.getElementById("payBtn");
-  if (!payBtn) return;
+  if (payBtn) {
+    payBtn.addEventListener("click", function () {
+      var email = (document.getElementById("email") || {}).value || "";
+      var couponInput = document.getElementById("coupon");
+      var discountCode = couponInput ? (couponInput.value || "").trim().toUpperCase() : "";
 
-  payBtn.addEventListener("click", function () {
-    var email = (document.getElementById("email") || {}).value || "";
-    var couponInput = document.getElementById("coupon");
-    var discountCode = couponInput ? (couponInput.value || "").trim().toUpperCase() : "";
+      var url = buildCheckoutUrl({
+        store: cfg.store,
+        variant: cfg.variantApp,
+        email: email || undefined,
+        discountCode: discountCode || undefined,
+        embed: true,
+      });
 
-    var url = buildCheckoutUrl({
-      store: cfg.store,
-      variant: cfg.variantApp,
-      email: email || undefined,
-      discountCode: discountCode || undefined,
-      embed: true,
+      window.LemonSqueezy.Url.Open(url);
     });
-
-    window.LemonSqueezy.Url.Open(url);
-  });
+  }
 });

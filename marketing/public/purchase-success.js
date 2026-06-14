@@ -93,5 +93,23 @@ if (typeof document !== "undefined") {
     var v = renderSuccess(resolveOrder(order, window.location.search));
     applyViewToDom(v);
     wireDownloadButtons();
+
+    // Subscription orders: hide app-specific sections and show the sub note.
+    // v.product reflects the LS Checkout.Success first_order_item.product_name.
+    // The one-time app product is named "Writers Nook" in the LS dashboard;
+    // subscription products have distinct names (e.g. "AI Writing Assistant").
+    // When product is absent or the name contains "Writers Nook", treat as app.
+    var isAppPurchase = !v.hasOrder || !v.product || /writers[\s-]*nook/i.test(v.product);
+    if (!isAppPurchase) {
+      var hideEl = function (id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = "none";
+      };
+      hideEl("app-dl-card");
+      hideEl("app-license-card");
+      hideEl("app-next-steps");
+      var subNote = document.getElementById("sub-note");
+      if (subNote) subNote.style.display = "";
+    }
   });
 }

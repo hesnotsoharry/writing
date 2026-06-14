@@ -15,6 +15,10 @@ window.WN_LS = {
   // (live 1773908; test-mode was 1748920) is the API/webhook identifier — NOT
   // the checkout-URL identifier; don't swap them.
   variantApp: "5722d58c-f3e9-46cf-9d29-a84ecf338723", // one-time app purchase (founder $29)
+  // AI Writing Assistant monthly subscription ($14.99/mo).
+  // The CHECKOUT URL uses the variant's public UUID slug. The numeric variant ID
+  // (1782075) is the API/webhook identifier — NOT the checkout-URL identifier.
+  variantAiSub: "b91dbbb2-aa07-40d1-91f7-70c1bec061d5", // AI Writing Assistant subscription
   // Phase 2 — NOT wired yet: the $5/mo Device Sync subscription (relay-based,
   // end-to-end encrypted, no server-side storage of user content).
   // (numeric variant 1748967; its checkout UUID is TBD when it ships).

@@ -102,8 +102,12 @@
           <li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>A meter, not a bill — stops before it surprises you; resets monthly</li>
           <li><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Cancel any time — your writing never depends on it</li>
         </ul>
-        <!-- WAVE36 Phase D: replace with the LIVE Lemon Squeezy subscription checkout URL (test→live mints a new UUID) -->
-        <a class="m-btn m-btn-ghost m-btn-block" href="#ai-subscribe-url-set-at-launch">Subscribe — $14.99 / month</a>
+        <!-- Live Lemon Squeezy subscription overlay checkout. Variant 1782075 (UUID slug in href).
+             data-ls-checkout wires the overlay via checkout.js when lemon.js loads;
+             href falls back to full-page checkout if lemon.js is unavailable. -->
+        <a class="m-btn m-btn-ghost m-btn-block"
+           href="https://writersnookapp.lemonsqueezy.com/checkout/buy/b91dbbb2-aa07-40d1-91f7-70c1bec061d5"
+           data-ls-checkout="variantAiSub">Subscribe — $14.99 / month</a>
         <p style="text-align:center;font-size:13px;color:var(--ink-3);margin:14px 0 0">The app ($29) and the assistant are separate — you never need the assistant to write a single word.</p>
       </div>
     </div>
@@ -214,6 +218,9 @@
 .faq p { margin: 0 0 18px; color: var(--ink-2); font-size: 16px; line-height: 1.6; max-width: 640px; }
 @media (max-width: 560px) { .cmp-row { grid-template-columns: 1fr 64px 84px; padding: 14px; font-size: 14px; } }
 </style>
+<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+<script src="ls-config.js"></script>
+<script type="module" src="checkout.js"></script>
 <script src="site.js"></script>
 </body>
 </html>
