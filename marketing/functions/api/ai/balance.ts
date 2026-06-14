@@ -20,6 +20,7 @@ import { AiEnv, makeServiceClient } from "../../_lib/supabase";
 interface SubscriptionRow {
   status: string;
   credits_balance: number;
+  credits_monthly: number;
   reset_at: string | null;
 }
 
@@ -58,7 +59,7 @@ export const onRequestGet: PagesFunction<AiEnv> = async (context) => {
   const db = makeServiceClient(context.env);
   const { data, error } = await db
     .from("subscriptions")
-    .select("status, credits_balance, reset_at")
+    .select("status, credits_balance, credits_monthly, reset_at")
     .eq("license_key", licenseKey)
     .single();
   // Real transport error (any error except PGRST116 "no rows") → 500.
@@ -68,13 +69,38 @@ export const onRequestGet: PagesFunction<AiEnv> = async (context) => {
   if (!data) return new Response("Unauthorized", { status: 401, headers: cors });
   const sub = data as unknown as SubscriptionRow;
 
-  return new Response(
-    JSON.stringify({
+  let responseBody: {
+    creditsBalance: number;
+    monthlyAllowance: number;
+    resetAt: string;
+    status: "active" | "trial" | "expired";
+  };
+  if (sub.status === "trial") {
+    // Trial rows: meter denominator is the trial allowance stored on the row
+    // (credits_monthly == TRIAL_ALLOWANCE), not the subscriber MONTHLY_ALLOWANCE.
+    responseBody = {
+      creditsBalance: sub.credits_balance,
+      monthlyAllowance: sub.credits_monthly,
+      resetAt: sub.reset_at ?? "",
+      status: "trial",
+    };
+  } else if (sub.status === "active") {
+    responseBody = {
       creditsBalance: sub.credits_balance,
       monthlyAllowance: MONTHLY_ALLOWANCE,
       resetAt: sub.reset_at ?? "",
-      status: sub.status === "active" ? "active" : "expired",
-    }),
-    { status: 200, headers: { "Content-Type": "application/json", ...cors } },
-  );
+      status: "active",
+    };
+  } else {
+    responseBody = {
+      creditsBalance: sub.credits_balance,
+      monthlyAllowance: MONTHLY_ALLOWANCE,
+      resetAt: sub.reset_at ?? "",
+      status: "expired",
+    };
+  }
+  return new Response(JSON.stringify(responseBody), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...cors },
+  });
 };

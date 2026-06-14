@@ -14,7 +14,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildToken } from "../../_lib/ai-token";
-import { MONTHLY_ALLOWANCE } from "../../_lib/credits";
+import { MONTHLY_ALLOWANCE, TRIAL_ALLOWANCE } from "../../_lib/credits";
 import { onRequestGet, onRequestOptions } from "./balance";
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
@@ -22,6 +22,7 @@ import { onRequestGet, onRequestOptions } from "./balance";
 interface SubRow {
   status: string;
   credits_balance: number;
+  credits_monthly?: number;
   reset_at: string | null;
 }
 
@@ -162,6 +163,52 @@ describe("GET /api/ai/balance contract", () => {
     const ctx = fakeContext(`Bearer ${token}`);
     const res = await onRequestGet(ctx);
     expect(res.status).toBe(500);
+  });
+});
+
+// ── Trial-branch (Wave 39 Phase 2) ────────────────────────────────────────────
+
+describe("GET /api/ai/balance — trial subscription branch", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 600_000, reset_at: "2026-07-01T00:00:00Z" };
+    subFound = true;
+    subError = false;
+    subPgrst116 = false;
+  });
+
+  it("status='trial' row returns {status:'trial', monthlyAllowance: credits_monthly} NOT MONTHLY_ALLOWANCE", async () => {
+    subRow = {
+      status: "trial",
+      credits_balance: 80_000,
+      credits_monthly: TRIAL_ALLOWANCE,
+      reset_at: null,
+    };
+    const token = await makeValidToken();
+    const ctx = fakeContext(`Bearer ${token}`);
+    const res = await onRequestGet(ctx);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body["status"]).toBe("trial");
+    expect(body["monthlyAllowance"]).toBe(TRIAL_ALLOWANCE);
+    expect(body["monthlyAllowance"]).not.toBe(MONTHLY_ALLOWANCE);
+    expect(body["creditsBalance"]).toBe(80_000);
+  });
+
+  it("trial row with a custom credits_monthly value uses that value as the meter denominator", async () => {
+    const customMonthly = 75_000;
+    subRow = {
+      status: "trial",
+      credits_balance: 50_000,
+      credits_monthly: customMonthly,
+      reset_at: "2026-07-01T00:00:00Z",
+    };
+    const token = await makeValidToken();
+    const ctx = fakeContext(`Bearer ${token}`);
+    const res = await onRequestGet(ctx);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body["monthlyAllowance"]).toBe(customMonthly);
+    expect(body["resetAt"]).toBe("2026-07-01T00:00:00Z");
   });
 });
 

@@ -18,6 +18,10 @@ export interface Env {
 export interface AiEnv extends Env {
   ANTHROPIC_API_KEY: string;
   PROXY_SESSION_SECRET: string;
+  /** Kill-switch for the trial AI path. Set to 'true' to enable, any other value disables. */
+  TRIAL_AI_ENABLED?: string;
+  /** HMAC secret for hashing CF-Connecting-IP before storing in trial_ip_grants. */
+  IP_HASH_SECRET?: string;
 }
 
 /**

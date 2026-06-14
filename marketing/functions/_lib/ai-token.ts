@@ -65,6 +65,14 @@ export async function buildToken(
 }
 
 /**
+ * Hash a client IP address with HMAC-SHA256 for privacy-preserving per-IP tracking.
+ * Reuses the private hmacHex to avoid duplicating Web Crypto boilerplate.
+ */
+export async function hashIp(ip: string, secret: string): Promise<string> {
+  return hmacHex(ip, secret);
+}
+
+/**
  * Verify a session token. Returns the licenseKey on success, null on failure
  * (invalid format, bad signature, or expired).
  */

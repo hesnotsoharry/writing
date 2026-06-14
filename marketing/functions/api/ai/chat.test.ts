@@ -36,6 +36,12 @@ let subRow: SubRow = { status: "active", credits_balance: 100000, reset_at: null
 let reserveSucceeds = true;
 let ratePassed = true;
 let rpcCalls: RpcCall[] = [];
+// Trial-branch state: controls what reserve_trial_credits returns.
+// reason=null → ok; reason='balance' → per-trial exhausted; reason='budget' → global cap hit.
+let trialReserveReason: string | null = null;
+let trialReserveNewBalance: number | null = 99000;
+// When true, reserve_trial_credits simulates a Supabase RPC failure (data:null + error).
+let trialReserveErrors = false;
 
 function makeMockClient() {
   return {
@@ -61,7 +67,16 @@ function makeMockClient() {
       if (fn === "check_rate_limit") {
         return Promise.resolve({ data: ratePassed, error: null });
       }
-      // refund_credits and others succeed by default
+      if (fn === "reserve_trial_credits") {
+        if (trialReserveErrors) {
+          return Promise.resolve({ data: null, error: { message: "rpc failure" } });
+        }
+        return Promise.resolve({
+          data: [{ reason: trialReserveReason, new_balance: trialReserveNewBalance }],
+          error: null,
+        });
+      }
+      // refund_credits, refund_trial_credits, and others succeed by default
       return Promise.resolve({ data: subRow.credits_balance, error: null });
     },
   };
@@ -665,6 +680,93 @@ describe("prompt-cache request shape", () => {
     // system must remain a plain string — no array, no cache_control
     expect(typeof sentBody["system"]).toBe("string");
     expect(sentBody["system"]).toBe(smallSystem);
+  });
+});
+
+// ── Trial-branch routing (Wave 39 Phase 2) ────────────────────────────────────
+
+describe("trial-branch routing in POST /api/ai/chat", () => {
+  beforeEach(() => {
+    subRow = { status: "trial", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+    trialReserveReason = null;
+    trialReserveNewBalance = 99000;
+    trialReserveErrors = false;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("status='trial' subscription is admitted (not 403) and streams successfully", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello from trial" }] },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+    const events = await collectSseEvents(res, getWaitUntil());
+    const doneEvent = events.find((e) => (e as { type: string }).type === "done");
+    expect(doneEvent).toBeDefined();
+    // reserve_trial_credits was called, not reserve_credits
+    expect(rpcCalls.find((c) => c.fn === "reserve_trial_credits")).toBeDefined();
+    expect(rpcCalls.find((c) => c.fn === "reserve_credits")).toBeUndefined();
+  });
+
+  it("trial sub with balance exhausted (reason='balance') → 429 {creditsRemaining, resetAt} (fires existing ExhaustedAllowanceGuard)", async () => {
+    subRow = { status: "trial", credits_balance: 0, reset_at: "2026-07-01T00:00:00Z" };
+    trialReserveReason = "balance";
+    trialReserveNewBalance = null;
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { creditsRemaining: number; resetAt: string };
+    expect(body.creditsRemaining).toBe(0);
+    expect(body.resetAt).toBe("2026-07-01T00:00:00Z");
+    // Must NOT have the trial_budget_exhausted shape
+    expect(body).not.toHaveProperty("error");
+  });
+
+  it("trial sub hitting global daily budget (reason='budget') → 429 {error:'trial_budget_exhausted'} (distinct shape)", async () => {
+    trialReserveReason = "budget";
+    trialReserveNewBalance = null;
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { error: string; resetAt: string };
+    expect(body.error).toBe("trial_budget_exhausted");
+    // Must NOT have creditsRemaining shape
+    expect(body).not.toHaveProperty("creditsRemaining");
+  });
+
+  it("trial reserve RPC error (data:null) fails CLOSED → 429, never an unmetered stream", async () => {
+    // Regression (wave-39 panel FLAG): a Supabase RPC failure must NOT be read as a
+    // successful reserve. Before the fix, data:null → row undefined → ok:true → unmetered stream.
+    trialReserveErrors = true;
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    // Denied — not a 200 event-stream.
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Content-Type") ?? "").not.toContain("text/event-stream");
+    // The reserve was attempted (gate ran), but no stream proceeded.
+    expect(rpcCalls.find((c) => c.fn === "reserve_trial_credits")).toBeDefined();
   });
 });
 
