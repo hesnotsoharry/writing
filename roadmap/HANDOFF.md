@@ -13,7 +13,7 @@ updated: 2026-06-14
 ## Morning to-do (ordered · owner)
 1. **Cole — W40 live-key stream check:** paste a real Anthropic key in the BYOK Settings row → send → confirm tokens stream (only a valid key proves this; all else verified). → then **merge-master merges W40** (local; ships via installer, NO deploy).
 2. **Cole — W39 B/C decision:** recommended = fix **[B]** budget-429 UX/retry-loop + **[C]** stale-trial-token metering regression in the W39 session (each ~1 focused change, diagnosed in the wave file). [A] already fixed inline; [D] accepted. Or ship as-documented.
-3. **Cole — apply Supabase migrations `0005 → 0006`** for W39 (author-only; 0006 additive + has rollback).
+3. ~~Apply Supabase migrations `0005 → 0006`~~ — **DONE 2026-06-14.** Prod Supabase now has `0005_topup_credits_dedup` (topup idempotency + `credit_events_topup_request_uniq` index) **and** `0006_trial_ai` (status CHECK incl. `'trial'`, `trial_budget`/`trial_ip_grants` tables, `grant_trial`/`reserve_trial_credits`/`refund_trial_credits` RPCs). All 5 objects verified non-null. ⚠️ Analytics: `status='trial'` rows inflate any UNFILTERED subscriptions count — filter on status.
 4. **Merge-master — W39 Phase-4 CDP smoke** against a local worker, post-migration (procedure in the wave-39 file).
 5. ~~Merge overnight branches~~ — **W46/W47/W42 DONE** (merged to local master `65b8e7e`, gates green). Remaining: W44 (after W40 reconcile), W40, W39 — Track 2 order below.
 6. **Cole — W43 copy-OK** (features AI card + Mac-waitlist stub) before the first push.
