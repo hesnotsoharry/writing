@@ -16,6 +16,24 @@ import { CREDIT_UNIT_USD } from "./ai-token";
 export const MONTHLY_ALLOWANCE = 1_000_000;
 
 /**
+ * Per-trial credit allowance. 150,000 units = $1.50 API value at CREDIT_UNIT_USD=$0.00001.
+ * Inserted as both credits_balance and credits_monthly on the synthetic subscriptions row.
+ */
+export const TRIAL_ALLOWANCE = 150_000;
+
+/**
+ * Hard global ceiling on total trial AI spend per UTC day (Wave 39 Decision 2 — Cole-locked).
+ * 2,500,000 units = $25.00/day. Enforced atomically by reserve_trial_credits in trial_budget.
+ */
+export const GLOBAL_DAILY_TRIAL_SPEND_CAP = 2_500_000;
+
+/**
+ * Maximum trial grants issued per source IP (HMAC-hashed) per UTC day.
+ * Enforced atomically by grant_trial against trial_ip_grants.
+ */
+export const PER_IP_DAILY_GRANT_CAP = 3;
+
+/**
  * Top-up pack grant in credit units.
  * One pack ≈ $6 API value (600,000 units at 1 unit = $0.00001).
  */
