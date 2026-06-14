@@ -68,6 +68,7 @@ function fakeContext(authHeader: string | null, origin?: string) {
       SUPABASE_URL: "https://placeholder.supabase.co",
       SUPABASE_SERVICE_ROLE_KEY: "placeholder-srk",
       SUPABASE_ANON_KEY: "placeholder-anon",
+      OPENAI_API_KEY: "placeholder-openai",
       PROXY_SESSION_SECRET: TEST_SECRET,
     },
     request: new Request("https://writersnook.app/api/ai/balance", {

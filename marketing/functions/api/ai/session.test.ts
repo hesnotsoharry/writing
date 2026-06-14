@@ -51,6 +51,7 @@ function fakeContext(licenseKey: string, origin?: string) {
       SUPABASE_ANON_KEY: "placeholder-anon",
       LEMON_SQUEEZY_SIGNING_SECRET: "placeholder-ls",
       ANTHROPIC_API_KEY: "placeholder-anthropic",
+      OPENAI_API_KEY: "placeholder-openai",
       PROXY_SESSION_SECRET: TEST_SECRET,
     },
     request: new Request("https://writersnook.app/api/ai/session", {

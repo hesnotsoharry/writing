@@ -12,11 +12,12 @@ export interface Env {
 
 /**
  * Extended environment for AI proxy endpoints (api/ai/).
- * ANTHROPIC_API_KEY and PROXY_SESSION_SECRET are set as Cloudflare secrets
+ * ANTHROPIC_API_KEY, OPENAI_API_KEY, and PROXY_SESSION_SECRET are set as Cloudflare secrets
  * via `wrangler secret put` or the Pages dashboard — never committed to source.
  */
 export interface AiEnv extends Env {
   ANTHROPIC_API_KEY: string;
+  OPENAI_API_KEY: string;
   PROXY_SESSION_SECRET: string;
 }
 
