@@ -122,7 +122,7 @@ type SeedSel = Pick<ProseSelection, "text" | "words">;
 /** Owns panelKey + initial seed state; also listens for AI_ASK_FROM_EDITOR window events. */
 export function useAiPanelSeed(setInspTab: Dispatch<SetStateAction<"scene" | "assistant">>) {
   const [panelKey, setPanelKey] = useState(0);
-  const [initialVerb, setInitialVerb] = useState<VerbKey>("brainstorm");
+  const [initialVerb, setInitialVerb] = useState<VerbKey>("ask");
   const [initialSel, setInitialSel] = useState<SeedSel | null>(null);
   const seedAsk = useCallback((verb: VerbKey, sel: SeedSel) => {
     setInitialVerb(verb);
@@ -134,7 +134,7 @@ export function useAiPanelSeed(setInspTab: Dispatch<SetStateAction<"scene" | "as
     const h = (e: Event) => {
       const ev = e as CustomEvent<{ verb: VerbKey; sel: SeedSel }>;
       if (!ev.detail?.sel) return;
-      seedAsk(ev.detail.verb ?? "brainstorm", ev.detail.sel);
+      seedAsk(ev.detail.verb ?? "ask", ev.detail.sel);
     };
     window.addEventListener(AI_ASK_FROM_EDITOR, h);
     return () => window.removeEventListener(AI_ASK_FROM_EDITOR, h);

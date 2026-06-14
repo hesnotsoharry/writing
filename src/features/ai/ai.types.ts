@@ -1,6 +1,6 @@
 import type { IconName } from "../../components/Icon";
 
-export type VerbKey = "brainstorm" | "critique" | "betaread" | "proofread";
+export type VerbKey = "ask" | "brainstorm" | "critique" | "betaread" | "proofread";
 
 export interface VerbDef {
   label: string;
@@ -14,6 +14,16 @@ export interface VerbDef {
 export const AI_VERB_ORDER: readonly VerbKey[] = ["brainstorm", "critique", "betaread", "proofread"];
 
 export const AI_VERBS: Record<VerbKey, VerbDef> = {
+  ask: {
+    label: "Ask", icon: "feather", action: "Ask",
+    blurb: "Ask anything — grounded in your manuscript",
+    placeholder: "Ask anything about your story…",
+    starters: [
+      "Why might this scene feel slow?",
+      "What's a stronger word than 'walked' here?",
+      "How do other writers handle a midpoint reversal?",
+    ],
+  },
   brainstorm: {
     label: "Brainstorm", icon: "zap", action: "Brainstorm",
     blurb: "Think out loud with a partner who knows the book",

@@ -10,7 +10,7 @@
  * Anthropic API — research sidecar §8).
  */
 
-export type VerbKey = 'brainstorm' | 'critique' | 'betaread' | 'proofread';
+export type VerbKey = 'ask' | 'brainstorm' | 'critique' | 'betaread' | 'proofread';
 
 /**
  * Standard verb config: temperature-driven, extended-thinking excluded.
@@ -64,6 +64,7 @@ export interface FallbackVerbConfig {
  * Wave 37: all verbs on claude-haiku-4-5-20251001 — model-per-verb upgrade is a future wave.
  */
 export const VERB_CONFIG: Record<VerbKey, VerbConfig> = {
+  ask:        { model: 'claude-haiku-4-5-20251001', temperature: 0.7, maxTokens: 2048 },
   brainstorm: { model: 'claude-haiku-4-5-20251001', temperature: 1.0, maxTokens: 2048 },
   critique:   { model: 'claude-haiku-4-5-20251001', temperature: 1.0, maxTokens: 2048 },
   betaread:   { model: 'claude-haiku-4-5-20251001', temperature: 0.7, maxTokens: 2048 },

@@ -70,6 +70,7 @@ interface PanelThreadProps {
   onNew: () => void;
   onDelete: (id: string) => void;
   onStarter: (s: string) => void;
+  onFocusInput?: () => void;
   streamingId: string | null;
   onCopy: (m: AiMessageRecord) => void;
   onSaveNote: (m: AiMessageRecord) => void;
@@ -157,6 +158,12 @@ function VerbPop({ verb, setVerb, setVerbPop, onAfterSelect }: {
 }) {
   return (
     <div className="ai-verbpop">
+      <button onClick={() => { setVerb("ask"); setVerbPop(false); onAfterSelect(); }}>
+        <Icon name={AI_VERBS.ask.icon} className="ic" />
+        <span><span className="nm">{AI_VERBS.ask.label}</span><br /><span className="bl">{AI_VERBS.ask.blurb}</span></span>
+        {"ask" === verb && <span className="tick"><Icon name="check" className="ic" /></span>}
+      </button>
+      <div className="ai-verbpop-divider" />
       {AI_VERB_ORDER.map((k) => (
         <button key={k} onClick={() => { setVerb(k); setVerbPop(false); onAfterSelect(); }}>
           <Icon name={AI_VERBS[k].icon} className="ic" />
@@ -243,7 +250,7 @@ export function PanelThread(p: PanelThreadProps) {
   return (
     <div className="ai-thread" ref={threadRef}>
       {!p.active || !msgs.length
-        ? <AiEmptyState verb={p.verb} setVerb={p.setVerb} onStarter={(s) => { p.onStarter(s); }} />
+        ? <AiEmptyState verb={p.verb} setVerb={p.setVerb} onStarter={(s) => { p.onStarter(s); }} onFocusInput={p.onFocusInput} />
         : msgs.map((m) => <AiMessage key={m.id} msg={m} onCopy={p.onCopy} onSaveNote={p.onSaveNote} />)}
     </div>
   );

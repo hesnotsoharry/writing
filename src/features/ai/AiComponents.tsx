@@ -106,13 +106,20 @@ export function AiMessage({ msg, onCopy, onSaveNote }: { msg: AiMessageRecord; o
 
 /* ---- Empty state: pick a verb, take a starter ---- */
 
-export function AiEmptyState({ verb, setVerb, onStarter }: { verb: VerbKey; setVerb: (v: VerbKey) => void; onStarter: (s: string) => void }) {
+export function AiEmptyState({ verb, setVerb, onStarter, onFocusInput }: { verb: VerbKey; setVerb: (v: VerbKey) => void; onStarter: (s: string) => void; onFocusInput?: () => void }) {
   const v = AI_VERBS[verb];
   return (
     <div className="ai-empty">
       <div className="mark"><Icon name="sparkle" className="ic" /></div>
       <h3>What would you like to talk through?</h3>
       <div className="sub">Grounded in the open scene and its Story Bible entities — nothing else.</div>
+      <button className={"ai-askhero" + (verb === "ask" ? " on" : "")} onClick={() => { setVerb("ask"); onFocusInput?.(); }}>
+        <Icon name="feather" className="ic" />
+        <span className="ah-body">
+          <span className="ah-nm">Ask anything</span>
+          <span className="ah-bl">Any question — grounded in your manuscript</span>
+        </span>
+      </button>
       <div className="ai-verbgrid">
         {AI_VERB_ORDER.map(k => (
           <button className={"ai-verbcard" + (k === verb ? " on" : "")} key={k} onClick={() => setVerb(k)}>
@@ -137,7 +144,7 @@ export function AiDormant({ onWake }: { onWake: () => void }) {
     <div className="ai-dormant">
       <div className="mark"><Icon name="sparkle" className="ic" /></div>
       <h3>The assistant is asleep</h3>
-      <p>Brainstorm, critique, beta-read and proofread — grounded in your manuscript. Nothing leaves your machine until you turn it on.</p>
+      <p>Ask anything, or brainstorm, critique, beta-read and proofread — grounded in your manuscript. Nothing leaves your machine until you turn it on.</p>
       <button className="btn btn-primary" onClick={onWake}><Icon name="sparkle" className="ic" /> See how it works</button>
     </div>
   );
