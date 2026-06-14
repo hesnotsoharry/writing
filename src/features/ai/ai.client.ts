@@ -22,8 +22,10 @@ export type NormalizedEvent =
   | { type: "token"; text: string }
   | { type: "done"; inputTokens: number; outputTokens: number; creditsCost: number }
   | { type: "error"; message: string }
-  /** Proxy returned 429 — credit balance exhausted. */
+  /** Proxy returned 429 — personal credit balance exhausted. */
   | { type: "credits-exhausted"; resetAt: string }
+  /** Proxy returned 429 — shared daily trial budget exhausted (not a personal balance issue). */
+  | { type: "trial-budget-exhausted" }
   /** Proxy returned 403 — session token invalid or subscription expired. */
   | { type: "session-expired" };
 
@@ -173,6 +175,22 @@ async function drainStream(
 }
 
 /**
+ * Route a 429 response to the correct NormalizedEvent.
+ * Three distinct shapes: rate-cap, shared trial budget, personal credits exhausted.
+ * Extracted to keep streamChat's cyclomatic complexity within the project limit.
+ */
+function handle429(body: Record<string, unknown>, onEvent: (ev: NormalizedEvent) => void): void {
+  if (body["error"] === "rate_limit_exceeded") {
+    onEvent({ type: "error", message: "Too many requests — wait a moment and try again" });
+  } else if (body["error"] === "trial_budget_exhausted") {
+    onEvent({ type: "trial-budget-exhausted" });
+  } else {
+    const resetAt = "resetAt" in body ? parseResetAt(body["resetAt"]) : "";
+    onEvent({ type: "credits-exhausted", resetAt });
+  }
+}
+
+/**
  * Stream a chat request through the proxy. Calls onEvent for each normalized
  * SSE event. Resolves when the stream closes (after the 'done' event).
  *
@@ -193,13 +211,7 @@ export async function streamChat(
   if (res.status === 429) {
     const raw = await res.json().catch(() => null);
     const body = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    // Rate-cap (retryAfterSeconds) vs credits-exhausted (resetAt) — two distinct 429 shapes.
-    if (body["error"] === "rate_limit_exceeded") {
-      onEvent({ type: "error", message: "Too many requests — wait a moment and try again" });
-    } else {
-      const resetAt = "resetAt" in body ? parseResetAt(body["resetAt"]) : "";
-      onEvent({ type: "credits-exhausted", resetAt });
-    }
+    handle429(body, onEvent);
     return;
   }
   if (res.status === 403) {

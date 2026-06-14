@@ -15,7 +15,7 @@ import type * as Y from "yjs";
 import type { BinderTree } from "../../binder/buildTree";
 import { type AiConversationStore,deriveConversationTitle } from "../../db/aiConversationStore";
 import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
-import { acquireSession, type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
+import { type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext,filterAiEntities } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
 import {
@@ -139,14 +139,6 @@ function patchMessage(convId: string, msgId: string, patch: Partial<AiMessageRec
     );
 }
 
-export async function acquireTokenCached(key: string, ref: MutableRefObject<SessionResult | null>) {
-  const existing = ref.current;
-  if (existing && Date.now() < existing.expiresAt - 60_000) return existing.token;
-  const fresh = await acquireSession(key);
-  ref.current = fresh;
-  return fresh.token;
-}
-
 // Trial token helpers live in ai.trialToken.ts (extracted to keep this file under 300 code lines).
 import { acquireAnyToken, acquireTrialTokenCached } from "./ai.trialToken";
 export { acquireAnyToken, acquireTrialTokenCached };
@@ -168,6 +160,8 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
       terminalError = `[Something went wrong — ${ev.message}]`;
     } else if (ev.type === "credits-exhausted") {
       terminalError = "[Monthly allowance used up — resets " + (ev.resetAt || "soon") + "]";
+    } else if (ev.type === "trial-budget-exhausted") {
+      terminalError = "[Trial AI is at today's shared limit — try again tomorrow]";
     } else if (ev.type === "session-expired") {
       terminalError = "[Session expired — check your subscription in Settings]";
     }
@@ -239,8 +233,7 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   const derived = deriveConversationTitle(a.q);
   applyMessageToState(a.setConvos, cid, { currentTitle, derived, verb: a.verb, youMsg, aiMsg });
   a.setPrompt(""); a.setAttachedSel(null); a.setStreamingId(aiMsg.id);
-  const ctrl = new AbortController();
-  a.abortRef.current = ctrl;
+  const ctrl = (a.abortRef.current = new AbortController());
   try {
     if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
     const token = await acquireAnyToken(a.sessionRef);
@@ -248,8 +241,7 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   } catch (err: unknown) {
     onSendCatch(err, ctrl, cid, { msgId: aiMsg.id, setConvos: a.setConvos, onNetworkError: a.onNetworkError });
   } finally {
-    a.setStreamingId(null);
-    a.abortRef.current = null; a.onStreamDone?.();
+    a.setStreamingId(null); a.abortRef.current = null; a.onStreamDone?.();
   }
 }
 

@@ -129,6 +129,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 - W39.x Turnstile/CAPTCHA hardening on `/api/ai/trial-session` (deferred from this wave): | why-defer: needs a Phase-0 WebView2-render spike + system-browser/deep-link fallback design; cross-boundary (worker + app + Cloudflare dashboard config) and cannot be cleared by a single sonnet-implementer dispatch. | present-harm: during the Reddit launch surge, with no CAPTCHA, a single script can drain the $25/day global trial budget early each day and DoS real trial-users out of AI — the conversion lever W39 exists to create (dated observation 2026-06-13, design attack-decision review Angle 2/6).
 
+- BYOK own-key usage visibility (routed from W40/BYOK — filed here for wrap since W40 already wrapped): | why-defer: needs a product decision on unit (token count vs request count vs coarse gauge) + placement before any impl; the data wiring reuses the BYOK stream's already-returned usage — a UX/product call, not a single mechanical dispatch. | present-harm: K3 — observed 2026-06-14 (Cole's live-key check); BYOK mode suppresses ALL usage cues (W40 meter-no-op, commit b0b7383), so a user spending on their own Anthropic key gets zero in-app feedback on consumption.
+
 ## Wave-end review (2026-06-14)
 
 Top-level attack-diff **panel of 3** (contract/integration · security/money · spec/scope) at wave granularity. **Verdict: 3× FLAG, no BLOCK.** Confirmed correct: SQL atomicity + row-lock serialization, the fail-closed reserve guard, all four `status='active'`→`'trial'` gate openings, token safety (unforgeable HMAC; a stolen trial key drains ≤ one $1.50 bucket), trial-row isolation from subscriber ops (NULL `ls_subscription_id`), and full acceptance-criteria coverage. Four findings:
