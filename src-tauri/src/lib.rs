@@ -1,3 +1,4 @@
+mod byok;
 mod grammar;
 mod license;
 
@@ -65,13 +66,29 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        // BYOK cancellation map — keyed by stream_id, holds oneshot senders.
+        .manage(byok::ByokCancel::default())
+        .setup(|_app| {
+            // keyring v4 requires use_native_store() before any Entry operations;
+            // without it there is no active store and keys won't persist across restarts.
+            // Log and continue on failure — the app still runs, BYOK just won't work.
+            if let Err(_e) = keyring::use_native_store(false) {
+                eprintln!("[byok] keyring native store init failed — BYOK keys will not persist");
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             greet,
             grammar::lint_text,
             open_path,
             backup_database,
             write_export_file,
-            license::activate_license
+            license::activate_license,
+            byok::byok_set_key,
+            byok::byok_has_key,
+            byok::byok_clear_key,
+            byok::byok_chat,
+            byok::byok_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
