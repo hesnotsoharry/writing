@@ -155,11 +155,11 @@ function PanelReady(p: AssistantPanelProps) {
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => { abortRef.current?.abort(); }, []);
-  const listMode = !active; const msgCount = active?.messages.length ?? 0;
-  const lastLen = msgCount ? active!.messages[msgCount - 1].text.length : 0;
+  const listMode = !active; const msgCount = active?.messages.length ?? 0; const lastLen = msgCount ? active!.messages[msgCount - 1].text.length : 0;
   return (
     <div className="ai-panel">
       {p.offline && <OfflineBanner />}
+      <div className="ai-byok-bar" hidden={!p.byokMode}><span className="ai-chip"><Icon name="shield" className="ic" /><span>Your key</span></span></div>
       <PanelNav active={active} onBack={() => p.setActiveId(null)} onNew={newConvo} />
       <PanelThread msgCount={msgCount} lastLen={lastLen} activeId={p.activeId} listMode={listMode}
         active={active} convos={p.convos} verb={verb} setVerb={setVerb} onOpen={p.setActiveId}
@@ -172,7 +172,7 @@ function PanelReady(p: AssistantPanelProps) {
         <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
           prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop}
           setVerb={setVerb} streamingId={streamingId} onSend={send} onStop={stop}
-          est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} />
+          est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokMode={p.byokMode} />
         {!p.byokMode && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} />}
       </div>}
     </div>

@@ -58,6 +58,7 @@ interface PanelFooterProps {
   est: AiEstimateResult;
   onToast: (msg: string) => void;
   resetLabel: string;
+  byokMode: boolean;
 }
 
 interface PanelThreadProps {
@@ -203,7 +204,7 @@ export const PanelFooter = forwardRef<PanelFooterHandle, PanelFooterProps>(
     if (p.usedPct >= 100) return <ExhaustedAllowanceGuard resetLabel={p.resetLabel} onToast={p.onToast} />;
     return (
       <div className="ai-composer">
-        {p.est.pct >= 2 && (
+        {!p.byokMode && p.est.pct >= 2 && (
           <div className="ai-costcue">
             <Icon name="info" className="ic" />
             <span>A bigger ask than usual — about <b>{p.est.pct}%</b> of your monthly allowance in one go.</span>

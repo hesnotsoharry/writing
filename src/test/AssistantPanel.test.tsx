@@ -116,11 +116,12 @@ vi.mock("../features/ai/ai.types", () => ({
 vi.mock("../features/ai/ai.helpers", () => ({
   aiConvoId: () => "test-convo-id",
   aiMsgId: () => "test-msg-id",
-  aiEstimate: () => ({ tokens: 100, pct: 1 }),
+  aiEstimate: vi.fn().mockReturnValue({ tokens: 100, pct: 1 }),
 }));
 
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
 import { acquireSession, streamChat } from "../features/ai/ai.client";
+import { aiEstimate } from "../features/ai/ai.helpers";
 import type { AssistantPanelProps } from "../features/ai/AssistantPanel";
 import { AssistantPanel, InspectorTabs } from "../features/ai/AssistantPanel";
 import { streamByokChat } from "../features/ai/byok.client";
@@ -342,5 +343,31 @@ describe("AssistantPanel — consented", () => {
     await waitFor(() => expect(vi.mocked(streamByokChat)).toHaveBeenCalledOnce());
     expect(vi.mocked(acquireSession)).not.toHaveBeenCalled();
     expect(vi.mocked(streamChat)).not.toHaveBeenCalled();
+  });
+
+  it("shows BYOK badge (no hidden attr) when byokMode is true", () => {
+    const { container } = render(<AssistantPanel {...makeProps({ byokMode: true })} />);
+    const bar = container.querySelector(".ai-byok-bar");
+    expect(bar).not.toBeNull();
+    expect(bar!.getAttribute("hidden")).toBeNull();
+  });
+
+  it("hides BYOK badge (hidden attr present) when byokMode is false", () => {
+    const { container } = render(<AssistantPanel {...makeProps({ byokMode: false })} />);
+    const bar = container.querySelector(".ai-byok-bar");
+    expect(bar).not.toBeNull();
+    expect(bar!.getAttribute("hidden")).not.toBeNull();
+  });
+
+  it("suppresses cost-cue when byokMode is true even when est.pct >= 2", () => {
+    vi.mocked(aiEstimate).mockReturnValueOnce({ tokens: 500, pct: 5 });
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    expect(container.querySelector(".ai-costcue")).toBeNull();
+  });
+
+  it("shows cost-cue when byokMode is false and est.pct >= 2", () => {
+    vi.mocked(aiEstimate).mockReturnValueOnce({ tokens: 500, pct: 5 });
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+    expect(container.querySelector(".ai-costcue")).not.toBeNull();
   });
 });

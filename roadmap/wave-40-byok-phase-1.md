@@ -123,7 +123,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 |---|---|---|---|---|
 | 1 — walking skeleton | yes (sonnet-implementer + 3-seat panel + correctness patch) | yes | e946df6 | Deferred to CDP smoke (keychain entry + token stream need Cole's live key); cargo 11/11 incl. frozen serde contract + new correctness tests; panel 0-BLOCK/2-FLAG/1-PASS, all FLAGs fixed |
 | 2 — Settings UI + useByokMode + meter hide | yes (sonnet-implementer + single adversarial seat + flag-fix) | yes | 4b02cd6 | Deferred to CDP smoke (Settings row render + paste→Remove flip); tsc 0, lint 0, 26 tests incl. AiMeter-hide + ByokKeyRow render; review FLAG (prop required + tests) addressed |
-| 3 — execSend BYOK fork + meter no-op + harness removal | yes (sonnet-implementer + single adversarial seat + orchestrator self-fix) | yes | (this commit) | Deferred to CDP smoke (live token stream); tsc 0, lint 0, 17 tests incl. anti-tautological fork test; review FLAG abortRef-clobber race fixed (identity-guard in finally); partial-persist-on-stop asymmetry → Phase 4 |
+| 3 — execSend BYOK fork + meter no-op + harness removal | yes (sonnet-implementer + single adversarial seat + orchestrator self-fix) | yes | b0b7383 | Deferred to CDP smoke (live token stream); tsc 0, lint 0, 17 tests incl. anti-tautological fork test; review FLAG abortRef-clobber race fixed (identity-guard in finally); partial-persist-on-stop accepted-as-intentional (kept for writing UX) |
+| 4 — hardening: BYOK badge + cost-cue suppression | yes (sonnet-implementer; per-phase review folded into wave-end attack-diff cell) | yes | (this commit) | Deferred to CDP smoke ("Your key" badge visible + no "monthly allowance" copy in BYOK); tsc 0, lint 0, 21 tests incl. 4 badge/cost-cue cases. Error-sanitization + unmount-cancel already done in P1/P3 |
 
 ## Follow-up candidates
 
