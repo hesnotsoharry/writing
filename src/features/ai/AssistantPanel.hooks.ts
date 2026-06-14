@@ -15,7 +15,6 @@ import type * as Y from "yjs";
 import type { BinderTree } from "../../binder/buildTree";
 import { type AiConversationStore,deriveConversationTitle } from "../../db/aiConversationStore";
 import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
-import { getTweak } from "../settings/settings.store";
 import { acquireSession, type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext,filterAiEntities } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
@@ -148,6 +147,10 @@ export async function acquireTokenCached(key: string, ref: MutableRefObject<Sess
   return fresh.token;
 }
 
+// Trial token helpers live in ai.trialToken.ts (extracted to keep this file under 300 code lines).
+import { acquireAnyToken, acquireTrialTokenCached } from "./ai.trialToken";
+export { acquireAnyToken, acquireTrialTokenCached };
+
 async function streamAiResponse(a: StreamArgs): Promise<void> {
   const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
@@ -240,7 +243,7 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   a.abortRef.current = ctrl;
   try {
     if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
-    const token = await acquireTokenCached(getTweak("aiLicenseKey", ""), a.sessionRef);
+    const token = await acquireAnyToken(a.sessionRef);
     await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id }));
   } catch (err: unknown) {
     onSendCatch(err, ctrl, cid, { msgId: aiMsg.id, setConvos: a.setConvos, onNetworkError: a.onNetworkError });

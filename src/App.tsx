@@ -338,7 +338,7 @@ export default function App() {
       onOpenHistory={selectedSceneId ? () => { setHistorySceneId(selectedSceneId); setShowHistory(true); } : undefined}
       onTakeSnapshot={selectedSceneId ? () => { void snapCapture({ targetSceneId: selectedSceneId, isActive: true, activeDoc: doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then(() => bumpRailKey()); } : undefined}
       overlays={makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, setAccent, bumpRailKey })}
-      labelStore={labelStore} trialDaysLeft={gateStatus === "trial" ? daysLeft : null} onTrialPillClick={() => setActivationOpen(true)}
+      labelStore={labelStore} trialDaysLeft={gateStatus === "trial" ? daysLeft : null} onTrialPillClick={() => setActivationOpen(true)} gateStatus={gateStatus}
     />
   );
 }

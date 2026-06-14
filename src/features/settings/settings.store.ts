@@ -58,6 +58,8 @@ export interface Tweaks {
   aiConsentGiven: boolean;
   /** Stored subscription license key (session token is kept in React state only). */
   aiLicenseKey: string;
+  /** Server-minted trial key (trial_<uuid>); empty until first trial AI use. Separate from aiLicenseKey. */
+  aiTrialKey: string;
   // ── AI selection affordances (Wave 35) ────────────────────────────────────
   /** true = show brainstorm pill when text is selected in the editor. */
   aiSelPill: boolean;
@@ -87,6 +89,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   aiEnabled: true,
   aiConsentGiven: false,
   aiLicenseKey: "",
+  aiTrialKey: "",
   aiSelPill: true,
   aiSelMenu: false,
 };

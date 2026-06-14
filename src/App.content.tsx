@@ -95,7 +95,7 @@ export interface AppContentProps {
   onOpenEntry: (id: string, kind: string) => void; onPushEntry: (id: string, kind: string) => void;
   onEntryBack: () => void; onExitEntry: () => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
-  labelStore: LabelStore; trialDaysLeft?: number | null; onTrialPillClick?: () => void;
+  labelStore: LabelStore; trialDaysLeft?: number | null; onTrialPillClick?: () => void;  gateStatus?: "checking" | "needed" | "trial" | "cleared";
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -189,7 +189,7 @@ interface SideSlotsProps {
   onOpenEntry: (id: string, kind: string) => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
   onInsertAtCaret?: (name: string) => void;
-  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null;  aiEnabled: boolean;
+  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null;  aiEnabled: boolean;  gateStatus?: "checking" | "needed" | "trial" | "cleared";
 }
 
 function buildSideSlots(p: SideSlotsProps) {
@@ -266,7 +266,7 @@ function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, projects, activeProjectId,
     onSwitchProject, onCreateProject, dragCallbacks, view, onViewChange, linksVersion,
     onEntitiesChanged, overlays, storyBibleStore, archivedVersion, reloadTree, entryStack,
-    entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry, historySnapshots, onOpenHistory, onTakeSnapshot, labelStore } = props;
+    entryOrigin, onOpenEntry, onPushEntry, onEntryBack, onExitEntry, historySnapshots, onOpenHistory, onTakeSnapshot, labelStore, gateStatus } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget, setShowFindReplace, setFindReplaceSeed } = overlays;
   const { onExport, openExport } = useExportActions(tree, selectedSceneId, setExportTarget, setShowExport); useGlobalKeybindings({ ...overlays, setShowFindReplace, view, openExport }); useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle(); const motionOn = useMotion();
@@ -286,7 +286,7 @@ function useAppContentSlots(props: AppContentProps) {
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
     showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
-    onInsertAtCaret, selectedBoardId, doc, aiEnabled,
+    onInsertAtCaret, selectedBoardId, doc, aiEnabled, gateStatus,
     onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
   const { onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };

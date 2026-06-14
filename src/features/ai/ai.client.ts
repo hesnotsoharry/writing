@@ -32,6 +32,13 @@ export interface SessionResult {
   expiresAt: number;
 }
 
+export interface TrialSessionResult {
+  trialKey?: string;
+  token: string;
+  expiresAt: number;
+  allowance?: number;
+}
+
 /**
  * Credit unit value in USD. 1 credit unit = $0.00001.
  * Canonical definition: migration 0002_ai_subscriptions.sql.
@@ -65,6 +72,22 @@ export async function acquireSession(licenseKey: string): Promise<SessionResult>
   return res.json() as Promise<SessionResult>;
 }
 
+/**
+ * Mint (or re-exchange) a trial session token.
+ * - No trialKey → first-grant: POST with empty body.
+ * - trialKey provided → re-exchange: POST with { trialKey }.
+ * Throws on non-ok response so the caller can clear the stale key and re-grant.
+ */
+export async function acquireTrialSession(trialKey?: string): Promise<TrialSessionResult> {
+  const res = await fetch(`${API_BASE}/api/ai/trial-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(trialKey ? { trialKey } : {}),
+  });
+  if (!res.ok) throw new Error(`Trial session failed: ${res.status}`);
+  return res.json() as Promise<TrialSessionResult>;
+}
+
 // ── SSE line parser ───────────────────────────────────────────────────────────
 
 function parseSseLine(line: string): NormalizedEvent | null {
@@ -90,7 +113,7 @@ export interface BalanceResult {
   creditsBalance: number;
   monthlyAllowance: number;
   resetAt: string;
-  status: "active" | "expired";
+  status: "active" | "trial" | "expired";
 }
 
 export interface StreamChatOptions {
