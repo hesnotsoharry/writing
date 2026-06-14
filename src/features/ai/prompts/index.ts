@@ -3,12 +3,14 @@
  * Also exports VERB_MAX_TOKENS and re-exports individual verb builders.
  */
 import type { AiMessage } from "../ai.client";
+import { getActiveHouseStyleConfig } from "../ai.house-style";
 import type { AssembledContext, VerbKey } from "../ai.types";
 import { ASK_MAX_TOKENS, buildAskMessages } from "./ask";
 import { BETAREAD_MAX_TOKENS, buildBetareadMessages } from "./betaread";
 import { BRAINSTORM_MAX_TOKENS, buildBrainstormMessages } from "./brainstorm";
-import { buildCritiqueMessages,CRITIQUE_MAX_TOKENS } from "./critique";
+import { buildCritiqueMessages, CRITIQUE_MAX_TOKENS } from "./critique";
 import { buildProofreadMessages, PROOFREAD_MAX_TOKENS } from "./proofread";
+import { applyHouseStyle } from "./shared";
 
 // ── Token caps ────────────────────────────────────────────────────────────────
 
@@ -23,11 +25,7 @@ export const VERB_MAX_TOKENS: Record<VerbKey, number> = {
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 
-/**
- * Route a verb key to the matching prompt builder.
- * Returns { system, messages } ready to pass to streamChat.
- */
-export function buildMessages(
+function routeVerb(
   verb: VerbKey,
   ctx: AssembledContext,
   ask: string,
@@ -45,6 +43,24 @@ export function buildMessages(
     case "proofread":
       return buildProofreadMessages(ctx, ask, history);
   }
+}
+
+/**
+ * Route a verb key to the matching prompt builder, then apply the house-style
+ * block (W42 anti-AI-isms layer). Returns { system, messages } ready to pass
+ * to streamChat. External signature unchanged.
+ */
+export function buildMessages(
+  verb: VerbKey,
+  ctx: AssembledContext,
+  ask: string,
+  history?: AiMessage[],
+): { system: string; messages: AiMessage[] } {
+  const built = routeVerb(verb, ctx, ask, history);
+  return {
+    ...built,
+    system: applyHouseStyle(built.system, getActiveHouseStyleConfig()),
+  };
 }
 
 // ── Re-exports ────────────────────────────────────────────────────────────────
