@@ -276,8 +276,8 @@ the data" (unnecessary once rates are confirmed).
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| A billing seam | — | — | — | — |
-| B provider-adapter | — | — | — | — |
+| A billing seam | haiku · single | 2026-06-14 | cd05245 | Internal — unit tests assert exact OpenAI rate math (3 models × {no-cache, cache-read}) + no-write-premium invariant; 75 handler+credit tests green. Attack-diff FLAG (AiEnv mock gap) self-fixed. |
+| B provider-adapter | sonnet · panel (2 seats) | 2026-06-14 | (this commit) | Internal — orchestrator acceptance test (cached-token subtraction: billed===145 not 345) + getAdapter routing + 33 Anthropic cases unchanged (behavior-preserved extraction); 50 tests green. Panel: Seat 2 (extraction) PASS, Seat 1 (OpenAI protocol) FLAG → floor + negative-cached test + refund-on-error test added. |
 | C model selection + validation | — | — | — | — |
 | D model-picker UX | — | — | — | — |
 

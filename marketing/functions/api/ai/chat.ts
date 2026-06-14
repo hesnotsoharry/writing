@@ -2,9 +2,9 @@
  * POST /api/ai/chat
  *
  * Authenticated (Bearer session token) chat endpoint. Validates the token,
- * checks the per-license rate cap, reserves credits, streams the Anthropic
- * Messages API response as a normalized SSE event schema, then reconciles
- * credits from actual token usage (refund-only — balance never goes negative).
+ * checks the per-license rate cap, reserves credits, streams the provider
+ * response as a normalized SSE event schema, then reconciles credits from
+ * actual token usage (refund-only — balance never goes negative).
  *
  * Normalized SSE schema (Decision 4):
  *   {type:'token', text:string}
@@ -13,7 +13,7 @@
  *
  * Credit flow (Decision 3 — reserve-then-reconcile):
  *   1. reserve_credits(estimate) — atomic; returns null if insufficient → 429.
- *   2. Stream Anthropic response, relay token events.
+ *   2. Stream provider response, relay token events.
  *   3. On stream completion: refund_credits(reserve − actual) if reserve > actual.
  *   4. On stream failure: refund_credits(full reserve).
  *   creditsCost in 'done' = min(reserve, actual) — what was actually charged.
@@ -27,6 +27,10 @@
  *   Present + unknown → 400
  *   Absent (un-updated client) → FALLBACK_VERB_CONFIG (Haiku, maxTokens 1536)
  *   Client-sent max_tokens is IGNORED — proxy owns policy.
+ *
+ * Provider routing (W44 Decision 1): getAdapter(model) reads RATES[model].provider
+ * and dispatches to AnthropicAdapter or OpenAIAdapter. The refund-on-error path
+ * (Q4 outage policy) is provider-agnostic — covers both Anthropic and OpenAI errors.
  *
  * No request/response body logging anywhere in this file (Decision 4 privacy).
  * Credit unit: 1 unit = $0.00001 USD (see migration 0002_ai_subscriptions.sql).
@@ -43,26 +47,20 @@ import {
   actualCredits,
   estimateCredits,
 } from "../../_lib/credits";
-import { shouldAttachCache } from "../../_lib/prompt-cache";
+import { getAdapter } from "../../_lib/providers/index";
+import type { Message, ResolvedConfig } from "../../_lib/providers/types";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
-import type { FallbackVerbConfig, VerbConfig, VerbKey } from "../../_lib/verb-config";
+import type { VerbKey } from "../../_lib/verb-config";
 import { FALLBACK_VERB_CONFIG, VERB_CONFIG } from "../../_lib/verb-config";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION = "2023-06-01";
 const SYSTEM_LENGTH_CAP = 32_000;
 
 // Re-export deprecated Haiku rate constants for consumers that import from chat.ts.
 export { INPUT_UNITS_PER_TOKEN, OUTPUT_UNITS_PER_TOKEN };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
 
 interface ChatBody {
   messages?: unknown;
@@ -77,19 +75,9 @@ interface SubscriptionRow {
   reset_at: string | null;
 }
 
-interface SseState {
-  inputTokens: number;
-  outputTokens: number;
-  /** Tokens written to cache on this request (usage.cache_creation_input_tokens). */
-  cacheCreationTokens: number;
-  /** Tokens retrieved from cache on this request (usage.cache_read_input_tokens). */
-  cacheReadTokens: number;
-}
-
-type ResolvedConfig = VerbConfig | FallbackVerbConfig;
-
 interface StreamArgs {
-  apiKey: string;
+  anthropicKey: string;
+  openaiKey: string;
   messages: Message[];
   verbConfig: ResolvedConfig;
   system?: string;
@@ -131,118 +119,6 @@ function parseMessages(raw: unknown): Message[] | null {
   return msgs;
 }
 
-// ── Anthropic SSE parsing ─────────────────────────────────────────────────────
-
-function processAnthropicLine(line: string, state: SseState): string | null {
-  if (!line.startsWith("data: ")) return null;
-  const json = line.slice(6).trim();
-  if (!json || json === "[DONE]") return null;
-  let event: Record<string, unknown>;
-  try {
-    event = JSON.parse(json) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-  const type = event.type as string | undefined;
-  if (type === "message_start") {
-    const msg = event.message as {
-      usage?: {
-        input_tokens?: number;
-        cache_creation_input_tokens?: number;
-        cache_read_input_tokens?: number;
-      };
-    } | undefined;
-    state.inputTokens = msg?.usage?.input_tokens ?? 0;
-    state.cacheCreationTokens = msg?.usage?.cache_creation_input_tokens ?? 0;
-    state.cacheReadTokens = msg?.usage?.cache_read_input_tokens ?? 0;
-    return null;
-  }
-  if (type === "content_block_delta") {
-    const delta = event.delta as { type?: string; text?: string } | undefined;
-    if (delta?.type === "text_delta" && typeof delta.text === "string") return delta.text;
-    return null;
-  }
-  if (type === "message_delta") {
-    const usage = event.usage as { output_tokens?: number } | undefined;
-    state.outputTokens = usage?.output_tokens ?? state.outputTokens;
-    return null;
-  }
-  return null;
-}
-
-async function pumpAnthropicToClient(
-  upstreamBody: ReadableStream<Uint8Array>,
-  writer: WritableStreamDefaultWriter<Uint8Array>,
-  encoder: TextEncoder,
-): Promise<SseState> {
-  const reader = upstreamBody.getReader();
-  const decoder = new TextDecoder();
-  const state: SseState = { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const text = processAnthropicLine(line, state);
-      if (text !== null) await writeSse(writer, encoder, { type: "token", text });
-    }
-  }
-  if (buffer.length > 0) {
-    const text = processAnthropicLine(buffer, state);
-    if (text !== null) await writeSse(writer, encoder, { type: "token", text });
-  }
-  return state;
-}
-
-// ── Anthropic fetch ───────────────────────────────────────────────────────────
-
-async function callAnthropic(
-  messages: Message[],
-  config: ResolvedConfig,
-  apiKey: string,
-  system?: string,
-): Promise<Response> {
-  const requestBody: Record<string, unknown> = {
-    model: config.model,
-    max_tokens: config.maxTokens,
-    stream: true,
-    messages,
-  };
-  if (system) {
-    // Gate caching on the model's minimum cacheable-prefix threshold (research sidecar §2).
-    // Haiku requires ≥ 4096 tokens; smaller prefixes silently skip caching server-side anyway,
-    // but we avoid the content-block form unnecessarily to keep the request shape simple.
-    const estimatedPrefixTokens = Math.ceil(system.length / 4);
-    if (shouldAttachCache(estimatedPrefixTokens, config.model)) {
-      // Content-block array form with ephemeral (5-minute TTL) cache breakpoint.
-      // Per research sidecar §1: top-level and per-block forms are both valid; we use
-      // per-block here for explicit control. TTL defaults to 5 minutes (this wave).
-      requestBody["system"] = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
-    } else {
-      requestBody["system"] = system;
-    }
-  }
-  // Mutual exclusion: thinking and temperature cannot both be present (temp+thinking = 400).
-  if (config.thinking) {
-    // Extended thinking enabled — temperature is intentionally omitted.
-    requestBody["thinking"] = config.thinking;
-  } else if (config.temperature !== undefined) {
-    requestBody["temperature"] = config.temperature;
-  }
-  return fetch(ANTHROPIC_API, {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": ANTHROPIC_VERSION,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(requestBody),
-  });
-}
-
 // ── Credit helpers ────────────────────────────────────────────────────────────
 
 async function reserveCredits(
@@ -277,41 +153,50 @@ async function refundCredits(
 // ── Stream runner (runs in waitUntil) ─────────────────────────────────────────
 
 async function runStream(args: StreamArgs): Promise<void> {
-  const { apiKey, messages, verbConfig, system, writer, encoder, db, licenseKey, reserve, requestId } = args;
+  const {
+    anthropicKey, openaiKey, messages, verbConfig, system,
+    writer, encoder, db, licenseKey, reserve, requestId,
+  } = args;
   let refunded = false;
   try {
-    const anthropicRes = await callAnthropic(messages, verbConfig, apiKey, system);
-    if (!anthropicRes.ok || !anthropicRes.body) {
+    const adapter = getAdapter(verbConfig.model);
+    const apiKey = adapter.provider === "openai" ? openaiKey : anthropicKey;
+    const { url, headers, body } = adapter.buildRequest({ messages, config: verbConfig, system, apiKey });
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+    if (!res.ok || !res.body) {
       await refundCredits(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
       refunded = true;
       await writeSse(writer, encoder, { type: "error", message: "Upstream error" });
       return;
     }
-    const state = await pumpAnthropicToClient(anthropicRes.body, writer, encoder);
-    // Pass cache buckets separately — input_tokens is non-cached input only (research §5).
+    const usage = await adapter.pump(res.body, (text) =>
+      writeSse(writer, encoder, { type: "token", text }),
+    );
+    // Pass cache buckets separately — inputTokens is non-cached input only.
     // Do not double-count: cacheCreationTokens and cacheReadTokens are billed at their
-    // own rates (1.25x and 0.1x respectively), not at the base input rate.
+    // own rates (1.25x and 0.1x respectively for Anthropic), not at the base input rate.
+    // For OpenAI, the adapter already subtracts cached_tokens from prompt_tokens (Decision 3).
     const actual = actualCredits(
-      state.inputTokens,
-      state.outputTokens,
+      usage.inputTokens,
+      usage.outputTokens,
       verbConfig.model,
-      state.cacheCreationTokens,
-      state.cacheReadTokens,
-      '5m',
+      usage.cacheCreationTokens,
+      usage.cacheReadTokens,
+      "5m",
     );
     const refundAmount = Math.max(0, reserve - actual);
-    const charged = reserve - refundAmount; // what was actually consumed
+    const charged = reserve - refundAmount;
     if (refundAmount > 0) {
       await refundCredits(db, licenseKey, refundAmount, requestId, {
-        input_tokens: state.inputTokens,
-        output_tokens: state.outputTokens,
+        input_tokens: usage.inputTokens,
+        output_tokens: usage.outputTokens,
         model: verbConfig.model,
       });
     }
     await writeSse(writer, encoder, {
       type: "done",
-      inputTokens: state.inputTokens,
-      outputTokens: state.outputTokens,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
       creditsCost: charged,
     });
   } catch {
@@ -407,7 +292,8 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const encoder = new TextEncoder();
   context.waitUntil(
     runStream({
-      apiKey: context.env.ANTHROPIC_API_KEY,
+      anthropicKey: context.env.ANTHROPIC_API_KEY,
+      openaiKey: context.env.OPENAI_API_KEY,
       messages,
       verbConfig,
       system,

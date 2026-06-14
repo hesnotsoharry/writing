@@ -758,3 +758,83 @@ describe("usage passthrough — cache tokens reconcile credits", () => {
     expect(done!.creditsCost).toBe(9);
   });
 });
+
+// ── Refund-on-stream-error after partial emission (W44 Phase B acceptance criterion) ──
+//
+// Wave-44 requires: a malformed/early-error stream routes through the refund path
+// (Q4 outage policy) and the full reserve is returned even after partial tokens have
+// been emitted. This exercises runStream's catch block, which is provider-agnostic —
+// the same path fires for both Anthropic and OpenAI mid-stream failures.
+//
+// The OpenAI-format wire data in the throwing stream documents the intent: an OpenAI
+// stream that delivers partial content and then aborts hits this same catch-and-refund
+// path. (Phase C will add per-request model routing; the catch is provider-agnostic
+// and already covers OpenAI as confirmed by the W44 adapter seam.)
+
+/** 200 response whose body yields one SSE chunk then errors — simulates mid-stream abort. */
+function makeThrowingStreamResponse(): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      // Emit one partial token chunk (OpenAI Chat Completions wire format)
+      controller.enqueue(
+        encoder.encode('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'),
+      );
+      // Then abort the stream — reader.read() on the next iteration rejects
+      controller.error(new Error("stream aborted mid-flight"));
+    },
+  });
+  return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
+
+describe("refund-on-stream-error — full reserve returned after partial emission (W44 Q4 policy)", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("full reserve is refunded when the upstream stream errors after emitting partial tokens", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeThrowingStreamResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+
+    // The stream errored: the catch block must fire refund_credits with the full reserve
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    expect(refundCall).toBeDefined();
+    expect(Number(refundCall!.args["p_amount"])).toBe(
+      Math.abs(Number(reserveCall!.args["p_amount"])),
+    );
+
+    // A {type:'error'} SSE event must be written to the client
+    const errorEvent = events.find((e) => (e as { type: string }).type === "error");
+    expect(errorEvent).toBeDefined();
+  });
+
+  it("request IDs match between reserve and error-path refund", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeThrowingStreamResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    expect(refundCall).toBeDefined();
+    expect(refundCall!.args["p_request_id"]).toBe(reserveCall!.args["p_request_id"]);
+  });
+});
