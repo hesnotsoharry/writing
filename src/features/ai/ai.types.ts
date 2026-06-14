@@ -2,6 +2,41 @@ import type { IconName } from "../../components/Icon";
 
 export type VerbKey = "brainstorm" | "critique" | "betaread" | "proofread";
 
+// ── Managed models ────────────────────────────────────────────────────────────
+// IDs MUST match the server's MANAGED_MODELS constant exactly — proxy validates them.
+
+export type ManagedModel =
+  | "claude-haiku-4-5-20251001"
+  | "claude-sonnet-4-6"
+  | "claude-opus-4-8"
+  | "gpt-5.4-mini"
+  | "gpt-5.4"
+  | "gpt-5.5";
+
+export const DEFAULT_MODEL: ManagedModel = "claude-haiku-4-5-20251001";
+
+export interface ModelDef {
+  label: string;
+  provider: "claude" | "chatgpt";
+  tier: "standard" | "premium";
+}
+
+export const AI_MODELS: Record<ManagedModel, ModelDef> = {
+  "claude-haiku-4-5-20251001": { label: "Claude Haiku",  provider: "claude",  tier: "standard" },
+  "claude-sonnet-4-6":         { label: "Claude Sonnet", provider: "claude",  tier: "standard" },
+  "gpt-5.4-mini":              { label: "GPT-5.4 mini",  provider: "chatgpt", tier: "standard" },
+  "gpt-5.4":                   { label: "GPT-5.4",       provider: "chatgpt", tier: "standard" },
+  "claude-opus-4-8":           { label: "Claude Opus",   provider: "claude",  tier: "premium"  },
+  "gpt-5.5":                   { label: "GPT-5.5",       provider: "chatgpt", tier: "premium"  },
+};
+
+/** Picker order: standard models (grouped by provider) first, premium last. */
+export const AI_MODEL_ORDER: readonly ManagedModel[] = [
+  "claude-haiku-4-5-20251001", "claude-sonnet-4-6",
+  "gpt-5.4-mini", "gpt-5.4",
+  "claude-opus-4-8", "gpt-5.5",
+];
+
 export interface VerbDef {
   label: string;
   icon: IconName;

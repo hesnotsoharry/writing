@@ -6,6 +6,7 @@ import {
   DEFAULT_ACCENT,
   type Theme,
 } from "../../theme/useTheme";
+import type { ManagedModel } from "../ai/ai.types";
 
 // Re-export so callers that need the type surface can get it from one place.
 export type { AccentPalette, Theme };
@@ -63,6 +64,9 @@ export interface Tweaks {
   aiSelPill: boolean;
   /** true = show AI items in the editor right-click context menu. */
   aiSelMenu: boolean;
+  // ── AI model preference (Wave 44) ─────────────────────────────────────────
+  /** Global AI model choice — persisted across sessions. */
+  aiModel: ManagedModel;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -89,6 +93,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   aiLicenseKey: "",
   aiSelPill: true,
   aiSelMenu: false,
+  aiModel: "claude-haiku-4-5-20251001",
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────

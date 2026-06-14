@@ -136,7 +136,7 @@ interface SlotPanelProps {
 
 function PanelReady(p: AssistantPanelProps) {
   const { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel,
-    streamingId, setStreamingId, abortRef, sessionRef } = usePanelState(p.initialVerb, p.initialSel);
+    streamingId, setStreamingId, model, setModel, modelPop, setModelPop, abortRef, sessionRef } = usePanelState(p.initialVerb, p.initialSel);
   const footerRef = useRef<PanelFooterHandle | null>(null);
   const active = p.convos.find((c) => c.id === p.activeId) ?? null;
   // D4: merge neverNames into offEntityNames so display + send use the same filter.
@@ -147,7 +147,7 @@ function PanelReady(p: AssistantPanelProps) {
   const canCompose = !p.offline && p.plan !== "expired" && p.usedPct < 100;
   const { send, stop, copyMsg, saveMsg, newConvo, deleteConvo } = usePanelMessages({
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
-    prompt, setPrompt, verb, attachedSel, setAttachedSel, streamingId, setStreamingId,
+    prompt, setPrompt, verb, model, attachedSel, setAttachedSel, streamingId, setStreamingId,
     canCompose, ctxArgs, sceneId: p.sceneId, sceneName: p.sceneName,
     doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError,
   });
@@ -169,8 +169,8 @@ function PanelReady(p: AssistantPanelProps) {
           attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
           boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} />
         <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
-          prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop}
-          setVerb={setVerb} streamingId={streamingId} onSend={send} onStop={stop}
+          prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb}
+          model={model} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
           est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} />
         <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} />
       </div>}
