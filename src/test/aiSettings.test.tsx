@@ -2,6 +2,14 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// Mock the BYOK Tauri IPC boundary so ByokKeyRow's mount effect
+// (byokHasKey → invoke) doesn't crash in jsdom where Tauri is absent.
+vi.mock("../features/ai/byok.client", () => ({
+  byokHasKey: vi.fn().mockResolvedValue(false),
+  byokSetKey: vi.fn().mockResolvedValue(undefined),
+  byokClearKey: vi.fn().mockResolvedValue(undefined),
+}));
+
 afterEach(cleanup);
 
 import { AiSection } from "../features/settings/Settings.sections";
@@ -66,5 +74,16 @@ describe("AiSection — expanded Settings Assistant section", () => {
     expect(
       screen.getByText(/Every byte that leaves this machine is visible and intentional/i),
     ).toBeTruthy();
+  });
+
+  it("renders the Your API key row label", () => {
+    renderSection();
+    expect(screen.getByText("Your API key")).toBeTruthy();
+  });
+
+  it("renders the Custom endpoint row with Coming soon button", () => {
+    renderSection();
+    expect(screen.getByText("Custom endpoint")).toBeTruthy();
+    expect(screen.getByText("Coming soon")).toBeTruthy();
   });
 });

@@ -157,6 +157,7 @@ function makeProps(overrides: Partial<AssistantPanelProps> = {}): AssistantPanel
     onOpenContext: vi.fn(),
     onToast: vi.fn(),
     onSaveNote: vi.fn(),
+    byokMode: false,
     ...overrides,
   };
 }
@@ -309,5 +310,15 @@ describe("AssistantPanel — consented", () => {
     const sendBtn = screen.queryByTitle("Brainstorm") as HTMLButtonElement | null;
     expect(sendBtn).not.toBeNull();
     expect(sendBtn!.disabled).toBe(false);
+  });
+
+  it("renders AiMeter when byokMode is false", () => {
+    render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+    expect(screen.queryByTestId("ai-meter")).not.toBeNull();
+  });
+
+  it("does not render AiMeter when byokMode is true", () => {
+    render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    expect(screen.queryByTestId("ai-meter")).toBeNull();
   });
 });

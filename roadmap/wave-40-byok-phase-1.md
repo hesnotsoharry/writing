@@ -121,7 +121,8 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 — walking skeleton | yes (sonnet-implementer + 3-seat panel + correctness patch) | yes | (this commit) | Deferred to CDP smoke (keychain entry + token stream need Cole's live key); cargo 11/11 incl. frozen serde contract + new correctness tests; panel 0-BLOCK/2-FLAG/1-PASS, all FLAGs fixed |
+| 1 — walking skeleton | yes (sonnet-implementer + 3-seat panel + correctness patch) | yes | e946df6 | Deferred to CDP smoke (keychain entry + token stream need Cole's live key); cargo 11/11 incl. frozen serde contract + new correctness tests; panel 0-BLOCK/2-FLAG/1-PASS, all FLAGs fixed |
+| 2 — Settings UI + useByokMode + meter hide | yes (sonnet-implementer + single adversarial seat + flag-fix) | yes | (this commit) | Deferred to CDP smoke (Settings row render + paste→Remove flip); tsc 0, lint 0, 26 tests incl. AiMeter-hide + ByokKeyRow render; review FLAG (prop required + tests) addressed |
 
 ## Follow-up candidates
 

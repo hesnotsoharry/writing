@@ -35,6 +35,7 @@ import { AiConsent, AiContextPicker } from "./AiOverlays";
 import { acquireTokenCached, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
 import { useAiPanelSeed, useAiSlotHandlers, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
+import { useByokMode } from "./useByokMode";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ export interface AssistantPanelProps {
   onStreamDone?: () => void;
   onNetworkError?: () => void;
   convStore?: AiConversationStore;
-  projectId?: string | null;
+  projectId?: string | null; byokMode: boolean; // true when BYOK key is stored — hides the managed credit meter
 }
 
 /** Props consumed by wrapInspectorSlot — App.content.tsx passes a superset. */
@@ -129,7 +130,7 @@ interface SlotPanelProps {
   onStreamDone: () => void;
   onNetworkError?: () => void;
   sel?: ProseSelection | null;
-  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
+  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokMode: boolean;
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
@@ -172,7 +173,7 @@ function PanelReady(p: AssistantPanelProps) {
           prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop}
           setVerb={setVerb} streamingId={streamingId} onSend={send} onStop={stop}
           est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} />
-        <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} />
+        {!p.byokMode && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} />}
       </div>}
     </div>
   );
@@ -312,7 +313,7 @@ function SlotPanel(p: SlotPanelProps) {
         usedPct={p.usedPct} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
         consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
         onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
-        convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null}
+        convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokMode={p.byokMode}
       />
     </AiErrorBoundary>
   );
@@ -328,7 +329,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
-  const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented);
+  const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented); const byokMode = useByokMode();
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
@@ -347,7 +348,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
         usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline}
-        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} />
+        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokMode={byokMode} />
     } />
     {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("brainstorm", liveSel)} />}
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
