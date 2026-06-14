@@ -111,6 +111,14 @@ Superseded: the Sonnet-only toggle is now a special case of W44's multi-provider
 Add a SECOND provider (OpenAI / "ChatGPT") under the managed subscription, with ONE unified credit the user sees; each model decrements that single pool by its cost (RATES-table extension). Generalizes W41 (Sonnet) — Anthropic + OpenAI models share one picker + one credit pool + the live cost-meter + hard-stop.
 **Design status:** blueprint in progress — `2026-06-13-multi-provider-unified-credit-blueprint.md` (opus-architect, read-only). Money/live-proxy-adjacent → implementation waits for Cole + a formal decision-review (attack-decision) cell before the decision is locked.
 **Axes (see blueprint):** worker provider-abstraction; unified credit/cost normalization (incl. cross-provider cached-input asymmetry); OpenAI→app SSE stream normalization; model-select UX (Haiku default); reservation/hard-stop across heterogeneous models; rollout + provider-outage fallback.
+**Locked product answers (Cole-confirmed 2026-06-13 — still pending the formal attack-decision review before code):**
+- **Q1 lineup:** GPT-5.4 + GPT-5.4-mini mirror Sonnet/Haiku. Standard picker = Haiku / Sonnet / GPT-5.4-mini / GPT-5.4. Premium pair = Opus + GPT-5.5.
+- **Q2 selection:** ONE global "AI model" pref; **proofread always stays cheap-tier** regardless (mechanical). PLUS a 5th free-form **Ask** mode beyond the 4 verbs → see **W47**.
+- **Q3 generalize:** yes — expose the full matrix in one picker (not a Sonnet-only toggle); W41 fully absorbed.
+- **Q4 outage:** error + automatic credit refund; no cross-provider retry/auto-switch.
+- **Q5 premium access:** NO model paywall — all subscribers can pick any model (incl. Opus/GPT-5.5); premium just burns the $10 allowance faster (off-by-default + "~3× cost" guard); heavy users buy **top-ups** (built). A **$29 "Pro" bigger-bucket tier** comes later if top-up data warrants — same models, more allowance, never model-gating.
+- **Q6 default:** Haiku stays default.
+
 **Acceptance (provisional):** user picks any model (Anthropic or OpenAI) → routes to that provider → one credit pool decrements by that model's real cost → live meter stays accurate → hard-stop holds across providers.
 
 ### W45 — BYOK Phase 2 / local LLM (Ollama, LM Studio) — week-3 Reddit post
@@ -122,6 +130,11 @@ Un-grey the "Custom endpoint" option from W40; let the user point the app at any
 
 ### W46 — model writing-quality eval + harness-steerability experiment (interactive, Cole-driven)
 Full plan: [`wave-46-model-writing-quality-eval.md`](../wave-46-model-writing-quality-eval.md). Runs all candidate models (current + legacy) through the real harness, harness-OFF vs ON, with an objective AI-ism scorer + cross-model adversarial panel + Opus-xhigh adjudication. Settles the "slop = base-model-bound vs harness-fixable?" debate with data. **Feeds:** W42 (harness tuning, incl. a post-hoc-pass feature if it proves out) + W44 (the "recommended model" hint). **Seq:** after W40 (its adapter becomes W44's); serial with the provider family.
+
+### W47 — free-form "Ask" mode (context-aware general assistant)
+A 5th AI mode beyond the 4 task verbs (Cole, 2026-06-13): the user asks ANY question and still attaches manuscript context (current scene / selection / Story Bible / About). **Key design — free-form in TOPIC, still harnessed in STYLE + grounded in CONTEXT, NOT a raw blank box** (evidence pack: "a blank box invites generic output"). Ask gets its own system prompt (writing-assistant persona, ground in attached context, anti-AI-isms, no unprompted prose-generation / padding); slop-guard = the harness + (if Ask is used to generate prose) the W46 post-hoc pass. Likely a conversational/multi-turn surface (chat panel) distinct from the single-shot verb buttons. Uses the global model (Q2); metered like other managed calls (or BYOK/local).
+**Interactions:** W42 (Ask needs its own harness entry) · W44 (picker applies) · W46 (add Ask as an eval task — the closest thing to the "blank box" the research warns about, so the sharpest test that the harness holds without a constrained verb).
+**Acceptance:** free-form question + attached context → grounded, harnessed, slop-free answer → context-selection visible (controllable-context differentiator) → metered correctly.
 
 ### W42 — anti-AI-isms harness + blind eval (gates prose-quality posts)
 - Implement Decision 2: worker appends versioned house-style block (AI-isms ban + show-don't-tell register + a few Variant-B exemplars). Instant-rollback path.
