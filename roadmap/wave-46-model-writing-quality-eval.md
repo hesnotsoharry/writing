@@ -74,7 +74,27 @@ Each task runs **harness-off vs harness-on**, × all available models, ×≥3 sa
 (2) groundedness in the actual manuscript, (3) AI-ism-free (the objective scorer feeds this), (4) would
 a novelist actually use it, (5) verb-fit.
 
-## Phases (build → run; the run phases are interactive/Cole-driven)
+## Phases (P0 methodology FIRST → build → run; run phases are interactive/Cole-driven)
+
+> **Hard gate: nothing in P1+ begins until P0's methodology is researched AND adversarially locked.**
+> A bad eval design fails silently — it yields confident-but-wrong rankings that then mislead both the
+> harness tuning (P7) and the user recommendation (P8). Measure twice. This is the most important phase.
+
+- **P0 — Eval methodology research + adversarial convergence (do FIRST):** research-converge the entire
+  eval design before building anything. **Research streams** (thorough — /deep-research or
+  `haiku-research-extractor` + ctx7/web): (a) LLM-as-judge best practices — position bias, self-preference
+  bias, pairwise vs Likert/absolute, judge count, aggregation/inter-rater reliability; (b) creative-writing
+  / prose-quality eval methodology — how "voice" and "slop" are measurably assessed, any academic/industry
+  frameworks; (c) blind protocol — label randomization, stripping model self-identification leakage;
+  (d) sampling / variance / significance for non-deterministic generation — how many samples, how to report;
+  (e) manuscript-excerpt selection criteria — genre coverage, length, slop-provoking power; (f) validate the
+  AI-ism scorer correlates with human judgment. **Synthesis:** `sonnet-architect` (or `opus-architect` if
+  the design tension is high) drafts the methodology spec. **Convergence:** run the proposed methodology
+  through `sonnet-adversarial-reviewer` (**Posture: attack-decision**) — attack residual biases, blinding
+  leakage, under-sampling, statistical naivety, and the cheaper/better design — iterate until it converges.
+  **Output — a locked, adversarially-validated eval-methodology spec:** final task set + rubric weights,
+  scoring method (pairwise/absolute), sampling plan, blinding protocol, confirmed model IDs (Tier-1 +
+  Tier-2), selected manuscripts, and the cost-pilot plan. **Only then proceed to P1.**
 - **P1 — Provider adapter** (the W44 seed): Anthropic + OpenAI SDK adapters, model-keyed, funded-key config (local/dev only, keys NOT in repo). Includes legacy-ID availability probe.
 - **P2 — Eval rig**: imports the real prompt-builders; batch mode (fixed tasks × models × samples, harness-off/on/blank/post-hoc variants); blind output capture to `eval/runs/<date>/<task>/<label>.md` + a model↔label keymap kept separate.
 - **P3 — Objective AI-ism scorer**: hybrid regex + LLM-judge over Decent's list → per-output score.
@@ -112,8 +132,14 @@ Serial with the provider family (P1 adapter + P4 picker touch the same app AI fi
 **after W40 lands** (reuses BYOK client-direct routing); its adapter is what **W44 then builds on**; its
 findings tune **W42**. Not parallelizable with W40/W44/W45; independent of W39 + the UI-followups batch.
 
-## Open inputs to finalize at pickup
-- Cole's task-set + rubric-weight refinements; manuscript excerpts (which + genres).
-- Exact model IDs (Tier 1 + Tier 2) confirmed against current docs.
-- W44 Q2 (global + cheap-proofread) / Q5 (open-access+top-up vs Pro tier) — not blocking W46, but the recommendation output should match the final picker shape.
-- Pilot scope (recommend: 2 tasks, Tier 1, 3 samples) to calibrate cost before the full matrix.
+## Open inputs — RESOLVED IN P0, not pre-decided
+These are not quick calls to make at pickup — they are the **targets of P0's research + adversarial
+convergence**. The starter task set / rubric / sampling numbers above are *hypotheses to attack*, not
+defaults to accept:
+- Final task set + rubric weights (scoring method pairwise vs absolute) — converged in P0.
+- Manuscript excerpts (which + genres) — selection criteria researched, then Cole picks from the criteria.
+- Exact model IDs (Tier 1 + Tier 2) confirmed against current docs in P0.
+- Cost-pilot scope (starter hypothesis: 2 tasks, Tier 1, 3 samples) — validated/adjusted in P0.
+
+Carried in from elsewhere (not P0-blocking): W44 Q2 (global + cheap-proofread) / Q5 (open-access+top-up
+vs Pro tier) — the recommendation output (P8) should match whatever picker shape W44 lands on.
