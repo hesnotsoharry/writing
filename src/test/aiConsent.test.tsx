@@ -27,6 +27,16 @@ vi.mock("../features/ai/ai.client", () => ({
   CREDIT_UNIT_USD: 0.00001,
 }));
 
+// BYOK client bridges to Tauri invoke, undefined in jsdom — mock so byokHasKey
+// (called on mount via useByokMode) resolves cleanly instead of throwing.
+vi.mock("../features/ai/byok.client", () => ({
+  byokHasKey: vi.fn().mockResolvedValue(false),
+  byokSetKey: vi.fn().mockResolvedValue(undefined),
+  byokClearKey: vi.fn().mockResolvedValue(undefined),
+  byokStop: vi.fn().mockResolvedValue(undefined),
+  streamByokChat: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../features/ai/ai.context", () => ({
   assembleContext: vi.fn().mockResolvedValue({
     sceneTitle: "Test Scene",
