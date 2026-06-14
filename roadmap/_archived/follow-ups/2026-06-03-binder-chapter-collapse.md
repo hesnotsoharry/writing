@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: screen-port-batch
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -28,3 +30,8 @@ The CSS rules exist at `src/styles/app.css` lines 228 (`.scene-dot` unused), and
 ## Suggested resolution path
 
 Feature wave owning "Binder refinements" (collapse state + twist logic + conditional render). Low risk; the styling is already present. Can parallelize with other feature waves once the screen-port batch is merged.
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: `useChapterOpen` + `src/binder/chapterOpenState.ts` with per-chapter localStorage persistence (prior wave).

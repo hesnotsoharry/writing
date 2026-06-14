@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: screen-port-batch
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -30,3 +32,8 @@ The CSS classes exist at `src/styles/app.css` lines 612–634 but are currently 
 ## Suggested resolution path
 
 Polish wave owning "Binder/UI refinements" (custom dropdown + chapter collapse + twist chevron). Low risk; classes exist; can run after the screen-port batch stabilizes.
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: custom dropdown in `src/binder/ProjectSwitcher.tsx` (no `<select>`; keyboard + click-outside) (prior wave).

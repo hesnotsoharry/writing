@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: screen-port-batch
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -37,3 +39,8 @@ A single sonnet-implementer dispatch cannot coordinate all four screens' polish 
 ## Suggested resolution path
 
 Polish wave running AFTER the screen-port batch is fully merged and integrated. Lead runs a single `tauri dev` session comparing each screen to the design-reference, documents the gaps, then dispatches a single "visual polish pass" implementer or coordinates incremental CSS tweaks. Recommend batching with other post-merge visual-refinement work.
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Gaps closed by the waves 18–31 feature rework; 2026-06-13 CDP smoke (Story Bible + Corkboard + editor at width) found no residual visual gaps worth actioning.

@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: screen-port-batch
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -27,3 +29,8 @@ The design mockup is not explicit on placeholder wording. Recommend confirming t
 ## Suggested resolution path
 
 Quick fix in the next Editor refinement wave, or fold into the editor-scene-header-chrome wave (which also threads App state into Editor and would be a natural time to revisit Editor config).
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: TipTap `Placeholder` extension + `.is-editor-empty::before` 'Start writing…' cue in `app.css` (prior wave).

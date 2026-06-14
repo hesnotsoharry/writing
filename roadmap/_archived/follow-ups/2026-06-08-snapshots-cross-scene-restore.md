@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-08
+updated: 2026-06-13
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
 present-harm: K3 — data-corruption on the binder-context-menu open-history-on-non-active-scene path. Found by adversarial review (Codex adversarial-54) on both P2 impls 2026-06-07. Restore is bound to the ACTIVE scene's ctx/doc, so restoring a snapshot for a scene opened via the binder context-menu (when a DIFFERENT scene is the active editor) auto-snapshots and writes the restored content into the WRONG (active) scene.
@@ -44,3 +46,8 @@ Wave post-28: dispatch a sonnet-implementer with a clear brief: "Fix snapshots r
 ---
 
 *Qualified from wave-28 follow-up candidates. Multi-file fix, data-corruption harm, not clearable by single dispatch.*
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Fixed: `SnapTargetOpts` + `isActive` guard in `src/App.snapshots.ts` routes restore to the intended scene's doc; covered by `snapRestore.seam.test.ts` (prior wave).

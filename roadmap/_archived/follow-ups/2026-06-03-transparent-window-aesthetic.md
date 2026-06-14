@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: CLOSED
+closed-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: wave-5
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -36,3 +38,7 @@ This requires Windows-specific render validation beyond the scope of the Phase 4
 ---
 
 *Filed from wave-5 follow-up candidates; deferred to avoid Windows WebView2 transparency risk during the functional shell ship.*
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator call during 2026-06-13 smoke (Cole, 2026-06-13): full-window transparency causes buggy WebView2 alpha-blending on Win11. Delivered alternative instead: Win11 DWM rounded corners + theme-aware DWM border color (no transparency) — see `src-tauri/src/lib.rs` + `src/theme/useTheme.ts`.

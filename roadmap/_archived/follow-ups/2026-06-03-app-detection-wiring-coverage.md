@@ -1,7 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
-updated: 2026-06-03
+updated: 2026-06-13
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
 ---
@@ -42,3 +43,8 @@ This is a **new testing infrastructure** and belongs in a future wave.
 ---
 
 *Audited during wave-3-scene-notes wrap; identified as multi-file integration harness that cannot be cleared by a single implementer dispatch.*
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Covered by `src/test/appDetectionIntegration.test.tsx` (prior wave); `useDetectionWiring` onSaved/onEntitiesChanged paths both tested.

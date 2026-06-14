@@ -46,6 +46,76 @@ fn write_export_file(path: &str, contents: Vec<u8>) -> Result<(), String> {
     Ok(())
 }
 
+/// Resolve a Tauri window's raw Win32 HWND. Used by the DWM chrome calls below.
+#[cfg(windows)]
+fn window_hwnd(window: &tauri::WebviewWindow) -> Option<windows::Win32::Foundation::HWND> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::Foundation::HWND;
+
+    let handle = window.window_handle().ok()?;
+    let RawWindowHandle::Win32(h) = handle.as_raw() else {
+        return None;
+    };
+    Some(HWND(h.hwnd.get() as *mut core::ffi::c_void))
+}
+
+/// Opt the frameless main window into Windows 11's native DWM corner rounding.
+/// A `decorations: false` window is NOT auto-rounded by the OS, so we set
+/// `DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND` on its HWND at startup. This is
+/// compositor-level rounding (no `transparent: true`, so none of WebView2's buggy
+/// alpha-blending) — Windows squares the corners automatically while maximized/snapped.
+#[cfg(windows)]
+fn apply_window_rounding(window: &tauri::WebviewWindow) {
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    };
+
+    let Some(hwnd) = window_hwnd(window) else {
+        return;
+    };
+    let preference = DWMWCP_ROUND;
+    // SAFETY: `hwnd` is the live main-window handle; `preference` outlives the call.
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &preference as *const _ as *const core::ffi::c_void,
+            std::mem::size_of_val(&preference) as u32,
+        );
+    }
+}
+
+/// Set the Win11 DWM window border color. `color` is a COLORREF in `0x00BBGGRR`
+/// byte order (NOT web `#RRGGBB`). The frontend calls this on mount + theme change
+/// so the thin OS border matches the active theme instead of the cold default
+/// near-white system line. No-op (compiles, does nothing) off Windows.
+#[tauri::command]
+fn set_border_color(window: tauri::WebviewWindow, color: u32) {
+    #[cfg(windows)]
+    {
+        use windows::Win32::Foundation::COLORREF;
+        use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR};
+
+        let Some(hwnd) = window_hwnd(&window) else {
+            return;
+        };
+        let colorref = COLORREF(color);
+        // SAFETY: `hwnd` is the live window handle; `colorref` outlives the call.
+        unsafe {
+            let _ = DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_BORDER_COLOR,
+                &colorref as *const _ as *const core::ffi::c_void,
+                std::mem::size_of_val(&colorref) as u32,
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, color);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Debug-only: expose the WebView2 DevTools (CDP) endpoint on 127.0.0.1:9222 so a
@@ -59,6 +129,13 @@ pub fn run() {
     );
 
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(windows)]
+            if let Some(win) = app.get_webview_window("main") {
+                apply_window_rounding(&win);
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -71,6 +148,7 @@ pub fn run() {
             open_path,
             backup_database,
             write_export_file,
+            set_border_color,
             license::activate_license
         ])
         .run(tauri::generate_context!())

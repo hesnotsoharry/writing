@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 
 // AccentPalette: [hero, deep, tint] — matches the design's accent array shape.
@@ -50,6 +51,47 @@ function rgbOf(hex: string): string {
 }
 
 /**
+ * Convert a hex colour (#rgb or #rrggbb) to a Win32 COLORREF (0x00BBGGRR byte
+ * order — the reverse of web RGB), for the DWM `set_border_color` command.
+ * Returns null for unparseable input so the caller can skip the native call.
+ */
+function hexToColorref(hex: string): number | null {
+  let h = hex.replace("#", "").trim();
+  if (h.length === 3) {
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  }
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (b << 16) | (g << 8) | r;
+}
+
+/**
+ * Match the Win11 native window border (the thin OS line around the frame) to the
+ * active theme's titlebar colour, replacing the cold default near-white line.
+ * Runs on theme change; reads --titlebar AFTER useTheme's data-theme effect has
+ * applied, so the computed value already reflects the new theme. Guarded on the
+ * Tauri runtime so jsdom tests (and any non-Tauri host) skip the native invoke.
+ */
+function useNativeBorderColor(theme: Theme): void {
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const titlebar = getComputedStyle(document.documentElement)
+      .getPropertyValue("--titlebar")
+      .trim();
+    const color = hexToColorref(titlebar);
+    if (color === null) return;
+    void invoke("set_border_color", { color }).catch(() => {
+      /* border colour is cosmetic — ignore failures (e.g. pre-Win11 builds) */
+    });
+  }, [theme]);
+}
+
+/**
  * useTheme — owns theme + accent state and writes the design tokens to
  * document.documentElement on every change.
  *
@@ -74,6 +116,9 @@ export function useTheme(): ThemeState {
     }
     localStorage.setItem(THEME_KEY, JSON.stringify(theme));
   }, [theme]);
+
+  // Keep the Win11 native window border matched to the active theme (see hook).
+  useNativeBorderColor(theme);
 
   useEffect(() => {
     const root = document.documentElement;

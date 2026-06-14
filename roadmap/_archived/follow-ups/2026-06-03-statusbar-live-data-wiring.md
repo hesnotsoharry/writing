@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: wave-5
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -43,3 +45,8 @@ This is a feature-tier design piece, not a cheap wiring fix.
 ---
 
 *Filed from wave-5 follow-up candidates. Naturally groups with goals and word-count feature work.*
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: `useLiveWordCount` / `useManuscriptWordCount` / `useDailyGoalProgress` wired into `<StatusBar>` (prior wave).

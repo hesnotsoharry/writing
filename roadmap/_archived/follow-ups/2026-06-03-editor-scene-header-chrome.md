@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: followups-ui-batch
 created: 2026-06-03
+updated: 2026-06-13
 source: screen-port-batch
 qualifying-criterion: multi-file
 cannot-be-cleared-by: sonnet-implementer-dispatch
@@ -26,3 +28,8 @@ Needs scene metadata threaded through the `<EditorPane>`/`<Editor>` call site in
 ## Suggested resolution path
 
 Fold into wave-9 post-merge app-threading coordination pass, or defer to a Tier-2 feature wave that owns App.tsx threading as a coherent pass (Corkboard, Settings, Quick Capture all add view state to App.tsx; batch the threading discipline in one wave).
+
+## Resolution (2026-06-13)
+
+Closed by orchestrator mechanical audit on 2026-06-13.
+Evidence: Implemented: `src/editor/EditorHeader.tsx` (eyebrow/h1/byline) fed real scene metadata (prior wave).
