@@ -7,10 +7,10 @@
  *  - the resulting trialKey is persisted to localStorage (aiTrialKey tweak)
  *  - the balance result flows into the rendered meter state
  *
- * Anti-tautology discipline:
- *  - acquireTrialSession is the subject under test; it is NOT mocked.
- *  - acquireTrialSession's own boundary (fetch) is what we stub.
- *  - Mocks only cross the external boundaries (network, getBalance).
+ * Scope: this is a ROUTING test — ai.client (incl. acquireTrialSession) IS mocked, and
+ * we assert the wiring picks the right call (acquireTrialSession vs acquireSession) and
+ * persists aiTrialKey. acquireTrialSession's own behavior (POST body, throw-on-!ok) is
+ * verified separately in src/test/trialSession.client.acceptance.test.ts against a stubbed fetch.
  */
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";

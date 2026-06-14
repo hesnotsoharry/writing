@@ -78,8 +78,16 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   }
 
   const newKey = "trial_" + crypto.randomUUID();
+  const ipHashSecret = env.IP_HASH_SECRET;
+  if (!ipHashSecret) {
+    // Fail closed on the privacy guarantee: without the salt, hashIp would run HMAC
+    // with an empty key, producing a precomputable (reversible) IP hash — silently
+    // breaking the "raw IP is never stored" property. Refuse rather than degrade
+    // (mirrors buildToken's required-secret posture). Set IP_HASH_SECRET to enable grants.
+    return new Response("Internal Server Error", { status: 500, headers: cors });
+  }
   const ip = context.request.headers.get("CF-Connecting-IP") ?? "";
-  const ipHash = await hashIp(ip, env.IP_HASH_SECRET ?? "");
+  const ipHash = await hashIp(ip, ipHashSecret);
 
   const { data: grantData } = await db.rpc("grant_trial", {
     p_license_key: newKey,

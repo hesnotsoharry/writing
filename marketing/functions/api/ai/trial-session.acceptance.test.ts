@@ -124,6 +124,13 @@ describe("POST /api/ai/trial-session contract", () => {
     expect(body.error).toBe("trial_ip_capped");
   });
 
+  it("first grant with IP_HASH_SECRET unset → 500 (fail closed on the privacy guarantee, no grant)", async () => {
+    // Without the salt, hashIp would produce a precomputable IP hash — refuse rather than degrade.
+    const res = await onRequestPost(ctx({}, { IP_HASH_SECRET: "" }));
+    expect(res.status).toBe(500);
+    expect(rpcCalls.find((c) => c.fn === "grant_trial")).toBeUndefined();
+  });
+
   it("re-exchange of an unknown / non-trial key → 401", async () => {
     subRow = null;
     subErr = { code: "PGRST116", message: "no rows" };
