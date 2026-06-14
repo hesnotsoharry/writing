@@ -72,4 +72,27 @@ Mechanism is **pure-function + fetch-guard logic** → covered by vitest (`apply
 
 ## Result
 
-(pending implementation)
+**SHIPPED (mechanism + provisional v1 content) — 2026-06-14, branch `wave-42-ai-isms-harness`.** Not yet merged/pushed at time of writing (autonomous session; Cole to review). Commits: Phase 1 `b2810aa` (mechanism + content + tests), Phase 2 (docs/wrap).
+
+### What shipped
+- **Client composition core** (`src/features/ai/prompts/shared.ts`): `HOUSE_STYLE_BLOCK` (v1 provisional anti-AI-isms ban list + show-don't-tell register), `HouseStyleConfig`, `HOUSE_STYLE_DEFAULT`, `MAX_HOUSE_STYLE_BLOCK = 4_000`, and the pure `applyHouseStyle(system, config, model?)` composer. `SHARED_PRINCIPLES` (W37) untouched + always-on; the W42 layer is appended after it.
+- **Remote-config store + fetch** (`src/features/ai/ai.house-style.ts`, new): module-singleton + `fetchAndStoreHouseStyleConfig()` with a 5-guard fail-open-to-baked-in chain (reject / !ok-before-parse / bad-JSON / type-guard / length-cap).
+- **Wiring**: `buildMessages` (`prompts/index.ts`) wraps the verb-builder system with `applyHouseStyle(…, getActiveHouseStyleConfig())` (external signature unchanged; `routeVerb` extracted to keep both fns ≤40 lines). `App.tsx` fires the config fetch once on mount.
+- **Remote endpoint** (`marketing/functions/api/ai/house-style.ts`, new): `GET`+`OPTIONS`, source-embedded `{version:1,enabled:true,block,perModelAddenda:{}}`, `Cache-Control: no-store`, CORS via `_lib/cors.ts`.
+- **Docs**: launch-doc Decision 2 revised in place (worker-append → client-injected, with the BYOK-flaw why); W42 entry → MECHANISM-SHIPPED / content-PROVISIONAL / eval-moved-to-W46.
+
+### Verification
+- Client: `tsc` 0, `eslint` 0, full `vitest` **1413/1413** (15 new W42 tests).
+- Marketing: `tsc` 0, full `vitest` **208/208** (4 new endpoint tests incl. a client↔endpoint drift tripwire).
+- Smoke: skipped per session brief (mechanism is pure string/fetch logic — jsdom/Workers-testable, no runtime oracle needed).
+- Reviews: decision-review cell (attack-decision) → FLAG, both fixes (function-form replace, rollback-scope doc) baked into the locked decision. attack-diff review → FLAG, both fixes applied (deleted 2 dead comment-stub files; added the drift tripwire).
+
+### Caveats / what's NOT done (deliberate)
+- v1 content is PROVISIONAL — W46's eval sets the tuned values, per-model addenda, and the post-hoc-pass decision.
+- `perModelAddenda` is dormant (client doesn't know the model; server pins Haiku) — W44's model picker activates it.
+- No localStorage LKG cache / version-monotonicity guard (baked-in default IS the v1 offline story) — deferred.
+- The remote endpoint is committed but **not deployed** until the branch merges + master is pushed (push = CF Pages deploy). Until then, clients fetch-fail → baked-in default (correct fail-open; the harness still applies).
+
+### Cole's to-do
+- Review + merge `wave-42-ai-isms-harness` → master (push deploys the marketing endpoint live).
+- (Optional) Behavioral confirm on a live call: the assembled system prompt contains `<house-style>` after `SHARED_PRINCIPLES`.

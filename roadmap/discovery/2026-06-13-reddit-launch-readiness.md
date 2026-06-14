@@ -54,12 +54,14 @@ standing + Week-0 comment, Ben/Novelmint DM, the post copy itself.
 **Consequences:** Trial gating becomes a credit-bucket change (worker/Supabase) + app meter wiring for non-subscribers, not a new UI subsystem. Allowance is a config constant (start ~$1.50 ≈ 100+ Haiku / ~40 Sonnet assists), tunable from data.
 **Enforcement:** advisory-only (design intent recorded here; W39 implements + tests the gate).
 
-### Decision 2 — Anti-AI-isms harness: worker-appended versioned block
+### Decision 2 — Anti-AI-isms harness: client-injected, remote-config-toggleable block — **REVISED (W42, 2026-06-14)**
 **Context:** Source plan assumed a Cloudflare-worker edit with instant rollback; prompts are actually client-side (ship in the app binary → no hot rollback). Zero current users.
-**Pick:** Keep app-authored prompts; have the **worker append a server-controlled, versioned "house-style / anti-AI-isms" block** to the system prompt it receives. Not full server-side assembly (over-engineering), not pure client-side (no hot rollback on the layer that needs tuning).
-**Rationale:** Smallest change that delivers version + instant rollback on exactly the layer iterated in public post-launch. Cheap to set up at zero users; pays off the week of launch when prose-quality tuning is live.
-**Consequences:** A versioned house-style string lives worker-side with instant rollback; the blind eval (W42) tunes it without app releases.
-**Enforcement:** advisory-only (W42 implements; rollback path is a worker redeploy / config flip).
+**Original pick (SUPERSEDED):** Have the **worker append** a server-controlled versioned house-style block to the system prompt it receives.
+**Why revised:** The worker is only on the subscription-proxy path. The future **BYOK-direct** path (W40) calls Anthropic directly and never hits the worker, so a worker-appended block would never reach BYOK users — the harness must ship where the prompt is assembled (client-side) to cover both paths.
+**Pick (current):** Inject the block **client-side** at the single prompt-assembly choke point (`buildMessages` → `applyHouseStyle`), with content + an on/off toggle delivered by a **remote-config endpoint** (`GET /api/ai/house-style`, a CF Pages Function on writersnook.app). Two separable layers: `SHARED_PRINCIPLES` (W37 anti-sycophancy) stays always-on + baked-in; the new `HOUSE_STYLE_BLOCK` (anti-AI-isms + register) is the remotely-tunable layer, also baked-in as the fail-open default so it's present offline / first-run / BYOK. Dormant `perModelAddenda` knob for W44.
+**Rationale:** Client-injection is the ONLY design that reaches both proxy + BYOK (both flow through `buildMessages`). Remote config decouples content tuning/rollback from the slow signed-installer cadence: a git push → ~60–120 s CF build flips it, no app release. Endpoint (not static JSON) is forced by CORS (CF Pages adds no CORS headers to static assets → Tauri-WebView fetch hard-fails); KV-backed is over-built at zero users.
+**Consequences:** A versioned house-style string lives on the marketing site with ~1–2 min rollback — **scoped to the W42 layer ONLY** (W37 `SHARED_PRINCIPLES` is compiled in; changing it still needs a signed release). Declared invariant: any future direct-Anthropic path (W40 BYOK) MUST assemble its system prompt through `buildMessages` or the harness is bypassed. The blind eval (W46, was W42) tunes the content without app releases.
+**Enforcement:** advisory-only (W42 SHIPPED the mechanism + provisional v1 content; rollback path is a marketing redeploy / `enabled:false` flip). Full ADR: `roadmap/wave-42-ai-isms-harness.md` § Locked decisions.
 
 ### Decision 3 — Sequencing: honesty first, then cost-control, then features
 **Context:** ~6 waves of work; a false privacy claim + unbuyable tier are live now; Cole's cadence rule makes a slipped feature cheap (post slips a week) but a post on a broken/false claim is not.
@@ -139,10 +141,11 @@ A 5th AI mode beyond the 4 task verbs (Cole, 2026-06-13): the user asks ANY ques
 ### W48 — cache-prefix re-placement + 1h TTL
 Full plan: [`wave-48-cache-prefix-replacement-1h-ttl.md`](../wave-48-cache-prefix-replacement-1h-ttl.md). Validated finding: the volatile scene excerpt sits INSIDE the cached system block (`shared.ts:66-68`, `chat.ts:223`), so the cache dies on every edit — it only hits on no-edit-between-asks. Fix = move scene/selection into `messages`, keep stable grounding cached, THEN flip 5m→1h. **Verify-first P0 gate** (Cole's requirement): prove behavior + the Haiku-4096-floor risk profile before refactoring, so we don't bust caches. **Seq:** after W39 merges (credits.ts collision); serial with the worker/AI family; addresses follow-up `precise-cache-write-reserve`.
 
-### W42 — anti-AI-isms harness + blind eval (gates prose-quality posts)
-- Implement Decision 2: worker appends versioned house-style block (AI-isms ban + show-don't-tell register + a few Variant-B exemplars). Instant-rollback path.
-- Blind eval (Haiku vs Haiku+harness vs Sonnet) on ~12 real assist tasks — to learn which assist types to steer to Sonnet, NOT to claim prose quality at launch.
-**Acceptance:** House-style block versioned + hot-rollbackable; eval run + results recorded; no prose-quality claim added to marketing.
+### W42 — anti-AI-isms harness (gates prose-quality posts)
+- **MECHANISM SHIPPED (2026-06-14, branch `wave-42-ai-isms-harness`):** Decision 2 (revised) — **client-injected** versioned house-style block (`applyHouseStyle` in `src/features/ai/prompts/shared.ts`), remote-config-toggleable via `GET /api/ai/house-style` (marketing CF Pages Function), fail-open-to-baked-in, dormant per-model-addendum knob. Ships in the binary → reaches BYOK-direct too. Full plan: [`wave-42-ai-isms-harness.md`](../wave-42-ai-isms-harness.md).
+- **v1 content is PROVISIONAL:** ban Decent's list (the "It's not X, it's Y" construction; stock names Elara/Silas/Marcus/Voss/Blackwood; smell-pairs; "silence was a [noun]"; negative constructions; vague mush) + a show-don't-tell register. The client baked-in `HOUSE_STYLE_BLOCK` and the marketing endpoint's embedded string must stay byte-in-sync until W46 (drift tripwire in the endpoint test).
+- **The blind eval moved to W46** (model writing-quality eval + harness-steerability). W46 sets the tuned content + per-model addenda values + decides the post-hoc-pass feature. W42 built the knobs; W46 sets the values.
+**Acceptance (mechanism):** ✅ House-style block versioned + hot-rollbackable (marketing redeploy / `enabled:false`); knobs built (toggle, version, per-model addendum). Eval + content-tuning → W46. No prose-quality claim added to marketing.
 
 ---
 
