@@ -1,30 +1,37 @@
 ---
 project: writing
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 
 ## Current state
-- Branch: master · Latest commit: 22808a3 · Tag: v0.8.0
-- Waves 36 (launch-monetization-A-C) + 37 (AI-harness) merged at e261f8d; v0.8.0 pushed to master 2026-06-13
-- Marketing deployed live (writersnook.app): AI proxy functions + $14.99/mo subscription pricing active
-- Status: launch batch in flight (Reddit-launch waves W38–W48) · Wave-37 behavioral smoke VERIFIED 2026-06-13 (all 5 PASS) · Desktop installer (signed) + Phase-D activation pending Cole
+- master @ `352d05e` · Tag v0.8.0 · **Reddit-launch batch (waves W38–W48) in heavy parallel flight.**
+- **LIVE on writersnook.app:** only tonight's privacy fix (`d44a37f`) deployed. Everything since on master is **UNPUSHED** (W43 marketing parked + all wave-planning docs).
+- ⚠️ **The first push to master auto-deploys the parked W43 marketing copy.** Settle W43 copy-OK with Cole before any push.
+- 4 autonomous build sessions running overnight (branch-only — they do NOT push/merge). 2 branches handed back, awaiting gated merge. Detail in "Active work."
 
-## Next 3 steps
-1. Cole: Run `.\publish.ps1` to cut v0.8.0 signed NSIS installer + GitHub release + R2 upload (interactive: updater-key password + AZURE_* signing env).
-2. Cole: Phase D go-live (GDPR/DPA-gated per marketing/LAUNCH-AI-SUBSCRIPTION.md); blocker first: fix webhook RPC-error (wave-36, handlePaymentSuccess/handleTopupOrder silent allowance loss); flip aiEnabled default OFF per design canon.
-3. Optional (decision now well-grounded, not a blocker): upgrade judgment-heavy verbs (critique/betaread/brainstorm) Haiku→Sonnet — one-line per verb in `verb-config.ts`, RATES table already supports it; keep proofread on Haiku. See [[ai-caching-favors-sonnet-upgrade-economics]] — Sonnet's 1024-tok cache floor (vs Haiku 4096) offsets the price; spike one verb side-by-side before committing.
+## Morning to-do (ordered · owner)
+1. **Cole — W40 live-key stream check:** paste a real Anthropic key in the BYOK Settings row → send → confirm tokens stream (only a valid key proves this; all else verified). → then **merge-master merges W40** (local; ships via installer, NO deploy).
+2. **Cole — W39 B/C decision:** recommended = fix **[B]** budget-429 UX/retry-loop + **[C]** stale-trial-token metering regression in the W39 session (each ~1 focused change, diagnosed in the wave file). [A] already fixed inline; [D] accepted. Or ship as-documented.
+3. **Cole — apply Supabase migrations `0005 → 0006`** for W39 (author-only; 0006 additive + has rollback).
+4. **Merge-master — W39 Phase-4 CDP smoke** against a local worker, post-migration (procedure in the wave-39 file).
+5. **Merge-master — merge overnight branches** (W42/W44/W46/W47) as they land, plus W39 + W40; resolve conflicts (hotspots below).
+6. **Cole — W43 copy-OK** (features AI card + Mac-waitlist stub) before the first push.
+7. **Merge-master — W39 green → merge + PUSH** (deploys worker + W43 together) → set prod `IP_HASH_SECRET`, keep `TRIAL_AI_ENABLED=false` until launch → wrap (stub wave file, promote its 2 decisions, bump **v0.9.0**).
+8. **Then launch held waves:** W45 local-LLM (needs W44 adapter), W48 cache-prefix+1h (needs W39 `credits.ts`). And the **W46 interactive run** once its P0 methodology spec is locked (Cole-driven, funded keys, Workflow opt-in).
 
-## Active work
-- Waves 36 + 37 shipped (code on master, proxy live); desktop installer signing + Phase-D pending Cole
-- Wave-37 deferred smoke DONE 2026-06-13: live-proxy CDP smoke confirmed all 5 — Critique craft-note opener, Beta-read 2000-char truncation+notice, Brainstorm Haiku-rate billing, cache_read on 2nd turn, cheaper 2nd turn (681→228 credits). Test data (big About block + extended test1 scene) left on "The Salt Road" test manuscript per Cole. Note: a tauri-devtools smoke gotcha was found+saved ([[tauri-fill-tool-bypasses-react-state]]).
-- followups-ui-batch MERGED 2026-06-13: find-mentions mock-toast double-fire fixed (`Editor.tsx`); Win11 DWM rounded corners + theme-aware DWM window border (`src-tauri/src/lib.rs` + `src/theme/useTheme.ts`, new windows/raw-window-handle deps); full-window transparency rejected (buggy WebView2 alpha on Win11); 13 UI follow-ups archived → roadmap/_archived/follow-ups/.
-- Launch batch in flight (worktrees): W39 trial-gating, W40 BYOK Phase 1. W43 site-surface committed-not-pushed (parked for Cole copy review). Planned: W42 harness · W44 multi-provider · W45 local-LLM · W46 model-eval · W47 Ask mode · W48 cache-prefix+1h-TTL. Full map: roadmap/discovery/2026-06-13-reddit-launch-readiness.md.
-- Open follow-ups: 2 (AI) · precise-cache-write-reserve · assistant-entity-context-strip-staleness · (webhook RPC blocker RESOLVED fb23433; 13 UI follow-ups archived by followups-ui-batch)
-- Bookkeeping: wave-17-foundation status corrected (IN-PROGRESS→SHIPPED, shipped in 7addfa4)
+## Active work (branches)
+- **RUNNING overnight** (off `352d05e`, branch-only): `wave-44-multi-provider` · `wave-46-eval-methodology` (P0 methodology, doc-only) · `wave-47-ask-mode` · `wave-42-ai-isms-harness`. Worktrees: `writing-w44-multiprovider` / `-w46-evalmethod` / `-w47-ask` / `-w42-harness`.
+- **AWAITING MERGE:** `wave-40-byok-phase-1` (`@f87e8dc`, `writing-w40-byok`) — gated on #1. `wave-39-trial-gating` (`@2066643`, `writing-w39-trial`) — gated on #2–4.
+- **PARKED:** W43 site-surface (committed on master, unpushed — Claude-naming + UTM + Mac-waitlist stub). Its dead $14.99 Subscribe button still needs **Cole's checkout URL**.
+- **MERGE CONFLICT HOTSPOTS:** `src/features/ai/prompts/shared.ts` (W42 block + W47 minor) · Settings model picker (W44) · `credits.ts`/`chat.ts` (W44 + W39) · **W40↔W44 adapter reconcile** (W44 built off master without W40's BYOK routing). W46 is doc-only → conflict-free.
+- **HELD (not launched):** W45 (after W44), W48 (after W39).
+
+## Open follow-ups (3)
+- `precise-cache-write-reserve` (folded into W48) · `assistant-entity-context-strip-staleness` · `2026-06-14-ai-license-key-entry-ui` (managed `aiLicenseKey` has no first-time entry UI — product call; filed by W40).
 
 ## Reference index
-- Wave 37: [wave-37-ai-harness-optimization.md](wave-37-ai-harness-optimization.md) · Wave 36: [wave-36-launch-ai-subscription-monetization.md](wave-36-launch-ai-subscription-monetization.md)
-- Phase-D runbook: [marketing/LAUNCH-AI-SUBSCRIPTION.md](../marketing/LAUNCH-AI-SUBSCRIPTION.md)
-- Durable decisions: [decisions/](decisions/)
-- Vendor-gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/) (Tauri, Anthropic) + marketing/.claude/vendor-gotchas/
-- Project conventions: [CLAUDE.md](../CLAUDE.md)
+- Wave map + locked W44 answers (Q1–6) + W45/W47 entries: `roadmap/discovery/2026-06-13-reddit-launch-readiness.md`
+- W44 blueprint: `roadmap/discovery/2026-06-13-multi-provider-unified-credit-blueprint.md` · W46 eval (P0 gate): `roadmap/wave-46-model-writing-quality-eval.md` · W48 cache: `roadmap/wave-48-cache-prefix-replacement-1h-ttl.md`
+- W39 spec + smoke procedure + B/C/D diagnoses: `roadmap/wave-39-trial-gating.md` (on its branch) · W40 stub + decisions 0002 (direct-to-Anthropic) / 0003 (keyring v4): on `wave-40` branch + `roadmap/decisions/`
+- Vendor-gotchas: `.claude/vendor-gotchas/` (keyring, anthropic, tauri) · Phase-D runbook: `marketing/LAUNCH-AI-SUBSCRIPTION.md`
+- Loose ends: locked leftover dir `writing-w-uifollowups` (cosmetic — `rm -rf` later) · uncommitted `package-lock.json` noise in worktrees (discard).
