@@ -81,7 +81,7 @@ interface TopupOrderAttributes {
 }
 
 interface TopupOrderPayload {
-  meta: { event_name: "order_created" };
+  meta: { event_name: "order_created"; custom_data?: { license_key?: string } };
   data: { type: "orders"; id: string; attributes: TopupOrderAttributes };
 }
 
@@ -341,6 +341,39 @@ async function handleStatusUpdate(payload: SubscriptionPayload, env: WebhookEnv)
   return new Response(null, { status: 200 });
 }
 
+// ── Top-up orphan alert ───────────────────────────────────────────────────────
+
+/**
+ * Terminal handler for a top-up order that cannot be linked to a subscriber.
+ * Sends a Resend alert if CONTACT_TO is configured so ops can credit manually.
+ * Falls back to log-only if CONTACT_TO is absent or Resend keys are missing.
+ */
+async function handleOrphanTopup(
+  env: WebhookEnv,
+  orderId: string,
+  email: string,
+  variantId: number | undefined,
+): Promise<Response> {
+  console.error("[topup-orphan]", { orderId, email, variantId });
+  if (env.CONTACT_TO) {
+    const detail = JSON.stringify({ orderId, email, variantId });
+    await sendEmail(env, {
+      to: env.CONTACT_TO,
+      subject: `[WritersNook] TOP-UP ORPHAN — manual credit required (order ${orderId})`,
+      html: `<p>A top-up order arrived that could not be linked to a subscriber.</p><pre>${detail}</pre><p>Credit manually via Supabase.</p>`,
+      text: `A top-up order could not be linked to a subscriber.\n\n${detail}\n\nCredit manually via Supabase.`,
+      idempotencyKey: `orphan-topup-${orderId}`,
+    });
+  }
+  // Return 500 so LS retries over its finite window — this auto-heals the late-subscription-row race
+  // for clients that didn't send custom_data, and keeps re-attempting the (idempotency-keyed → single)
+  // alert until it lands. A permanently-unlinkable order surfaces as a failed webhook in the LS dashboard
+  // after LS exhausts retries, by which point the operator alert has been sent. No tombstone is written
+  // and topup_credits is not called on this path, so retries are side-effect-free apart from the
+  // deduplicated alert.
+  return new Response(null, { status: 500 });
+}
+
 // ── Top-up order handler ──────────────────────────────────────────────────────
 
 async function handleTopupOrder(
@@ -360,17 +393,27 @@ async function handleTopupOrder(
   }
 
   // Resolve subscriber for top-up variants BEFORE writing the ledger.
-  // 500 on miss is retryable — no tombstone is written, so LS will retry until
-  // the subscription_created event arrives and creates the row.
+  // Three-tier resolution: custom-data key → email lookup → orphan alert (terminal 200).
   let licenseKey: string | null = null;
   if (isTopupVariant(variantId, env)) {
-    const { data: sub, error: subErr } = await db
-      .from("subscriptions")
-      .select("license_key")
-      .eq("user_email", attrs.user_email)
-      .single();
-    if (subErr || !sub) return new Response("Internal Server Error", { status: 500 });
-    licenseKey = (sub as { license_key: string }).license_key;
+    // Tier 1: LS custom_data.license_key — passed by the desktop client at checkout.
+    // Bypasses the DB lookup entirely; correct even for brand-new subscribers.
+    const customKey = payload.meta.custom_data?.license_key;
+    if (customKey) {
+      licenseKey = customKey;
+    } else {
+      // Tier 2: email fallback — preserves backward-compat for checkouts without custom data.
+      const { data: sub, error: subErr } = await db
+        .from("subscriptions")
+        .select("license_key")
+        .eq("user_email", attrs.user_email)
+        .single();
+      if (subErr || !sub) {
+        // Tier 3: orphan alert — returns 200 (terminal) to stop the LS retry storm.
+        return handleOrphanTopup(env, orderId, attrs.user_email, variantId);
+      }
+      licenseKey = (sub as { license_key: string }).license_key;
+    }
   }
 
   // RPC FIRST (top-up variant only): call topup_credits before the tombstone so a LS

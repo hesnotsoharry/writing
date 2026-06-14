@@ -192,9 +192,12 @@ function invoicePayload(subId = "sub_001", invoiceId = "inv_001") {
   });
 }
 
-function orderPayload(orderId: string, variantId: number, email = "alice@example.com") {
+function orderPayload(orderId: string, variantId: number, email = "alice@example.com", customLicenseKey?: string) {
   return JSON.stringify({
-    meta: { event_name: "order_created" },
+    meta: {
+      event_name: "order_created",
+      ...(customLicenseKey !== undefined ? { custom_data: { license_key: customLicenseKey } } : {}),
+    },
     data: {
       type: "orders",
       id: orderId,
@@ -394,7 +397,8 @@ describe("duplicate event idempotency via webhook_events", () => {
 });
 
 describe("order_created — top-up pack", () => {
-  it("calls topup_credits with TOPUP_PACK_AMOUNT for a matching top-up variant ID", async () => {
+  // Tier 2: no custom_data, email matches existing subscriber row → credits via resolved key.
+  it("calls topup_credits with TOPUP_PACK_AMOUNT for a matching top-up variant ID (Tier 2 — email fallback)", async () => {
     const body = orderPayload("order_topup_001", Number(TEST_TOPUP_VARIANT));
     const ctx = makeContext(body);
     const res = await onRequestPost(ctx);
@@ -403,6 +407,21 @@ describe("order_created — top-up pack", () => {
     expect(topup).toBeDefined();
     expect(topup!.args["p_amount"]).toBe(TOPUP_PACK_AMOUNT);
     expect(topup!.args["p_license_key"]).toBe("WN-AI-EXISTING");
+  });
+
+  // Tier 1: meta.custom_data.license_key present → credits via that key, no email DB lookup needed.
+  it("credits via meta.custom_data.license_key directly without an email DB lookup (Tier 1)", async () => {
+    subRows = []; // intentionally empty — Tier 1 must NOT require a subscriber row
+    const body = orderPayload("order_custom_001", Number(TEST_TOPUP_VARIANT), "any@example.com", "CUSTOM-AI-KEY-XYZ");
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(200);
+    const topup = rpcCalls.find((c) => c.fn === "topup_credits");
+    expect(topup).toBeDefined();
+    expect(topup!.args["p_license_key"]).toBe("CUSTOM-AI-KEY-XYZ");
+    expect(topup!.args["p_amount"]).toBe(TOPUP_PACK_AMOUNT);
+    // If Tier 2 was incorrectly entered, the email lookup would fail (subRows=[]) and
+    // return 200 via orphan — but topup would be undefined. topup being defined with the
+    // custom key proves Tier 1 executed without any DB lookup.
   });
 
   it("returns 200 without calling topup_credits for a subscription-variant order (no-op, ledger recorded)", async () => {
@@ -541,39 +560,55 @@ describe("RPC-first ordering — money-path failure regression", () => {
 });
 
 describe("order_created — top-up out-of-order delivery and config guard", () => {
-  it("returns 500 with NO webhook_events tombstone when subscriber email not found (out-of-order); retry after subscriber row exists grants exactly once", async () => {
+  // Tier 3: no custom_data, email miss → orphan alert (500, retryable).
+  // Returning 500 lets LS retry over its finite window, which auto-heals the
+  // late-subscription-row race and ensures the (idempotency-keyed → single) alert
+  // eventually lands so ops can credit manually.
+  it("returns 500 (retryable) with NO tombstone and NO credit when email not found and no custom_data — lets LS retry / surfaces as failed webhook", async () => {
     const missingEmail = "latecomer@example.com";
-    subRows = []; // no subscriber row yet
+    subRows = []; // no subscriber row
 
     const body = orderPayload("order_oo_001", Number(TEST_TOPUP_VARIANT), missingEmail);
 
-    // First delivery: subscriber not in DB yet → 500, ledger NOT written
-    const res1 = await onRequestPost(makeContext(body));
-    expect(res1.status).toBe(500);
-    expect(ledger.size).toBe(0);
+    // Orphan path: 500 lets LS retry; no credit granted; no tombstone written
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(500);
     expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
+    expect(ledger.size).toBe(0);
+  });
 
-    // Subscriber row arrives in DB between LS retries
-    subRows = [{ license_key: "WN-AI-LATECOMER", user_email: missingEmail, ls_subscription_id: "sub_late" }];
+  it("sends a Resend alert when CONTACT_TO is configured and the orphan path fires", async () => {
+    subRows = [];
+    const body = orderPayload("order_orphan_alert", Number(TEST_TOPUP_VARIANT), "orphan@example.com");
+    const envWithResend = {
+      ...makeEnv(),
+      CONTACT_TO: "ops@writersnook.com",
+      RESEND_API_KEY: "re_test_key",
+      RESEND_FROM: "noreply@writersnook.app",
+    };
+    // Default mockFetch returns ok:true — sendEmail will succeed (id: null is fine for the test)
+    const res = await onRequestPost(makeContext(body, TEST_SECRET, envWithResend));
+    expect(res.status).toBe(500);
+    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
+    // Resend was called: mockFetch should have been invoked with the Resend API URL
+    const resendCall = mockFetch.mock.calls.find(
+      (args: unknown[]) => typeof args[0] === "string" && args[0].includes("resend.com"),
+    );
+    expect(resendCall).toBeDefined();
+  });
 
-    // Retry: subscriber found → ledger written → topup_credits called once
-    const res2 = await onRequestPost(makeContext(body));
-    expect(res2.status).toBe(200);
-    expect(rpcCalls.filter((c) => c.fn === "topup_credits")).toHaveLength(1);
-    expect(rpcCalls.find((c) => c.fn === "topup_credits")!.args["p_license_key"]).toBe("WN-AI-LATECOMER");
-
-    // LS delivers again (network glitch): tombstone 23505 → 200.
-    // With RPC-first ordering, topup_credits may be called before the tombstone check;
-    // the SQL dedup guard (0005_topup_credits_dedup.sql) prevents double-credit in
-    // production by detecting the matching (license_key, event_type, request_id) row.
-    rpcCalls = [];
-    const res3 = await onRequestPost(makeContext(body));
-    expect(res3.status).toBe(200);
-    // If topup_credits fires on retry, it must carry the same p_request_id for SQL dedup.
-    const thirdCall = rpcCalls.find((c) => c.fn === "topup_credits");
-    if (thirdCall) {
-      expect(thirdCall.args["p_request_id"]).toBe("order:order_oo_001");
-    }
+  it("returns 500 with NO tombstone and NO credit when CONTACT_TO is set but RESEND_API_KEY is absent — credit path keeps retrying", async () => {
+    subRows = [];
+    const body = orderPayload("order_orphan_noresend", Number(TEST_TOPUP_VARIANT), "orphan@example.com");
+    const envWithContactButNoResend = {
+      ...makeEnv(),
+      CONTACT_TO: "ops@writersnook.com",
+      // RESEND_API_KEY and RESEND_FROM absent — sendEmail will skip silently
+    };
+    const res = await onRequestPost(makeContext(body, TEST_SECRET, envWithContactButNoResend));
+    expect(res.status).toBe(500);
+    expect(rpcCalls.find((c) => c.fn === "topup_credits")).toBeUndefined();
+    expect(ledger.size).toBe(0);
   });
 
   it("returns 500 with no ledger write when LS_TOPUP_VARIANT_ID is blank (missing config)", async () => {

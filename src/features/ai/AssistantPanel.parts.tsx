@@ -97,9 +97,10 @@ const LS_STORE = "writersnookapp";
 const AI_SUB_VARIANT = import.meta.env.VITE_LS_AI_SUB_CHECKOUT_VARIANT as string | undefined;
 const AI_TOPUP_VARIANT = import.meta.env.VITE_LS_AI_TOPUP_CHECKOUT_VARIANT as string | undefined;
 
-function buildLsCheckoutUrl(variant: string | undefined): string {
+function buildLsCheckoutUrl(variant: string | undefined, licenseKey?: string): string {
   if (!variant) return "https://writersnook.app/pricing";
-  return `https://${LS_STORE}.lemonsqueezy.com/checkout/buy/${variant}`;
+  const url = `https://${LS_STORE}.lemonsqueezy.com/checkout/buy/${variant}`;
+  return licenseKey ? `${url}?checkout[custom][license_key]=${encodeURIComponent(licenseKey)}` : url;
 }
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -236,11 +237,12 @@ function ExpiredPlanGuard({ onToast }: { onToast: (msg: string) => void }) {
 }
 
 function ExhaustedAllowanceGuard({ resetLabel, onToast }: { resetLabel: string; onToast: (msg: string) => void }) {
+  const licenseKey = getTweak("aiLicenseKey", "") || undefined;
   return <div className="ai-guard">
     <div className="gtitle"><Icon name="moon" className="ic" /> This month&apos;s allowance is used up</div>
     <p>{resetLabel}. The assistant stops here rather than running up a bill.</p>
     <div className="gacts">
-      <button className="btn btn-primary" onClick={() => openUrl(buildLsCheckoutUrl(AI_TOPUP_VARIANT)).catch(() => { onToast("Couldn't open checkout — try again"); })}>Top up</button>
+      <button className="btn btn-primary" onClick={() => openUrl(buildLsCheckoutUrl(AI_TOPUP_VARIANT, licenseKey)).catch(() => { onToast("Couldn't open checkout — try again"); })}>Top up</button>
       <button className="btn btn-ghost" onClick={() => onToast("Resets automatically")}>Wait for reset</button>
     </div>
   </div>;
