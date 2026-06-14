@@ -4,6 +4,7 @@
  */
 import type { AiMessage } from "../ai.client";
 import type { AssembledContext, VerbKey } from "../ai.types";
+import { ASK_MAX_TOKENS, buildAskMessages } from "./ask";
 import { BETAREAD_MAX_TOKENS, buildBetareadMessages } from "./betaread";
 import { BRAINSTORM_MAX_TOKENS, buildBrainstormMessages } from "./brainstorm";
 import { buildCritiqueMessages,CRITIQUE_MAX_TOKENS } from "./critique";
@@ -13,6 +14,7 @@ import { buildProofreadMessages, PROOFREAD_MAX_TOKENS } from "./proofread";
 
 /** Per-verb max-output-token caps. Passed to streamChat options.maxTokens. */
 export const VERB_MAX_TOKENS: Record<VerbKey, number> = {
+  ask: ASK_MAX_TOKENS,
   brainstorm: BRAINSTORM_MAX_TOKENS,
   critique: CRITIQUE_MAX_TOKENS,
   betaread: BETAREAD_MAX_TOKENS,
@@ -32,6 +34,8 @@ export function buildMessages(
   history?: AiMessage[],
 ): { system: string; messages: AiMessage[] } {
   switch (verb) {
+    case "ask":
+      return buildAskMessages(ctx, ask, history);
     case "brainstorm":
       return buildBrainstormMessages(ctx, ask, history);
     case "critique":
@@ -46,8 +50,10 @@ export function buildMessages(
 // ── Re-exports ────────────────────────────────────────────────────────────────
 
 export {
+  ASK_MAX_TOKENS,
   BETAREAD_MAX_TOKENS,
   BRAINSTORM_MAX_TOKENS,
+  buildAskMessages,
   buildBetareadMessages,
   buildBrainstormMessages,
   buildCritiqueMessages,

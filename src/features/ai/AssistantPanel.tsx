@@ -163,7 +163,7 @@ function PanelReady(p: AssistantPanelProps) {
       <PanelThread msgCount={msgCount} lastLen={lastLen} activeId={p.activeId} listMode={listMode}
         active={active} convos={p.convos} verb={verb} setVerb={setVerb} onOpen={p.setActiveId}
         onNew={newConvo} onDelete={deleteConvo} streamingId={streamingId} onCopy={copyMsg}
-        onSaveNote={saveMsg} onStarter={(s) => { setPrompt(s); footerRef.current?.focusInput(); }} />
+        onSaveNote={saveMsg} onStarter={(s) => { setPrompt(s); footerRef.current?.focusInput(); }} onFocusInput={() => footerRef.current?.focusInput()} />
       {!listMode && <div className="ai-foot">
         <ContextStripPanel sceneName={p.sceneName} extras={ctx.extras} linked={ctx.linked}
           attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
@@ -349,7 +349,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline}
         onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} />
     } />
-    {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("brainstorm", liveSel)} />}
+    {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("ask", liveSel)} />}
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
     {overlay === "context" && (
       <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}

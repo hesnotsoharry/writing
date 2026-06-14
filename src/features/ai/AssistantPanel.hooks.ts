@@ -257,7 +257,7 @@ export function usePanelState(
   initialVerb?: VerbKey,
   initialSel?: Pick<ProseSelection, "text" | "words"> | null,
 ) {
-  const [verb, setVerb] = useState<VerbKey>(initialVerb ?? "brainstorm");
+  const [verb, setVerb] = useState<VerbKey>(initialVerb ?? "ask");
   const [prompt, setPrompt] = useState("");
   const [verbPop, setVerbPop] = useState(false);
   const [attachedSel, setAttachedSel] = useState<Pick<ProseSelection, "text" | "words"> | null>(initialSel ?? null);

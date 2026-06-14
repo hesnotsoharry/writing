@@ -72,6 +72,13 @@ vi.mock("../features/ai/AiOverlays", () => ({
 
 vi.mock("../features/ai/ai.types", () => ({
   AI_VERBS: {
+    ask: {
+      label: "Ask",
+      icon: "feather",
+      placeholder: "Ask anything about your story…",
+      action: "Ask",
+      blurb: "Ask anything — grounded in your manuscript",
+    },
     brainstorm: {
       label: "Brainstorm",
       icon: "zap",
@@ -275,18 +282,18 @@ describe("AssistantPanel — consented", () => {
     return makeProps({ convos: [convo], activeId: "c1", consented: true, ...overrides });
   }
 
-  it('renders a verb chip labeled "Brainstorm" as the default verb', () => {
+  it('renders a verb chip labeled "Ask" as the default verb', () => {
     const { container } = render(<AssistantPanel {...detailViewProps()} />);
     const chip = container.querySelector(".ai-verbchip");
     expect(chip).not.toBeNull();
-    expect(chip!.textContent).toContain("Brainstorm");
+    expect(chip!.textContent).toContain("Ask");
   });
 
-  it('renders textarea with placeholder "What are you wondering about?" for brainstorm verb', () => {
+  it('renders textarea with placeholder "Ask anything about your story…" for ask verb', () => {
     render(<AssistantPanel {...detailViewProps()} />);
     const textarea = screen.queryByRole("textbox") as HTMLTextAreaElement | null;
     expect(textarea).not.toBeNull();
-    expect(textarea!.placeholder).toBe("What are you wondering about?");
+    expect(textarea!.placeholder).toBe("Ask anything about your story…");
   });
 
   it('renders "What I can see" context strip label in detail view', () => {
@@ -297,7 +304,7 @@ describe("AssistantPanel — consented", () => {
   it("send button is disabled when prompt is empty", () => {
     render(<AssistantPanel {...detailViewProps()} />);
     // Send button title equals the verb's action label
-    const sendBtn = screen.queryByTitle("Brainstorm") as HTMLButtonElement | null;
+    const sendBtn = screen.queryByTitle("Ask") as HTMLButtonElement | null;
     expect(sendBtn).not.toBeNull();
     expect(sendBtn!.disabled).toBe(true);
   });
@@ -306,7 +313,7 @@ describe("AssistantPanel — consented", () => {
     render(<AssistantPanel {...detailViewProps()} />);
     const textarea = screen.getByRole("textbox");
     fireEvent.change(textarea, { target: { value: "How do I fix my plot hole?" } });
-    const sendBtn = screen.queryByTitle("Brainstorm") as HTMLButtonElement | null;
+    const sendBtn = screen.queryByTitle("Ask") as HTMLButtonElement | null;
     expect(sendBtn).not.toBeNull();
     expect(sendBtn!.disabled).toBe(false);
   });
