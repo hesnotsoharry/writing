@@ -136,6 +136,9 @@ A 5th AI mode beyond the 4 task verbs (Cole, 2026-06-13): the user asks ANY ques
 **Interactions:** W42 (Ask needs its own harness entry) · W44 (picker applies) · W46 (add Ask as an eval task — the closest thing to the "blank box" the research warns about, so the sharpest test that the harness holds without a constrained verb).
 **Acceptance:** free-form question + attached context → grounded, harnessed, slop-free answer → context-selection visible (controllable-context differentiator) → metered correctly.
 
+### W48 — cache-prefix re-placement + 1h TTL
+Full plan: [`wave-48-cache-prefix-replacement-1h-ttl.md`](../wave-48-cache-prefix-replacement-1h-ttl.md). Validated finding: the volatile scene excerpt sits INSIDE the cached system block (`shared.ts:66-68`, `chat.ts:223`), so the cache dies on every edit — it only hits on no-edit-between-asks. Fix = move scene/selection into `messages`, keep stable grounding cached, THEN flip 5m→1h. **Verify-first P0 gate** (Cole's requirement): prove behavior + the Haiku-4096-floor risk profile before refactoring, so we don't bust caches. **Seq:** after W39 merges (credits.ts collision); serial with the worker/AI family; addresses follow-up `precise-cache-write-reserve`.
+
 ### W42 — anti-AI-isms harness + blind eval (gates prose-quality posts)
 - Implement Decision 2: worker appends versioned house-style block (AI-isms ban + show-don't-tell register + a few Variant-B exemplars). Instant-rollback path.
 - Blind eval (Haiku vs Haiku+harness vs Sonnet) on ~12 real assist tasks — to learn which assist types to steer to Sonnet, NOT to claim prose quality at launch.

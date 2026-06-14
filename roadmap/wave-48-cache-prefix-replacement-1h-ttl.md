@@ -1,0 +1,60 @@
+---
+project: writing
+wave: 48
+title: Cache-prefix re-placement + 1-hour TTL (Anthropic prompt caching)
+status: PLANNED — verify-first; pick up after W39 merges (credits.ts collision)
+created: 2026-06-13
+depends_on: [W39 (credits.ts in-flight — merge first)]
+relates_to: [W44 (provider-aware caching), follow-up 2026-06-13-precise-cache-write-reserve]
+---
+
+# W48 — Cache-prefix re-placement + 1-hour TTL
+
+## Goal (one line)
+Make the Anthropic prompt cache survive scene edits (move the volatile scene out of the cached
+prefix), THEN extend the TTL 5m→1h — so a real writing session (write → ask → write → ask) keeps the
+cache warm and the user's allowance stretches further. **Verify first; do not bust caches.**
+
+## Why / validated finding (2026-06-13)
+Investigation confirmed the cache breakpoint wraps the **entire** `system` string in one ephemeral
+block (`marketing/functions/api/ai/chat.ts:223`), and the **volatile scene excerpt is inside it**
+(`src/features/ai/prompts/shared.ts:66-68`). Consequence:
+- Cache **hits** only on back-to-back assists with NO edit between (confirmed: wave-37 smoke, 681→228 credits on a 2nd turn).
+- Cache **misses** on the dominant pattern — write/edit between asks — because the changed scene text changes the cached prefix.
+- So 5m→1h alone is worthless: an edit during the gap invalidates the cache regardless of TTL. **Placement is the prerequisite; TTL is the multiplier.**
+
+## Locked decisions
+1. **Fix placement, THEN flip TTL.** Move scene excerpt + selection into the `messages` user turn; keep the STABLE grounding (role, SHARED_PRINCIPLES, boundary, About, Story-Bible entities, extra scenes) in the cached `system` block. Then 1h TTL.
+2. **Verify-first gate (P0).** Empirically confirm current behavior + the floor-risk profile + Anthropic semantics BEFORE refactoring. No code change until P0 says the fix won't degrade caching for any user segment.
+3. **Provider-aware structure** — the system-cached / volatile-in-messages split must be expressed so W44's `OpenAIAdapter` handles it too (OpenAI caching is automatic / no breakpoint; the Anthropic breakpoint logic stays Anthropic-only). Keep the refactor compatible with the W44 adapter shape.
+
+## The known caveat to protect against (the "don't bust caches" risk)
+Removing the scene SHRINKS the cached prefix. Anthropic won't cache below a per-model floor —
+**Haiku 4096 tokens, Sonnet/Opus 1024** (`prompt-cache.ts` MIN_CACHEABLE_TOKENS; see
+[[ai-caching-favors-sonnet-upgrade-economics]]). Risk: for a thin About/Story-Bible user on Haiku, the
+stable-only prefix may fall below 4096 → caching stops firing entirely. P0 must measure real prefix
+sizes (thin vs rich manuscripts) so we know who keeps caching and who doesn't. (Thin-context users have
+cheap prompts anyway; the savings concentrate on rich-context + Sonnet/Opus users — which is where the
+cost is. Acceptable, but must be confirmed, not assumed.)
+
+## Phases
+- **P0 — Verify findings (HARD GATE — Cole's requirement):**
+  - **Reproduce the behavior live** via CDP / live-proxy smoke (tauri-devtools, M-57 oracle): observe `cache_read_input_tokens` + `cache_creation_input_tokens` in the proxy responses across three flows — (a) two assists, no edit between (expect hit), (b) edit scene between assists (expect miss — the diagnosed bug), (c) baseline cold.
+  - **Measure stable-prefix token size** (role+principles+about+entities, scene EXCLUDED) on representative manuscripts — a thin-context one and a rich one — against the 4096 (Haiku) / 1024 (Sonnet/Opus) floors. Output the who-keeps-caching profile.
+  - **Confirm Anthropic prefix-cache semantics** via ctx7/docs (research-before-implementing fires — we're touching caching API behavior): verify that changing `messages` AFTER a cached `system` breakpoint preserves the system cache hit (i.e. the proposed split actually works on the current API).
+  - **Output:** confirmed diagnosis + GO/NO-GO on the placement fix + the floor-risk profile. NO-GO if the stable prefix can't clear the floor for the target segment without including volatile content.
+- **P1 — Re-place the prefix:** in `shared.ts` `buildGrounding()`, move `sceneExcerpt` + `selectionText` out of `system` into the `messages` user turn (affects all 4 verbs + Ask/W47, centralized). Keep `shouldAttachCache` gating correct against the new (smaller) prefix.
+- **P2 — Verify cache survives edits:** re-run flow (b) — edit scene between assists → cache_read now fires across the edit. This is the proof the fix worked (green unit tests ≠ real caching — the live token counts are the oracle).
+- **P3 — Flip TTL to 1h:** add `ttl: '1h'` to the `cache_control` block (`chat.ts:223`) + pass `cacheWriteTtl: '1h'` to `actualCredits` (`credits.ts` already has `cacheWrite1h` rates). Reconcile with the `precise-cache-write-reserve` follow-up — reserve the 1h cache-write rate when caching fires.
+- **P4 — Verify economics:** measure a realistic session (write→ask→write→ask) before/after; confirm the allowance stretches further and there are no cost regressions for the no-edit case (the 2× write premium must be offset by enough reads).
+
+## Risks / gotchas
+- **Haiku 4096 floor** (above) — the central "don't bust caches" risk; P0 gates on it.
+- **Anthropic semantics drift** — confirm current behavior via ctx7, don't trust training memory.
+- **Merge collision** — touches `credits.ts` (W39's worktree) + worker + `shared.ts`. Land after W39 merges; serial with the worker/AI family (W42/W44).
+- **Provider divergence** — keep the refactor compatible with W44's adapter; OpenAI caching is automatic and needs no breakpoint.
+- **Live deploy** — the worker change deploys on push to master (Cloudflare). Verify on a dev/preview path first; coordinate the deploy.
+
+## Sequencing
+After **W39 merges** (credits.ts). Serial with the worker/AI family. Independent of the UI-followups
+batch. Closes/addresses follow-up `2026-06-13-precise-cache-write-reserve` (assess at P3).
