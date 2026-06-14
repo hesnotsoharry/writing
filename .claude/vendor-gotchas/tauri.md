@@ -2,7 +2,7 @@
 vendor: "Tauri 2.x"
 sdkVersion: "2"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-10
+lastVerified: 2026-06-14
 relatedPaths:
   - src/shell/WindowControls.tsx
   - src/shell/TitleBar.tsx
@@ -84,3 +84,32 @@ Source: followups-ui-batch, src/theme/useTheme.ts
 **Gotcha:** To make the DWM border color track the app's light/dark theme, the Rust `.setup()` hook can't help — it doesn't know the frontend theme.
 **Workaround:** Expose `set_border_color(window, color: u32)` as a command; in the frontend theme hook, read the live `--titlebar` CSS token, convert to a COLORREF, and `invoke("set_border_color", { color })` on mount + every theme change. Guard the invoke on `"__TAURI_INTERNALS__" in window` so jsdom tests skip the native call. Dev tip: with `withGlobalTauri: true` set temporarily you can `invoke` arbitrary colors from the devtools console for instant iteration without a Rust rebuild — REMOVE `withGlobalTauri` before shipping (the feature uses the imported `invoke` and doesn't need it).
 **Why:** DWM attributes are per-HWND native calls; theme is frontend state. A thin command bridges them and keeps the color logic next to the token definitions.
+## 2026-06-14 — Tauri 2: `Channel<T>` Rust→JS streaming requires explicit import on JS side
+Source: wave-40, commit e946df6
+**Gotcha:** Tauri 2's `Channel<T>` API is available in Rust (`tauri::ipc::Channel<T>`) but the JavaScript side requires an explicit import `import { Channel } from "@tauri-apps/api/core"` — it is NOT auto-imported and does NOT exist on the global namespace. Forgetting the import causes "Channel is not defined" runtime errors. Additionally, the channel is sent as a command argument and the Rust command receives it via the handler signature; the Promise returned by `invoke()` resolves only when the stream ends (after the final event or an error).
+**Workaround:** Import `Channel` explicitly in the JS file that calls `invoke()` with streaming: `import { Channel } from "@tauri-apps/api/core"; const ch = new Channel<EventType>(); ch.onmessage = (event) => { /* handle event */ }; await invoke("cmd_name", { onEvent: ch })`. The Promise resolves when the stream terminates; events arrive via `ch.onmessage` callbacks during the stream's lifetime.
+**Why:** Channel is a new Tauri 2 addition and follows the principle of explicit imports (no magic globals). It is not a built-in like the core invoke function.
+
+## 2026-06-14 — serde enums with `tag` and `rename_all`: struct-variant fields need per-variant `rename_all`
+Source: wave-40, commit e946df6
+**Gotcha:** A Rust enum annotated with `#[serde(tag="type", rename_all="camelCase")]` renames the enum VARIANT names (e.g., `Token` → `token`) but does NOT automatically rename the fields of struct variants. A variant like `Token { input_tokens: u32 }` will serialize to `{"type":"token","input_tokens":32}` (snake_case), not `{"type":"token","inputTokens":32}` (camelCase). If the TypeScript union expects camelCase fields, they will silently mismatch and the event will not deserialize or match any TS branch. The silent failure is the footgun.
+**Workaround:** Add `#[serde(rename_all="camelCase")]` to each struct variant that needs field renaming, in addition to the enum-level attribute: `#[serde(rename_all="camelCase")] Token { input_tokens: u32 }` → serializes to `{"type":"token","inputTokens":32}`. Alternatively, use field-level `#[serde(rename="...")]` on individual fields. Pin the exact JSON shape with a Rust unit test (`cargo test`) before wiring to JavaScript.
+**Why:** Serde's `rename_all` is structural (applies to the level it is declared on). The enum-level `rename_all` applies only to variant names, not their nested fields. Each struct variant is a separate type in serde's view.
+
+## 2026-06-14 — Tauri 2 development: CDP (Chrome DevTools Protocol) on `localhost:9222` with `tauri-devtools` MCP
+Source: wave-40, commit b0b7383
+**Gotcha:** Dev builds of Tauri apps expose WebView2's Chrome DevTools Protocol (CDP) on `localhost:9222` and can be driven programmatically via tools like `tauri-devtools` MCP. However, the webview does NOT have `window.__TAURI__` exposed (no global Tauri context on the window object unless explicitly configured with `withGlobalTauri: true` in the capability config). This means `evaluate_script` cannot call `invoke()` to trigger Tauri commands — it can only interact with DOM and JS-only code. Manual UI interactions (clicking buttons, typing text) via `dispatchKeyEvent` and `click()` do work, but the `dispatchEvent` synthetic clicks do NOT reach React's `onClick` handlers (only real, trusted input clicks do). **Exception:** setting React-controlled input values requires both the native DOM setter AND a bubbling `input` event; the CDP `fill` command sets the DOM value but not React state.
+**Workaround:** For testing Tauri command handlers, invoke them from trusted UI interactions (real clicks in the app, or invoke them from a test command you wire). For smoke testing UI behavior in a handler, drive the real interactions via CDP's input and click methods, not `dispatchEvent`. For input value changes, use the native DOM setter + emit an `input` event in a `dispatch` frame: `input.value = newValue; input.dispatchEvent(new Event('input', {bubbles: true}))`.
+**Why:** Tauri's security model isolates the webview; global `__TAURI__` is not exposed by default for the same reason. React's synthetic event system intercepts and re-fires events; CDP synthetic events bypass that interception. Chrome DevTools is for inspection, not full app automation.
+
+## 2026-06-14 — Rust `reqwest` streaming requires both `stream` feature and `futures = "0.3"` dependency
+Source: wave-40, commit e946df6
+**Gotcha:** Using `reqwest::Client::get(url).send().await?.bytes_stream()` (or `text_stream()`) requires the `stream` feature on the `reqwest` dependency. However, `bytes_stream()` returns a type that implements `futures::stream::Stream`, and the crate does NOT export `futures` by default. Code attempting to use `StreamExt::next()` or other stream combinators will fail to compile with "cannot find StreamExt in scope" even though the `stream` feature is enabled. The missing piece is a separate `futures = "0.3"` dependency in `Cargo.toml`.
+**Workaround:** Add both to `Cargo.toml`: `reqwest = { version = "0.12", features = ["stream", "json"] }` (or whatever version pinned) AND `futures = "0.3"`. Then import and use: `use futures::stream::StreamExt; let mut stream = response.bytes_stream(); while let Some(chunk) = stream.next().await { /* handle chunk */ }`.
+**Why:** `reqwest` provides the streaming support but delegates the Stream trait to the `futures` crate. The dependency graph is not transitive from `reqwest`'s perspective (it does not re-export `futures` in the public API), so it must be declared explicitly.
+
+## 2026-06-14 — Raw SSE (Server-Sent Events) parsing: buffer bytes across chunks for correct UTF-8 handling
+Source: wave-40, commit e946df6
+**Gotcha:** When consuming a raw HTTP SSE stream via `bytes_stream()` in Rust, each `Bytes` chunk arriving over the network boundary is arbitrary length and may split multi-byte UTF-8 characters. Using `String::from_utf8_lossy()` on each raw chunk independently will corrupt multi-byte sequences split across two packets — the loss is silent and produces mojibake. The parser must buffer raw bytes until a complete line (ending in `\n`) is collected, THEN decode that line as UTF-8.
+**Workaround:** Read raw bytes from the stream, accumulate them in a `Vec<u8>` or a buffered reader, scan for `\n` boundaries, extract complete lines, and decode each line via `String::from_utf8_lossy(&line_bytes)`. If a UTF-8 error occurs on a line boundary, the decoder will correctly report it (or use the lossy variant to skip invalid bytes). Never use `from_utf8_lossy` on arbitrary-length chunks — always collect to a line boundary first.
+**Why:** UTF-8 is variable-length (1–4 bytes per character); a code point like 🎉 (U+1F389) is encoded as 4 bytes. A TCP packet boundary may cut in the middle of a code point, producing invalid bytes on both sides if decoded separately.

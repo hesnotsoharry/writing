@@ -13,7 +13,7 @@
  *  - ai.helpers: stubbed pure functions (aiConvoId, aiMsgId, aiEstimate).
  *  - ai.client / ai.context / prompts/brainstorm: mocked at the network boundary.
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +23,14 @@ vi.mock("../features/ai/ai.client", () => ({
   acquireSession: vi.fn(),
   streamChat: vi.fn(),
   CREDIT_UNIT_USD: 0.00001,
+}));
+
+vi.mock("../features/ai/byok.client", () => ({
+  streamByokChat: vi.fn().mockResolvedValue(undefined),
+  byokSetKey: vi.fn().mockResolvedValue(undefined),
+  byokHasKey: vi.fn().mockResolvedValue(false),
+  byokClearKey: vi.fn().mockResolvedValue(undefined),
+  byokStop: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../features/ai/ai.context", () => ({
@@ -115,12 +123,15 @@ vi.mock("../features/ai/ai.types", () => ({
 vi.mock("../features/ai/ai.helpers", () => ({
   aiConvoId: () => "test-convo-id",
   aiMsgId: () => "test-msg-id",
-  aiEstimate: () => ({ tokens: 100, pct: 1 }),
+  aiEstimate: vi.fn().mockReturnValue({ tokens: 100, pct: 1 }),
 }));
 
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
+import { acquireSession, streamChat } from "../features/ai/ai.client";
+import { aiEstimate } from "../features/ai/ai.helpers";
 import type { AssistantPanelProps } from "../features/ai/AssistantPanel";
 import { AssistantPanel, InspectorTabs } from "../features/ai/AssistantPanel";
+import { streamByokChat } from "../features/ai/byok.client";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +175,7 @@ function makeProps(overrides: Partial<AssistantPanelProps> = {}): AssistantPanel
     onOpenContext: vi.fn(),
     onToast: vi.fn(),
     onSaveNote: vi.fn(),
+    byokMode: false,
     ...overrides,
   };
 }
@@ -316,5 +328,53 @@ describe("AssistantPanel — consented", () => {
     const sendBtn = screen.queryByTitle("Ask") as HTMLButtonElement | null;
     expect(sendBtn).not.toBeNull();
     expect(sendBtn!.disabled).toBe(false);
+  });
+
+  it("renders AiMeter when byokMode is false", () => {
+    render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+    expect(screen.queryByTestId("ai-meter")).not.toBeNull();
+  });
+
+  it("does not render AiMeter when byokMode is true", () => {
+    render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    expect(screen.queryByTestId("ai-meter")).toBeNull();
+  });
+
+  it("with byokMode=true, streamByokChat is called and acquireSession/streamChat are not", async () => {
+    render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "Write me a chapter" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("Ask"));
+    });
+    await waitFor(() => expect(vi.mocked(streamByokChat)).toHaveBeenCalledOnce());
+    expect(vi.mocked(acquireSession)).not.toHaveBeenCalled();
+    expect(vi.mocked(streamChat)).not.toHaveBeenCalled();
+  });
+
+  it("shows BYOK badge (no hidden attr) when byokMode is true", () => {
+    const { container } = render(<AssistantPanel {...makeProps({ byokMode: true })} />);
+    const bar = container.querySelector(".ai-byok-bar");
+    expect(bar).not.toBeNull();
+    expect(bar!.getAttribute("hidden")).toBeNull();
+  });
+
+  it("hides BYOK badge (hidden attr present) when byokMode is false", () => {
+    const { container } = render(<AssistantPanel {...makeProps({ byokMode: false })} />);
+    const bar = container.querySelector(".ai-byok-bar");
+    expect(bar).not.toBeNull();
+    expect(bar!.getAttribute("hidden")).not.toBeNull();
+  });
+
+  it("suppresses cost-cue when byokMode is true even when est.pct >= 2", () => {
+    vi.mocked(aiEstimate).mockReturnValueOnce({ tokens: 500, pct: 5 });
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    expect(container.querySelector(".ai-costcue")).toBeNull();
+  });
+
+  it("shows cost-cue when byokMode is false and est.pct >= 2", () => {
+    vi.mocked(aiEstimate).mockReturnValueOnce({ tokens: 500, pct: 5 });
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+    expect(container.querySelector(".ai-costcue")).not.toBeNull();
   });
 });

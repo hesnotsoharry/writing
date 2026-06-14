@@ -30,6 +30,7 @@ import {
   type ProseSelection,
   type VerbKey,
 } from "./ai.types";
+import { buildByokStreamArgs,streamByokResponse } from "./AssistantPanel.byok";
 import { buildMessages } from "./prompts";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,8 @@ export interface PanelMsgArgs {
   projectId?: string | null;
   onStreamDone?: () => void; // Called after each stream attempt completes (success or failure) to refresh balance.
   onNetworkError?: () => void; // Called when a stream fetch fails with a network-class error (not 403, not abort).
+  /** True when a BYOK key is active — forks execSend to streamByokResponse. */
+  byokMode: boolean;
 }
 
 export type ExecSendArgs = PanelMsgArgs & { q: string; newConvo: () => Promise<string> };
@@ -240,13 +243,14 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   a.abortRef.current = ctrl;
   try {
     if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
-    const token = await acquireTokenCached(getTweak("aiLicenseKey", ""), a.sessionRef);
-    await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id }));
+    if (a.byokMode) { const sid = crypto.randomUUID(); await streamByokResponse(buildByokStreamArgs(a, sid, ctrl, { cid, msgId: aiMsg.id })); }
+    else { const token = await acquireTokenCached(getTweak("aiLicenseKey", ""), a.sessionRef); await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id })); }
   } catch (err: unknown) {
     onSendCatch(err, ctrl, cid, { msgId: aiMsg.id, setConvos: a.setConvos, onNetworkError: a.onNetworkError });
   } finally {
     a.setStreamingId(null);
-    a.abortRef.current = null; a.onStreamDone?.();
+    // BYOK's async stop can let this finally run after a new send armed a new controller — only clear if still ours.
+    if (a.abortRef.current === ctrl) a.abortRef.current = null; a.onStreamDone?.();
   }
 }
 
