@@ -46,7 +46,7 @@ interface CtxStripProps {
 }
 
 interface PanelFooterProps {
-  plan: "active" | "expired";
+  plan: "active" | "trial" | "expired";
   usedPct: number;
   offline: boolean;
   prompt: string;

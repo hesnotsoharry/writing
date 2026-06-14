@@ -16,3 +16,12 @@ LS_TOPUP_VARIANT_ID=replace-with-ls-topup-variant-id
 # LS API key for fetching order-scoped license keys (GET /v1/license-keys?filter[order_id]=).
 # Keys are NOT in subscription webhook payloads; this key is required to fetch them.
 LS_API_KEY=replace-with-ls-api-key
+# ── AI proxy vars (required for /api/ai/* — chat, balance, session, trial-session) ──
+ANTHROPIC_API_KEY=replace-with-anthropic-api-key
+PROXY_SESSION_SECRET=replace-with-shared-session-secret
+# ── Trial AI gating (Wave 39) ──
+# TRIAL_AI_ENABLED must be the literal string "true" to enable the trial path; any other
+# value (or absent) hard-disables trial AI (kill-switch). Default OFF until launch.
+TRIAL_AI_ENABLED=false
+# HMAC secret used to salt CF-Connecting-IP for the per-IP trial-grant cap (never the raw IP).
+IP_HASH_SECRET=replace-with-ip-hash-secret

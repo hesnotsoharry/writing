@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../features/ai/ai.client", () => ({
   acquireSession: vi.fn().mockResolvedValue({ token: "tok", expiresAt: Date.now() + 3_600_000 }),
+  acquireTrialSession: vi.fn().mockResolvedValue({ token: "tok", expiresAt: Date.now() + 3_600_000 }),
   streamChat: vi.fn().mockResolvedValue(undefined),
 }));
 

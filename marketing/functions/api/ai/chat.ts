@@ -40,6 +40,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { verifyToken } from "../../_lib/ai-token";
 import { getCorsHeaders, handleOptions } from "../../_lib/cors";
 import {
+  GLOBAL_DAILY_TRIAL_SPEND_CAP,
   INPUT_UNITS_PER_TOKEN,
   OUTPUT_UNITS_PER_TOKEN,
   RATE_CAP_PER_MINUTE,
@@ -135,6 +136,7 @@ interface StreamArgs {
   licenseKey: string;
   reserve: number;
   requestId: string;
+  isTrial: boolean;
 }
 
 // ── SSE write helper ──────────────────────────────────────────────────────────
@@ -198,13 +200,55 @@ async function refundCredits(
   });
 }
 
+interface TrialReserveResult {
+  ok: boolean;
+  reason: string | null;
+  newBalance: number | null;
+}
+
+async function reserveTrialCredits(
+  db: SupabaseClient,
+  licenseKey: string,
+  amount: number,
+  requestId: string,
+): Promise<TrialReserveResult> {
+  const { data, error } = await db.rpc("reserve_trial_credits", {
+    p_license_key: licenseKey,
+    p_amount: amount,
+    p_request_id: requestId,
+    p_daily_cap: GLOBAL_DAILY_TRIAL_SPEND_CAP,
+  });
+  const row = (data as Array<{ reason: string | null; new_balance: number | null }> | null)?.[0];
+  // Fail closed: an RPC error or a missing return row must NOT count as a successful reserve —
+  // otherwise a trial stream could run unmetered (the subscriber path fails closed the same way).
+  // `ok` requires a real row whose reason is null; on error/no-row the caller denies the stream.
+  const ok = !error && !!row && row.reason == null;
+  return { ok, reason: row?.reason ?? null, newBalance: row?.new_balance ?? null };
+}
+
+async function refundTrialCredits(
+  db: SupabaseClient,
+  licenseKey: string,
+  amount: number,
+  requestId: string,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  await db.rpc("refund_trial_credits", {
+    p_license_key: licenseKey,
+    p_amount: amount,
+    p_request_id: requestId,
+    p_meta: meta ?? null,
+  });
+}
+
 // ── Stream runner (runs in waitUntil) ─────────────────────────────────────────
 
 async function runStream(args: StreamArgs): Promise<void> {
   const {
     anthropicKey, openaiKey, messages, verbConfig, system,
-    writer, encoder, db, licenseKey, reserve, requestId,
+    writer, encoder, db, licenseKey, reserve, requestId, isTrial,
   } = args;
+  const doRefund = isTrial ? refundTrialCredits : refundCredits;
   let refunded = false;
   try {
     const adapter = getAdapter(verbConfig.model);
@@ -212,7 +256,7 @@ async function runStream(args: StreamArgs): Promise<void> {
     const { url, headers, body } = adapter.buildRequest({ messages, config: verbConfig, system, apiKey });
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     if (!res.ok || !res.body) {
-      await refundCredits(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
+      await doRefund(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
       refunded = true;
       await writeSse(writer, encoder, { type: "error", message: "Upstream error" });
       return;
@@ -235,7 +279,7 @@ async function runStream(args: StreamArgs): Promise<void> {
     const refundAmount = Math.max(0, reserve - actual);
     const charged = reserve - refundAmount;
     if (refundAmount > 0) {
-      await refundCredits(db, licenseKey, refundAmount, requestId, {
+      await doRefund(db, licenseKey, refundAmount, requestId, {
         input_tokens: usage.inputTokens,
         output_tokens: usage.outputTokens,
         model: verbConfig.model,
@@ -249,7 +293,7 @@ async function runStream(args: StreamArgs): Promise<void> {
     });
   } catch {
     if (!refunded) {
-      await refundCredits(db, licenseKey, reserve, requestId, { reason: "stream_error" }).catch(
+      await doRefund(db, licenseKey, reserve, requestId, { reason: "stream_error" }).catch(
         () => {},
       );
     }
@@ -313,7 +357,8 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     .single();
   if (subErr || !data) return new Response("Forbidden", { status: 403, headers: cors });
   const sub = data as unknown as SubscriptionRow;
-  if (sub.status !== "active") return new Response("Forbidden", { status: 403, headers: cors });
+  if (sub.status !== "active" && sub.status !== "trial") return new Response("Forbidden", { status: 403, headers: cors });
+  const isTrial = sub.status === "trial";
 
   // Per-license rate cap (D3) — checked before credit reserve to fail fast
   const { data: ratePassed } = await db.rpc("check_rate_limit", {
@@ -333,12 +378,29 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const reserve = estimateCredits(totalChars, effectiveConfig.maxTokens, effectiveConfig.model);
   const requestId = crypto.randomUUID();
 
-  const reserved = await reserveCredits(db, licenseKey, reserve, requestId);
-  if (!reserved) {
-    return new Response(
-      JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at ?? "" }),
-      { status: 429, headers: { "Content-Type": "application/json", ...cors } },
-    );
+  if (isTrial) {
+    const trialReserve = await reserveTrialCredits(db, licenseKey, reserve, requestId);
+    if (!trialReserve.ok) {
+      if (trialReserve.reason === "budget") {
+        return new Response(
+          JSON.stringify({ error: "trial_budget_exhausted", resetAt: "" }),
+          { status: 429, headers: { "Content-Type": "application/json", ...cors } },
+        );
+      }
+      // reason === 'balance': per-trial allowance exhausted — fire the existing credits-exhausted handler
+      return new Response(
+        JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at ?? "" }),
+        { status: 429, headers: { "Content-Type": "application/json", ...cors } },
+      );
+    }
+  } else {
+    const reserved = await reserveCredits(db, licenseKey, reserve, requestId);
+    if (!reserved) {
+      return new Response(
+        JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at ?? "" }),
+        { status: 429, headers: { "Content-Type": "application/json", ...cors } },
+      );
+    }
   }
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -357,6 +419,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
       licenseKey,
       reserve,
       requestId,
+      isTrial,
     }),
   );
   return new Response(readable, {

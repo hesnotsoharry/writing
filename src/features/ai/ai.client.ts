@@ -22,14 +22,23 @@ export type NormalizedEvent =
   | { type: "token"; text: string }
   | { type: "done"; inputTokens: number; outputTokens: number; creditsCost: number }
   | { type: "error"; message: string }
-  /** Proxy returned 429 — credit balance exhausted. */
+  /** Proxy returned 429 — personal credit balance exhausted. */
   | { type: "credits-exhausted"; resetAt: string }
+  /** Proxy returned 429 — shared daily trial budget exhausted (not a personal balance issue). */
+  | { type: "trial-budget-exhausted" }
   /** Proxy returned 403 — session token invalid or subscription expired. */
   | { type: "session-expired" };
 
 export interface SessionResult {
   token: string;
   expiresAt: number;
+}
+
+export interface TrialSessionResult {
+  trialKey?: string;
+  token: string;
+  expiresAt: number;
+  allowance?: number;
 }
 
 /**
@@ -65,6 +74,22 @@ export async function acquireSession(licenseKey: string): Promise<SessionResult>
   return res.json() as Promise<SessionResult>;
 }
 
+/**
+ * Mint (or re-exchange) a trial session token.
+ * - No trialKey → first-grant: POST with empty body.
+ * - trialKey provided → re-exchange: POST with { trialKey }.
+ * Throws on non-ok response so the caller can clear the stale key and re-grant.
+ */
+export async function acquireTrialSession(trialKey?: string): Promise<TrialSessionResult> {
+  const res = await fetch(`${API_BASE}/api/ai/trial-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(trialKey ? { trialKey } : {}),
+  });
+  if (!res.ok) throw new Error(`Trial session failed: ${res.status}`);
+  return res.json() as Promise<TrialSessionResult>;
+}
+
 // ── SSE line parser ───────────────────────────────────────────────────────────
 
 function parseSseLine(line: string): NormalizedEvent | null {
@@ -90,7 +115,7 @@ export interface BalanceResult {
   creditsBalance: number;
   monthlyAllowance: number;
   resetAt: string;
-  status: "active" | "expired";
+  status: "active" | "trial" | "expired";
 }
 
 export interface StreamChatOptions {
@@ -157,6 +182,22 @@ async function drainStream(
 }
 
 /**
+ * Route a 429 response to the correct NormalizedEvent.
+ * Three distinct shapes: rate-cap, shared trial budget, personal credits exhausted.
+ * Extracted to keep streamChat's cyclomatic complexity within the project limit.
+ */
+function handle429(body: Record<string, unknown>, onEvent: (ev: NormalizedEvent) => void): void {
+  if (body["error"] === "rate_limit_exceeded") {
+    onEvent({ type: "error", message: "Too many requests — wait a moment and try again" });
+  } else if (body["error"] === "trial_budget_exhausted") {
+    onEvent({ type: "trial-budget-exhausted" });
+  } else {
+    const resetAt = "resetAt" in body ? parseResetAt(body["resetAt"]) : "";
+    onEvent({ type: "credits-exhausted", resetAt });
+  }
+}
+
+/**
  * Stream a chat request through the proxy. Calls onEvent for each normalized
  * SSE event. Resolves when the stream closes (after the 'done' event).
  *
@@ -177,13 +218,7 @@ export async function streamChat(
   if (res.status === 429) {
     const raw = await res.json().catch(() => null);
     const body = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    // Rate-cap (retryAfterSeconds) vs credits-exhausted (resetAt) — two distinct 429 shapes.
-    if (body["error"] === "rate_limit_exceeded") {
-      onEvent({ type: "error", message: "Too many requests — wait a moment and try again" });
-    } else {
-      const resetAt = "resetAt" in body ? parseResetAt(body["resetAt"]) : "";
-      onEvent({ type: "credits-exhausted", resetAt });
-    }
+    handle429(body, onEvent);
     return;
   }
   if (res.status === 403) {

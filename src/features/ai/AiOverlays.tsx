@@ -32,7 +32,7 @@ const CONSENT_STEPS: ConsentStep[] = [
   {
     icon: "check",
     title: "A meter, not a bill",
-    copy: <>Your plan includes a monthly allowance. When it runs out, the assistant <b>stops</b> — it never runs up a bill behind your back. Top up only if you choose to.</>,
+    copy: <>Your plan — or free trial — includes an allowance. When it runs out, the assistant <b>stops</b> — it never runs up a bill behind your back. Top up only if you choose to.</>,
     demo: <AiMeter usedPct={26} resetLabel="Resets July 1" />,
   },
 ];

@@ -16,6 +16,7 @@ import { Icon } from "../../components/Icon";
 import { type AiConversationStore,makeProductionAiConversationStore } from "../../db/aiConversationStore";
 import type { Scene } from "../../db/binderStore";
 import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
+import type { GateStatus } from "../license/license.gate";
 import { getTweak } from "../settings/settings.store";
 import { getBalance, type SessionResult } from "./ai.client";
 import { computeUsedPct, formatResetLabel } from "./ai.helpers";
@@ -32,7 +33,7 @@ import {
 import { AiDormant, AiMeter } from "./AiComponents";
 import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
-import { acquireTokenCached, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
+import { acquireAnyToken, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
 import { useAiPanelSeed, useAiSlotHandlers, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
 import { useByokMode } from "./useByokMode";
@@ -64,7 +65,7 @@ export interface AssistantPanelProps {
   toggleNever: (name: string) => void;
   usedPct: number;
   resetLabel: string;
-  plan: "active" | "expired";
+  plan: "active" | "trial" | "expired";
   offline: boolean;
   consented: boolean;
   sel?: ProseSelection | null;
@@ -88,7 +89,8 @@ export interface SlotHostProps {
   doc?: Y.Doc | null;
   activeProjectId: string | null;
   storyBibleStore: StoryBibleStore;
-  aiEnabled: boolean;
+  /** License gate status; controls whether trial AI mint is attempted. Optional for backward compat. */
+  aiEnabled: boolean;  gateStatus?: GateStatus;
 }
 
 interface InspectorTabsProps {
@@ -125,7 +127,7 @@ interface SlotPanelProps {
   projectId: string | null;
   usedPct: number;
   resetLabel: string;
-  plan: "active" | "expired";
+  plan: "active" | "trial" | "expired";
   offline: boolean;
   onStreamDone: () => void;
   onNetworkError?: () => void;
@@ -258,11 +260,11 @@ function useConvoPersistence(activeProjectId: string | null) {
 // ── useAiBalance ──────────────────────────────────────────────────────────────
 
 /** Fetches balance on mount + on each refresh() call; derives meter + plan + offline state.
- *  When byokMode is true: skips all managed-meter fetches; returns safe no-op values so
- *  canCompose stays true (Decision 4: BYOK errors surface in thread, not the offline banner). */
-function useAiBalance(consented: boolean, byokMode: boolean) {
+ *  When byokMode is true: skips all managed-meter fetches and returns safe no-op values so
+ *  canCompose stays true (Decision 4). When gateStatus==='trial', allows a lazily-minted trial token. */
+function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateStatus = "checking") {
   const [usedPct, setUsedPct] = useState(0);
-  const [plan, setPlan] = useState<"active" | "expired">("active");
+  const [plan, setPlan] = useState<"active" | "trial" | "expired">("active");
   const [resetLabel, setResetLabel] = useState("soon");
   const [offline, setOffline] = useState(!navigator.onLine);
   const [balanceKey, setBalanceKey] = useState(0);
@@ -272,9 +274,11 @@ function useAiBalance(consented: boolean, byokMode: boolean) {
     let cancelled = false;
     const load = async () => {
       const key = getTweak("aiLicenseKey", "");
-      if (!key) return;
+      // Skip balance fetch when there is no license key AND the user is not a trial user.
+      // Trial users (gateStatus==='trial') get a lazily-minted trial token via acquireAnyToken.
+      if (!key && gateStatus !== "trial") return;
       try {
-        const token = await acquireTokenCached(key, sessionRef as MutableRefObject<SessionResult | null>);
+        const token = await acquireAnyToken(sessionRef as MutableRefObject<SessionResult | null>);
         const data = await getBalance(token);
         if (cancelled) return;
         setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance)); setPlan(data.status); setResetLabel(formatResetLabel(data.resetAt)); setOffline(false);
@@ -286,7 +290,7 @@ function useAiBalance(consented: boolean, byokMode: boolean) {
     };
     void load();
     return () => { cancelled = true; };
-  }, [consented, balanceKey, byokMode]); // stable module-level fns omitted from deps
+  }, [consented, balanceKey, byokMode, gateStatus]); // stable module-level fns omitted from deps
   useEffect(() => {
     const goOnline = () => { setOffline(false); };
     const goOffline = () => { setOffline(true); };
@@ -328,7 +332,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
-  const byokMode = useByokMode(); const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode);
+  const byokMode = useByokMode(); const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode, p.gateStatus);
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
