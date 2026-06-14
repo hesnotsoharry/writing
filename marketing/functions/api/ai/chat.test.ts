@@ -20,6 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildToken } from "../../_lib/ai-token";
 import { ALLOWED_ORIGINS } from "../../_lib/cors";
+import { estimateCredits } from "../../_lib/credits";
+import { VERB_CONFIG } from "../../_lib/verb-config";
 import { onRequestOptions, onRequestPost } from "./chat";
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
@@ -756,6 +758,93 @@ describe("usage passthrough — cache tokens reconcile credits", () => {
     } | undefined;
     expect(done).toBeDefined();
     expect(done!.creditsCost).toBe(9);
+  });
+});
+
+// ── Model selection integration (W44 Phase C) ────────────────────────────────
+//
+// Three contracts under test:
+//   1. An allowlisted OpenAI model (gpt-5.4) → outgoing fetch targets api.openai.com
+//      and body.model === 'gpt-5.4'.
+//   2. An unlisted model string → handler returns 400; no fetch, no reserve.
+//   3. proofread + a premium model → outgoing fetch targets api.anthropic.com
+//      and body.model === HAIKU (proofread override holds end-to-end).
+//
+// The existing Anthropic SSE mock is reused as the fetch response for cases 1 and 3.
+// For case 1 the OpenAI adapter's pump produces all-zero usage from the Anthropic SSE
+// (non-OpenAI format lines are silently ignored) — we only assert the OUTGOING request.
+
+describe("W44 Phase C — model selection integration", () => {
+  const HAIKU = "claude-haiku-4-5-20251001";
+
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("brainstorm + allowlisted OpenAI model (gpt-5.4) → fetch targets api.openai.com, body.model === 'gpt-5.4', and reserve computed at gpt-5.4 rates", async () => {
+    const messageContent = "Ideas?";
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: messageContent }], verb: "brainstorm", model: "gpt-5.4" },
+    );
+    const res = await onRequestPost(ctx);
+    // wait for the stream runner (pump may produce 0-usage from the Anthropic mock — that's fine)
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalled();
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+    expect(String(calledUrl)).toContain("api.openai.com");
+    const sentBody = JSON.parse(calledInit!.body as string) as Record<string, unknown>;
+    expect(sentBody["model"]).toBe("gpt-5.4");
+    // Guard the reserve line (chat.ts estimateCredits call): a regression that passed
+    // verbConfig.model (Haiku) instead of effectiveConfig.model (gpt-5.4) would silently
+    // under-reserve at the Haiku rate. Assert the exact reserve amount at gpt-5.4 rates.
+    // totalChars = messageContent.length (no system prompt in this request).
+    const totalChars = messageContent.length;
+    const expectedReserve = estimateCredits(totalChars, VERB_CONFIG.brainstorm.maxTokens, "gpt-5.4");
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    expect(reserveCall).toBeDefined();
+    expect(Number(reserveCall!.args["p_amount"])).toBe(expectedReserve);
+  });
+
+  it("brainstorm + unlisted model string → 400; fetch is never called, no reserve", async () => {
+    const token = await makeValidToken();
+    const { ctx } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Ideas?" }], verb: "brainstorm", model: "bogus-not-allowed" },
+    );
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(400);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    expect(reserveCall).toBeUndefined();
+  });
+
+  it("proofread + premium model (gpt-5.5) → fetch targets api.anthropic.com with body.model === Haiku (proofread override holds)", async () => {
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Proofread this." }], verb: "proofread", model: "gpt-5.5" },
+    );
+    const res = await onRequestPost(ctx);
+    await collectSseEvents(res, getWaitUntil());
+    expect(res.status).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalled();
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+    expect(String(calledUrl)).toContain("api.anthropic.com");
+    const sentBody = JSON.parse(calledInit!.body as string) as Record<string, unknown>;
+    expect(sentBody["model"]).toBe(HAIKU);
   });
 });
 

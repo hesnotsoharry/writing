@@ -100,6 +100,11 @@ export interface StreamChatOptions {
   verb?: VerbKey;
   system?: string;
   signal?: AbortSignal;
+  /**
+   * Global AI-model preference; proxy validates against MANAGED_MODELS and ignores it
+   * for proofread (proofread always uses its cheap verb-default regardless).
+   */
+  model?: string;
 }
 
 /**
@@ -123,6 +128,8 @@ function buildChatBody(
   // maxTokens is intentionally NOT sent — proxy owns that policy (Wave 37 Decision 1 D2).
   if (options?.verb) body.verb = options.verb;
   if (options?.system) body.system = options.system;
+  // Optional model pref — proxy validates against MANAGED_MODELS (W44 Phase C).
+  if (options?.model) body.model = options.model;
   return body;
 }
 

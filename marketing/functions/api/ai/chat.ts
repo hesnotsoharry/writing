@@ -60,6 +60,52 @@ const SYSTEM_LENGTH_CAP = 32_000;
 // Re-export deprecated Haiku rate constants for consumers that import from chat.ts.
 export { INPUT_UNITS_PER_TOKEN, OUTPUT_UNITS_PER_TOKEN };
 
+// ── Model allowlist (W44 Phase C) ─────────────────────────────────────────────
+
+/**
+ * The models offered to the managed tier.
+ * MUST be a subset of Object.keys(RATES) — a model here but missing from RATES
+ * would silently bill at the Haiku fallback (the acceptance test guards this invariant).
+ *
+ * Standard tier:  Haiku / Sonnet / GPT-5.4-mini / GPT-5.4
+ * Premium tier:   Opus / GPT-5.5  (~3× cost; no paywall — all subscribers may pick these)
+ */
+export const MANAGED_MODELS: ReadonlySet<string> = new Set([
+  'claude-haiku-4-5-20251001',
+  'claude-sonnet-4-6',
+  'gpt-5.4-mini',
+  'gpt-5.4',
+  'claude-opus-4-8',
+  'gpt-5.5',
+]);
+
+/**
+ * Resolve the effective per-request config from the verb default and an optional
+ * client-supplied model override.
+ *
+ * Rules (Decision 4 + Q2 + Q5):
+ *   - proofread: ALWAYS uses its cheap verb-default (mechanical, un-bypassable).
+ *   - absent client model: verb default.
+ *   - present client model in MANAGED_MODELS: override just the model; preserve
+ *     verb temperature / maxTokens / thinking policy.
+ *   - present client model NOT in MANAGED_MODELS, or not a string: { ok: false }
+ *     → handler returns 400.
+ */
+export function resolveModelConfig(
+  verbKey: VerbKey | undefined,
+  verbConfig: ResolvedConfig,
+  clientModel: unknown,
+): { ok: true; config: ResolvedConfig } | { ok: false } {
+  // proofread always uses its cheap verb-default — client model ignored (Q2, mechanical).
+  if (verbKey === 'proofread') return { ok: true, config: verbConfig };
+  // absent client model → verb default.
+  if (clientModel === undefined || clientModel === null) return { ok: true, config: verbConfig };
+  // present client model: must be a string AND in the allowlist, else 400.
+  if (typeof clientModel !== 'string' || !MANAGED_MODELS.has(clientModel)) return { ok: false };
+  // override the model, preserve verb's temperature/maxTokens/thinking policy.
+  return { ok: true, config: { ...verbConfig, model: clientModel } as ResolvedConfig };
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ChatBody {
@@ -67,6 +113,8 @@ interface ChatBody {
   system?: unknown;
   /** Optional verb key — determines model / temperature / max_tokens server-side. */
   verb?: unknown;
+  /** Optional model override — validated against MANAGED_MODELS; ignored for proofread. */
+  model?: unknown;
 }
 
 interface SubscriptionRow {
@@ -249,6 +297,12 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     ? VERB_CONFIG[verbStr as VerbKey]
     : FALLBACK_VERB_CONFIG;
 
+  // Model selection (W44 Phase C Decision 4): validate client model against allowlist.
+  // proofread always uses the cheap verb-default regardless; unlisted model → 400.
+  const resolved = resolveModelConfig(verbStr as VerbKey | undefined, verbConfig, body.model);
+  if (!resolved.ok) return new Response("Bad Request", { status: 400, headers: cors });
+  const effectiveConfig = resolved.config;
+
   const db = makeServiceClient(context.env);
 
   // Subscription check
@@ -276,7 +330,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
 
   // Reserve credits (max possible cost for this request)
   const totalChars = messages.reduce((s, m) => s + m.content.length, 0) + (system?.length ?? 0);
-  const reserve = estimateCredits(totalChars, verbConfig.maxTokens, verbConfig.model);
+  const reserve = estimateCredits(totalChars, effectiveConfig.maxTokens, effectiveConfig.model);
   const requestId = crypto.randomUUID();
 
   const reserved = await reserveCredits(db, licenseKey, reserve, requestId);
@@ -295,7 +349,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
       anthropicKey: context.env.ANTHROPIC_API_KEY,
       openaiKey: context.env.OPENAI_API_KEY,
       messages,
-      verbConfig,
+      verbConfig: effectiveConfig,
       system,
       writer,
       encoder,
