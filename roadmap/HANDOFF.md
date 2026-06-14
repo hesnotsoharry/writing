@@ -1,27 +1,26 @@
 ---
 project: writing
-updated: 2026-06-13
+updated: 2026-06-14
 ---
 
 ## Current state
-- Branch: master · Latest commit: 22808a3 · Tag: v0.8.0
-- Waves 36 (launch-monetization-A-C) + 37 (AI-harness) merged at e261f8d; v0.8.0 pushed to master 2026-06-13
-- Marketing deployed live (writersnook.app): AI proxy functions + $14.99/mo subscription pricing active
-- Status: between waves · Desktop installer (signed) + behavioral smoke + Phase-D activation pending Cole
+- Branch: wave-40-byok-phase-1  · Latest commit: 9c2e2c4  · Tag: v0.8.0 (pre-merge)
+- Active wave: [wave-40-byok-phase-1](wave-40-byok-phase-1.md) — Code-complete, gates green, CDP smoke PASS (live-stream check pending)
 
 ## Next 3 steps
-1. Cole: Run `.\publish.ps1` to cut v0.8.0 signed NSIS installer + GitHub release + R2 upload (interactive: updater-key password + AZURE_* signing env).
-2. Cole: Post-deploy Wave 37 behavioral CDP smoke (live-proxy): Critique opens with craft note; 2nd turn shows cache_read_input_tokens > 0; credit meter decrements at Haiku rate.
-3. Cole: Phase D go-live (GDPR/DPA-gated per marketing/LAUNCH-AI-SUBSCRIPTION.md); blocker first: fix webhook RPC-error (wave-36, handlePaymentSuccess/handleTopupOrder silent allowance loss); flip aiEnabled default OFF per design canon.
+1. Cole: paste real Anthropic key in running dev build, send a prompt, confirm token streaming + UTF-8 output.
+2. Cole: merge wave-40-byok-phase-1 → master, bump version in 4 files (package.json, Cargo.toml, Cargo.lock, tauri.conf.json), then `.\publish.ps1`.
+3. Decide: `roadmap/follow-ups/2026-06-14-ai-license-key-entry-ui.md` — managed subscription aiLicenseKey has no entry UI; product call needed (is it the AI key or a separate entry?).
 
 ## Active work
-- Waves 36 + 37 shipped (code on master, proxy live); desktop installer signing + smoke + Phase-D pending Cole
-- Open follow-ups: 3 · Phase-D webhook RPC-error blocker (top), precise-cache-write-reserve, remove vestigial StreamChatOptions.maxTokens
-- Bookkeeping: wave-17-foundation status corrected (IN-PROGRESS→SHIPPED, shipped in 7addfa4)
+- Wave 40 BYOK Phase 1: **shipped to branch**, awaiting Cole's live-key check + master merge + release publish.
+- What BYOK does: user pastes own Anthropic key in Settings → routes DIRECT to api.anthropic.com from Rust (key never touches writersnook servers) → key stored in Windows Credential Manager → managed meter hidden, BYOK badge shown.
+- Smoke coverage: Settings row + Coming-soon stub ✓; badge + hidden meter + cost-cue suppression ✓; key set/clear ✓; 401 → sanitized error (no key leak) ✓; BYOK↔managed transition ✓.
+- Open follow-ups: 1 new (managed key entry UI — W40-filed), plus pre-existing Phase-D webhook RPC-error blocker.
+- Deferred to Phase 2: custom-endpoint/other-providers (stubbed), Sonnet/Opus model picker, macOS Keychain.
 
 ## Reference index
-- Wave 37: [wave-37-ai-harness-optimization.md](wave-37-ai-harness-optimization.md) · Wave 36: [wave-36-launch-ai-subscription-monetization.md](wave-36-launch-ai-subscription-monetization.md)
-- Phase-D runbook: [marketing/LAUNCH-AI-SUBSCRIPTION.md](../marketing/LAUNCH-AI-SUBSCRIPTION.md)
-- Durable decisions: [decisions/](decisions/)
-- Vendor-gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/) (Tauri, Anthropic) + marketing/.claude/vendor-gotchas/
-- Project conventions: [CLAUDE.md](../CLAUDE.md)
+- Wave 40 file: [wave-40-byok-phase-1.md](wave-40-byok-phase-1.md) + research: [wave-40-byok-phase-1-research.md](wave-40-byok-phase-1-research.md)
+- Durable decisions (NEW): [0002-byok-routing-direct-to-anthropic-from-rust.md](decisions/0002-byok-routing-direct-to-anthropic-from-rust.md) · [0003-key-storage-keyring-crate-v4-key-stays-in-rust.md](decisions/0003-key-storage-keyring-crate-v4-key-stays-in-rust.md)
+- Vendor-gotchas: [.claude/vendor-gotchas/](../.claude/vendor-gotchas/) — keyring (NEW), tauri (Channel/serde/CDP), anthropic (direct streaming)
+- Prior context: Wave 37 (AI harness, live proxy), Wave 36 (launch monetization); Phase-D runbook: [marketing/LAUNCH-AI-SUBSCRIPTION.md](../marketing/LAUNCH-AI-SUBSCRIPTION.md)
