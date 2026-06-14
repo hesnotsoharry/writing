@@ -18,7 +18,7 @@ updated: 2026-06-14
 
 ## Active work
 - Open follow-ups (3): `precise-cache-write-reserve` (folded into W48) · `assistant-entity-context-strip-staleness` (product review) · `2026-06-14-ai-license-key-entry-ui` (managed aiLicenseKey first-entry UI, Cole product call)
-- Held waves ready (use git worktrees — chat.ts/credits.ts overlap this session): W45 (local-LLM) · W48 (cache-prefix + 1h TTL) · W49 (OpenAI BYOK + multi-provider)
+- Held waves ready (use git worktrees — AssistantPanel/chat.ts/credits.ts overlap): **W50 (AI trial & usage UX, PLANNED — run FIRST, it's launch-gating: ships v0.8.2 before the Reddit push)** · W45 (local-LLM) · W48 (cache-prefix + 1h TTL) · W49 (OpenAI BYOK + multi-provider)
 - Held-wave execution: worktrees REQUIRED — all three share AssistantPanel/credits.ts/chat.ts. Prior concurrent same-tree sessions caused mixed-authorship commits + contested dev DB.
 - Follow-up candidate (pending wrap): BYOK own-key usage/cost visibility UX (Cole-requested 2026-06-14)
 - Marketing note: "bring your own provider key" overstated (Anthropic BYOK only); "managed Claude+ChatGPT" accurate (W49 adds OpenAI, ships after W48)
