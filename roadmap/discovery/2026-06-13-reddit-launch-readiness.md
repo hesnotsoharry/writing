@@ -113,6 +113,16 @@ Add a SECOND provider (OpenAI / "ChatGPT") under the managed subscription, with 
 **Axes (see blueprint):** worker provider-abstraction; unified credit/cost normalization (incl. cross-provider cached-input asymmetry); OpenAI→app SSE stream normalization; model-select UX (Haiku default); reservation/hard-stop across heterogeneous models; rollout + provider-outage fallback.
 **Acceptance (provisional):** user picks any model (Anthropic or OpenAI) → routes to that provider → one credit pool decrements by that model's real cost → live meter stays accurate → hard-stop holds across providers.
 
+### W45 — BYOK Phase 2 / local LLM (Ollama, LM Studio) — week-3 Reddit post
+Un-grey the "Custom endpoint" option from W40; let the user point the app at any OpenAI-compatible base URL (Ollama `http://localhost:11434/v1`, LM Studio, etc.) + optional model name.
+**Why it's cheap:** Ollama/LM Studio speak the OpenAI-compatible API, so W44's `OpenAIAdapter` is reused with a configurable `baseURL`; routing is client-direct like W40 BYOK (never through our worker); credit metering OFF (their compute / their endpoint — not in `RATES`).
+**Depends on:** W44 (OpenAI-compatible adapter) + W40 (BYOK client-direct routing + Custom-endpoint settings slot). Run after both.
+**Marketing bonus:** local is the ONE mode where "nothing leaves your device" is literally true (managed + cloud-BYOK both transit a provider) — the strongest, honest privacy line and the natural week-3 post.
+**Acceptance:** user sets a local base URL → assists run against the local model → nothing hits our servers or any cloud → zero credit decrement → UI clearly labels the session "local / unmetered."
+
+### W46 — model writing-quality eval + harness-steerability experiment (interactive, Cole-driven)
+Full plan: [`wave-46-model-writing-quality-eval.md`](../wave-46-model-writing-quality-eval.md). Runs all candidate models (current + legacy) through the real harness, harness-OFF vs ON, with an objective AI-ism scorer + cross-model adversarial panel + Opus-xhigh adjudication. Settles the "slop = base-model-bound vs harness-fixable?" debate with data. **Feeds:** W42 (harness tuning, incl. a post-hoc-pass feature if it proves out) + W44 (the "recommended model" hint). **Seq:** after W40 (its adapter becomes W44's); serial with the provider family.
+
 ### W42 — anti-AI-isms harness + blind eval (gates prose-quality posts)
 - Implement Decision 2: worker appends versioned house-style block (AI-isms ban + show-don't-tell register + a few Variant-B exemplars). Instant-rollback path.
 - Blind eval (Haiku vs Haiku+harness vs Sonnet) on ~12 real assist tasks — to learn which assist types to steer to Sonnet, NOT to claim prose quality at launch.
