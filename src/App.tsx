@@ -18,6 +18,7 @@ import { SqliteBinderStore } from "./db/sqliteBinderStore";
 import { SqliteLabelStore } from "./db/sqliteLabelStore";
 import { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 import { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
+import { fetchAndStoreHouseStyleConfig } from "./features/ai/ai.house-style";
 import { ActivationGate } from "./features/license/ActivationGate";
 import { useLicenseGate } from "./features/license/license.gate";
 import { useStartupUpdateCheck } from "./lib/updater";
@@ -310,9 +311,8 @@ export default function App() {
   const { tree, loading, selectedSceneId, doc, projects, activeProjectId,
     view, setView, linksVersion, archivedVersion,
     setShowHistory, setHistorySceneId,
-    entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state;
-  const { setHistorySnapshots } = snap;
-  const { gateStatus, onActivated, daysLeft, trialExpired } = useLicenseGate(!loading); const [activationOpen, setActivationOpen] = useState(false);
+    entryStack, entryOrigin, openEntry, pushEntry, entryBack, exitEntry } = state; const { setHistorySnapshots } = snap;
+  const { gateStatus, onActivated, daysLeft, trialExpired } = useLicenseGate(!loading); const [activationOpen, setActivationOpen] = useState(false); useEffect(() => { void fetchAndStoreHouseStyleConfig(); }, []);
 
   if (loading || gateStatus === "checking") return <p style={{ margin: 48, fontFamily: "sans-serif", color: "#666" }}>Loading…</p>;
   if (gateStatus === "needed") return <ActivationGate onActivated={onActivated} trialExpired={trialExpired} />;
