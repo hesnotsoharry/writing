@@ -3,3 +3,8 @@ node_modules/
 dist/
 target/
 *.log
+
+# Local build config (Vite reads these at build time; never commit)
+.env
+.env.local
+.env.*.local
