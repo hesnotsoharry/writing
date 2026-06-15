@@ -113,6 +113,12 @@ export function buildAboutBlock(ctx: AssembledContext): string {
  * Build the shared GROUNDING section present in every verb's system prompt.
  * Returns an array of non-empty string parts ready to be joined with "\n".
  * Caller prepends the verb role line(s) and appends format-discipline line(s).
+ *
+ * W48: VOLATILE content (scene excerpt / placeholder, truncation notice,
+ * selection text) is NO LONGER included here. It lives in the final user
+ * message via buildVolatileUserBlock(), so the Anthropic prompt-cache prefix
+ * (the system block) survives scene edits. Only STABLE grounding remains:
+ * boundaryLine, About, scene title, entities, extraScenes.
  */
 export function buildGrounding(ctx: AssembledContext): string[] {
   const parts: string[] = [];
@@ -127,7 +133,40 @@ export function buildGrounding(ctx: AssembledContext): string[] {
   parts.push(
     "",
     `Current scene: "${ctx.sceneTitle}"`,
+  );
+
+  parts.push(
     "",
+    "Linked worldbuilding entities:",
+    buildEntityBlock(ctx.entitySummaries),
+  );
+
+  if (ctx.extraScenes.length > 0) {
+    parts.push("", "Additional scenes for context:");
+    for (const s of ctx.extraScenes) {
+      parts.push(`\n[${s.title}]\n${s.excerpt}`);
+    }
+  }
+
+  return parts;
+}
+
+/**
+ * Assemble the VOLATILE portion of the prompt that must travel with each user
+ * turn (W48 cache-prefix design). This block is PREPENDED to the user's ask
+ * in the final messages entry by buildMessages() in index.ts — it is NOT
+ * placed in the system block.
+ *
+ * Volatile because scene text changes on every keystroke; keeping it out of
+ * the cached system prefix means the Anthropic prompt cache survives edits.
+ *
+ * Contains: scene excerpt (or empty-scene placeholder), optional truncation
+ * notice, optional selected-passage block.
+ */
+export function buildVolatileUserBlock(ctx: AssembledContext): string {
+  const parts: string[] = [];
+
+  parts.push(
     ctx.sceneExcerpt
       ? `Scene excerpt:\n${ctx.sceneExcerpt}`
       : "(Scene is empty — no prose yet)",
@@ -139,22 +178,9 @@ export function buildGrounding(ctx: AssembledContext): string[] {
     );
   }
 
-  parts.push(
-    "",
-    "Linked worldbuilding entities:",
-    buildEntityBlock(ctx.entitySummaries),
-  );
-
   if (ctx.selectionText) {
-    parts.push("", `Selected passage:\n${ctx.selectionText}`);
+    parts.push(`Selected passage:\n${ctx.selectionText}`);
   }
 
-  if (ctx.extraScenes.length > 0) {
-    parts.push("", "Additional scenes for context:");
-    for (const s of ctx.extraScenes) {
-      parts.push(`\n[${s.title}]\n${s.excerpt}`);
-    }
-  }
-
-  return parts;
+  return parts.join("\n");
 }

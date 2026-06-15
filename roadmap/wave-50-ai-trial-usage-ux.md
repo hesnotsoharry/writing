@@ -84,22 +84,49 @@ Before declaring a phase complete, restate that phase's Observation-column point
 
 ## Locked decisions
 
-> **STUB — design ratified with Cole 2026-06-14, formal entry pending at Phase 1.** These were settled collaboratively this session and are NOT yet entered as decision-cell-cleared ADRs. At Phase 1 execution, run each through the decision cell (`sonnet-architect` → `sonnet-adversarial-reviewer` `Posture: attack-decision` → adjudicate) or, since they are user-ratified UX choices rather than contested architecture, write the `review-tier-{session_id}.json = {"tier":"skip"}` sidecar and enter them directly. The ratified choices to formalize:
->
-> 1. **Model-agnostic bar.** The % bar shows allowance-remaining and does not move on model switch (only the helper number does). Rationale: switching models spends nothing; a per-model bar would jump misleadingly. Enforcement: advisory-only (acceptance criteria assert it).
-> 2. **Per-model estimate computed client-side from `RATES`** (no `balance.ts` change). Rationale: data already on client; no round-trip; keeps the endpoint contract frozen. Consequence: a static typical-request token-profile constant lives client-side; server-side RATES drift could skew the "~" estimate (acceptable — it's explicitly approximate). Enforcement: advisory-only.
-> 3. **No raw units, no dollars in user-facing usage UI.** Translate to "~replies" + %. Rationale: calm brand; units are meaningless; dollars expose margin + cheapen $1.50. Enforcement: acceptance criterion (no-dollars/no-units check) — advisory-only.
-> 4. **Static typical-request-cost constant per model for launch** (not rolling per-user average). Enforcement: none (convention); per-user calibration is an out-of-scope future refinement.
+> Formalized at Phase 1 execution (2026-06-14). These are **user-ratified UX choices** settled collaboratively with Cole, not contested architecture — entered directly without the `sonnet-architect` decision cell (no architect dispatched, so the cell's enforcement hook never arms). Recorded here as the wave's binding design constraints.
+
+## Decision 1: Model-agnostic usage bar
+
+**Context:** The % bar must read as the stable truth of "how much allowance is left"; the per-model detail is a separate layer.
+**Pick:** The % bar shows allowance-remaining and does **not** move when the user switches models — only the per-model helper line number changes.
+**Rationale:** Switching models spends nothing; a bar that shrinks on model-switch is both confusing and dishonest. The bar is the stable truth; per-model variance lives in the helper line + popover.
+**Consequences:** `AiMeter` takes `usedPct` (model-independent) for the bar; model-dependent reply estimates are computed separately and never feed the bar width.
+**Enforcement:** advisory-only (acceptance criteria assert the bar doesn't move on model switch).
+
+## Decision 2: Per-model estimate computed client-side from a mirrored `RATES` table
+
+**Context:** The "~N replies on <model>" estimate needs per-model cost data; the authoritative `RATES` table lives server-side in `marketing/functions/_lib/credits.ts`.
+**Pick:** Mirror the per-model rate data client-side (in `ai.types.ts`) and compute the estimate on the client from a static typical-request token profile. No `balance.ts` change, no new endpoint round-trip.
+**Rationale:** The balance data is already on the client; a round-trip per model-switch would be wasteful and the endpoint contract stays frozen.
+**Consequences:** A static typical-request token-profile constant + a client `RATES` mirror live in `ai.types.ts`. Server-side `RATES` drift could skew the "~" estimate — acceptable because the estimate is explicitly approximate ("~"). If the client mirror and server `RATES` ever diverge, the estimate degrades gracefully (wrong "~N", correct %).
+**Enforcement:** advisory-only.
+
+## Decision 3: No raw units, no dollars in user-facing usage UI
+
+**Context:** Internal balance is in credit units; the API cost has a margin ($10 allowance on $15/mo). Surfacing either harms the "a meter, not a bill" brand.
+**Pick:** Translate everything to "~replies" + "% left". No raw "units" and no dollar figures anywhere in the user-facing AI usage UI.
+**Rationale:** Units are meaningless to users; dollars expose the margin and make $1.50 sound cheap. The brand is calm and legible, not a billing statement.
+**Consequences:** All Phase 2–4 UI copy uses % and "~replies"; the popover and helper line never render `$` or unit counts.
+**Enforcement:** acceptance criterion (no-dollars/no-units check) — advisory-only.
+
+## Decision 4: Static typical-request-cost constant per model for launch
+
+**Context:** Real request cost varies by verb + context (a Story-Bible-grounded beta-read ≫ a quick proofread).
+**Pick:** Use a static typical-request token-profile constant per model for the launch estimate, not a rolling per-user average.
+**Rationale:** Per-user calibration is a meaningful refinement but out of scope for the launch-gating wave; a static profile is honest enough given the "~" framing.
+**Consequences:** The estimate is a fixed approximation; per-user calibration is deferred to a future wave.
+**Enforcement:** none (convention) — per-user calibration is an out-of-scope future refinement.
 
 ## Status
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
-| 2 | — | — | — | — |
-| 3 | — | — | — | — |
-| 4 | — | — | — | — |
-| 5 | — | — | — | — |
+| 1 | 2026-06-14 | 2026-06-14 | (this commit) | Internal — pure helper; 17/17 oracle tests green; reviewer FLAG (Infinity/NaN guard) addressed. |
+| 2 | 2026-06-14 | 2026-06-14 | (this commit) | Meter: model-agnostic % bar + per-model "~N replies" line; reviewer PASS all angles; CDP smoke deferred to wave-end. |
+| 3 | 2026-06-14 | 2026-06-14 | (this commit) | Tap-to-open per-model popover (all 6 models ~N + nudge); stacking audit clean (no backdrop-filter trap); reviewTier skip; gates green. |
+| 4 | 2026-06-14 | 2026-06-14 | (this commit) | Free-trial badge + 3-state-correct exhaustion split (trial→Subscribe $14.99, subscriber→top-up, global-cap inline untouched); consent shows ~150 trial value; reviewer FLAG (trial reset-label honesty) addressed by suppressing reset label for trials. |
+| 5 | 2026-06-14 | 2026-06-14 | (this commit) | Settings → AI key-entry form: verify-before-store via acquireSession, distinct invalid-key vs network errors; reviewer PASS on security invariant; FLAG (dead success UI + test gap) addressed. Follow-up ai-license-key-entry-ui resolved. |
 
 ## Follow-up candidates
 
@@ -107,4 +134,54 @@ _(empty — stage here only if a Tier-3 item clears the VALUE + STRUCTURAL + CLE
 
 ## Result
 
-_(filled at ship by the wrap team: what shipped, mechanical-review verdict, CDP smoke summary, the v0.8.2 publish, and the resolution of follow-up `2026-06-14-ai-license-key-entry-ui`.)_
+### Mechanical review
+
+**Inputs resolved:**
+- Plan: `roadmap/wave-50-ai-trial-usage-ux.md`
+- Diff range: `94ea18d..HEAD` (29baa1a, 0f77d6e, 566f130, 622b30d, bb62d8e)
+- Graph: fallback (grep + import-following — findings verified manually)
+- Run: 2026-06-14
+
+#### Check 1: Forward-trace
+- Change sites traced: 10 (estimateRepliesLeft, MODEL_RATES, TYPICAL_REQUEST, TRIAL_ALLOWANCE_UNITS, AiMeter[mod], MeterPop, TrialExhaustedGuard, resolveExhaustedGuard, AiKeyEntryRow/useAiKeyEntry/classifyKeyError)
+- Paths reaching production consumer: 10 — all reach panel/settings render or the pure helper. `estimateRepliesLeft` → AiComponents (AiMeter+MeterPop) + AiOverlays; `MODEL_RATES`/`TYPICAL_REQUEST` → ai.helpers; `TRIAL_ALLOWANCE_UNITS` → AiOverlays; exhaustion/key components → PanelFooter / AiExpandedRows.
+- Paths flagged as dead: 0
+
+#### Check 2: Plan universal-quantifier cross-reference
+- Universals found: "unit-test across … each model in `RATES`" (covered: all 6 models × trial/monthly in estimateRepliesLeft.test.ts); "No raw credit units and no dollar figures appear anywhere in the user-facing AI usage UI" (verified across Phases 2–4 reviews; only `$` is the deliberate $14.99 offer); per-model popover lists all of `AI_MODEL_ORDER` (6).
+- Flagged as narrowed: 0
+
+#### Check 3: Export audit
+- New exports added: 4 (estimateRepliesLeft, MODEL_RATES, TYPICAL_REQUEST, TRIAL_ALLOWANCE_UNITS)
+- Exports with production consumers: 4 / 4
+- Flagged as dead: 0
+
+#### Checks N/A: 4–6
+- Check 4 skipped: no schema property removals in this wave's diff.
+- Check 5 skipped: no cross-boundary phases declared (all phases `internal-only`; wave adds no new architectural surface per the plan's no-walking-skeleton note).
+- Check 6 skipped: no `stryker.config` found in project root and no `mutation:test` script in package.json (project has no mutation-testing infrastructure — not a W50 regression).
+
+#### Verdict
+
+**PASS.** Checks 1–3 ran clean against the real diff (graph-fallback, manually verified): every new export and changed component reaches a production consumer, no plan universal was narrowed, no dead exports. Checks 4–6 N/A. Full gate green at wave-end: tsc clean, ESLint clean, 1478/1478 vitest pass.
+
+### Wave-end adversarial review (attack-diff, wave granularity)
+
+Ran a cross-phase integration review over the full diff (`94ea18d..bb62d8e`) after the per-phase reviews. It surfaced **3 FLAGs (no BLOCKs)** the per-phase lenses structurally couldn't catch — all on the conversion path — now all addressed in commit `0e1a071`:
+
+1. 🔴 **Trial `credits-exhausted` honesty.** A trial user exhausting their $1.50 mid-stream got the inline "resets soon" message contradicting the Subscribe modal — the exact "trials never see 'wait for reset'" rule. Fixed: the SSE branch is now trial-aware (subscribe message, no reset promise); subscriber message unchanged; global-cap branch untouched.
+2. 🟡 **In-session activation dead-end.** `useAiBalance` ignored `aiLicenseKey` changes, leaving a just-subscribed trial user stuck in `TrialExhaustedGuard` until restart. Fixed: `SETTINGS_CHANGED_EVENT` listener with a ref-compare guard (no fetch loop — `getBalance` writes no tweaks).
+3. 🟡 **Guard-routing test gap.** The Phase-4 3-way exhaustion routing had no automated coverage. Fixed: 3 PanelFooter render tests pin trial→Subscribe / active→top-up-reset / trial-no-reset-language.
+
+Final verdict after fixes: **PASS** (all flags closed; gates re-green).
+
+### CDP runtime smoke — DEFERRED to v0.8.2 build (not run this session)
+
+Per the plan's "say so explicitly if you could not observe directly": live CDP smoke was **not** run in this worktree session, deliberately:
+- The dev app shares the global `%APPDATA%\com.coles.writing\writing.db` (real manuscripts + a real **subscriber/active** license row), and concurrent sibling-wave sessions (W48/W49) may hold dev apps against it — launching another risks the known contested-dev-app/DB failure.
+- The wave's highest-value surfaces (trial **badge** + trial **exhaustion modal**) require a `status='trial'` row; the live DB row is subscriber, so a smoke here would only exercise the subscriber meter, not the trial path. Observing the trial path needs the DB-swap protocol at build time.
+- The branch isn't built yet; runtime smoke belongs at the v0.8.2 build (merge-master / Cole).
+
+**Coverage substitute:** 1481/1481 vitest pass, including the new guard-routing render tests covering the conversion-critical branches. The "green-tests-but-renders-wrong" risk in this repo is ProseMirror-specific (editor owns its content DOM); this wave is standard React conditional rendering that testing-library renders faithfully. **Recommended smoke checklist for the v0.8.2 build (trial DB state):** (1) meter shows "% left" + "~N replies on <model>" and the bar does NOT move on model switch; (2) tapping the meter opens the per-model popover; (3) trial user sees "Free trial" badge and NO "Resets" label; (4) exhausting the $1.50 shows the Subscribe-$14.99 modal → opens the subscription checkout; (5) Settings → AI key field validates + activates a pasted key.
+
+_(remaining at ship: v0.8.2 publish + the trial-state CDP smoke above — owned by merge-master / Cole.)_

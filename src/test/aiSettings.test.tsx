@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Mock acquireSession so key-entry interaction tests don't hit the network.
+const { mockAcquireSession } = vi.hoisted(() => ({
+  mockAcquireSession: vi.fn<() => Promise<{ token: string; expiresAt: number }>>(),
+}));
+
+vi.mock("../features/ai/ai.client", () => ({
+  acquireSession: mockAcquireSession,
+}));
 
 // Mock the BYOK Tauri IPC boundary so ByokKeyRow's mount effect
 // (byokHasKey → invoke) doesn't crash in jsdom where Tauri is absent.
@@ -10,7 +19,14 @@ vi.mock("../features/ai/byok.client", () => ({
   byokClearKey: vi.fn().mockResolvedValue(undefined),
 }));
 
-afterEach(cleanup);
+// OpenAI BYOK client — byokOpenAiHasKey is called on mount via ByokOpenAiKeyRow (W49 P3).
+vi.mock("../features/ai/byok.openai.client", () => ({
+  byokOpenAiHasKey: vi.fn().mockResolvedValue(false),
+  byokOpenAiSetKey: vi.fn().mockResolvedValue(undefined),
+  byokOpenAiClearKey: vi.fn().mockResolvedValue(undefined),
+}));
+
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 import { AiSection } from "../features/settings/Settings.sections";
 import { TWEAK_DEFAULTS } from "../features/settings/settings.store";
@@ -76,14 +92,111 @@ describe("AiSection — expanded Settings Assistant section", () => {
     ).toBeTruthy();
   });
 
-  it("renders the Your API key row label", () => {
+  it("renders the Anthropic API key row label (relabelled in W49 P3 when second provider row was added)", () => {
     renderSection();
-    expect(screen.getByText("Your API key")).toBeTruthy();
+    expect(screen.getByText("Anthropic API key")).toBeTruthy();
   });
 
-  it("renders the Custom endpoint row with Coming soon button", () => {
+  it("renders the OpenAI API key row label (W49 P3 second provider row)", () => {
     renderSection();
-    expect(screen.getByText("Custom endpoint")).toBeTruthy();
-    expect(screen.getByText("Coming soon")).toBeTruthy();
+    expect(screen.getByText("OpenAI API key")).toBeTruthy();
+  });
+
+  it("renders the OpenAI API key row input with correct placeholder", () => {
+    renderSection();
+    const inputs = screen.getAllByPlaceholderText("sk-…");
+    expect(inputs.length).toBeGreaterThan(0);
+  });
+
+  it("renders the Custom endpoints row with the endpoints manager", () => {
+    renderSection();
+    expect(screen.getByText("Custom endpoints")).toBeTruthy();
+    expect(screen.getByText("Add endpoint")).toBeTruthy();
+  });
+
+  it("renders AI license key entry row when no key is stored", () => {
+    renderSection();
+    expect(screen.getByText("AI license key")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Verify & activate" })).toBeTruthy();
+  });
+});
+
+// ── AiKeyEntryRow — verify-then-store state machine ───────────────────────────
+
+describe("AiKeyEntryRow — verify-then-store flow", () => {
+  function renderWithNoKey() {
+    const setTweak = vi.fn();
+    const tweaks = { ...TWEAK_DEFAULTS, aiEnabled: true, aiLicenseKey: "" };
+    render(<AiSection tweaks={tweaks} setTweak={setTweak} />);
+    return { setTweak };
+  }
+
+  it("calls acquireSession with the trimmed key and stores it via setTweak on success", async () => {
+    mockAcquireSession.mockResolvedValue({ token: "tok-abc", expiresAt: Date.now() + 3600000 });
+    const { setTweak } = renderWithNoKey();
+    fireEvent.change(screen.getByPlaceholderText("Paste your subscription key"), {
+      target: { value: "  valid-key-123  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Verify & activate" }));
+    await waitFor(() => expect(setTweak).toHaveBeenCalledWith("aiLicenseKey", "valid-key-123"));
+    expect(mockAcquireSession).toHaveBeenCalledWith("valid-key-123");
+  });
+
+  it("shows invalid-key error message when acquireSession rejects with 401", async () => {
+    mockAcquireSession.mockRejectedValue(new Error("Session exchange failed: 401"));
+    renderWithNoKey();
+    fireEvent.change(screen.getByPlaceholderText("Paste your subscription key"), {
+      target: { value: "bad-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Verify & activate" }));
+    await waitFor(() =>
+      expect(screen.getByText("That key wasn't recognised — double-check it and try again.")).toBeTruthy()
+    );
+  });
+
+  it("shows invalid-key error message when acquireSession rejects with 403", async () => {
+    mockAcquireSession.mockRejectedValue(new Error("Session exchange failed: 403"));
+    const { setTweak } = renderWithNoKey();
+    fireEvent.change(screen.getByPlaceholderText("Paste your subscription key"), {
+      target: { value: "expired-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Verify & activate" }));
+    await waitFor(() =>
+      expect(screen.getByText("That key wasn't recognised — double-check it and try again.")).toBeTruthy()
+    );
+    expect(setTweak).not.toHaveBeenCalled();
+  });
+
+  it("shows network error message when acquireSession rejects without a status code", async () => {
+    mockAcquireSession.mockRejectedValue(new Error("Failed to fetch"));
+    const { setTweak } = renderWithNoKey();
+    fireEvent.change(screen.getByPlaceholderText("Paste your subscription key"), {
+      target: { value: "some-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Verify & activate" }));
+    await waitFor(() =>
+      expect(screen.getByText("Couldn't reach the server — check your connection and try again.")).toBeTruthy()
+    );
+    expect(setTweak).not.toHaveBeenCalled();
+  });
+
+  it("does not call setTweak when acquireSession rejects (key not stored on failure)", async () => {
+    mockAcquireSession.mockRejectedValue(new Error("Session exchange failed: 401"));
+    const { setTweak } = renderWithNoKey();
+    fireEvent.change(screen.getByPlaceholderText("Paste your subscription key"), {
+      target: { value: "bad-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Verify & activate" }));
+    await waitFor(() =>
+      expect(screen.getByText("That key wasn't recognised — double-check it and try again.")).toBeTruthy()
+    );
+    expect(setTweak).not.toHaveBeenCalled();
+  });
+
+  it("does not call acquireSession when the input is empty or whitespace", () => {
+    renderWithNoKey();
+    const btn = screen.getByRole("button", { name: "Verify & activate" });
+    expect(btn).toBeDisabled();
+    expect(mockAcquireSession).not.toHaveBeenCalled();
   });
 });

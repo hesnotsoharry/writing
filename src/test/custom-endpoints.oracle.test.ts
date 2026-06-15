@@ -1,13 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect,it } from "vitest";
 
 import {
-  EMPTY_STORE,
   addEndpoint,
+  EMPTY_STORE,
   getDefault,
+  type NewEndpointInput,
   removeEndpoint,
   setDefault,
   updateEndpoint,
-  type NewEndpointInput,
 } from "../features/ai/customEndpoints";
 
 describe("customEndpoints reducer — immutable store operations", () => {

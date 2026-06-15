@@ -4,7 +4,10 @@
  */
 import { useEffect, useState } from "react";
 
+import { acquireSession } from "../ai/ai.client";
 import { byokClearKey, byokHasKey, byokSetKey } from "../ai/byok.client";
+import { byokOpenAiClearKey, byokOpenAiHasKey, byokOpenAiSetKey } from "../ai/byok.openai.client";
+import { clearUsage, getUsage, type ProviderUsage } from "../ai/byokUsage";
 import { CustomEndpointsManager } from "./Settings.ai.manager";
 import { SetRow, SetToggle } from "./Settings.primitives";
 import { AI_REPLAY_EVENT, type Tweaks } from "./settings.store";
@@ -29,12 +32,13 @@ interface ByokKeyEntryProps {
   saveError: string;
   onInput: (v: string) => void;
   onSave: () => void;
+  placeholder?: string;
 }
 
-function ByokKeyEntry({ keyInput, saveError, onInput, onSave }: ByokKeyEntryProps) {
+function ByokKeyEntry({ keyInput, saveError, onInput, onSave, placeholder = "sk-ant-…" }: ByokKeyEntryProps) {
   return (
     <div className="byok-key-entry">
-      <input className="set-input" type="password" placeholder="sk-ant-…" value={keyInput}
+      <input className="set-input" type="password" placeholder={placeholder} value={keyInput}
         onChange={(e) => { onInput(e.target.value); }} autoComplete="off" />
       <button className="btn btn-soft" onClick={onSave}>Save</button>
       {saveError && <span className="byok-key-error">{saveError}</span>}
@@ -79,10 +83,149 @@ function ByokKeyRow() {
     void byokClearKey().then(() => { window.dispatchEvent(new CustomEvent("byok:key-changed")); setKeySet(false); });
   }
   return (
-    <SetRow label="Your API key" desc="Direct to Anthropic — your prose never touches our servers.">
+    <SetRow label="Anthropic API key" desc="Direct to Anthropic — your prose never touches our servers.">
       {keySet
         ? <ByokKeySaved onRemove={handleRemove} />
         : <ByokKeyEntry keyInput={keyInput} saveError={saveError} onInput={(v) => { setKeyInput(v); setSaveError(""); }} onSave={handleSave} />}
+    </SetRow>
+  );
+}
+
+// ── AiKeyEntryRow (shown when aiEnabled && aiLicenseKey === "") ───────────────
+// Validates the key via acquireSession before storing — never stores an untested key.
+
+type KeyEntryPhase =
+  | { status: "idle" }
+  | { status: "verifying" }
+  | { status: "error"; kind: "invalid_key" | "network" };
+
+function classifyKeyError(err: unknown): "invalid_key" | "network" {
+  const msg = err instanceof Error ? err.message : "";
+  return msg.includes("401") || msg.includes("403") ? "invalid_key" : "network";
+}
+
+interface AiKeyEntryRowProps {
+  setTweak: <K extends keyof Tweaks>(key: K, value: Tweaks[K]) => void;
+}
+
+function useAiKeyEntry(setTweak: AiKeyEntryRowProps["setTweak"]) {
+  const [phase, setPhase] = useState<KeyEntryPhase>({ status: "idle" });
+  const [keyInput, setKeyInput] = useState("");
+
+  function onInput(v: string): void {
+    setKeyInput(v);
+    if (phase.status === "error") setPhase({ status: "idle" });
+  }
+
+  async function onSubmit(): Promise<void> {
+    const trimmed = keyInput.trim();
+    if (!trimmed) return;
+    setPhase({ status: "verifying" });
+    try {
+      await acquireSession(trimmed);
+      setTweak("aiLicenseKey", trimmed);
+    } catch (err) {
+      setPhase({ status: "error", kind: classifyKeyError(err) });
+    }
+  }
+
+  return { phase, keyInput, onInput, onSubmit };
+}
+
+function AiKeyEntryRow({ setTweak }: AiKeyEntryRowProps) {
+  const { phase, keyInput, onInput, onSubmit } = useAiKeyEntry(setTweak);
+  const busy = phase.status === "verifying";
+  const disabled = busy || !keyInput.trim();
+  const errorMsg =
+    phase.status === "error" && phase.kind === "invalid_key"
+      ? "That key wasn't recognised — double-check it and try again."
+      : phase.status === "error"
+      ? "Couldn't reach the server — check your connection and try again."
+      : null;
+  return (
+    <SetRow label="AI license key" desc="Paste the key from your subscription email.">
+      <div className="ai-key-entry">
+        <input className="set-input" type="text" placeholder="Paste your subscription key"
+          value={keyInput} disabled={busy} autoComplete="off"
+          onChange={(e) => { onInput(e.target.value); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !disabled) void onSubmit(); }} />
+        <button className="btn btn-soft" disabled={disabled} onClick={() => { void onSubmit(); }}>
+          {busy ? "Verifying…" : "Verify & activate"}
+        </button>
+        {errorMsg && <span className="ai-key-error">{errorMsg}</span>}
+      </div>
+    </SetRow>
+  );
+}
+
+// ── ByokOpenAiKeyRow (internal) ───────────────────────────────────────────────
+// Mirrors ByokKeyRow but targets the OpenAI keychain slot.
+// Fires/reacts to `byok:openai-key-changed` — does NOT cross-fire with the
+// Anthropic `byok:key-changed` event (distinct events per W49 Decision 4).
+
+function ByokOpenAiKeyRow() {
+  const [keySet, setKeySet] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const [saveError, setSaveError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void byokOpenAiHasKey().then((has) => { if (!cancelled) setKeySet(has); });
+    const onChanged = () => { void byokOpenAiHasKey().then((has) => { if (!cancelled) setKeySet(has); }); };
+    window.addEventListener("byok:openai-key-changed", onChanged);
+    return () => { cancelled = true; window.removeEventListener("byok:openai-key-changed", onChanged); };
+  }, []);
+  function handleSave() {
+    const trimmed = keyInput.trim();
+    if (!trimmed) { setSaveError("Key cannot be empty."); return; }
+    void byokOpenAiSetKey(trimmed).then(() => {
+      setKeyInput(""); setSaveError(""); setKeySet(true);
+      // byokOpenAiSetKey already dispatches `byok:openai-key-changed` — no double-fire needed.
+    }).catch((err: unknown) => { setSaveError(err instanceof Error ? err.message : "Failed to save key."); });
+  }
+  function handleRemove() {
+    void byokOpenAiClearKey().then(() => { setKeySet(false); });
+    // byokOpenAiClearKey already dispatches `byok:openai-key-changed`.
+  }
+  return (
+    <SetRow label="OpenAI API key" desc="Direct to OpenAI — your prose never touches our servers.">
+      {keySet
+        ? <ByokKeySaved onRemove={handleRemove} />
+        : <ByokKeyEntry keyInput={keyInput} saveError={saveError} placeholder="sk-…"
+            onInput={(v) => { setKeyInput(v); setSaveError(""); }} onSave={handleSave} />}
+    </SetRow>
+  );
+}
+
+// ── ByokUsageReadout ──────────────────────────────────────────────────────────
+// Shows accumulated per-provider BYOK token counts + estimated USD cost.
+// Rendered below the key rows; hidden when all counts are zero.
+// Re-renders on the `byok:usage-updated` CustomEvent dispatched by recordUsage /
+// clearUsage — no polling needed.
+
+function fmtLine(u: ProviderUsage): string {
+  const total = u.inputTokens + u.cachedTokens + u.outputTokens;
+  return `${total.toLocaleString()} tokens · est. $${u.estUsd.toFixed(4)}`;
+}
+
+function ByokUsageReadout() {
+  const [usage, setUsage] = useState(() => getUsage());
+  useEffect(() => {
+    const refresh = () => { setUsage(getUsage()); };
+    window.addEventListener("byok:usage-updated", refresh);
+    return () => { window.removeEventListener("byok:usage-updated", refresh); };
+  }, []);
+
+  const anthTotal = usage.anthropic.inputTokens + usage.anthropic.cachedTokens + usage.anthropic.outputTokens;
+  const oaiTotal = usage.openai.inputTokens + usage.openai.cachedTokens + usage.openai.outputTokens;
+  if (anthTotal === 0 && oaiTotal === 0) return null;
+
+  return (
+    <SetRow label="BYOK usage" desc="Accumulated tokens and estimated cost since last reset. Resets do not affect your provider billing.">
+      <div className="byok-usage-summary">
+        {anthTotal > 0 && <div className="byok-usage-line">Claude — {fmtLine(usage.anthropic)}</div>}
+        {oaiTotal > 0 && <div className="byok-usage-line">ChatGPT — {fmtLine(usage.openai)}</div>}
+        <button className="btn btn-soft byok-usage-reset" onClick={() => { clearUsage(); }}>Reset</button>
+      </div>
     </SetRow>
   );
 }
@@ -97,7 +240,10 @@ function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
     <SetRow label="First-run walkthrough" desc="Re-open the consent walkthrough from the beginning."><button className="btn btn-soft" onClick={replayWalkthrough}>Show again</button></SetRow>
     <div className="ai-privacy-block">{AI_PRIVACY_COPY}</div>
     {showKeyRow && <SetRow label="AI license key" desc="Clear to re-enter a different one."><button className="ai-change-key-btn" onClick={() => setTweak("aiLicenseKey", "")}>Change license key…</button></SetRow>}
+    {!showKeyRow && <AiKeyEntryRow setTweak={setTweak} />}
     <ByokKeyRow />
+    <ByokOpenAiKeyRow />
+    <ByokUsageReadout />
     <SetRow label="Custom endpoints" desc="Use local or self-hosted model servers." last>
       <CustomEndpointsManager />
     </SetRow>

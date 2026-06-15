@@ -19,6 +19,7 @@ import { getTweak, setStoredTweak } from "../settings/settings.store";
 import { type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext,filterAiEntities } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
+import { acquireAnyToken } from "./ai.trialToken";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
@@ -32,8 +33,9 @@ import {
   type ProseSelection,
   type VerbKey,
 } from "./ai.types";
-import { buildByokStreamArgs,streamByokResponse } from "./AssistantPanel.byok";
+import { buildByokStreamArgs,BYOK_SEND } from "./AssistantPanel.byok";
 import { buildMessages } from "./prompts";
+import { getModelEntry, type ProviderId } from "./providerRegistry";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CtxArgs {
@@ -86,8 +88,17 @@ export interface PanelMsgArgs {
   projectId?: string | null;
   onStreamDone?: () => void; // Called after each stream attempt completes (success or failure) to refresh balance.
   onNetworkError?: () => void; // Called when a stream fetch fails with a network-class error (not 403, not abort).
-  /** True when a BYOK key is active — forks execSend to streamByokResponse. */
-  byokMode: boolean;
+  /**
+   * True when ANY BYOK key is present (anthropic || openai).
+   * Used for managed-meter suppression and canCompose gating.
+   * W49 Phase 3 — replaces the provisional `byokMode` (Anthropic-only) flag.
+   */
+  byokActive: boolean;
+  /**
+   * Provider key-presence MAP. Both keys can be present simultaneously (Decision 4).
+   * Used by execSend for provisional routing; Phase 4 registry picker drives model→provider.
+   */
+  byokKeys: { anthropic: boolean; openai: boolean };
 }
 
 export type ExecSendArgs = PanelMsgArgs & { q: string; newConvo: () => Promise<string> };
@@ -114,7 +125,6 @@ interface StreamArgs {
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
-
 export function toAiTree(tree: BinderTree): AiManuscriptTree {
   return {
     chapters: tree.chapters.map((ch) => ({
@@ -147,10 +157,7 @@ function patchMessage(convId: string, msgId: string, patch: Partial<AiMessageRec
     );
 }
 
-// Trial token helpers live in ai.trialToken.ts (extracted to keep this file under 300 code lines).
-import { acquireAnyToken, acquireTrialTokenCached } from "./ai.trialToken";
-export { acquireAnyToken, acquireTrialTokenCached };
-
+export { acquireAnyToken } from "./ai.trialToken";
 async function streamAiResponse(a: StreamArgs): Promise<void> {
   const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
@@ -167,7 +174,10 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
     } else if (ev.type === "error") {
       terminalError = `[Something went wrong — ${ev.message}]`;
     } else if (ev.type === "credits-exhausted") {
-      terminalError = "[Monthly allowance used up — resets " + (ev.resetAt || "soon") + "]";
+      const isTrial = !getTweak("aiLicenseKey", "");
+      terminalError = isTrial
+        ? "[Your free trial's used up — subscribe in the panel to keep going]"
+        : "[Monthly allowance used up — resets " + (ev.resetAt || "soon") + "]";
     } else if (ev.type === "trial-budget-exhausted") {
       terminalError = "[Trial AI is at today's shared limit — try again tomorrow]";
     } else if (ev.type === "session-expired") {
@@ -217,12 +227,9 @@ export function buildHistory(convos: ConversationRecord[], cid: string): AiMessa
 
 function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, ids: { cid: string; msgId: string }): StreamArgs {
   const history = buildHistory(a.convos, ids.cid);
-  return {
-    token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
+  return { token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
     verb: a.verb, model: a.model, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
-    sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx,
-    selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history,
-  };
+    sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx, selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history };
 }
 
 function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgId: string; setConvos: Dispatch<SetStateAction<ConversationRecord[]>>; onNetworkError?: () => void }): void {
@@ -230,6 +237,14 @@ function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgI
   const is403 = (err instanceof Error ? err.message : "").includes("403");
   r.setConvos(patchMessage(cid, r.msgId, { streaming: false, text: is403 ? "[Session expired — check your subscription]" : "[Connection failed — try again]" }));
   if (!is403) r.onNetworkError?.();
+}
+
+// W49 P4: registry-driven dispatch via BYOK_SEND; guards prevent cross-provider mis-route.
+async function routeByokSend(a: ExecSendArgs, ctrl: AbortController, ids: { cid: string; msgId: string }): Promise<void> {
+  const sid = crypto.randomUUID(); const entry = getModelEntry(a.model); const handler = entry ? BYOK_SEND[entry.provider] : undefined;
+  if (!entry || !handler) { a.setConvos(patchMessage(ids.cid, ids.msgId, { text: "[Unknown model or provider — check your settings]", streaming: false })); return; }
+  if (!(a.byokKeys as Partial<Record<ProviderId, boolean>>)[entry.provider]) { a.setConvos(patchMessage(ids.cid, ids.msgId, { text: "[No API key set — add one in Settings]", streaming: false })); return; }
+  return handler(buildByokStreamArgs(a, sid, ctrl, ids));
 }
 
 export async function execSend(a: ExecSendArgs): Promise<void> {
@@ -244,7 +259,8 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   const ctrl = (a.abortRef.current = new AbortController());
   try {
     if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
-    if (a.byokMode) { const sid = crypto.randomUUID(); await streamByokResponse(buildByokStreamArgs(a, sid, ctrl, { cid, msgId: aiMsg.id })); }
+    // W49 Phase 4: model-driven BYOK routing — routeByokSend selects path via registry.
+    if (a.byokActive) { await routeByokSend(a, ctrl, { cid, msgId: aiMsg.id }); }
     else { const token = await acquireAnyToken(a.sessionRef); await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id })); }
   } catch (err: unknown) {
     onSendCatch(err, ctrl, cid, { msgId: aiMsg.id, setConvos: a.setConvos, onNetworkError: a.onNetworkError });
@@ -256,7 +272,6 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
 }
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
-
 /** Owns all mutable per-session panel state; key-remount contract for initialVerb/initialSel. */
 export function usePanelState(
   initialVerb?: VerbKey,
@@ -313,10 +328,7 @@ export function useContextAssembly(a: ContextAssemblyArgs) {
 
 export function usePanelMessages(a: PanelMsgArgs) {
   const { newConvo, deleteConvo } = useConvoOps(a.setConvos, a.activeId, a.setActiveId, { onToast: a.onToast, convStore: a.convStore, projectId: a.projectId });
-  const send = () => {
-    if (!a.prompt.trim() || a.streamingId || !a.canCompose) return;
-    void execSend({ ...a, q: a.prompt.trim(), newConvo });
-  };
+  const send = () => { if (!a.prompt.trim() || a.streamingId || !a.canCompose) return; void execSend({ ...a, q: a.prompt.trim(), newConvo }); };
   const stop = () => {
     a.abortRef.current?.abort();
     a.setConvos((cs) =>
