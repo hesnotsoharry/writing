@@ -470,7 +470,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .sheet {
   background: var(--paper); border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg); border: 1px solid var(--parchment-edge);
-  display: flex; flex-direction: column; max-height: 86%;
+  display: flex; flex-direction: column; max-height: 86vh;
 }
 @keyframes pop { from { transform: translateY(12px) scale(0.985); } }
 .sheet-head {
@@ -2239,7 +2239,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   width: 100%; padding: 8px 11px;
   font-size: var(--text-sm); font-family: var(--font-ui);
   border: 1px solid var(--parchment-edge); border-radius: var(--r-md);
-  background: var(--paper); color: var(--ink);
+  background: var(--parchment-deep); color: var(--ink);
   outline: none;
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }

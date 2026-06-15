@@ -288,8 +288,8 @@ export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverN
           <AiPickerSection icon="book" label="Spoiler boundary">
             <AiBoundarySelect tree={tree} aiCtx={aiCtx} setAiCtx={setAiCtx} />
           </AiPickerSection>
-          <AiPickerFoot est={est} onClose={onClose} />
         </div>
+        <AiPickerFoot est={est} onClose={onClose} />
       </div>
     </div>
   );
