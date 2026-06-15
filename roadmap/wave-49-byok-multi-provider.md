@@ -261,6 +261,16 @@ because the migration constraint leaves a single defensible option (no architect
 
 ## Result
 
+**Status: COMPLETE on branch `wave-49-byok-multi-provider` — merge-ready, NOT merged (merge-master session lands it onto post-W48 master `aebf56c`).**
+
+W49 extended BYOK from Anthropic-only to multi-provider: a user pastes their own **OpenAI key** in Settings and the assistant streams **direct from Rust to api.openai.com** (key never touches our servers — W40 privacy property preserved). Five phases (commits `bb03e9c..05efe17`, 25 files +2862/-366): (1) OpenAI BYOK walking skeleton; (2) provider-routed engine `byok_engine.rs` (enum-dispatch `WireFormat` + shared `run_stream`, key-drop/`[DONE]`/SSRF/cached-token discipline); (3) Settings OpenAI key row + unified `useByokKeys`; (4) registry-driven merged picker + model→provider routing (`BYOK_SEND`); (5) persistent per-provider usage readout (localStorage, tokens + est USD with cached billed at the cache-read rate). The managed Cloudflare path was untouched.
+
+**Gates:** cargo 37/37 · vitest 1505/154 · lint 0 · tsc 0. **Wave-end adversarial review:** PASS (Angles 1-5 clean; Angle 6 W45-contract gaps addressed via guard + contract correction). **`/review` mechanical:** PASS (removed dead `PROVIDER_COMMAND`).
+
+**Promoted:** [decisions/0004](decisions/0004-w49-w45-boundary-scope.md) (W49↔W45 boundary) · [decisions/0005](decisions/0005-rust-provider-engine-abstraction-shape.md) (Rust provider-engine + W45 contract). **Vendor-gotchas:** [openai.md](../.claude/vendor-gotchas/openai.md) (new — cached-token double-bill trap, reasoning_effort/temperature 400, canonical aliases, stream usage) · keyring.md (`byok-openai` entry). **Follow-up filed:** `follow-ups/2026-06-15-agent-driven-ui-smoke-harness.md`.
+
+**Deferred to Cole (live smoke — dev app not running this session):** (a) Settings two key rows + badge flip; (b) merged picker keyed-provider groups + GPT→OpenAI routing; (c) usage readout + Reset after a BYOK turn.
+
 ### Mechanical review
 
 **Inputs:** Plan `roadmap/wave-49-byok-multi-provider.md` · Diff `master..HEAD` (W49 commits) · Graph available · 2026-06-15.
@@ -276,4 +286,15 @@ because the migration constraint leaves a single defensible option (no architect
 
 **PASS** (Check 3 flagged the `PROVIDER_COMMAND` dead export; addressed inline by removal before this verdict). Checks 1/2/5 ran clean; 4/6 N/A.
 
-<!-- Wave summary + telemetry filled below at wrap. -->
+### Telemetry summary
+
+Wave session ID: `04f5acc9-fe70-4878-848d-1c1289603b54` · Window: 2026-06-14 to 2026-06-15.
+
+| Surface | Events in wave | Notes |
+|---|---|---|
+| workflow (run-phase) | 5 phases | each: impl → gates → graph-verify → review (panel ×4 / single ×1) → smoke |
+| agent (adversarial review) | 5 per-phase + 1 wave-end | per-phase panels P1/2/4/5 + single P3; wave-end attack-diff |
+| agent (architect/diagnostician) | 1 architect (Decision 5) | + attack-decision review cell |
+| wrap haikus | 4 | decision-promoter + vendor-promoter + followup-auditor + handoff-rewriter |
+
+Single-session wave (thin-data — one session_id). All gates green every phase; every per-phase review FLAG addressed inline before commit; no BLOCK fired. Full per-surface counts queryable via `mcp__telemetry__query({ session_id: ['04f5acc9-…'], aggregate: 'count_by_name', since: '2026-06-14' })`.
