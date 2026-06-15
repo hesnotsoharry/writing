@@ -22,6 +22,7 @@ import { streamByokChat } from "./byok.client";
 import { streamByokLocalChat } from "./byok.local.client";
 import { streamByokOpenAiChat } from "./byok.openai.client";
 import { recordUsage } from "./byokUsage";
+import { getDefault, loadEndpoints } from "./customEndpoints";
 import { buildMessages } from "./prompts";
 import type { ProviderId } from "./providerRegistry";
 
@@ -158,23 +159,48 @@ export type ByokLocalStreamArgs = ByokStreamArgs;
  *
  * Phase 5 adds the free-path gating bypass (no balance fetch, no credit decrement).
  */
+
+/**
+ * Sentinel prefix of the connection-failure message emitted by the W49-owned Rust
+ * engine (`src-tauri/src/byok_engine.rs` `connection_error_msg()` — BOTH the
+ * Anthropic and OpenAiCompatible variants start with this prefix). We key off it
+ * to swap the engine's provider-branded text for a local-server-friendly message.
+ *
+ * CROSS-WAVE COUPLING: this string is owned by W49's Rust. If a future W49 phase
+ * renames it, this match silently fails and the OpenAI-branded text leaks back
+ * into local-server errors. A proper fix (shared error-code enum across the
+ * JS/Rust boundary) needs W49 coordination — tracked as a Phase 5 follow-up.
+ */
+const RUST_CONNECTION_ERROR_PREFIX = "Failed to connect";
+
 export async function streamByokLocalResponse(a: ByokLocalStreamArgs): Promise<void> {
+  const endpointName = getDefault(loadEndpoints())?.name ?? "the model server";
   const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
   let accumulated = ""; let terminalError: string | null = null; let doneCost: number | null = null;
   const isProofread = a.verb === "proofread";
-  await streamByokLocalChat(a.streamId, messages, (ev: NormalizedEvent) => {
-    if (ev.type === "token") {
-      accumulated += ev.text;
-      if (!isProofread) a.setConvos(patchByokMessage(a.convId, a.msgId, { text: accumulated }));
-    } else if (ev.type === "done") {
-      doneCost = ev.creditsCost; // always 0 for local; handled same as managed path
-      // Accumulate per-turn token usage for the usage readout in Settings.
-      recordUsage("local", { inputTokens: ev.inputTokens, cachedTokens: ev.cachedTokens ?? 0, outputTokens: ev.outputTokens }, a.model);
-    } else if (ev.type === "error") {
-      terminalError = `[Something went wrong — ${ev.message}]`;
+  try {
+    await streamByokLocalChat(a.streamId, messages, (ev: NormalizedEvent) => {
+      if (ev.type === "token") {
+        accumulated += ev.text;
+        if (!isProofread) a.setConvos(patchByokMessage(a.convId, a.msgId, { text: accumulated }));
+      } else if (ev.type === "done") {
+        doneCost = ev.creditsCost; // always 0 for local; handled same as managed path
+        // Accumulate per-turn token usage for the usage readout in Settings.
+        recordUsage("local", { inputTokens: ev.inputTokens, cachedTokens: ev.cachedTokens ?? 0, outputTokens: ev.outputTokens }, a.model);
+      } else if (ev.type === "error") {
+        if (ev.message.includes(RUST_CONNECTION_ERROR_PREFIX)) {
+          terminalError = `[Couldn't reach ${endpointName} — is your model server running?]`;
+        } else {
+          terminalError = `[Something went wrong — ${ev.message}]`;
+        }
+      }
+    }, { system, verb: a.verb, model: a.model, signal: a.ctrl.signal });
+  } catch {
+    if (terminalError === null) {
+      terminalError = `[Couldn't reach ${endpointName} — is your model server running?]`;
     }
-  }, { system, verb: a.verb, model: a.model, signal: a.ctrl.signal });
+  }
   const finalText = terminalError ?? accumulated;
   a.setConvos(patchByokMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
   if (a.convStore) {

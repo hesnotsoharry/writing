@@ -20,6 +20,7 @@
  */
 import { useEffect, useState } from "react";
 
+import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import { byokHasKey } from "./byok.client";
 import { byokLocalHasKey } from "./byok.local.client";
 import { byokOpenAiHasKey } from "./byok.openai.client";
@@ -29,11 +30,14 @@ import { byokOpenAiHasKey } from "./byok.openai.client";
  * `local` is optional to preserve backward compat with existing test fixtures
  * that pass `{ anthropic, openai }` — the cast in routeByokSend already uses
  * `Partial<Record<ProviderId, boolean>>` so missing local = false.
+ *
+ * Phase 5: `local` is true when a default endpoint is configured (keyless or
+ * keyed), not just when an API key is present in the keychain.
  */
 export interface ByokKeys {
   anthropic: boolean;
   openai: boolean;
-  /** W45 Phase 4: true when the active saved local endpoint has a key in the keychain. */
+  /** W45 Phase 5: true when a default local endpoint is configured (keyless OR keyed). */
   local?: boolean;
 }
 
@@ -80,7 +84,8 @@ export function useByokKeys(): ByokKeys & { byokActive: boolean } {
     window.addEventListener("byok:key-changed", syncAnthropic);
     window.addEventListener("byok:openai-key-changed", syncOpenai);
     window.addEventListener("byok:local-key-changed", syncLocal);
-    window.addEventListener("custom-endpoint:key-changed", syncLocal); // Settings UI
+    window.addEventListener("custom-endpoint:key-changed", syncLocal); // Settings UI key set/clear
+    window.addEventListener(SETTINGS_CHANGED_EVENT, syncLocal); // endpoint add/delete/set-default
 
     return () => {
       cancelled = true;
@@ -88,6 +93,7 @@ export function useByokKeys(): ByokKeys & { byokActive: boolean } {
       window.removeEventListener("byok:openai-key-changed", syncOpenai);
       window.removeEventListener("byok:local-key-changed", syncLocal);
       window.removeEventListener("custom-endpoint:key-changed", syncLocal);
+      window.removeEventListener(SETTINGS_CHANGED_EVENT, syncLocal);
     };
   }, []);
 

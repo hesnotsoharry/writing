@@ -21,7 +21,6 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { NormalizedEvent } from "./ai.client";
 import { getDefault, loadEndpoints } from "./customEndpoints";
-import { hasEndpointKey } from "./customEndpoints.client";
 import { BYOK_CMD_LOCAL } from "./providerRegistry";
 
 // Re-export so callers don't need to import from ai.client.ts just for the type.
@@ -38,17 +37,17 @@ export interface Msg {
 // ── Key-presence helpers ──────────────────────────────────────────────────────
 
 /**
- * Returns true iff the active (default) saved endpoint has an API key stored in
- * the OS keychain. Returns false when no endpoint is configured or no key is set
- * (keyless servers — those work without a key but are addressed by Phase 5).
+ * Returns true when a default local endpoint is configured, regardless of whether
+ * it has an API key in the keychain. Phase 5 makes keyless servers (e.g. Ollama)
+ * drive byokActive — a configured endpoint is sufficient to bypass the managed
+ * credit gate.
  *
  * Parameterless to match the Anthropic/OpenAI has-key pattern; reads the default
- * endpoint ID from the settings store to avoid crossing the key to JS.
+ * endpoint ID from the settings store (pure localStorage, no Tauri needed).
  */
 export async function byokLocalHasKey(): Promise<boolean> {
   const store = loadEndpoints();
-  if (!store.defaultId) return false;
-  return hasEndpointKey(store.defaultId).catch(() => false);
+  return store.defaultId !== null;
 }
 
 /**
@@ -138,6 +137,11 @@ export async function streamByokLocalChat(
     throw new Error("No local endpoint configured — add one in Settings → Assistant");
   }
 
+  // Phase 5 D3: prefer the endpoint's saved model (set via discovery or manual
+  // entry) over the picker seed "local". When discovery failed, endpoint.model
+  // holds the manually-entered name; the picker may still pass "local".
+  const resolvedModel = endpoint.model ?? model;
+
   const ch = new Channel<NormalizedEvent>();
   ch.onmessage = onEvent;
   if (signal) wireSignal(signal, streamId);
@@ -145,7 +149,7 @@ export async function streamByokLocalChat(
   return invoke(BYOK_CMD_LOCAL, {
     streamId,
     baseUrl: endpoint.url,
-    model,
+    model: resolvedModel,
     messages,
     system,
     maxCompletionTokens,

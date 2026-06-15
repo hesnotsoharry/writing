@@ -89,9 +89,10 @@ export interface PanelMsgArgs {
   onStreamDone?: () => void; // Called after each stream attempt completes (success or failure) to refresh balance.
   onNetworkError?: () => void; // Called when a stream fetch fails with a network-class error (not 403, not abort).
   /**
-   * True when ANY BYOK key is present (anthropic || openai).
+   * True when ANY BYOK provider is active (anthropic || openai || local).
    * Used for managed-meter suppression and canCompose gating.
    * W49 Phase 3 — replaces the provisional `byokMode` (Anthropic-only) flag.
+   * W45 Phase 5 — `local` folded in (a configured local endpoint, keyless or keyed).
    */
   byokActive: boolean;
   /**
@@ -243,7 +244,7 @@ function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgI
 async function routeByokSend(a: ExecSendArgs, ctrl: AbortController, ids: { cid: string; msgId: string }): Promise<void> {
   const sid = crypto.randomUUID(); const entry = getModelEntry(a.model); const handler = entry ? BYOK_SEND[entry.provider] : undefined;
   if (!entry || !handler) { a.setConvos(patchMessage(ids.cid, ids.msgId, { text: "[Unknown model or provider — check your settings]", streaming: false })); return; }
-  if (!(a.byokKeys as Partial<Record<ProviderId, boolean>>)[entry.provider]) { a.setConvos(patchMessage(ids.cid, ids.msgId, { text: "[No API key set — add one in Settings]", streaming: false })); return; }
+  if (!(a.byokKeys as Partial<Record<ProviderId, boolean>>)[entry.provider]) { const missingMsg = entry.provider === "local" ? "[No local endpoint configured — add one in Settings → Assistant]" : "[No API key set — add one in Settings]"; a.setConvos(patchMessage(ids.cid, ids.msgId, { text: missingMsg, streaming: false })); return; }
   return handler(buildByokStreamArgs(a, sid, ctrl, ids));
 }
 
