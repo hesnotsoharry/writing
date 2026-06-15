@@ -2206,8 +2206,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: var(--paper); font-size: var(--text-xs); color: var(--ink); }
 .ai-boundary .note { font-size: var(--text-2xs); color: var(--ink-4); line-height: 1.45; }
 
-.ai-picker-foot { display: flex; align-items: center; gap: var(--s-4); padding-top: var(--s-3);
-  border-top: 1px solid var(--line); }
+.ai-picker-foot { display: flex; align-items: center; gap: var(--s-4);
+  padding: var(--s-3) var(--s-5); border-top: 1px solid var(--line); }
 .ai-picker-foot .ai-meter { flex: 1; }
 .ai-est { font-size: var(--text-2xs); color: var(--ink-3); }
 .ai-est b { color: var(--ink); font-weight: 600; }

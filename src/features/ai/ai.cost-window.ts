@@ -27,7 +27,7 @@ function writeStore(store: WindowStore): void {
 export function pushCostEntry(model: ManagedModel, costUnits: number): void {
   if (costUnits <= 0) return;
   const store = readStore();
-  const arr = store[model] ?? [];
+  const arr = Array.isArray(store[model]) ? store[model]! : [];
   arr.push(costUnits);
   if (arr.length > WINDOW_SIZE) arr.splice(0, arr.length - WINDOW_SIZE);
   store[model] = arr;
@@ -40,6 +40,8 @@ export function pushCostEntry(model: ManagedModel, costUnits: number): void {
  */
 export function avgCostForModel(model: ManagedModel): number | null {
   const arr = readStore()[model];
-  if (!arr || arr.length === 0) return null;
-  return arr.reduce((s, v) => s + v, 0) / arr.length;
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const nums = arr.filter((v) => typeof v === "number" && Number.isFinite(v));
+  if (nums.length === 0) return null;
+  return nums.reduce((s, v) => s + v, 0) / nums.length;
 }
