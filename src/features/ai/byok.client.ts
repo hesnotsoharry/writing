@@ -55,6 +55,12 @@ export interface StreamByokChatOptions {
   system?: string;
   /** Verb key — resolves temperature + max_tokens in Rust. Default: "brainstorm". */
   verb?: string;
+  /**
+   * Anthropic model ID forwarded to Rust's byok_chat.
+   * W49 Phase 2 — model param added; picker wires real selection in Phase 4.
+   * Default: 'claude-haiku-4-5-20251001' (preserves pre-Phase-2 behavior).
+   */
+  model?: string;
   /** AbortSignal — abort fires `byokStop` automatically. */
   signal?: AbortSignal;
 }
@@ -82,11 +88,13 @@ export async function streamByokChat(
     options.signal.addEventListener("abort", () => void byokStop(streamId));
   }
 
+  // W49 Phase 2 — model param added; picker wires real selection in Phase 4.
   return invoke("byok_chat", {
     streamId,
     messages,
     system: options?.system ?? "",
     verb: options?.verb ?? "brainstorm",
+    model: options?.model ?? "claude-haiku-4-5-20251001",
     onEvent: ch,
   });
 }

@@ -24,7 +24,6 @@
 //! portion. `extract_openai_usage` does the subtraction once, here, tested below.
 //! Wire-shape grounding: `roadmap/wave-49-byok-multi-provider-research.md` §1–2.
 
-use futures::StreamExt;
 use keyring_core::Entry;
 use serde::Deserialize;
 
@@ -94,7 +93,8 @@ pub async fn byok_openai_clear_key() -> Result<(), String> {
 /// Stream a chat request directly to `api.openai.com`.
 ///
 /// Mirrors `byok_chat` (Anthropic) in structure: the key is fetched from the OS
-/// keychain, placed in the `Authorization: Bearer` header, and immediately dropped.
+/// keychain, placed in the `Authorization: Bearer` header inside `RequestSpec`,
+/// and dropped by `byok_engine::run_stream` immediately after `send()` returns.
 /// It NEVER crosses the IPC boundary in either direction after `byok_openai_set_key`.
 ///
 /// Chat Completions has no top-level `system` field — the system prompt is folded
@@ -147,16 +147,7 @@ pub async fn byok_openai_chat(
         }
     };
 
-    // 2. Register a oneshot cancellation channel for this stream_id.
-    //    Shares crate::byok::ByokCancel — UUIDs guarantee no collision with
-    //    in-flight Anthropic streams.
-    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
-    {
-        let mut map = state.0.lock().map_err(|_| "State lock failed".to_string())?;
-        map.insert(stream_id.clone(), cancel_tx);
-    }
-
-    // 3. Build the OpenAI Chat Completions request body.
+    // 2. Build OpenAI Chat Completions request body.
     //    Chat Completions has NO top-level system field — fold it into a leading
     //    system message. reasoning_effort:'none' + temperature is the Standard path.
     let mut messages_json: Vec<serde_json::Value> = Vec::new();
@@ -179,125 +170,30 @@ pub async fn byok_openai_chat(
         "temperature": temperature,
     });
 
-    // 4. POST to OpenAI. Connection errors → Error event + Done, Ok return.
-    let client = reqwest::Client::new();
-    let response = match client
-        .post(OPENAI_ENDPOINT)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .await
-    {
-        Ok(r) => r,
-        Err(_) => {
-            let _ = on_event.send(NormalizedEvent::Error {
-                message: "Failed to connect to OpenAI — check your network".to_string(),
-            });
-            let _ = on_event.send(NormalizedEvent::Done {
-                input_tokens: 0,
-                output_tokens: 0,
-                credits_cost: 0,
-            });
-            remove_cancel_openai(&state, &stream_id);
-            return Ok(());
-        }
+    // Build RequestSpec; delegate cancel registration, POST, drain, and terminal
+    // Done to byok_engine::run_stream (the shared engine).
+    // The api_key is formatted into the Authorization value (creating a new String),
+    // then the original api_key binding is explicitly dropped before run_stream
+    // so the engine's drop(request) is the sole cleanup site for the copy in headers.
+    let auth_value = format!("Bearer {}", api_key);
+    drop(api_key); // drop original; only auth_value (in headers) remains
+    let request = crate::byok_engine::RequestSpec {
+        url: OPENAI_ENDPOINT.to_string(),
+        headers: vec![
+            ("Authorization", auth_value),
+            ("Content-Type", "application/json".to_string()),
+        ],
+        body,
     };
 
-    // Drop the key immediately — consumed by the request builder, no longer needed.
-    drop(api_key);
-
-    // 5. Map HTTP error codes to fixed sanitized messages (NEVER include response body).
-    if !response.status().is_success() {
-        let msg = match response.status().as_u16() {
-            401 => "Invalid API key — check Settings",
-            429 => "Rate limited by OpenAI — wait a moment",
-            _ => "OpenAI request failed — try again later",
-        };
-        let _ = on_event.send(NormalizedEvent::Error {
-            message: msg.to_string(),
-        });
-        let _ = on_event.send(NormalizedEvent::Done {
-            input_tokens: 0,
-            output_tokens: 0,
-            credits_cost: 0,
-        });
-        remove_cancel_openai(&state, &stream_id);
-        return Ok(());
-    }
-
-    // 6. Drain the SSE byte stream.
-    //
-    // Same RAW BYTE buffer approach as byok_chat: multi-byte UTF-8 sequences
-    // (em-dash, smart quotes, etc.) split across TCP chunk boundaries are never
-    // corrupted — only complete newline-terminated slices are decoded to String.
-    //
-    // OpenAI SSE: text in choices[0].delta.content (extract_openai_text_delta);
-    // final usage chunk (empty choices, populated usage) decoded via
-    // extract_openai_usage which subtracts cached_tokens from prompt_tokens to
-    // avoid the double-bill trap. Stream ends on literal 'data: [DONE]'.
-    let mut byte_stream = response.bytes_stream();
-    let mut line_buf: Vec<u8> = Vec::new();
-    let mut usage: Option<OpenAiUsage> = None;
-
-    tokio::pin!(cancel_rx);
-
-    'drain: loop {
-        let chunk = tokio::select! {
-            biased;
-            _ = &mut cancel_rx => break 'drain,
-            chunk = byte_stream.next() => chunk,
-        };
-
-        let bytes = match chunk {
-            None => break 'drain,
-            Some(Err(_)) => break 'drain,
-            Some(Ok(b)) => b,
-        };
-
-        line_buf.extend_from_slice(&bytes);
-
-        loop {
-            let Some(pos) = line_buf.iter().position(|&b| b == b'\n') else {
-                break;
-            };
-            // Strip trailing \r (CRLF line endings per SSE spec).
-            let end = if pos > 0 && line_buf[pos - 1] == b'\r' { pos - 1 } else { pos };
-            let line = String::from_utf8_lossy(&line_buf[..end]).into_owned();
-            line_buf = line_buf[pos + 1..].to_vec();
-
-            let Some(json) = line.strip_prefix("data: ") else {
-                continue;
-            };
-            let json = json.trim();
-
-            if json == "[DONE]" {
-                break 'drain;
-            }
-
-            if let Some(text) = extract_openai_text_delta(json) {
-                if on_event.send(NormalizedEvent::Token { text }).is_err() {
-                    break 'drain;
-                }
-            } else if let Some(u) = extract_openai_usage(json) {
-                usage = Some(u);
-            }
-        }
-    }
-
-    // 7. Emit terminal Done — the one and only cleanup signal for JS, on every exit.
-    //    extract_openai_usage has already done the cached-token subtraction.
-    let (input_tokens, output_tokens) = usage
-        .map(|u| (u.input_tokens, u.output_tokens))
-        .unwrap_or((0, 0));
-    let _ = on_event.send(NormalizedEvent::Done {
-        input_tokens,
-        output_tokens,
-        credits_cost: 0,
-    });
-
-    remove_cancel_openai(&state, &stream_id);
-    Ok(())
+    crate::byok_engine::run_stream(
+        &state,
+        stream_id,
+        on_event,
+        crate::byok_engine::WireFormat::OpenAiCompatible,
+        request,
+    )
+    .await
 }
 
 /// Cancel an in-flight `byok_openai_chat` stream by stream_id.
@@ -313,14 +209,6 @@ pub async fn byok_openai_stop(
         let _ = tx.send(());
     }
     Ok(())
-}
-
-/// Remove a stream_id from the shared cancellation map. Called at all exit paths
-/// of `byok_openai_chat` to prevent the map growing unboundedly.
-fn remove_cancel_openai(state: &tauri::State<'_, crate::byok::ByokCancel>, stream_id: &str) {
-    if let Ok(mut map) = state.0.lock() {
-        map.remove(stream_id);
-    }
 }
 
 // ── Frozen contract (do NOT modify) ──────────────────────────────────────────

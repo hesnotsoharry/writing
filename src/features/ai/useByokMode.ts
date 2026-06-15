@@ -15,10 +15,16 @@ export function useByokMode(): boolean {
   const [byokMode, setByokMode] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    void byokHasKey().then((has) => { if (!cancelled) setByokMode(has); });
-    const onChanged = () => { void byokHasKey().then((has) => { if (!cancelled) setByokMode(has); }); };
-    window.addEventListener("byok:key-changed", onChanged);
-    return () => { cancelled = true; window.removeEventListener("byok:key-changed", onChanged); };
+    // A keychain read failure (e.g. no Tauri runtime) safely means "no key" —
+    // never leave the promise unhandled, which would reject in jsdom and prod alike.
+    const sync = () => {
+      byokHasKey()
+        .then((has) => { if (!cancelled) setByokMode(has); })
+        .catch(() => { if (!cancelled) setByokMode(false); });
+    };
+    sync();
+    window.addEventListener("byok:key-changed", sync);
+    return () => { cancelled = true; window.removeEventListener("byok:key-changed", sync); };
   }, []);
   return byokMode;
 }

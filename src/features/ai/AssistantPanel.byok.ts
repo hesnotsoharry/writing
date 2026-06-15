@@ -66,6 +66,7 @@ export async function streamByokResponse(a: ByokStreamArgs): Promise<void> {
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
   let accumulated = ""; let terminalError: string | null = null; let doneCost: number | null = null;
   const isProofread = a.verb === "proofread";
+  // W49 Phase 2 — model param added; picker wires real selection in Phase 4.
   await streamByokChat(a.streamId, messages, (ev: NormalizedEvent) => {
     if (ev.type === "token") {
       accumulated += ev.text;
@@ -75,7 +76,7 @@ export async function streamByokResponse(a: ByokStreamArgs): Promise<void> {
     } else if (ev.type === "error") {
       terminalError = `[Something went wrong — ${ev.message}]`;
     }
-  }, { system, verb: a.verb, signal: a.ctrl.signal });
+  }, { system, verb: a.verb, model: "claude-haiku-4-5-20251001", signal: a.ctrl.signal });
   const finalText = terminalError ?? accumulated;
   a.setConvos(patchByokMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
   if (a.convStore) {

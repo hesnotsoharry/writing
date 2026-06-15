@@ -1,4 +1,5 @@
 mod byok;
+mod byok_engine;
 mod byok_openai;
 mod grammar;
 mod license;
