@@ -224,12 +224,20 @@ registry-driven; the badge becomes provider-aware.
 
 **Enforcement:** decision-review cell fired (`sonnet-architect` → `sonnet-adversarial-reviewer` `Posture: attack-decision` → orchestrator adjudication, FLAG → all 4 flags addressed above); behavior-preservation enforced by the existing cargo test suite; the key-drop + `[DONE]` + SSRF-tripwire requirements are advisory-to-the-implementer (carried in the Phase 2 brief; verified by the phase reviewer cell).
 
-### Decision 6 (PENDING, in-wave): usage-total persistence location
+### Decision 6: usage-total persistence location — RATIFIED (decide-and-explain, 2026-06-15)
 
-To be ratified via the decision-review cell at **Phase 5**: where per-provider usage totals persist
-(localStorage vs a Tauri store-plugin JSON vs a new SQLite table). Constraint from project memory:
-appending a SQLite migration silently breaks prior migration tests — prefer a non-migration store
-unless there's a strong reason. **Enforcement:** decision-review cell.
+**Context:** where the Phase-5 per-provider BYOK usage totals (tokens + estimated USD) persist.
+**Pick:** `localStorage` (renderer-side), keyed per provider.
+**Rationale:** the cell was downgraded to decide-and-explain — the choice is low-stakes and
+constrained to one clear answer. Usage counters are **non-secret, non-critical, informational**;
+localStorage persists across app restarts in WebView2, needs **zero new deps and zero Rust wiring**,
+and **avoids the SQLite-migration trap** (project memory: appending a migration silently breaks prior
+migration tests). The only downside — cleared if the user wipes WebView data — is acceptable for
+informational stats. A Tauri store-plugin JSON is the upgrade path if durability ever becomes critical.
+**Consequences:** the readout reads/writes localStorage; the clear/reset control wipes the key. Not
+synced, not backed up (informational only).
+**Enforcement:** advisory-only (Phase 5 acceptance criteria). Downgraded from the decision-review cell
+because the migration constraint leaves a single defensible option (no architect dispatch fired).
 
 ## Status
 
@@ -238,6 +246,7 @@ unless there's a strong reason. **Enforcement:** decision-review cell.
 | 1 | 2026-06-14 | 2026-06-14 | `83f216d` | ✅ Panel rendered "Invalid API key — check Settings" via live OpenAI 401 (CDP smoke through the React UI route). |
 | 2 | 2026-06-14 | 2026-06-14 | `11fac3a` | ✅ Internal refactor (behavior-preserving). Smoke: both Anthropic + OpenAI invalid-key paths render sanitized 401 through the shared `run_stream` (CDP). Panel PASS (security FLAG addressed). |
 | 3 | 2026-06-14 | 2026-06-14 | `9c043b9` | ⚠️ Code + tests green (vitest 1454 + 6 new: OpenAI row label, 3 badge-text branches, OpenAI routing). Review FLAG (test-adequacy) addressed. Live CDP smoke deferred — dev app not running + no smoke-config (see follow-up); behavior test-covered. Needs Cole eyeball: two key rows + badge flip. |
+| 4 | 2026-06-15 | 2026-06-15 | `9c152ee` | ⚠️ Code + tests green (vitest 1491 + 4 guard/dispatch tests). Panel FLAG (routing/contract) addressed: registry-driven `BYOK_SEND` dispatch + key-absent guard + `ProviderId` casts. Live smoke deferred (dev app down). Needs Cole eyeball: merged picker shows keyed-provider groups + GPT model routes to OpenAI. |
 
 ## Follow-up candidates
 
