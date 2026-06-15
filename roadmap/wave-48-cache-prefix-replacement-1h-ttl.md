@@ -28,6 +28,37 @@ block (`marketing/functions/api/ai/chat.ts:223`), and the **volatile scene excer
 2. **Verify-first gate (P0).** Empirically confirm current behavior + the floor-risk profile + Anthropic semantics BEFORE refactoring. No code change until P0 says the fix won't degrade caching for any user segment.
 3. **Provider-aware structure** — the system-cached / volatile-in-messages split must be expressed so W44's `OpenAIAdapter` handles it too (OpenAI caching is automatic / no breakpoint; the Anthropic breakpoint logic stays Anthropic-only). Keep the refactor compatible with the W44 adapter shape.
 
+## P0 verification result (2026-06-14) — GO
+
+**Verdict: GO on the placement fix.** All three P0 outputs confirmed; live repro skipped per Cole
+(live oracle moves to P2 — the production worker is the only deployed endpoint and spends real
+Anthropic tokens against a $25/day ceiling; docs + prior smoke already give a confident GO).
+
+1. **Anthropic semantics (ctx7 / platform.claude.com docs):** the cache is a prefix cache ordered
+   tools → system → messages. Cache-miss reasons (`system_changed`, `messages_changed`, …) are
+   diagnostics for why a prefix could *not be fully reused*; `cache_missed_input_tokens` =
+   "tokens that *would have been* read had the prefix matched." A `cache_control` breakpoint at the
+   end of an **unchanged** `system` block still produces a `cache_read` hit when only `messages`
+   change. Confirmed empirically by wave-37 smoke (681→228 credits on a 2nd assist turn — a 2nd turn
+   already carries a different `messages` array, so the system prefix survives a messages change
+   today). The only reason an edit-between busts the cache is that the scene text lives *inside* the
+   system block. ⇒ Moving scene/selection into `messages` is the correct fix. TTL syntax confirmed:
+   `cache_control: { type: "ephemeral", ttl: "1h" }` (defaults `"5m"`).
+2. **Floor-risk profile (measured via the real prompt builders — `src/test/w48PrefixMeasurement.test.ts`, temporary):**
+
+   | Segment | Current prefix (scene IN) | Post-refactor (scene OUT) | Verdict |
+   |---|---|---|---|
+   | Thin (no About/entities) | ~608 tok | ~597 tok | Sub-floor both ways — never cached anyway; no regression |
+   | Rich, Sonnet/Opus (1024 floor) | 1716 tok ✓ | **1190 tok ✓ still CACHES** | Cost-relevant segment **protected** |
+   | Rich, Haiku (4096 floor) | 1716 tok ✗ | 1190 tok ✗ | Sub-floor both ways — Haiku doesn't cache at typical sizes regardless |
+
+   Savings concentrate on rich-context Sonnet/Opus (clears 1024 after the split). Haiku: no
+   regression (it wasn't caching). Caveat: Sonnet headroom on a rich manuscript is modest (~166 tok);
+   *medium*-context users near 1024 may stop caching on the rare no-edit case — economically
+   negligible (their prompts are cheap). Matches the wave's stated assumption.
+3. **Live repro:** skipped at P0 (Cole's call); the proof-that-matters (edit-between keeps cache
+   warm) runs as the P2 live oracle.
+
 ## The known caveat to protect against (the "don't bust caches" risk)
 Removing the scene SHRINKS the cached prefix. Anthropic won't cache below a per-model floor —
 **Haiku 4096 tokens, Sonnet/Opus 1024** (`prompt-cache.ts` MIN_CACHEABLE_TOKENS; see
