@@ -87,10 +87,10 @@ Before declaring a phase complete, restate that phase's Observation point in you
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 0 | 2026-06-15 | 2026-06-15 | 3e95e25 | pending (CDP self-smoke at wave-end with P3) |
+| 0 | 2026-06-15 | 2026-06-15 | 3e95e25 (+e2955ec) | HIT (CDP self-smoke): labels "Haiku 4.5"/"Sonnet 4.6" render; context modal scrolls internally with pinned footer + 86vh cap; `.set-input` fill required a pre-existing CSS-comment fix (e2955ec) — now computes `background rgb(236,228,212)`, `padding 8px 11px` |
 | 1 | 2026-06-15 | 2026-06-15 | 6c186bf | unit + reviewer-trace (managed error path is structurally unreachable — invariant test; BYOK error string verified by trace) |
 | 2 | 2026-06-15 | 2026-06-15 | 76c7345 | network/test: `done` event carries `balanceAfter` (4 tests incl. trial+subscriber × refund/no-refund, 46/46 green) |
-| 3 | 2026-06-15 | 2026-06-15 | 1a95d84 | pending (CDP self-smoke at wave-end with P0) — unit: 1598/1598 app tests green; adversarial review FLAG (cold-start meter blip) addressed via `applyBalance` guard |
+| 3 | 2026-06-15 | 2026-06-15 | 1a95d84 | PARTIAL (CDP self-smoke): "≈ up to X%" estimate label + assists-remaining + meter usedPct render correctly. **NOT smoked** — post-send true-cost display + assists-remaining live burn (require an actual managed AI reply, which spends real money on the shared production DB; deferred). Unit: 1598/1598 green; adversarial FLAG (cold-start meter blip) addressed via `applyBalance` guard |
 
 ## Follow-up candidates
 
