@@ -1,46 +1,228 @@
-# Wave 49 — BYOK multi-provider (bring-your-own key beyond Anthropic)
+---
+status: PLANNED
+created: 2026-06-14
+---
 
-> **Status: PLANNED — scope-capture stub, not yet built.** Expand into a full plan with
-> `/wave-plan-lite` when scheduled. Created 2026-06-14 during the W40→W44 merge, when the
-> BYOK×model-picker interaction surfaced the gap. Depends on W44 (ProviderAdapter seam) being merged.
+# Wave 49 — OpenAI BYOK multi-provider
 
-## Goal
+## Plan
 
-Extend BYOK from Anthropic-only (W40 Phase 1) to **multi-provider**: a user pastes their own
-**OpenAI/ChatGPT key** (and later other cloud providers) and the assistant routes **direct to
-that provider's API** — key + prose never touch WritersNook servers — reusing W40's pattern
-(Rust-direct call + `keyring` v4 storage + "Your key" badge + managed-meter suppression).
+### Status
 
-This is the BYOK sibling of two already-planned waves:
-- **W44 (managed multi-provider)** — OpenAI under the *unified managed credit*, via the
-  `ProviderAdapter`/`OpenAIAdapter` seam. W49 reuses that adapter shape but routes with the
-  user's own key instead of the managed proxy.
-- **W45 (local-LLM)** — local models (llama.cpp/ollama) as a *non-managed inference source*.
-  W49 + W45 together are "user brings their own compute/keys"; coordinate the picker UX so
-  managed / BYOK-cloud / local are one coherent model-selection surface, not three bolt-ons.
+DRAFT · target v0.9.0 · drafted 2026-06-14.
 
-## Why now (the breadcrumb from the W40→W44 merge)
+### Goal
 
-W44's model picker offers Anthropic + OpenAI/GPT models. W40's BYOK is Anthropic-key-only.
-**Interim resolution applied at the W44 merge (2026-06-14):** in BYOK mode the picker is
-**restricted to Anthropic models** (a user's Anthropic key can't call OpenAI). **W49 lifts that
-restriction** — in BYOK mode the picker shows models for whichever providers the user has
-supplied a key for. Search the W44-merge commit for the `byokMode` picker gate; that gate is
-the seam W49 opens up.
+After this wave, a user can paste their own **OpenAI API key** in Settings → AI Writing Assistant
+alongside their existing Anthropic key, and the assistant routes **direct from Rust to
+`api.openai.com`** (key + prose never touch WritersNook servers) — mirroring W40's Anthropic-direct
+pattern. The Rust BYOK layer (`src-tauri/src/byok.rs`) is generalized from Anthropic-hardcoded into a
+**provider-routed engine** generic over `{base_url, auth_header, wire_format}`, with a live
+OpenAI-compatible SSE adapter. The model picker becomes **registry-driven**: when both keys are
+present it shows a merged Claude + ChatGPT menu (GPT-5.4 / 5.4-mini / 5.5), the selected model
+routes to the matching provider/key, and the "Your key" badge names the active provider. A
+**persistent per-provider usage readout** (accumulated tokens + estimated cost) gives BYOK users the
+cost visibility the managed meter provided. The engine and picker registry are shaped so **Wave 45
+(local models) consumes them without re-forking** — W49 lands first and publishes the contract.
 
-## Open questions (resolve at `/wave-plan-lite` time)
+### Scope
 
-1. **Key storage:** one `keyring` entry per provider (`writing/byok/anthropic`, `writing/byok/openai`, …)?
-2. **Picker behavior in BYOK mode:** show models only for providers with a key present; what's the
-   empty/partial state (one key set, another not)?
-3. **Provider order for Phase 2:** OpenAI first (W44 already built the OpenAIAdapter to reuse);
-   Gemini / others after?
-4. **Custom endpoint / OpenAI-compatible base URL:** does this subsume part of W45 (local models
-   are often OpenAI-compatible servers)? Decide the W45↔W49 boundary before building either.
-5. **Cost visibility:** ties directly to the queued *BYOK own-key usage-visibility* follow-up —
-   with multiple providers, a rough per-provider usage signal matters more. Fold that follow-up in.
+**In scope:**
 
-## Relationship index
-- W40 (the BYOK pattern to extend): `roadmap/wave-40-byok-phase-1.md` + decisions `0002` (direct-to-Anthropic) / `0003` (keyring v4).
-- W44 (ProviderAdapter seam): `roadmap/discovery/2026-06-13-multi-provider-unified-credit-blueprint.md`.
-- W45 (local models): referenced in `roadmap/discovery/2026-06-13-reddit-launch-readiness.md` (no wave file yet).
+- **Rust engine (`src-tauri/src/byok.rs`):** refactor the Anthropic-hardcoded path into a
+  provider-routed engine generic over `{base_url, auth_header, wire_format}`. Two wire formats live:
+  Anthropic (lifted behavior-preserving) + OpenAI-compatible (new SSE parser).
+- **Rust OpenAI adapter:** new OpenAI Chat Completions streaming parser (`choices[0].delta.content`
+  fragments, literal `data: [DONE]` terminator, final usage-bearing chunk with empty `choices` +
+  populated `usage`). **Base-URL-parameterized** but instantiated only with the trusted constant
+  `https://api.openai.com` this wave (custom URLs are W45). GPT-5 param mapping
+  (`reasoning_effort: 'none'` + `temperature` for the four Standard verbs; `max_completion_tokens`).
+- **Keyring:** second per-provider entry `byok-openai` (service `com.coles.writing`, mirroring
+  `byok-anthropic`). New `byok_openai_set_key` / `byok_openai_has_key` / `byok_openai_clear_key` /
+  `byok_openai_chat` / `byok_openai_stop` commands; `byok_chat` extended to accept a `model` param.
+- **Frontend provider discriminant:** decompose `byokMode: boolean` → a provider state
+  (`anthropic | openai | null`) derived from which keys are present; `useByokMode` listens to both
+  `byok:key-changed` and a new `byok:openai-key-changed` event.
+- **Registry-driven picker:** a provider→models registry (the contract W45 appends to); the picker
+  renders from it; merged menu showing all models for every provider with a key; selecting a model
+  routes to that provider; "Your key" badge reflects the active model's provider.
+- **Settings:** `ByokOpenAiKeyRow` (placeholder `sk-...`, label "OpenAI API key", description
+  "Direct to OpenAI — your prose never touches our servers"); relabel existing row "Anthropic API
+  key".
+- **Persistent per-provider usage readout:** accumulate per-turn tokens (from each provider's `done`
+  usage) into a persisted per-provider running total + estimated USD (from known cloud rates); a
+  readout surface + a clear/reset affordance.
+- Model display entries for `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.5` (rates from the research sidecar).
+
+**Out of scope:**
+
+- **Custom / OpenAI-compatible base URL + local models** → **Wave 45**. W49 ships only the trusted
+  `api.openai.com` constant; the URL-entry UI and loopback/https/cert validation guardrails are W45's
+  (that's where untrusted user-typed URLs enter). W49's adapter is base-URL-parameterized so W45
+  consumes it without refactor.
+- **Gemini / Mistral / other cloud providers** → later wave; the engine generalizes to them but only
+  OpenAI is wired this wave.
+- **Managed-path (server) changes** → none. The Cloudflare Worker `ProviderAdapter` (W44) is a
+  separate code path; W49 is Rust-direct only.
+- **Cross-provider auto-fallback on outage** → deferred (error + existing BYOK error path); a mid-task
+  silent model switch is a separate product decision.
+- **Anthropic billing / RATES math changes** → untouched; BYOK does not meter against managed credit.
+
+### Phases
+
+| Phase | Topic | Implementer | Notes | Observation |
+|---|---|---|---|---|
+| 1 | Walking skeleton: OpenAI key → Rust-direct stream → panel | sonnet-implementer | **Walking skeleton / cross-boundary (external API) / honeycomb.** Thinnest **end-to-end slice**: add `byok-openai` keyring + set/has/clear commands; new `byok_openai_chat` with a **hardcoded `gpt-5.4`**, the new OpenAI SSE parser (grounded in research sidecar §1–2 — subtract `cached_tokens` from `prompt_tokens`), `reasoning_effort:'none'`+temperature; thin TS wrapper + provisional route so one verb streams from OpenAI; one **CDP smoke**. Anthropic path untouched (zero-regression). | In a live session with an OpenAI key saved, the assistant panel renders a streaming GPT-5.4 reply token-by-token. |
+| 2 | Provider-routed Rust engine (generalize `byok.rs`) | sonnet-implementer | **Internal refactor / honeycomb (Rust unit tests per adapter parser).** Behavior-preserving: extract the engine generic over `{base_url, auth_header, wire_format}`; lift Anthropic verbatim (existing cargo tests guard); fold Phase 1's OpenAI path into a base-URL-parameterized `OpenAIAdapter` (instantiated with the `api.openai.com` constant); `byok_chat` gains `model`. **Publish the adapter fn signature + provider-registry shape for the W45 agent.** Engine-shape ADR ratified via the in-wave decision-review cell. | Internal — no observation point |
+| 3 | Settings OpenAI key row + multi-provider `useByokMode` | sonnet-implementer | **Trophy (UI + state) / internal-only-ish.** Add `ByokOpenAiKeyRow` (separate `byok:openai-key-changed` event, `sk-...` placeholder); relabel Anthropic row. Decompose `byokMode` boolean → provider discriminant (`anthropic\|openai\|null`) in `useByokMode`; thread it where the boolean threaded. Managed-meter suppression logic unchanged (`!byokMode` still correct). | Settings → AI Writing Assistant shows a second "OpenAI API key" row; after saving a key, the "Your key" badge in the assistant panel updates to name the active provider. |
+| 4 | Registry-driven merged model picker | sonnet-implementer | **Trophy / cross-boundary (shared file with W45).** Build the provider→models registry; render the picker from it; **lift the `!byokMode` picker gate** → show all models for every provider with a key (merged Claude + ChatGPT groups); selected model routes to the matching provider/key (thread `model` through `ByokStreamArgs` → `byok_openai_chat`). Empty state (no keys) = managed. | With both keys saved, the assistant panel's model picker displays a Claude group and a ChatGPT group (GPT-5.4 / mini / 5.5); selecting GPT-5.4-mini and sending streams a reply from OpenAI. |
+| 5 | Persistent per-provider usage readout | sonnet-implementer | **Trophy / persistent storage (non-trivial running totals).** Accumulate per-turn tokens from each provider's `done` usage into a persisted per-provider total + estimated USD (known cloud rates; custom-endpoint = token-only is W45's concern); render a readout near the badge / in Settings; clear/reset affordance. Storage-location ADR (localStorage vs Tauri store vs SQLite — avoid a migration per project memory) ratified via the in-wave decision-review cell. | After sending GPT turns, the usage readout in Settings shows accumulated tokens and estimated cost per provider, incrementing after each reply. |
+
+### Acceptance criteria
+
+- [ ] `src-tauri/src/byok.rs` (or a new sibling module) exposes a provider abstraction generic over
+      `{base_url, auth_header, wire_format}` with two live wire formats (Anthropic + OpenAI-compatible);
+      `cargo test` passes including new OpenAI SSE-parse + usage-normalization unit tests.
+- [ ] A unit test asserts the cached-token subtraction: given an OpenAI usage chunk with
+      `prompt_tokens = P`, `prompt_tokens_details.cached_tokens = C`, the normalized non-cached input =
+      `P − C` and cached-read = `C` (no double count).
+- [ ] Rust commands `byok_openai_set_key` / `byok_openai_has_key` / `byok_openai_clear_key` /
+      `byok_openai_chat` / `byok_openai_stop` are registered in `src-tauri/src/lib.rs`; setting then
+      clearing an OpenAI key creates then removes a `byok-openai` entry under service
+      `com.coles.writing` (verified via Credential Manager in CDP smoke).
+- [ ] `byok_chat` accepts a `model` param and forwards it (no longer the hardcoded Haiku constant).
+- [ ] `useByokMode` returns a provider discriminant (`'anthropic' | 'openai' | null`) and updates on
+      both `byok:key-changed` and `byok:openai-key-changed`.
+- [ ] The model picker renders from a provider→models registry; with both keys present it shows a
+      Claude group and a ChatGPT group; the `!byokMode` blanket gate is gone.
+- [ ] Selecting a GPT model and sending routes through `byok_openai_chat` (model threaded via
+      `ByokStreamArgs`) and renders a streaming reply.
+- [ ] Settings shows two key rows ("Anthropic API key" + "OpenAI API key") with distinct DOM events.
+- [ ] A per-provider usage total persists across an app restart and increments after each BYOK turn;
+      a clear/reset control zeroes it.
+- [ ] An invalid OpenAI key produces a sanitized "Invalid API key — check Settings" (real OpenAI 401,
+      key never leaked to logs/UI) — parity with the W40 Anthropic 401 path.
+- [ ] `npm run lint`, `tsc`, `npm run test` (vitest) and `cargo test` are all green at wave end.
+
+### Files the next agent should read first
+
+1. `roadmap/wave-49-byok-multi-provider-research.md` — **current OpenAI API/contract specs** (Chat Completions
+   streaming over reqwest, cached-token math, `reasoning_effort`/`temperature` 400, model IDs/pricing).
+   The phase briefs are grounded in it; treat as input, verify model IDs at build.
+2. The `## Locked decisions` section of this wave file — confirm decisions are filled before coding.
+3. `src-tauri/src/byok.rs` — the Anthropic-hardcoded BYOK path being generalized (keyring constants
+   `byok-anthropic`, the direct `api.anthropic.com` call, the Anthropic SSE parser, the hardcoded
+   `MODEL` constant). This is the file Phase 1 extends and Phase 2 refactors.
+4. `src-tauri/src/lib.rs` (command registration ~L165–169) — where new commands register.
+5. `src/features/ai/byok.client.ts` — the thin TS `invoke()` wrappers to mirror for OpenAI.
+6. `src/features/ai/useByokMode.ts` — the boolean to decompose into a provider discriminant.
+7. `src/features/ai/AssistantPanel.parts.tsx` (~L273–278) — the `!byokMode` picker gate to lift, and
+   the `ModelPop` popover to make registry-driven.
+8. `src/features/ai/AssistantPanel.tsx` + `AssistantPanel.hooks.ts` + `AssistantPanel.byok.ts` — the
+   `byokMode` prop threading, the `execSend` route branch (~hooks.ts L247), and `ByokStreamArgs`
+   (needs a `model` field).
+9. `src/features/settings/Settings.ai.tsx` — `ByokKeyRow` to mirror for OpenAI.
+10. `roadmap/wave-40-byok-phase-1.md` + `decisions/0002` / `0003` — the locked BYOK pattern (direct
+    routing, key stays in Rust) W49 extends, not replaces.
+11. `.claude/vendor-gotchas/keyring.md` + `anthropic.md` — prior BYOK traps to honor.
+
+### Note to the implementer
+
+The spirit of this wave: **extend the W40 BYOK pattern to a second provider by generalizing, not
+duplicating.** The privacy property is load-bearing — the key lives in the keychain, crosses the IPC
+boundary exactly once into Rust, and never re-enters JS (ADR 0003). Do not weaken that for OpenAI.
+First step: verify the `## Locked decisions` section has decisions filled in. Resist these
+temptations: do NOT build a custom/local endpoint UI or relax TLS — that's W45, and W49's only
+endpoint is the trusted `api.openai.com` constant (no URL validation needed). Do NOT touch the
+managed-path Cloudflare Worker or its billing math — BYOK is Rust-direct and unmetered. Do NOT
+"improve" the shipped Anthropic path beyond the behavior-preserving lift in Phase 2 (existing cargo
+tests are the guard; if they change, you changed behavior). Keep the picker **registry-driven** so the
+W45 agent appends a "Local" group without re-forking it — publish the registry shape early (Phase 2).
+
+Before declaring a phase complete, restate the observation point from the Phases table Observation
+column in your own words and describe what you actually observed there. If you could not observe it
+directly — no live IDE, no triggered chat session, no rendered panel — say so explicitly. Do not
+substitute "tests pass" for runtime observation. Tests passing at the unit boundary is necessary but
+not sufficient.
+
+## Locked decisions
+
+> Decisions are appended here via the decision-review cell (`sonnet-architect` → `sonnet-adversarial-reviewer`
+> `Posture: attack-decision` → orchestrator adjudication) as the wave progresses, EXCEPT the
+> scope/product decisions below which carry **user-lock authority** (ratified directly by Cole at plan
+> time, 2026-06-14). The two technical ADRs flagged below are ratified in-wave at the phase that needs
+> them.
+
+### Decision 1: W49 ↔ W45 boundary (scope) — USER-LOCKED
+
+**Context:** W45 (local models) runs in parallel; both touch `byok.rs` + the picker. Who builds what.
+**Pick:** W49 builds the provider-routed engine + cloud OpenAI + registry-driven picker + per-provider
+usage. W45 consumes the engine (passes local base URLs), and owns the custom-URL entry UI, the
+loopback/https/cert validation guardrails, and local model discovery. W49 lands first.
+**Rationale:** build the engine once in the wave that owns it; the other wave is a pure consumer →
+minimal collision on the two shared surfaces (`byok.rs`, the picker).
+**Consequences:** W49's OpenAI adapter must be base-URL-parameterized from the start (even though it
+only passes the `api.openai.com` constant) so W45 needs no Rust refactor; the picker must be
+registry-driven so W45 appends entries structurally untouched.
+**Enforcement:** advisory-only (cross-wave coordination; the registry-shape publish in Phase 2 is the
+coordination artifact). `durable: candidate`.
+
+### Decision 2: OpenAI model lineup (product) — USER-LOCKED
+
+**Context:** which OpenAI models the BYOK picker offers (BYOK = user pays OpenAI directly, so the
+managed $10-allowance argument does not constrain).
+**Pick:** GPT-5.4 + GPT-5.4-mini + GPT-5.5 (full current lineup).
+**Rationale:** the user funds their own usage; no allowance reason to withhold the pricier model.
+**Consequences:** three model IDs + display rates to verify at build (research sidecar §3–4; flag
+VERIFY on any rate not confirmed by two sources).
+**Enforcement:** advisory-only (the picker registry is the single source of the offered list).
+
+### Decision 3: Cost-visibility depth (product) — USER-LOCKED
+
+**Context:** BYOK has no managed meter; how much usage/cost UX to build (ties the queued
+BYOK-usage-visibility follow-up).
+**Pick:** persistent per-provider running total (accumulated tokens + estimated USD), with a
+clear/reset affordance.
+**Rationale:** Cole's pick; closes the follow-up's core ask with a durable readout, not just a
+per-turn flash.
+**Consequences:** needs a persistence decision (Decision 4) and per-turn usage capture on the BYOK
+`done` event.
+**Enforcement:** advisory-only (Phase 5 acceptance criteria).
+
+### Decision 4: Picker UX with multiple keys (product) — USER-LOCKED
+
+**Context:** what the model-selection surface looks like when both an Anthropic and an OpenAI key are
+stored.
+**Pick:** one merged picker showing all models for every provider with a key (Claude group + ChatGPT
+group); the selected model determines which provider/key routes; the "Your key" badge reflects the
+active model's provider; empty state (no keys) = managed.
+**Rationale:** Cole's pick; one mental model, fewest clicks, infers provider from the choice.
+**Consequences:** `byokMode` boolean must decompose into a provider discriminant; the picker becomes
+registry-driven; the badge becomes provider-aware.
+**Enforcement:** advisory-only (Phase 4 acceptance criteria).
+
+### Decision 5 (PENDING, in-wave): Rust engine abstraction shape
+
+To be ratified via the decision-review cell at **Phase 2** (extract-engine refactor): the exact shape
+of the `{base_url, auth_header, wire_format}` abstraction and whether OpenAI lives in `byok.rs` or a
+sibling `byok/openai.rs` module. Grounded by the W44 blueprint's `ProviderAdapter` shape (server-side
+analog) + the research sidecar. **Enforcement:** decision-review cell (`adversarial_review_enforce.mjs`).
+
+### Decision 6 (PENDING, in-wave): usage-total persistence location
+
+To be ratified via the decision-review cell at **Phase 5**: where per-provider usage totals persist
+(localStorage vs a Tauri store-plugin JSON vs a new SQLite table). Constraint from project memory:
+appending a SQLite migration silently breaks prior migration tests — prefer a non-migration store
+unless there's a strong reason. **Enforcement:** decision-review cell.
+
+## Status
+
+<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+
+## Follow-up candidates
+
+<!-- DEFAULT: empty. -->
+
+## Result
+
+<!-- Filled at ship by wrap team. -->
