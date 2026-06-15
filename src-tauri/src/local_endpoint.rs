@@ -146,8 +146,9 @@ pub async fn validate_endpoint(url: String) -> Result<String, String> {
 
 /// Load the stored API key for `endpoint_id` from the OS keychain (Rust-side only).
 /// Returns `None` if no key is stored or the keychain is unavailable.
-/// Used by `discover_models` so the raw key never crosses to JS for saved endpoints.
-async fn load_endpoint_key(endpoint_id: &str) -> Option<String> {
+/// Used by `discover_models` and `byok_local::byok_local_chat` so the raw key
+/// never crosses to JS for saved endpoints. `pub(crate)` for W45 consumption.
+pub(crate) async fn load_endpoint_key(endpoint_id: &str) -> Option<String> {
     let account = endpoint_account(endpoint_id);
     tokio::task::spawn_blocking(move || {
         Entry::new(SERVICE, &account)

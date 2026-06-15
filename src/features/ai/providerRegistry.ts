@@ -115,7 +115,25 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
       },
     ],
   },
-  // W45 appends 'local' group here
+  // W45 Phase 4: local / custom OpenAI-compatible endpoint group.
+  // Models here are seed entries — the picker displays them when an endpoint is
+  // configured but a specific model hasn't been selected yet. Real discovered
+  // model names (from Phase 2's discover_models command) are persisted per-endpoint
+  // in the settings store and surfaced through the endpoint manager UI.
+  {
+    provider: "local",
+    label: "Local",
+    models: [
+      // Seed entry: always present so the picker has a valid local group.
+      // Users select their actual discovered model (e.g. "llama3.2") via the endpoint
+      // manager in Settings → Assistant; this ID is a displayable fallback.
+      {
+        id: "local",
+        displayName: "Local model (configure endpoint in Settings)",
+        provider: "local",
+      },
+    ],
+  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -137,5 +155,6 @@ export function getBadgeLabel(modelId: string): string {
   const entry = getModelEntry(modelId);
   if (entry?.provider === "anthropic") return "Your Anthropic key";
   if (entry?.provider === "openai") return "Your OpenAI key";
-  return "Your key"; // local (W45) or unknown model
+  if (entry?.provider === "local") return "Local model"; // W45
+  return "Your key"; // unknown model
 }

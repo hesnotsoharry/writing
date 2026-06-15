@@ -35,9 +35,12 @@ export interface ProviderUsage {
 interface UsageStore {
   anthropic: ProviderUsage;
   openai: ProviderUsage;
+  /** W45 Phase 4: local/custom endpoint provider bucket. */
+  local: ProviderUsage;
 }
 
-type SupportedProvider = "anthropic" | "openai";
+/** W45 Phase 4: widened to include 'local' (custom OpenAI-compatible endpoints). */
+type SupportedProvider = "anthropic" | "openai" | "local";
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
@@ -46,7 +49,7 @@ function emptyProvider(): ProviderUsage {
 }
 
 function emptyStore(): UsageStore {
-  return { anthropic: emptyProvider(), openai: emptyProvider() };
+  return { anthropic: emptyProvider(), openai: emptyProvider(), local: emptyProvider() };
 }
 
 // ── localStorage read / write ─────────────────────────────────────────────────
@@ -60,6 +63,7 @@ function read(): UsageStore {
     return {
       anthropic: { ...emptyProvider(), ...(parsed.anthropic ?? {}) },
       openai: { ...emptyProvider(), ...(parsed.openai ?? {}) },
+      local: { ...emptyProvider(), ...(parsed.local ?? {}) },
     };
   } catch {
     // localStorage unavailable or corrupt JSON — safe fallback.
@@ -104,7 +108,7 @@ export function getUsage(): UsageStore {
  * Dispatches `byok:usage-updated` on window after writing so UI components can
  * re-read without polling.
  *
- * @param provider - "anthropic" or "openai"
+ * @param provider - "anthropic", "openai", or "local" (W45 custom endpoint)
  * @param tokens - the turn's token breakdown from the NormalizedEvent 'done' arm
  * @param model - the model ID used for this turn (for rate lookup)
  */

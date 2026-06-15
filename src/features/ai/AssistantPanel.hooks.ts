@@ -98,7 +98,7 @@ export interface PanelMsgArgs {
    * Provider key-presence MAP. Both keys can be present simultaneously (Decision 4).
    * Used by execSend for provisional routing; Phase 4 registry picker drives model→provider.
    */
-  byokKeys: { anthropic: boolean; openai: boolean };
+  byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; // W45 P4: local optional for backward compat
 }
 
 export type ExecSendArgs = PanelMsgArgs & { q: string; newConvo: () => Promise<string> };
