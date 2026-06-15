@@ -13,7 +13,7 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "eval:dry": "tsx eval/runner.ts --dry-run",
-    "eval": "tsx eval/runner.ts --live"
+    "eval": "tsx --env-file=eval/.env.eval eval/runner.ts --live"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
