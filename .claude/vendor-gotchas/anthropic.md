@@ -6,7 +6,10 @@ lastVerified: 2026-06-14
 relatedPaths:
   - src-tauri/src/byok.rs
   - src/features/ai/ai.client.ts
-notes: "Direct Anthropic API calls from Rust and browser. Streaming (SSE), token usage, error handling, authentication."
+  - marketing/functions/_lib/providers/anthropic.ts
+  - marketing/functions/_lib/prompt-cache.ts
+  - marketing/functions/_lib/credits.ts
+notes: "Direct Anthropic API calls from Rust and browser. Streaming (SSE), token usage, error handling, authentication, prompt caching (5m/1h TTL, per-model floors, cache-write billing)."
 ---
 
 # Anthropic API gotchas
@@ -46,3 +49,21 @@ Source: wave-40, commit e946df6
 **Gotcha:** When implementing BYOK (direct API calls with a user's key), the model selection is NOT a user choice in Phase 1 — all BYOK verbs (brainstorm, critique, etc.) are pinned to the same model (`claude-haiku-4-5-20251001`) on the backend. Attempting to add a model picker or endpoint customization in Phase 1 expands scope unnecessarily. The model string must match exactly (including the trailing version ID); typos result in a 400 error.
 **Workaround:** Hardcode the model name in the Rust command: `let model = "claude-haiku-4-5-20251001"` and include it in the request body. Do not expose it as a user-facing choice or environment variable — it's a system constant. Future phases (W44+) will add model selection.
 **Why:** Pinning the model simplifies Phase 1 and prevents scope creep. The version ID is stable and ensures reproducibility.
+
+## 2026-06-14 — Prompt caching is a PREFIX cache (tools → system → messages); a `system` breakpoint survives `messages` changes
+Source: wave-48, commit 5642d8a
+**Gotcha:** Anthropic prompt caching matches the longest *prefix* of the request in the order tools → system → messages, up to a `cache_control` breakpoint. A breakpoint at the end of the `system` block produces a `cache_read_input_tokens` hit on a later request **as long as `system` is byte-identical — even if the `messages` array changed**. The cache-miss diagnostics (`system_changed`, `messages_changed`, …) describe why a prefix could not be *fully* reused; `cache_missed_input_tokens` = tokens that *would have been* read had the prefix matched. Do NOT read `messages_changed` as "the system cache was discarded" — it wasn't. **Consequence for this app:** putting volatile per-turn content (scene excerpt, selection) *inside* `system` busts the cache on every edit; keep volatile content in the `messages` user turn and only stable grounding in `system`.
+**Workaround:** Assemble the cached prefix from stable-only content (role, principles, house-style, About, entities, boundary, scene *title*) in `system`; put volatile content (scene excerpt, truncation notice, selection) in the final user message (`src/features/ai/prompts/`: `buildGrounding` = stable, `buildVolatileUserBlock` = volatile, assembled in `buildMessages`). Verify with the live token counts (`cache_read_input_tokens` across an edit), not unit tests — green tests ≠ a real cache hit.
+**Why:** The cache key is the prefix up to the breakpoint; content after the breakpoint is processed fresh each turn but does not invalidate the cached prefix.
+
+## 2026-06-14 — 1-hour cache TTL REQUIRES the `anthropic-beta: extended-cache-ttl-2025-04-11` header
+Source: wave-48, commit e4d53d8
+**Gotcha:** `cache_control: { type: "ephemeral" }` defaults to a **5-minute** TTL and is GA (no beta header). Extending to 1 hour with `cache_control: { type: "ephemeral", ttl: "1h" }` is gated behind a beta header: **`anthropic-beta: extended-cache-ttl-2025-04-11`**. Sending `ttl: "1h"` WITHOUT the header silently no-ops (the TTL is ignored / falls back to 5m) or 400s — the flip appears to work in code but never extends the cache. Confirmed still required as of 2026-06 (the value is still in the accepted `Anthropic-Beta` list; not yet GA).
+**Workaround:** Attach the header wherever the 1h `cache_control` block is attached, and keep the two decisions coupled (same `shouldAttachCache` gate). See `marketing/functions/_lib/providers/anthropic.ts` (`EXTENDED_CACHE_TTL_BETA`, added conditionally with the cache_control). A combined test asserts "header iff array system block" so the two sides can't drift (`anthropic.w48.test.ts`). Sending the header when no cache_control is attached is harmless; omitting it when `ttl:"1h"` is present is the failure.
+**Why:** Extended TTL is still a beta feature; the header opts the request into the beta behavior and pins its dated contract.
+
+## 2026-06-14 — Cache economics: per-model floors (Haiku 4096 / Sonnet-Opus 1024 tok) and the 1h cache-WRITE premium (2× base)
+Source: wave-48, commits 5642d8a + e4d53d8
+**Gotcha:** Caching only fires when the cacheable prefix clears a per-model minimum: **Haiku 4096 tokens, Sonnet/Opus 1024 tokens** (`prompt-cache.ts` `MIN_CACHEABLE_TOKENS`). At typical manuscript sizes, Haiku rarely clears 4096 — so caching concentrates on Sonnet/Opus rich-context users. Cost multipliers vs base input: cache-WRITE 5m ≈ 1.25×, **cache-WRITE 1h ≈ 2×**, cache-READ ≈ 0.1×. The 1h flip doubles the write premium, which widens the pre-request *reserve* gap: a reserve computed at base input rate is **less than** the actual charge on a cold cache-write turn. Shrinking the cached prefix (e.g. moving the scene out) can also push borderline manuscripts *below* the floor, silently disabling caching.
+**Workaround:** When reserving credits, if caching will fire (`shouldAttachCache(ceil(systemLength/4), model)`), reserve the system prefix at the **cacheWrite1h** rate (conservative cold-turn assumption) — a warm turn's cache-READ is far cheaper, so `reserve ≥ actual` holds both ways (`credits.ts` `estimateCredits(systemLength?)`). Use the SAME `shouldAttachCache(ceil(system.length/4), model)` computation at the reserve site and the adapter attach site so they never disagree. Measure real stable-prefix sizes against the floors before assuming a segment still caches.
+**Why:** Cache writes cost more than normal input (the 1h cache is more expensive to populate and hold); reads are cheap. Reserving at the write rate is the only way to keep the refund-only reconciliation invariant (`reserve ≥ actual`) intact once 1h writes are in play.

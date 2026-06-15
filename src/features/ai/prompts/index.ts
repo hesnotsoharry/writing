@@ -10,7 +10,7 @@ import { BETAREAD_MAX_TOKENS, buildBetareadMessages } from "./betaread";
 import { BRAINSTORM_MAX_TOKENS, buildBrainstormMessages } from "./brainstorm";
 import { buildCritiqueMessages, CRITIQUE_MAX_TOKENS } from "./critique";
 import { buildProofreadMessages, PROOFREAD_MAX_TOKENS } from "./proofread";
-import { applyHouseStyle } from "./shared";
+import { applyHouseStyle, buildVolatileUserBlock } from "./shared";
 
 // ── Token caps ────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,13 @@ function routeVerb(
  * Route a verb key to the matching prompt builder, then apply the house-style
  * block (W42 anti-AI-isms layer). Returns { system, messages } ready to pass
  * to streamChat. External signature unchanged.
+ *
+ * W48 cache-prefix design: the volatile scene excerpt + truncation notice +
+ * selection are prepended to the final user turn here (centrally, once) so
+ * the placement is identical across all verbs. The system block from the verb
+ * builder contains only stable grounding — it survives scene edits unchanged,
+ * allowing the Anthropic prompt cache to hit on every turn of an edit session.
+ * History turns are forwarded verbatim; scene context is NOT re-injected.
  */
 export function buildMessages(
   verb: VerbKey,
@@ -57,9 +64,12 @@ export function buildMessages(
   history?: AiMessage[],
 ): { system: string; messages: AiMessage[] } {
   const built = routeVerb(verb, ctx, ask, history);
+  const volatile = buildVolatileUserBlock(ctx);
+  const finalContent = volatile ? `${volatile}\n\n${ask}` : ask;
   return {
     ...built,
     system: applyHouseStyle(built.system, getActiveHouseStyleConfig()),
+    messages: [...(history ?? []), { role: "user", content: finalContent }],
   };
 }
 

@@ -63,9 +63,12 @@ describe("buildAskMessages — grounding", () => {
     expect(system).toContain("The Lighthouse Keeper");
   });
 
-  it("includes the scene excerpt in the system prompt", () => {
+  it("scene excerpt is NOT in the system prompt (W48: volatile content moves to the user turn via buildMessages)", () => {
+    // buildAskMessages places only stable grounding in system; volatile scene
+    // content (excerpt, truncation notice, selection) is prepended to the final
+    // user message by buildMessages() in index.ts — not by the verb builder.
     const { system } = buildAskMessages(makeCtx(), "Any question");
-    expect(system).toContain("Maren stood at the threshold");
+    expect(system).not.toContain("Maren stood at the threshold");
   });
 
   it("includes entity names from context", () => {

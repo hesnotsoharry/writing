@@ -11,6 +11,7 @@
  * always use the same rate table and cannot diverge (Decision 1 D3, Wave 37).
  */
 import { CREDIT_UNIT_USD } from "./ai-token";
+import { shouldAttachCache } from "./prompt-cache";
 
 /** Monthly credit allowance per active subscription (D3). 1,000,000 units ≈ $10.00 API value. */
 export const MONTHLY_ALLOWANCE = 1_000_000;
@@ -95,20 +96,32 @@ export const OUTPUT_UNITS_PER_TOKEN = 5e-6 / CREDIT_UNIT_USD;  // $5/MTok → 0.
  * Estimate the maximum credits a request may consume (reserve before sending).
  * Reserve = input ceiling (chars÷4 heuristic) + per-verb max_tokens × output rate.
  * Refund-only reconciliation (D3): the full max_tokens output reservation almost always
- * exceeds real usage, so reserve ≥ actual in normal operation. EXCEPTION: on a first-turn
- * cache-WRITE (system ≥ the model's cacheable minimum), actualCredits applies the 1.25×
- * cache-write premium to the cached system tokens that this estimate bills at the base
- * input rate, so actual MAY slightly exceed reserve on that turn. Reconcile charges
- * min(reserve, actual) — the USER is never over-charged or driven negative; the service
- * absorbs the small premium. Follow-up: reserve the cache-write rate when caching fires.
+ * exceeds real usage, so reserve ≥ actual in normal operation. EXCEPTION (now fixed when
+ * systemLength is supplied): when caching fires (system ≥ the model's cacheable minimum),
+ * the reserve accounts for the 1h cache-WRITE premium on the system prefix. When
+ * systemLength is omitted (3-arg callers), the old behaviour is preserved exactly.
  *
  * @param charCount - total character count of all messages + system prompt
  * @param maxTokens - per-verb max output tokens (from VERB_CONFIG or FALLBACK_VERB_CONFIG)
  * @param model - Anthropic model ID; unknown models fall back to Haiku rates
+ * @param systemLength - optional byte-length of the system string; when supplied and
+ *   caching will fire for the model, reserves the system prefix at the 1h cache-write
+ *   rate (conservative: cold cache-write turn). Absent → base input rate (unchanged).
  */
-export function estimateCredits(charCount: number, maxTokens: number, model: string): number {
+export function estimateCredits(charCount: number, maxTokens: number, model: string, systemLength?: number): number {
   const rates = RATES[model] ?? RATES['claude-haiku-4-5-20251001'];
-  const inputEst = Math.ceil((charCount / 4) * rates.input);
+  let inputEst: number;
+  if (systemLength !== undefined && systemLength > 0) {
+    const systemTokens = Math.ceil(systemLength / 4);
+    if (shouldAttachCache(systemTokens, model)) {
+      const messageTokens = Math.ceil(Math.max(0, charCount - systemLength) / 4);
+      inputEst = Math.ceil(systemTokens * rates.cacheWrite1h + messageTokens * rates.input);
+    } else {
+      inputEst = Math.ceil((charCount / 4) * rates.input);
+    }
+  } else {
+    inputEst = Math.ceil((charCount / 4) * rates.input);
+  }
   const outputReserve = Math.ceil(maxTokens * rates.output);
   return inputEst + outputReserve;
 }

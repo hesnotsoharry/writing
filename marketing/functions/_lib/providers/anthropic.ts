@@ -12,6 +12,7 @@ import type { CanonicalUsage, Message, ProviderAdapter, ResolvedConfig } from ".
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
+const EXTENDED_CACHE_TTL_BETA = "extended-cache-ttl-2025-04-11";
 
 // ── AnthropicAdapter ──────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ export class AnthropicAdapter implements ProviderAdapter {
       const estimatedPrefixTokens = Math.ceil(system.length / 4);
       if (shouldAttachCache(estimatedPrefixTokens, config.model)) {
         requestBody["system"] = [
-          { type: "text", text: system, cache_control: { type: "ephemeral" } },
+          { type: "text", text: system, cache_control: { type: "ephemeral", ttl: "1h" } },
         ];
       } else {
         requestBody["system"] = system;
@@ -48,12 +49,15 @@ export class AnthropicAdapter implements ProviderAdapter {
     } else if (config.temperature !== undefined) {
       requestBody["temperature"] = config.temperature;
     }
+    const attachedCache = system !== undefined &&
+      shouldAttachCache(Math.ceil(system.length / 4), config.model);
     return {
       url: ANTHROPIC_API,
       headers: {
         "x-api-key": apiKey,
         "anthropic-version": ANTHROPIC_VERSION,
         "content-type": "application/json",
+        ...(attachedCache ? { "anthropic-beta": EXTENDED_CACHE_TTL_BETA } : {}),
       },
       body: requestBody,
     };
