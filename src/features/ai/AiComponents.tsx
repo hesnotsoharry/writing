@@ -2,7 +2,7 @@ import React from "react";
 
 import { Icon, type IconName } from "../../components/Icon";
 import { aiMeterStatus, estimateRepliesLeft } from "./ai.helpers";
-import { AI_MODELS, AI_VERB_ORDER, AI_VERBS, type AiMessageRecord, type ContextSnapshot, type ConversationRecord, type ManagedModel, type VerbKey } from "./ai.types";
+import { AI_MODEL_ORDER, AI_MODELS, AI_VERB_ORDER, AI_VERBS, type AiMessageRecord, type ContextSnapshot, type ConversationRecord, type ManagedModel, type VerbKey } from "./ai.types";
 
 /* ---- Markdown-lite inline renderer (module-private) ---- */
 
@@ -178,26 +178,55 @@ export function AiConvoList({ convos, activeId, onOpen, onNew, onDelete }: { con
 
 /* ---- Credit meter ---- */
 
+function MeterPop({ creditsBalance, model }: { creditsBalance: number; model: ManagedModel }) {
+  return (
+    <div className="ai-meterpop" role="dialog" aria-label="Budget by model">
+      {AI_MODEL_ORDER.map(m => (
+        <div key={m} className={"ai-meterpop-row" + (m === model ? " on" : "")}>
+          <span className="nm">{AI_MODELS[m].label}</span>
+          <span className="est">~{estimateRepliesLeft(creditsBalance, m)}</span>
+        </div>
+      ))}
+      <div className="ai-meterpop-nudge">Cheaper models go further — switch any time.</div>
+    </div>
+  );
+}
+
 export function AiMeter({ usedPct, resetLabel, creditsBalance, model }: {
   usedPct: number;
   resetLabel: string;
   creditsBalance: number;
   model: ManagedModel;
 }) {
+  const [pop, setPop] = React.useState(false);
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const st = aiMeterStatus(usedPct, resetLabel);
   const pctLeft = Math.max(0, 100 - Math.min(100, usedPct));
   const replies = estimateRepliesLeft(creditsBalance, model);
   const modelLabel = AI_MODELS[model].label;
+  React.useEffect(() => {
+    if (!pop) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPop(false); };
+    const onOut = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setPop(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onOut);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onOut); };
+  }, [pop]);
   return (
-    <div className="ai-meter" title="Your monthly allowance. When it runs out, the assistant stops — it never runs up a bill.">
-      <div className="ai-meter-row">
-        <span className={"st " + st.cls}>{pctLeft}% left</span>
-        <span>{st.sub}</span>
-      </div>
-      <div className="ai-meter-track">
-        <div className={"ai-meter-fill " + st.cls} style={{ width: Math.max(2, pctLeft) + "%" }}></div>
-      </div>
-      <div className="ai-meter-replies">~{replies} more replies on {modelLabel}</div>
+    <div className="ai-meter" ref={wrapRef}>
+      <button className="ai-meter-btn" onClick={() => setPop(o => !o)} aria-expanded={pop} title="Budget breakdown by model">
+        <div className="ai-meter-row">
+          <span className={"st " + st.cls}>{pctLeft}% left</span>
+          <span>{st.sub}</span>
+        </div>
+        <div className="ai-meter-track">
+          <div className={"ai-meter-fill " + st.cls} style={{ width: Math.max(2, pctLeft) + "%" }}></div>
+        </div>
+        <div className="ai-meter-replies">~{replies} more replies on {modelLabel}</div>
+      </button>
+      {pop && <MeterPop creditsBalance={creditsBalance} model={model} />}
     </div>
   );
 }

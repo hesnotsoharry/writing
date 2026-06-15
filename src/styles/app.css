@@ -2058,7 +2058,13 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-verbpop-divider { height: 1px; background: var(--line); margin: 3px 4px; }
 
 /* ---- Credit meter ------------------------------------------------------------ */
-.ai-meter { display: flex; flex-direction: column; gap: 3px; }
+.ai-meter { display: flex; flex-direction: column; gap: 3px; position: relative; }
+.ai-meter-btn {
+  display: block; width: 100%; text-align: left; background: transparent; border: none; padding: 0;
+  cursor: pointer; border-radius: var(--r-sm);
+}
+.ai-meter-btn:hover { opacity: 0.8; }
+.ai-meter-btn:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
 .ai-meter-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   white-space: nowrap; font-size: var(--text-2xs); color: var(--ink-4); }
 .ai-meter-row .st { color: var(--ink-3); font-weight: 500; }
@@ -2070,6 +2076,27 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-meter-fill.warn { background: var(--warn); }
 .ai-meter-fill.out { background: var(--danger); }
 .ai-meter-replies { font-size: var(--text-2xs); color: var(--ink-5); margin-top: 1px; }
+/* meter budget popover — anchored to .ai-meter (position: relative), opens upward */
+.ai-meterpop {
+  position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 10; width: 210px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md); padding: 4px; display: flex; flex-direction: column;
+  animation: ai-pop var(--dur) var(--ease-out);
+}
+.ai-meterpop-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 8px; border-radius: var(--r-md);
+  font-size: var(--text-2xs); color: var(--ink-3);
+}
+.ai-meterpop-row.on { background: var(--parchment); }
+.ai-meterpop-row .nm { font-weight: 500; }
+.ai-meterpop-row .est { color: var(--ink-4); }
+.ai-meterpop-row.on .nm { color: var(--ink); }
+.ai-meterpop-row.on .est { color: var(--ink-3); }
+.ai-meterpop-nudge {
+  font-size: var(--text-2xs); color: var(--ink-5); font-style: italic;
+  padding: 5px 8px; border-top: 1px solid var(--line); margin-top: 2px;
+}
 
 /* ---- Guardrail notices (replace the composer, never alarm) -------------------- */
 .ai-guard {
