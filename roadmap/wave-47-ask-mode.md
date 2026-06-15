@@ -3,8 +3,9 @@ project: writing
 wave: 47
 slug: ask-mode
 title: Free-form "Ask" mode — context-aware general writing assistant
-status: IN-PROGRESS
+status: SHIPPED
 created: 2026-06-14
+shipped: 2026-06-14
 ---
 
 # Wave 47 — free-form "Ask" mode

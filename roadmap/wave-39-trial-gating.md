@@ -1,14 +1,16 @@
 ---
-status: IN-PROGRESS
+status: SHIPPED
 created: 2026-06-13
 handed-off: 2026-06-14
+shipped: 2026-06-14
 ---
 
-> **HANDOFF TO MERGE MASTER (2026-06-14):** Phases 1–3 are implemented, committed on
-> `wave-39-trial-gating`, and fully unit/integration-verified (root 1404 tests + marketing 219,
-> lint+tsc clean). NOT pushed, NOT merged, NOT smoked. Phase 4 (CDP smoke) is the pending
-> acceptance gate and is blocked on the Supabase migration state. See **## Remaining before merge**
-> at the bottom for the exact close-out checklist.
+> **WRAPPED 2026-06-14 (merge-master):** Code SHIPPED in the launch batch (merge `48d3130`).
+> Phases 1–3 implemented + unit/integration-verified. **OPEN ACCEPTANCE GATE:** Phase 4 (CDP
+> trial-abuse smoke) is still unrun — Cole owns it (the ~$1.50 manual burn to verify abuse caps).
+> Tracked as an open follow-up in `roadmap/follow-ups/` + the HANDOFF ⚠️ CRITICAL note. Full
+> stub-collapse + ADR promotion deferred to the W45/48/49/50 batch wrap. Close-out checklist in
+> **## Remaining before merge** below.
 
 # Wave 39 — Trial AI Gating (dollar-allowance + abuse caps)
 
