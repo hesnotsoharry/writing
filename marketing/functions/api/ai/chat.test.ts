@@ -663,8 +663,8 @@ describe("prompt-cache request shape", () => {
     expect(blocks.length).toBe(1);
     expect(blocks[0].type).toBe("text");
     expect(blocks[0].text).toBe(largeSystem);
-    // cache_control must be present with ephemeral type
-    expect(blocks[0].cache_control).toEqual({ type: "ephemeral" });
+    // cache_control must be present with ephemeral type and 1h TTL
+    expect(blocks[0].cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
   });
 
   it("system prefix < 4096 tokens (Haiku) sends system as plain string with no cache_control", async () => {
@@ -780,13 +780,13 @@ describe("trial-branch routing in POST /api/ai/chat", () => {
 // in the done event's creditsCost.
 //
 // Expected values computed from Haiku rates (RATES['claude-haiku-4-5-20251001']):
-//   input=0.1, output=0.5, cacheWrite5m=0.125, cacheRead=0.01
+//   input=0.1, output=0.5, cacheWrite1h=0.2, cacheRead=0.01
 //
-// Cache-write case: actualCredits(5, 7, haiku, 500, 0, '5m')
-//   = Math.ceil(5×0.1 + 7×0.5 + 500×0.125 + 0×0.01) = Math.ceil(0.5+3.5+62.5) = 67
+// Cache-write case: actualCredits(5, 7, haiku, 500, 0, '1h')
+//   = Math.ceil(5×0.1 + 7×0.5 + 500×0.2 + 0×0.01) = Math.ceil(0.5+3.5+100) = 104
 //
-// Cache-read case: actualCredits(5, 7, haiku, 0, 500, '5m')
-//   = Math.ceil(5×0.1 + 7×0.5 + 0×0.125 + 500×0.01) = Math.ceil(0.5+3.5+5) = 9
+// Cache-read case: actualCredits(5, 7, haiku, 0, 500, '1h')
+//   = Math.ceil(5×0.1 + 7×0.5 + 0×0.2 + 500×0.01) = Math.ceil(0.5+3.5+5) = 9
 
 function makeAnthropicResponseWithCache(
   cacheCreationTokens: number,
@@ -820,9 +820,9 @@ describe("usage passthrough — cache tokens reconcile credits", () => {
     vi.unstubAllGlobals();
   });
 
-  it("cache-write: done event creditsCost reflects cache_creation_input_tokens at 1.25× rate (expected: 67)", async () => {
-    // 500 cache-creation tokens at haiku cacheWrite5m=0.125 adds 62.5 units
-    // total: ceil(5×0.1 + 7×0.5 + 500×0.125) = ceil(66.5) = 67
+  it("cache-write: done event creditsCost reflects cache_creation_input_tokens at 2× rate (expected: 104)", async () => {
+    // 500 cache-creation tokens at haiku cacheWrite1h=0.2 adds 100 units
+    // total: ceil(5×0.1 + 7×0.5 + 500×0.2) = ceil(104) = 104
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponseWithCache(500, 0)));
     const token = await makeValidToken();
     const { ctx, getWaitUntil } = fakeContext(
@@ -838,7 +838,7 @@ describe("usage passthrough — cache tokens reconcile credits", () => {
       creditsCost: number;
     } | undefined;
     expect(done).toBeDefined();
-    expect(done!.creditsCost).toBe(67);
+    expect(done!.creditsCost).toBe(104);
   });
 
   it("cache-read: done event creditsCost reflects cache_read_input_tokens at 0.1× rate (expected: 9)", async () => {
