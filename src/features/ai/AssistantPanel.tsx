@@ -175,7 +175,7 @@ function PanelReady(p: AssistantPanelProps) {
           prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb}
           model={model} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
           est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokMode={p.byokMode} />
-        {!p.byokMode && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} />}
+        {!p.byokMode && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} plan={p.plan} />}
       </div>}
     </div>
   );

@@ -125,7 +125,7 @@ Before declaring a phase complete, restate that phase's Observation-column point
 | 1 | 2026-06-14 | 2026-06-14 | (this commit) | Internal — pure helper; 17/17 oracle tests green; reviewer FLAG (Infinity/NaN guard) addressed. |
 | 2 | 2026-06-14 | 2026-06-14 | (this commit) | Meter: model-agnostic % bar + per-model "~N replies" line; reviewer PASS all angles; CDP smoke deferred to wave-end. |
 | 3 | 2026-06-14 | 2026-06-14 | (this commit) | Tap-to-open per-model popover (all 6 models ~N + nudge); stacking audit clean (no backdrop-filter trap); reviewTier skip; gates green. |
-| 4 | — | — | — | — |
+| 4 | 2026-06-14 | 2026-06-14 | (this commit) | Free-trial badge + 3-state-correct exhaustion split (trial→Subscribe $14.99, subscriber→top-up, global-cap inline untouched); consent shows ~150 trial value; reviewer FLAG (trial reset-label honesty) addressed by suppressing reset label for trials. |
 | 5 | — | — | — | — |
 
 ## Follow-up candidates

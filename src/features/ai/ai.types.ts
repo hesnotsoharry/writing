@@ -59,6 +59,14 @@ export const MODEL_RATES: Record<ManagedModel, { input: number; output: number }
  */
 export const TYPICAL_REQUEST = { inputTokens: 6000, outputTokens: 800 } as const;
 
+/**
+ * Client mirror of the server TRIAL_ALLOWANCE constant
+ * (marketing/functions/_lib/credits.ts — keep in sync if the server value changes).
+ * Used to display a concrete reply estimate in the consent walkthrough step 3 and
+ * wherever UI copy needs to state the free trial's included budget.
+ */
+export const TRIAL_ALLOWANCE_UNITS = 150_000;
+
 export interface VerbDef {
   label: string;
   icon: IconName;

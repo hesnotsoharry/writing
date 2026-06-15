@@ -2076,6 +2076,14 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-meter-fill.warn { background: var(--warn); }
 .ai-meter-fill.out { background: var(--danger); }
 .ai-meter-replies { font-size: var(--text-2xs); color: var(--ink-5); margin-top: 1px; }
+/* "Free trial" badge — calm accent pill shown in the meter top row when plan === 'trial' */
+.ai-meter-badge {
+  display: inline-flex; align-items: center;
+  padding: 0 7px; border-radius: 10px; line-height: 1.7;
+  font-size: var(--text-2xs); font-weight: 500;
+  background: var(--accent-tint); color: var(--accent-deep);
+  letter-spacing: 0.01em; pointer-events: none;
+}
 /* meter budget popover — anchored to .ai-meter (position: relative), opens upward */
 .ai-meterpop {
   position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 10; width: 210px;

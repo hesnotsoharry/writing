@@ -192,18 +192,19 @@ function MeterPop({ creditsBalance, model }: { creditsBalance: number; model: Ma
   );
 }
 
-export function AiMeter({ usedPct, resetLabel, creditsBalance, model }: {
+export function AiMeter({ usedPct, resetLabel, creditsBalance, model, plan }: {
   usedPct: number;
   resetLabel: string;
   creditsBalance: number;
   model: ManagedModel;
+  plan: "active" | "trial" | "expired";
 }) {
   const [pop, setPop] = React.useState(false);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const st = aiMeterStatus(usedPct, resetLabel);
   const pctLeft = Math.max(0, 100 - Math.min(100, usedPct));
   const replies = estimateRepliesLeft(creditsBalance, model);
-  const modelLabel = AI_MODELS[model].label;
+  const showReset = plan !== "trial"; // trials convert, not reset — hide the reset label so the meter doesn't contradict the Subscribe modal
   React.useEffect(() => {
     if (!pop) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPop(false); };
@@ -219,12 +220,13 @@ export function AiMeter({ usedPct, resetLabel, creditsBalance, model }: {
       <button className="ai-meter-btn" onClick={() => setPop(o => !o)} aria-expanded={pop} title="Budget breakdown by model">
         <div className="ai-meter-row">
           <span className={"st " + st.cls}>{pctLeft}% left</span>
-          <span>{st.sub}</span>
+          {plan === "trial" && <span className="ai-meter-badge">Free trial</span>}
+          {showReset && <span>{st.sub}</span>}
         </div>
         <div className="ai-meter-track">
           <div className={"ai-meter-fill " + st.cls} style={{ width: Math.max(2, pctLeft) + "%" }}></div>
         </div>
-        <div className="ai-meter-replies">~{replies} more replies on {modelLabel}</div>
+        <div className="ai-meter-replies">~{replies} more replies on {AI_MODELS[model].label}</div>
       </button>
       {pop && <MeterPop creditsBalance={creditsBalance} model={model} />}
     </div>

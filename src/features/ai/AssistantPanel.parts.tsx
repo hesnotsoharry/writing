@@ -46,26 +46,12 @@ interface CtxStripProps {
 }
 
 interface PanelFooterProps {
-  plan: "active" | "trial" | "expired";
-  usedPct: number;
-  offline: boolean;
-  prompt: string;
-  setPrompt: (v: string) => void;
-  verb: VerbKey;
-  verbPop: boolean;
-  setVerbPop: (b: boolean | ((v: boolean) => boolean)) => void;
-  setVerb: (v: VerbKey) => void;
-  model: ManagedModel;
-  modelPop: boolean;
-  setModelPop: (b: boolean | ((v: boolean) => boolean)) => void;
-  setModel: (m: ManagedModel) => void;
-  streamingId: string | null;
-  onSend: () => void;
-  onStop: () => void;
-  est: AiEstimateResult;
-  onToast: (msg: string) => void;
-  resetLabel: string;
-  byokMode: boolean;
+  plan: "active" | "trial" | "expired"; usedPct: number; offline: boolean;
+  prompt: string; setPrompt: (v: string) => void;
+  verb: VerbKey; verbPop: boolean; setVerbPop: (b: boolean | ((v: boolean) => boolean)) => void; setVerb: (v: VerbKey) => void;
+  model: ManagedModel; modelPop: boolean; setModelPop: (b: boolean | ((v: boolean) => boolean)) => void; setModel: (m: ManagedModel) => void;
+  streamingId: string | null; onSend: () => void; onStop: () => void;
+  est: AiEstimateResult; onToast: (msg: string) => void; resetLabel: string; byokMode: boolean;
 }
 
 interface PanelThreadProps {
@@ -248,13 +234,30 @@ function ExhaustedAllowanceGuard({ resetLabel, onToast }: { resetLabel: string; 
   </div>;
 }
 
+function TrialExhaustedGuard({ onToast }: { onToast: (msg: string) => void }) {
+  return <div className="ai-guard">
+    <div className="gtitle"><Icon name="moon" className="ic" /> Your free trial&apos;s used up</div>
+    <p>You&apos;ve used everything the trial includes. Subscribe to keep writing with the assistant.</p>
+    <div className="gacts">
+      <button className="btn btn-primary" onClick={() => openUrl(buildLsCheckoutUrl(AI_SUB_VARIANT)).catch(() => { onToast("Couldn't open checkout — try again"); })}>Subscribe · $14.99/mo</button>
+      <button className="btn btn-ghost" onClick={() => onToast("Maybe later")}>Maybe later</button>
+    </div>
+  </div>;
+}
+
+/** Selects the correct exhaustion guard for `usedPct >= 100`. Keeps PanelFooter complexity flat. */
+function resolveExhaustedGuard(plan: "active" | "trial" | "expired", resetLabel: string, onToast: (msg: string) => void) {
+  if (plan === "trial") return <TrialExhaustedGuard onToast={onToast} />;
+  return <ExhaustedAllowanceGuard resetLabel={resetLabel} onToast={onToast} />;
+}
+
 export const PanelFooter = forwardRef<PanelFooterHandle, PanelFooterProps>(
   function PanelFooter(p, ref) {
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
     useImperativeHandle(ref, () => ({ focusInput: () => { inputRef.current?.focus(); } }));
     const verbDef = AI_VERBS[p.verb];
     if (p.plan === "expired") return <ExpiredPlanGuard onToast={p.onToast} />;
-    if (p.usedPct >= 100) return <ExhaustedAllowanceGuard resetLabel={p.resetLabel} onToast={p.onToast} />;
+    if (p.usedPct >= 100) return resolveExhaustedGuard(p.plan, p.resetLabel, p.onToast);
     return (
       <div className="ai-composer">
         <CostCue byokMode={p.byokMode} pct={p.est.pct} />
