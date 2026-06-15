@@ -141,6 +141,7 @@ pub async fn byok_openai_chat(
                     input_tokens: 0,
                     output_tokens: 0,
                     credits_cost: 0,
+                    cached_tokens: 0,
                 });
                 return Ok(());
             }

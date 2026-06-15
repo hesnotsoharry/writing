@@ -44,6 +44,12 @@ pub enum NormalizedEvent {
         input_tokens: u32,
         output_tokens: u32,
         credits_cost: u32,
+        /// Cached input tokens. Always 0 on the Anthropic path: `extract_input_tokens`
+        /// reads only `input_tokens` and does not parse Anthropic's
+        /// `cache_read_input_tokens`, so Anthropic BYOK usage is estimated at the full
+        /// input rate (conservative). Non-zero on the OpenAI path, where
+        /// `extract_openai_usage` separates cached tokens (Phase 5 addition, Decision 5).
+        cached_tokens: u32,
     },
     Error {
         message: String,
@@ -252,6 +258,7 @@ pub async fn byok_chat(
                     input_tokens: 0,
                     output_tokens: 0,
                     credits_cost: 0,
+                    cached_tokens: 0,
                 });
                 return Ok(());
             }
@@ -331,16 +338,20 @@ mod tests {
         );
     }
 
+    // NOTE: this test was migrated in Wave 49 Phase 5 per Decision 5 (pre-authorized).
+    // The `cachedTokens` field is the additive change; all other fields and values
+    // are unchanged. This is the ONLY frozen test we are permitted to touch.
     #[test]
     fn done_event_serializes_to_ts_shape() {
         let ev = NormalizedEvent::Done {
             input_tokens: 12,
             output_tokens: 34,
             credits_cost: 0,
+            cached_tokens: 5,
         };
         assert_eq!(
             serde_json::to_string(&ev).unwrap(),
-            r#"{"type":"done","inputTokens":12,"outputTokens":34,"creditsCost":0}"#
+            r#"{"type":"done","inputTokens":12,"outputTokens":34,"creditsCost":0,"cachedTokens":5}"#
         );
     }
 

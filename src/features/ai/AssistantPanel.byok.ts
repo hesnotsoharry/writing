@@ -20,6 +20,7 @@ import type { ExecSendArgs } from "./AssistantPanel.hooks";
 import { buildHistory } from "./AssistantPanel.hooks";
 import { streamByokChat } from "./byok.client";
 import { streamByokOpenAiChat } from "./byok.openai.client";
+import { recordUsage } from "./byokUsage";
 import { buildMessages } from "./prompts";
 import type { ProviderId } from "./providerRegistry";
 
@@ -76,6 +77,8 @@ export async function streamByokResponse(a: ByokStreamArgs): Promise<void> {
       if (!isProofread) a.setConvos(patchByokMessage(a.convId, a.msgId, { text: accumulated }));
     } else if (ev.type === "done") {
       doneCost = ev.creditsCost; // always 0 for BYOK; handled same as managed path
+      // Phase 5: accumulate per-turn token usage for the usage readout in Settings.
+      recordUsage("anthropic", { inputTokens: ev.inputTokens, cachedTokens: ev.cachedTokens ?? 0, outputTokens: ev.outputTokens }, a.model);
     } else if (ev.type === "error") {
       terminalError = `[Something went wrong — ${ev.message}]`;
     }
@@ -118,6 +121,9 @@ export async function streamByokOpenAiResponse(a: ByokOpenAiStreamArgs): Promise
       if (!isProofread) a.setConvos(patchByokMessage(a.convId, a.msgId, { text: accumulated }));
     } else if (ev.type === "done") {
       doneCost = ev.creditsCost; // always 0 for BYOK
+      // Phase 5: accumulate per-turn token usage for the usage readout in Settings.
+      // cachedTokens is non-zero when the OpenAI prompt hit the KV cache (from SetUsage).
+      recordUsage("openai", { inputTokens: ev.inputTokens, cachedTokens: ev.cachedTokens ?? 0, outputTokens: ev.outputTokens }, a.model);
     } else if (ev.type === "error") {
       terminalError = `[Something went wrong — ${ev.message}]`;
     }

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { byokClearKey, byokHasKey, byokSetKey } from "../ai/byok.client";
 import { byokOpenAiClearKey, byokOpenAiHasKey, byokOpenAiSetKey } from "../ai/byok.openai.client";
+import { clearUsage, getUsage, type ProviderUsage } from "../ai/byokUsage";
 import { SetRow, SetToggle } from "./Settings.primitives";
 import { AI_REPLAY_EVENT, type Tweaks } from "./settings.store";
 
@@ -126,6 +127,40 @@ function ByokOpenAiKeyRow() {
   );
 }
 
+// ── ByokUsageReadout ──────────────────────────────────────────────────────────
+// Shows accumulated per-provider BYOK token counts + estimated USD cost.
+// Rendered below the key rows; hidden when all counts are zero.
+// Re-renders on the `byok:usage-updated` CustomEvent dispatched by recordUsage /
+// clearUsage — no polling needed.
+
+function fmtLine(u: ProviderUsage): string {
+  const total = u.inputTokens + u.cachedTokens + u.outputTokens;
+  return `${total.toLocaleString()} tokens · est. $${u.estUsd.toFixed(4)}`;
+}
+
+function ByokUsageReadout() {
+  const [usage, setUsage] = useState(() => getUsage());
+  useEffect(() => {
+    const refresh = () => { setUsage(getUsage()); };
+    window.addEventListener("byok:usage-updated", refresh);
+    return () => { window.removeEventListener("byok:usage-updated", refresh); };
+  }, []);
+
+  const anthTotal = usage.anthropic.inputTokens + usage.anthropic.cachedTokens + usage.anthropic.outputTokens;
+  const oaiTotal = usage.openai.inputTokens + usage.openai.cachedTokens + usage.openai.outputTokens;
+  if (anthTotal === 0 && oaiTotal === 0) return null;
+
+  return (
+    <SetRow label="BYOK usage" desc="Accumulated tokens and estimated cost since last reset. Resets do not affect your provider billing.">
+      <div className="byok-usage-summary">
+        {anthTotal > 0 && <div className="byok-usage-line">Claude — {fmtLine(usage.anthropic)}</div>}
+        {oaiTotal > 0 && <div className="byok-usage-line">ChatGPT — {fmtLine(usage.openai)}</div>}
+        <button className="btn btn-soft byok-usage-reset" onClick={() => { clearUsage(); }}>Reset</button>
+      </div>
+    </SetRow>
+  );
+}
+
 // ── Expanded AI rows (shown when aiEnabled is true) ───────────────────────────
 
 function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
@@ -138,6 +173,7 @@ function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
     {showKeyRow && <SetRow label="AI license key" desc="Clear to re-enter a different one."><button className="ai-change-key-btn" onClick={() => setTweak("aiLicenseKey", "")}>Change license key…</button></SetRow>}
     <ByokKeyRow />
     <ByokOpenAiKeyRow />
+    <ByokUsageReadout />
     <SetRow label="Custom endpoint" desc="Use a different API gateway." last><button className="btn btn-soft" disabled>Coming soon</button></SetRow>
   </>);
 }

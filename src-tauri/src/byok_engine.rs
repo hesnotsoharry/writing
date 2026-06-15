@@ -176,6 +176,7 @@ pub async fn run_stream(
             input_tokens: 0,
             output_tokens: 0,
             credits_cost: 0,
+            cached_tokens: 0,
         });
         return Ok(());
     }
@@ -211,6 +212,7 @@ pub async fn run_stream(
                 input_tokens: 0,
                 output_tokens: 0,
                 credits_cost: 0,
+                cached_tokens: 0,
             });
             remove_cancel(cancel, &stream_id);
             return Ok(());
@@ -231,6 +233,7 @@ pub async fn run_stream(
             input_tokens: 0,
             output_tokens: 0,
             credits_cost: 0,
+            cached_tokens: 0,
         });
         remove_cancel(cancel, &stream_id);
         return Ok(());
@@ -247,14 +250,14 @@ pub async fn run_stream(
     // BEFORE `wire.parse_line` is called. Routing `[DONE]` through parse_line
     // would return `Ignore` and the loop would hang until a timeout.
     //
-    // Hard requirement 5: `cached_tokens` is accumulated here. Phase 5 will add
-    // an additive `cached_tokens` field to `NormalizedEvent::Done` and emit it.
+    // Hard requirement 5: `cached_tokens` is accumulated here and emitted in the
+    // terminal `NormalizedEvent::Done` (Phase 5, Wave 49 — Decision 5).
     //
     // `tokio::select! { biased; ... }` checks cancellation before each chunk so
     // `byok_stop` / `byok_openai_stop` can abort mid-stream within one chunk's latency.
     let mut input_tokens: u32 = 0;
     let mut output_tokens: u32 = 0;
-    let mut cached_tokens: u32 = 0; // Phase 5: will be emitted via Done.cached_tokens
+    let mut cached_tokens: u32 = 0; // Emitted in terminal Done.cached_tokens (Phase 5, W49).
     let mut byte_stream = response.bytes_stream();
     let mut line_buf: Vec<u8> = Vec::new();
 
@@ -322,13 +325,13 @@ pub async fn run_stream(
 
     // Hard requirement 3: terminal Done fires on EVERY exit path — cancel, read
     // error, [DONE] sentinel, stream error, or channel-closed (WebView gone).
-    // `cached_tokens` is accumulated above (hard requirement 5) but Phase 5 adds
-    // the field to NormalizedEvent::Done before it is emitted.
-    let _ = cached_tokens; // suppress unused-variable warning until Phase 5
+    // Phase 5 (Wave 49): cached_tokens is now emitted in the terminal Done so the
+    // TS layer can attribute cached reads at the cheaper cache-read rate.
     let _ = on_event.send(NormalizedEvent::Done {
         input_tokens,
         output_tokens,
         credits_cost: 0,
+        cached_tokens,
     });
 
     remove_cancel(cancel, &stream_id);
