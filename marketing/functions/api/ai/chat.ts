@@ -274,7 +274,7 @@ async function runStream(args: StreamArgs): Promise<void> {
       verbConfig.model,
       usage.cacheCreationTokens,
       usage.cacheReadTokens,
-      "5m",
+      "1h",
     );
     const refundAmount = Math.max(0, reserve - actual);
     const charged = reserve - refundAmount;
@@ -375,7 +375,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
 
   // Reserve credits (max possible cost for this request)
   const totalChars = messages.reduce((s, m) => s + m.content.length, 0) + (system?.length ?? 0);
-  const reserve = estimateCredits(totalChars, effectiveConfig.maxTokens, effectiveConfig.model);
+  const reserve = estimateCredits(totalChars, effectiveConfig.maxTokens, effectiveConfig.model, system?.length ?? 0);
   const requestId = crypto.randomUUID();
 
   if (isTrial) {
