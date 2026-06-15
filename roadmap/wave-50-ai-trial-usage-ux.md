@@ -126,7 +126,7 @@ Before declaring a phase complete, restate that phase's Observation-column point
 | 2 | 2026-06-14 | 2026-06-14 | (this commit) | Meter: model-agnostic % bar + per-model "~N replies" line; reviewer PASS all angles; CDP smoke deferred to wave-end. |
 | 3 | 2026-06-14 | 2026-06-14 | (this commit) | Tap-to-open per-model popover (all 6 models ~N + nudge); stacking audit clean (no backdrop-filter trap); reviewTier skip; gates green. |
 | 4 | 2026-06-14 | 2026-06-14 | (this commit) | Free-trial badge + 3-state-correct exhaustion split (trial→Subscribe $14.99, subscriber→top-up, global-cap inline untouched); consent shows ~150 trial value; reviewer FLAG (trial reset-label honesty) addressed by suppressing reset label for trials. |
-| 5 | — | — | — | — |
+| 5 | 2026-06-14 | 2026-06-14 | (this commit) | Settings → AI key-entry form: verify-before-store via acquireSession, distinct invalid-key vs network errors; reviewer PASS on security invariant; FLAG (dead success UI + test gap) addressed. Follow-up ai-license-key-entry-ui resolved. |
 
 ## Follow-up candidates
 
