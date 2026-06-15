@@ -2,8 +2,9 @@
 project: writing
 wave: 48
 title: Cache-prefix re-placement + 1-hour TTL (Anthropic prompt caching)
-status: PLANNED — verify-first; pick up after W39 merges (credits.ts collision)
+status: SHIPPED
 created: 2026-06-13
+shipped: 2026-06-15
 depends_on: [W39 (credits.ts in-flight — merge first)]
 relates_to: [W44 (provider-aware caching), follow-up 2026-06-13-precise-cache-write-reserve]
 ---
@@ -122,7 +123,7 @@ cost is. Acceptable, but must be confirmed, not assumed.)
   carries a >16k-char Story Bible. Cannot be done in-wave (it's a model-tier product/cost decision, not
   a code fix). Ties to [[ai-caching-favors-sonnet-upgrade-economics]] — revisit alongside any Haiku→Sonnet
   upgrade wave. (Verifiable: run the smoke with default Haiku vs `MODEL=claude-sonnet-4-6` — the Haiku
-  run shows flat per-turn `creditsCost`; the Sonnet run shows the cold/warm split.)
+  run shows flat per-turn `creditsCost`; the Sonnet run shows the cold/warm split.) — DISPOSITION: not filed; product decision (bump verb-config model tier), tracked in HANDOFF.
 
 ## Risks / gotchas
 - **Haiku 4096 floor** (above) — the central "don't bust caches" risk; P0 gates on it.

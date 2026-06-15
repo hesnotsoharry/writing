@@ -94,7 +94,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 **Rationale:** every existing worker path (`verifyToken` → subscriptions lookup → reserve/refund/meter) recognizes the trial row with zero token-layer change; a replayed key drains at most one fixed $1.50 bucket (no amplification); no device data (privacy-clean).
 **Consequences:** trial rows live in `subscriptions` keyed by a `trial_`-prefixed key; `status='trial'` must be admitted at the (four) `status='active'` gates touched this wave.
 **Enforcement:** the `subscriptions` lookup in `chat.ts`/`balance.ts`; the new `trial-session.ts` mint path. advisory-only at the doctrine layer; enforced in code by those sites.
-**durable: candidate** (the trial-identity pattern will be cited by W40 BYOK / W44 multi-provider).
+**durable: promoted (0014)** (the trial-identity pattern will be cited by W40 BYOK / W44 multi-provider).
 
 ### Decision 2: Abuse defense — hard global daily spend cap + per-IP grant cap; CAPTCHA deferred
 
@@ -104,7 +104,7 @@ Before declaring a phase complete, restate the observation point from the Phases
 **Rationale:** the global cap mathematically bounds total trial AI spend to $25/day regardless of how many keys/IPs/VMs an attacker creates — every trial reserve passes through the one shared `trial_budget(day)` counter. Turnstile's only added value (protecting legit users from budget-monopoly) is a fast-follow concern, not a dollar-exposure concern.
 **Consequences:** worst-case trial AI exposure = **$25/day (~$750/mo), hard**. When a day's budget exhausts, NEW trials that day hit a budget-429 (existing trial holders + all non-AI features unaffected; resets daily; kill-switch is the manual override). Reserve-vs-actual accounting tracks actual spend on refund, so the cap is hard modulo the documented sub-cent cache-write-premium under-count.
 **Enforcement:** `reserve_trial_credits` (global ceiling, atomic) + `grant_trial` (per-IP) + `TRIAL_AI_ENABLED` env (kill-switch). Mechanical, in the RPCs + endpoint.
-**durable: candidate** (the spend-cap-as-ceiling pattern generalizes to any future free-tier).
+**durable: promoted (0015)** (the spend-cap-as-ceiling pattern generalizes to any future free-tier).
 
 ### Decision 3: Schema — extend `subscriptions` with `status='trial'`; separate trial RPCs; one migration 0006
 
@@ -129,9 +129,9 @@ Before declaring a phase complete, restate the observation point from the Phases
 
 ## Follow-up candidates
 
-- W39.x Turnstile/CAPTCHA hardening on `/api/ai/trial-session` (deferred from this wave): | why-defer: needs a Phase-0 WebView2-render spike + system-browser/deep-link fallback design; cross-boundary (worker + app + Cloudflare dashboard config) and cannot be cleared by a single sonnet-implementer dispatch. | present-harm: during the Reddit launch surge, with no CAPTCHA, a single script can drain the $25/day global trial budget early each day and DoS real trial-users out of AI — the conversion lever W39 exists to create (dated observation 2026-06-13, design attack-decision review Angle 2/6).
+- W39.x Turnstile/CAPTCHA hardening on `/api/ai/trial-session` (deferred from this wave): | why-defer: needs a Phase-0 WebView2-render spike + system-browser/deep-link fallback design; cross-boundary (worker + app + Cloudflare dashboard config) and cannot be cleared by a single sonnet-implementer dispatch. | present-harm: during the Reddit launch surge, with no CAPTCHA, a single script can drain the $25/day global trial budget early each day and DoS real trial-users out of AI — the conversion lever W39 exists to create (dated observation 2026-06-13, design attack-decision review Angle 2/6). — DISPOSITION: filed (follow-ups/2026-06-15-turnstile-captcha-hardening.md).
 
-- BYOK own-key usage visibility (routed from W40/BYOK — filed here for wrap since W40 already wrapped): | why-defer: needs a product decision on unit (token count vs request count vs coarse gauge) + placement before any impl; the data wiring reuses the BYOK stream's already-returned usage — a UX/product call, not a single mechanical dispatch. | present-harm: K3 — observed 2026-06-14 (Cole's live-key check); BYOK mode suppresses ALL usage cues (W40 meter-no-op, commit b0b7383), so a user spending on their own Anthropic key gets zero in-app feedback on consumption.
+- BYOK own-key usage visibility (routed from W40/BYOK — filed here for wrap since W40 already wrapped): | why-defer: needs a product decision on unit (token count vs request count vs coarse gauge) + placement before any impl; the data wiring reuses the BYOK stream's already-returned usage — a UX/product call, not a single mechanical dispatch. | present-harm: K3 — observed 2026-06-14 (Cole's live-key check); BYOK mode suppresses ALL usage cues (W40 meter-no-op, commit b0b7383), so a user spending on their own Anthropic key gets zero in-app feedback on consumption. — DISPOSITION: obsolete; shipped in W49 Phase 5.
 
 ## Wave-end review (2026-06-14)
 

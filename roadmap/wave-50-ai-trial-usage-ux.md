@@ -1,6 +1,7 @@
 ---
-status: PLANNED
+status: SHIPPED
 created: 2026-06-14
+shipped: 2026-06-15
 ---
 
 # Wave 50: ai-trial-usage-ux
@@ -9,7 +10,7 @@ created: 2026-06-14
 
 ### Status
 
-PLANNED · target **v0.8.2** (desktop release via `.\publish`) · drafted 2026-06-14 · **sequence BEFORE the parked Reddit launch announcement** — the trial→subscribe conversion path is currently broken at the exhaustion moment, and shipping the traffic spike into a broken funnel wastes the one-time audience.
+SHIPPED · target **v0.8.2** (desktop release via `.\publish`) · drafted 2026-06-14 · **sequence BEFORE the parked Reddit launch announcement** — the trial→subscribe conversion path is currently broken at the exhaustion moment, and shipping the traffic spike into a broken funnel wastes the one-time audience.
 
 ### Goal
 

@@ -1,6 +1,8 @@
 ---
-status: OPEN
+status: RESOLVED
+resolved-during: wave-48
 created: 2026-06-13
+updated: 2026-06-15
 qualifying-criterion: multi-file
 cannot-be-cleared-by: single sonnet-implementer dispatch — requires coordinating `estimateCredits` reserve logic with `shouldAttachCache` signal across `marketing/functions/_lib/` files
 present-harm: K2 — service silently under-charges ~`system_tokens × 0.025` units on a first-turn cache-write over the 4096-token Haiku floor; a false invariant that "reserve ≥ actual" breaks exactly when caching fires (marketing/functions/_lib/credits.ts `estimateCredits` vs `actualCredits`, wave-37 phase 4 Decision 1 D3, 2026-06-13). Negligible for the 2-user app but a documented false invariant plus a small revenue leak.
@@ -84,3 +86,8 @@ This is a **bounded but multi-file refactor** (credits.ts call signature + chat.
 ---
 
 *Qualified from wave-37 follow-up candidates (present-harm K2 with evidence pointers). Multi-file (credits.ts + chat.ts + prompt-cache.ts import), design-coordination required, cannot be cleared by single dispatch.*
+
+## Resolution (wave-48)
+
+Closed by `haiku-followup-auditor` during wave-48 wrap (2026-06-15).
+Evidence: W48 Phase 3 (commit e4d53d8) refactored `estimateCredits` to accept a `systemLength` param and call `shouldAttachCache` internally, computing the reserve at the correct `cacheWrite1h` rate when caching fires. Restores the "reserve ≥ actual" invariant for all models (Haiku, Sonnet, Opus). Tests pass; reserve-exact assertion held across cold and warm cache scenarios.

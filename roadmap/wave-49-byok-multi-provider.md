@@ -1,6 +1,7 @@
 ---
-status: PLANNED
+status: SHIPPED
 created: 2026-06-14
+shipped: 2026-06-15
 ---
 
 # Wave 49 — OpenAI BYOK multi-provider
@@ -9,7 +10,7 @@ created: 2026-06-14
 
 ### Status
 
-DRAFT · target v0.9.0 · drafted 2026-06-14.
+SHIPPED · target v0.9.0 · drafted 2026-06-14.
 
 ### Goal
 
@@ -165,7 +166,7 @@ minimal collision on the two shared surfaces (`byok.rs`, the picker).
 only passes the `api.openai.com` constant) so W45 needs no Rust refactor; the picker must be
 registry-driven so W45 appends entries structurally untouched.
 **Enforcement:** advisory-only (cross-wave coordination; the registry-shape publish in Phase 2 is the
-coordination artifact). `durable: candidate`.
+coordination artifact). `durable: promoted (0012)`.
 
 ### Decision 2: OpenAI model lineup (product) — USER-LOCKED
 
@@ -203,7 +204,7 @@ registry-driven; the badge becomes provider-aware.
 
 ### Decision 5: Rust provider-engine abstraction shape — RATIFIED (decision-review cell, 2026-06-14)
 
-`durable: candidate` (W45 consumes this contract).
+`durable: promoted (0013)` (W45 consumes this contract).
 
 **Context:** generalize the two duplicated Rust BYOK drain loops (`byok_chat` Anthropic + `byok_openai_chat`) into one engine, behavior-preserving for the shipped Anthropic path, and publish the contract the parallel W45 (local models) agent consumes.
 

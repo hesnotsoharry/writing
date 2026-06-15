@@ -4,41 +4,29 @@ updated: 2026-06-15
 ---
 
 ## Current state
-- Branch: wave-49-byok-multi-provider  ·  Latest commit: 05efe17  ·  Tag: none
-- Active wave: wave-49-byok-multi-provider (OpenAI BYOK + multi-provider) — COMPLETE, all 5 phases shipped, ready for merge
-- **W49 summary (5 phases, 14 commits bb03e9c..05efe17):**
-  - P1: OpenAI BYOK walking skeleton — Rust-direct stream to api.openai.com, error handling, IPC contract.
-  - P2: Provider-routed engine `byok_engine.rs` — enum-dispatch WireFormat (OpenAiCompatible + OllamaJsonRpc) + shared run_stream backbone for P1.
-  - P3: Settings OpenAI key row + unified `useByokKeys` hook; forms save to localStorage; no double-encrypt.
-  - P4: Merged AI model picker (Anthropic managed + OpenAI managed + OpenAI BYOK) + registry-driven provider routing + `BYOK_SEND` map.
-  - P5: Persistent per-provider usage readout (localStorage counter, tokens + est USD per-provider, Reset zeroes all).
-- **Merge context:** branch based on 94ea18d; master now at aebf56c (W48 merged). W49 needs rebase onto post-W48 master.
-- **Gates & coverage:** cargo 37/37 ✓ · vitest 1505 ✓ (full suite, all phases touched) · lint/tsc 0 ✓ · wave-end adversarial review PASS ✓ · `/review` mechanical PASS (removed dead `PROVIDER_COMMAND` export) ✓ · New seam tests added for byok_engine WireFormat dispatch. All 5 phase commits include regression tests.
-- **Privacy & security:** BYOK key crosses IPC once into Rust, never returns. Managed Cloudflare path untouched. No plaintext credentials logged. Settings key input masked.
-- **Smoke & deployment:** Live CDP UI smoke deferred (dev app not running this session). 3 visual observations need Cole eyeball before declaring full ready-for-ship. Branch signed off by adversarial reviewer. After merge, no version bump needed (W48 on master already at v0.8.1); W50 will bump to v0.8.2.
+- Branch: master  ·  Latest commit: c463be1  ·  Tag: v0.9.0
+- **v0.9.0 PREPPED, READY FOR COLE TO SHIP.** Version bumped 0.8.1→0.9.0 across all 4 files (package.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock, src-tauri/tauri.conf.json). Tag v0.9.0 pushed. **Publish action: Cole runs `.\publish.ps1` interactively** (updater-key password, signs NSIS, GitHub release, R2 upload, latest.json). Agents do NOT run publish.ps1.
+- **All 6 waves shipped in this release:** W39 trial-gating (license server, per-user trial credits) · W45 local-LLM (OpenAI-compatible endpoints, Ollama discovery) · W47 Ask mode (streaming chat, agent reasoning) · W48 cache-prefix+1h-TTL (Anthropic caching, reserve) · W49 BYOK-multi-provider (OpenAI BYOK + Anthropic keys) · W50 AI-trial&usage (per-model meter, convert-on-exhaustion, usage readout)
+- **Batch wrap complete.** Promoted ADR 0014 (trial-identity server-minted), ADR 0015 (trial spend-cap $25/day). New vendor-gotcha: `.claude/vendor-gotchas/ollama.md` (dual-endpoint discovery). Resolved: precise-cache-write-reserve.
+- **4 open follow-ups (mid-wave filings):**
+  - w39-phase4-trial-abuse-smoke [HIGH—acceptance gate, blocks trial ship] — Cole DB-swap smoke required; verify $25/day per-user spend cap fires
+  - turnstile-captcha-hardening — trial-mint monopoly defense; WebView2 Turnstile spike
+  - assistant-entity-context-strip-staleness — chat + About panel reactivity; multi-file latency
+  - agent-driven-ui-smoke-harness — test infrastructure; smoke-config.json + Tauri/CDP validation
 
 ## Next 3 steps
-1. **Rebase/merge `wave-49-byok-multi-provider` onto master (`aebf56c`)**: branch is 8 commits behind W48 merge. Expect conflicts in `src/features/ai/AssistantPanel.{tsx,parts,hooks,byok}.ts` + `ai.client.ts` if W48 touched the same surfaces. After merge, re-run full cargo + vitest to confirm W48+W49 integration clean.
-2. **Cole live-smoke (`npm run tauri dev`) 3 deferred observations**: (a) Settings→AI shows two key rows (Anthropic + OpenAI) + 'Your key' badge flips on entry/save; (b) merged picker shows keyed-provider groups, selecting GPT model routes to OpenAI, invalid key → sanitized 401; (c) usage readout displays per-provider tokens + est USD after a BYOK turn, Reset button zeroes all to 0.
-3. **Relay corrected W45 contract** to parallel W45 agent (4 TS touch points documented in decisions/0013 + wave file Decision 5): `byokUsage` SupportedProvider enum, `useByokKeys` local tracking shape, `byokKeys` type chain, chip-label fallback logic.
+1. **Cole: run `.\publish.ps1`** to ship v0.9.0 to all installed users. Interactive (updater-key password). Artifact selection version-anchored in the script; do NOT loosen globs (lesson from v0.8.1 stale-installer incident).
+2. **Post-deploy smoke tests (Cole-owned, requires real license + tokens).** (a) W48 cache-prefix smoke: confirm cache hits & reserve on real Anthropic key. (b) W39 Phase-4 trial-abuse smoke (DB-swap): verify $25/day per-user spend cap. HIGH priority—acceptance gate for trial feature.
+3. **Product judgment (not code).** W48's cache benefit dormant on Haiku (4K-tok floor). Revisit bumping default model tier to Sonnet (1K floor) for caching engagement; cost offset by higher cache-hit volume (M-49 memory: ai-caching-favors-sonnet-upgrade-economics).
 
 ## Active work
-- **Wave in flight:** [wave-45-local-models](wave-45-local-models.md) (Phase 1 in progress, locally hosted LLM support). Consumes W49's `byok_engine` (run_stream + WireFormat::OpenAiCompatible), BYOK_SEND provider map, PROVIDER_REGISTRY enum. Contract: [decisions/0013](decisions/0013-rust-provider-engine-abstraction-shape.md).
-- **Held waves ready (worktrees required — shared AssistantPanel/credits.ts/chat.ts):** W50 (AI trial & usage UX, PLANNED—launch-gating, run FIRST before W48), W48 (cache-prefix + 1h TTL), W47 parallel (feature, depends on W50 completion).
-- **Prior concurrent-sessions issue:** M-49 discovered mixed-authorship commits + contested dev DB when two waves shared the tree (W32 + features). Use git worktrees (`git worktree add -b wave-NN` + `git worktree remove` at close) or stagger next time.
-- **Open follow-ups (4):** [inbox](follow-ups/)  ·  top: agent-driven-ui-smoke-harness (NEW—no smoke-config, CDP smoke can't auto-run), assistant-entity-context-strip-staleness, precise-cache-write-reserve, ai-license-key-entry-ui.
-- **Follow-up candidate (pending wrap):** BYOK own-key usage/cost visibility UX (Cole-requested 2026-06-14; product refinement, not blocker).
-- **Scope & exclusions:** W49 DOES NOT ship multi-user sync, mobile support, or local-storage encryption. Those are P2+. W49 focuses on provider-agnostic Rust engine (load-bearing for W45) + single-user OpenAI BYOK + merged UI.
-- **Testing note:** All 5 phase commits include seam tests + regression tests covering new paths (WireFormat dispatch, Settings key save, picker UI routing, usage counter persistence). No new test files added; integrated into existing `tests/` suite.
-- **Success criteria post-merge:** (1) W49 rebased & merged to master with clean gates. (2) Cole smoke eyeballs all 3 UI points ✓. (3) W45 gets the corrected contract relay. (4) W50 immediately dispatched (launch-gating sequence). (5) No regression in Anthropic managed flow (existing chat) — verified post-merge by smoke tests.
+- **No wave in flight.** All 6 released; batch wrap audited. Next wave pending Cole prioritization.
+- **Pending Cole decisions (not code follow-ups).** (1) Marketing site copy review (auto-deploys to writersnook.app on master push via Cloudflare Pages). (2) Trial-abuse smoke sign-off (gate for trial feature ship).
+- **Process anchors (carry-forward).** Wave-collapse lapsed—waves 36–50 kept FULL (deliberate recent practice; early waves are stubs). Next parallel waves: use git worktrees (`git worktree add -b wave-NN`, `git worktree remove` at close) or stagger (concurrent-edit risk from W39+W45 shared tree). Dev + installed share %APPDATA%\com.coles.writing\writing.db (real manuscripts, license row). Agent UI smoke via WebView2 CDP port 9222 + tauri-devtools MCP.
 
 ## Reference index
-- Wave file: [wave-49-byok-multi-provider.md](wave-49-byok-multi-provider.md) (5 phase briefs, per-phase gates, committed decisions, per-decision enforcement; `-research.md` sidecar for OpenAI API specs & rate limits)
-- Contract for parallel W45: [decisions/0013](decisions/0013-rust-provider-engine-abstraction-shape.md) — 4 critical TS touch points; do NOT add new byokUsage/useByokKeys shapes without W45 sync
-- Promoted decisions: [0012-w49-w45-boundary-scope.md](decisions/0012-w49-w45-boundary-scope.md) (Rust engine abstraction design for W45 local-model support), [0013-rust-provider-engine-abstraction-shape.md](decisions/0013-rust-provider-engine-abstraction-shape.md) (WireFormat enum dispatch, W45 contract: 4 TS touch points + integration shape)
-- Vendor-gotchas: [openai.md](../.claude/vendor-gotchas/openai.md) (NEW—cached-token double-bill trap, reasoning_effort/temperature 400 limits, canonical model aliases, stream usage reporting), [keyring.md](../.claude/vendor-gotchas/keyring.md) (byok-openai credential entry pattern, Windows keyring integration)
-- Implementation notes: byok_engine.rs `run_stream` handler is W49+W45 shared backbone; W45 will extend WireFormat enum. Settings key row mirrors Anthropic pattern (localStorage, no encryption at-rest). Usage counter is LocalStorage-only (not sent to backend).
-- Project conventions: [CLAUDE.md](../CLAUDE.md) (process + gotchas) · [decisions/](decisions/) · [follow-ups/](follow-ups/) · prior waves: [wave-48-cache-prefix-replacement-1h-ttl.md](wave-48-cache-prefix-replacement-1h-ttl.md) (context for merge conflicts)
-- Wave-wrap pending: promote 0012 & 0013 to `decisions/` (durable ADRs), audit open follow-ups, file BYOK-usage follow-up candidate (pending Cole product sign-off)
-- No manual setup required post-merge: OpenAI API key is user-provided (Settings entry), no server-side key storage or rotation
-- Post-smoke decision: once Cole eyeballs the 3 UI observations and confirms all pass, W49 is clear for ship. No additional phases. Merge master workflow: checkout W49 branch, rebase onto latest master (resolve conflicts in AssistantPanel/ai.client.ts if needed), re-gate, push, merge → master. W50 dispatch follows immediately (launch-gating dependency, requires worktree to avoid concurrent-edit issues).
+- **Release:** v0.9.0 · commit c463be1 · tag v0.9.0 pushed · version bumped in all 4 source files
+- **Durable decisions:** [ADR 0014](decisions/0014-trial-identity-server-minted-key.md) (trial-identity server-minted key), [ADR 0015](decisions/0015-trial-abuse-defense-spend-cap.md) (trial spend-cap $25/day per user per day)
+- **Vendor-gotchas:** [ollama.md](../.claude/vendor-gotchas/ollama.md) (Ollama dual-endpoint model discovery pitfall; check before local-LLM work)
+- **Open follow-ups:** [inbox](follow-ups/) — **HIGH (blocks ship):** w39-phase4-trial-abuse-smoke · **Standard:** turnstile-captcha, assistant-entity-staleness, ui-smoke-harness
+- **Project conventions:** [CLAUDE.md](../CLAUDE.md) (process, environment gotchas, publish pipeline) · [decisions/](decisions/) (ADR index) · context: [wave-48](wave-48-cache-prefix-replacement-1h-ttl.md) (cache), [wave-50](wave-50-ai-trial-usage-ux.md) (trial UX)
