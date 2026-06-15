@@ -201,12 +201,28 @@ active model's provider; empty state (no keys) = managed.
 registry-driven; the badge becomes provider-aware.
 **Enforcement:** advisory-only (Phase 4 acceptance criteria).
 
-### Decision 5 (PENDING, in-wave): Rust engine abstraction shape
+### Decision 5: Rust provider-engine abstraction shape — RATIFIED (decision-review cell, 2026-06-14)
 
-To be ratified via the decision-review cell at **Phase 2** (extract-engine refactor): the exact shape
-of the `{base_url, auth_header, wire_format}` abstraction and whether OpenAI lives in `byok.rs` or a
-sibling `byok/openai.rs` module. Grounded by the W44 blueprint's `ProviderAdapter` shape (server-side
-analog) + the research sidecar. **Enforcement:** decision-review cell (`adversarial_review_enforce.mjs`).
+`durable: candidate` (W45 consumes this contract).
+
+**Context:** generalize the two duplicated Rust BYOK drain loops (`byok_chat` Anthropic + `byok_openai_chat`) into one engine, behavior-preserving for the shipped Anthropic path, and publish the contract the parallel W45 (local models) agent consumes.
+
+**Pick — enum dispatch + a new `byok_engine.rs` module.** `byok_engine.rs` holds: `enum WireFormat { Anthropic, OpenAiCompatible }`, `enum ParseLine`, `struct RequestSpec { url, headers: Vec<(&'static str, String)>, body: serde_json::Value }`, and `async fn run_stream(...)` (the shared drain). Per-provider SSE parser helpers STAY in `byok.rs` / `byok_openai.rs`; `WireFormat::parse_line` calls into them. `byok_chat` gains a `model: String` param (drops the hardcoded `MODEL` const). Existing cargo tests must stay green (behavior-preservation guard).
+
+**Rationale (corrected per adversarial review):** enum dispatch is chosen for **compile-time exhaustiveness** (a new wire format becomes a compile error, not a silent `Ignore`) and **zero allocation on the per-SSE-line hot path** with **zero new crates** — NOT because of async-trait dyn-incompatibility (sync `fn` works fine behind `dyn`; that argument was a non-sequitur). The per-provider variation is entirely synchronous, so no async trait is warranted.
+
+**Consequences:**
+- **Accepted cost:** the central `WireFormat` enum is a coordination hotspot for future genuinely-different wire formats (Gemini-class) — each adds an enum variant + a `parse_line` arm + a `byok_engine` import. Bounded and acceptable at 2 formats; W45's local provider reuses `OpenAiCompatible` (adds NO variant). The engine importing from all provider modules (hub-knows-all) is accepted mild debt, not a Rust cycle (intra-crate references are unrestricted).
+- **`ParseLine::SetUsage` carries cached tokens** (`{ input, cached, output }`), and `run_stream` accumulates all three — even though Phase 1/2 `NormalizedEvent::Done` does not yet emit `cached`. This keeps the seam forward-compatible so **Phase 5** surfaces cached cost without re-plumbing the parse boundary (Phase 5 adds an additive `cached_tokens` field to `NormalizedEvent::Done` + migrates the W40 frozen serialization test — a deliberate, reviewed contract evolution, NOT a silent break).
+- **Key-lifetime invariant (hard requirement):** `run_stream` must consume/drop the `RequestSpec` (which owns the api-key string in `headers`) immediately after `send()` returns, before the drain loop — preserving the W40 posture where the key never lives across the stream. The `RequestSpec` MUST NOT be retained for logging/retry.
+- **`ParseLine` control-flow contract (must be engine-owned):** the literal `data: [DONE]` is detected by the drain loop BEFORE `parse_line` is called (never routed through it, or it returns `Ignore` and the loop hangs until timeout); `ParseLine::StreamError` ⇒ engine emits `NormalizedEvent::Error` + `break`. Terminal `Done` fires on every exit path (cancel / read-error / `[DONE]` / stream-error), unchanged from W40.
+- **SSRF backstop (defense-in-depth):** `run_stream` rejects any `url` whose scheme is not `http`/`https` and never relaxes TLS — a minimal tripwire that complements (does NOT replace) W45's loopback/https/cert validation. Decision 1 keeps full URL validation with W45; this is a last-line guard against a W45 validation gap, since the engine is the final code site before the user's prose + key hit the network.
+
+**Published W45 contract** (the W45 agent builds against this — relayed to Cole for the parallel session):
+- Rust: W45 authors `byok_local.rs` with `byok_local_chat(state, stream_id, base_url: String, model, messages, system, max_completion_tokens, temperature, api_key: Option<String>, on_event)` — builds a `RequestSpec` (Authorization header omitted when `api_key` is `None`, for keyless local servers) and calls `run_stream(..., WireFormat::OpenAiCompatible, ...)`. W45 validates `base_url` before calling; omits `reasoning_effort` (local servers reject it). No `byok_engine.rs` change needed unless a local-server wire quirk forces a `WireFormat::LocalCompat` variant.
+- TS: Phase 4 creates `src/features/ai/providerRegistry.ts` with `ProviderId = 'anthropic' | 'openai' | 'local'`, `ProviderGroup[]` `PROVIDER_REGISTRY`, and a `PROVIDER_COMMAND` map (values derived from a shared command-name constant, NOT duplicated string literals — guards the typo-routes-to-nonexistent-command gap). W45 appends a `'local'` group + the `'local'` command entry.
+
+**Enforcement:** decision-review cell fired (`sonnet-architect` → `sonnet-adversarial-reviewer` `Posture: attack-decision` → orchestrator adjudication, FLAG → all 4 flags addressed above); behavior-preservation enforced by the existing cargo test suite; the key-drop + `[DONE]` + SSRF-tripwire requirements are advisory-to-the-implementer (carried in the Phase 2 brief; verified by the phase reviewer cell).
 
 ### Decision 6 (PENDING, in-wave): usage-total persistence location
 
