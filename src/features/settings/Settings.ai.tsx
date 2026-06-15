@@ -8,6 +8,7 @@ import { acquireSession } from "../ai/ai.client";
 import { byokClearKey, byokHasKey, byokSetKey } from "../ai/byok.client";
 import { byokOpenAiClearKey, byokOpenAiHasKey, byokOpenAiSetKey } from "../ai/byok.openai.client";
 import { clearUsage, getUsage, type ProviderUsage } from "../ai/byokUsage";
+import { CustomEndpointsManager } from "./Settings.ai.manager";
 import { SetRow, SetToggle } from "./Settings.primitives";
 import { AI_REPLAY_EVENT, type Tweaks } from "./settings.store";
 
@@ -243,7 +244,9 @@ function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
     <ByokKeyRow />
     <ByokOpenAiKeyRow />
     <ByokUsageReadout />
-    <SetRow label="Custom endpoint" desc="Use a different API gateway." last><button className="btn btn-soft" disabled>Coming soon</button></SetRow>
+    <SetRow label="Custom endpoints" desc="Use local or self-hosted model servers." last>
+      <CustomEndpointsManager />
+    </SetRow>
   </>);
 }
 

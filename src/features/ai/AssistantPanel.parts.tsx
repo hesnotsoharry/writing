@@ -67,8 +67,8 @@ interface PanelFooterProps {
   onToast: (msg: string) => void;
   resetLabel: string;
   byokActive: boolean;
-  /** Provider key-presence map — required for BYOK picker filtering. */
-  byokKeys: { anthropic: boolean; openai: boolean };
+  /** Provider key-presence map — required for BYOK picker filtering. W45: local optional. */
+  byokKeys: { anthropic: boolean; openai: boolean; local?: boolean };
 }
 
 interface PanelThreadProps {

@@ -256,10 +256,12 @@ describe("BYOK_SEND dispatch map", () => {
 // ── PROVIDER_REGISTRY shape ───────────────────────────────────────────────────
 
 describe("PROVIDER_REGISTRY shape", () => {
-  it("has exactly two groups: anthropic (first) and openai (second)", () => {
-    expect(PROVIDER_REGISTRY).toHaveLength(2);
+  it("has three groups: anthropic (first), openai (second), local (third)", () => {
+    // W45 Phase 4: 'local' group appended — registry is now three providers.
+    expect(PROVIDER_REGISTRY).toHaveLength(3);
     expect(PROVIDER_REGISTRY[0].provider).toBe("anthropic");
     expect(PROVIDER_REGISTRY[1].provider).toBe("openai");
+    expect(PROVIDER_REGISTRY[2].provider).toBe("local");
   });
 
   it("anthropic group contains claude-haiku-4-5-20251001 and claude-sonnet-4-6", () => {

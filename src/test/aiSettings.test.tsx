@@ -108,10 +108,10 @@ describe("AiSection — expanded Settings Assistant section", () => {
     expect(inputs.length).toBeGreaterThan(0);
   });
 
-  it("renders the Custom endpoint row with Coming soon button", () => {
+  it("renders the Custom endpoints row with the endpoints manager", () => {
     renderSection();
-    expect(screen.getByText("Custom endpoint")).toBeTruthy();
-    expect(screen.getByText("Coming soon")).toBeTruthy();
+    expect(screen.getByText("Custom endpoints")).toBeTruthy();
+    expect(screen.getByText("Add endpoint")).toBeTruthy();
   });
 
   it("renders AI license key entry row when no key is stored", () => {

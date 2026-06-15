@@ -1,5 +1,5 @@
 ---
-id: 0002
+id: 0010
 title: BYOK routing — direct to Anthropic from Rust
 status: accepted
 decided-in: wave-40
@@ -8,7 +8,7 @@ date: 2026-06-13
 durable: true
 ---
 
-# Decision 0002: BYOK routing — direct to Anthropic from Rust
+# Decision 0010: BYOK routing — direct to Anthropic from Rust
 
 **Context:** Where a BYOK user's request goes — direct to `api.anthropic.com` vs through the existing writersnook proxy. Touches the privacy narrative.
 

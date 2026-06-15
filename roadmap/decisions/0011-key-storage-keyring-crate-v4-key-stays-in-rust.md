@@ -1,5 +1,5 @@
 ---
-id: 0003
+id: 0011
 title: Key storage — keyring crate v4, key stays in Rust
 status: accepted
 decided-in: wave-40
@@ -8,7 +8,7 @@ date: 2026-06-13
 durable: true
 ---
 
-# Decision 0003: Key storage — keyring crate v4, key stays in Rust
+# Decision 0011: Key storage — keyring crate v4, key stays in Rust
 
 **Context:** Where the BYOK Anthropic key persists, given the OS-keychain requirement.
 

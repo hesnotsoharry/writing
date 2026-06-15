@@ -81,7 +81,7 @@ export interface AssistantPanelProps {
   onStreamDone?: () => void;
   onNetworkError?: () => void;
   convStore?: AiConversationStore;
-  projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean }; // W49 P3: any-key-present flag + provider MAP (Decision 4)
+  projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; // W49 P3 + W45 P4: any-key-present flag + provider MAP
 }
 
 /** Props consumed by wrapInspectorSlot — App.content.tsx passes a superset. */
@@ -135,13 +135,13 @@ interface SlotPanelProps {
   onStreamDone: () => void;
   onNetworkError?: () => void;
   sel?: ProseSelection | null;
-  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean }; // W49 P3
+  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; // W49 P3 + W45 P4
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
 
 // W49 P4: falls back to first keyed-provider model when managed-mode default is not in any keyed group.
-function computeEffectiveByokModel(model: ManagedModel, byokActive: boolean, byokKeys: { anthropic: boolean; openai: boolean }): ManagedModel {
+function computeEffectiveByokModel(model: ManagedModel, byokActive: boolean, byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }): ManagedModel {
   if (!byokActive) return model;
   const km = PROVIDER_REGISTRY.filter((g) => (byokKeys as Partial<Record<ProviderId, boolean>>)[g.provider]).flatMap((g) => g.models);
   return (km.some((m) => m.id === model) ? model : (km[0]?.id as ManagedModel | undefined)) ?? model;

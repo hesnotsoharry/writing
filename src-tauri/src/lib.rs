@@ -1,8 +1,10 @@
 mod byok;
 mod byok_engine;
+mod byok_local;
 mod byok_openai;
 mod grammar;
 mod license;
+pub mod local_endpoint;
 
 use tauri::Manager;
 
@@ -169,11 +171,18 @@ pub fn run() {
             byok::byok_clear_key,
             byok::byok_chat,
             byok::byok_stop,
+            local_endpoint::validate_endpoint,
+            local_endpoint::discover_models,
+            local_endpoint::local_endpoint_set_key,
+            local_endpoint::local_endpoint_has_key,
+            local_endpoint::local_endpoint_clear_key,
             byok_openai::byok_openai_set_key,
             byok_openai::byok_openai_has_key,
             byok_openai::byok_openai_clear_key,
             byok_openai::byok_openai_chat,
             byok_openai::byok_openai_stop,
+            byok_local::byok_local_chat,
+            byok_local::byok_local_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
