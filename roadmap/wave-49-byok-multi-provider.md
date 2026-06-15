@@ -237,10 +237,11 @@ unless there's a strong reason. **Enforcement:** decision-review cell.
 |---|---|---|---|---|
 | 1 | 2026-06-14 | 2026-06-14 | `83f216d` | ✅ Panel rendered "Invalid API key — check Settings" via live OpenAI 401 (CDP smoke through the React UI route). |
 | 2 | 2026-06-14 | 2026-06-14 | `11fac3a` | ✅ Internal refactor (behavior-preserving). Smoke: both Anthropic + OpenAI invalid-key paths render sanitized 401 through the shared `run_stream` (CDP). Panel PASS (security FLAG addressed). |
+| 3 | 2026-06-14 | 2026-06-14 | `9c043b9` | ⚠️ Code + tests green (vitest 1454 + 6 new: OpenAI row label, 3 badge-text branches, OpenAI routing). Review FLAG (test-adequacy) addressed. Live CDP smoke deferred — dev app not running + no smoke-config (see follow-up); behavior test-covered. Needs Cole eyeball: two key rows + badge flip. |
 
 ## Follow-up candidates
 
-<!-- DEFAULT: empty. -->
+- Wire an agent-driven UI-smoke harness for the run-phase workflow (project lacks `.claude/smoke-config.json`, so the `sonnet-smoke-runner` step CANNOT-LAUNCH on every UI phase — UI smokes currently depend on the implementer manually running `npm run tauri dev` + driving CDP, which silently no-ops when the dev app isn't running). Cross-wave reach (every future UI wave); needs the smoke-runner config schema + the Tauri/WebView2 CDP-attach setup (per memory `app-can-be-smoked-via-cdp-port`) investigated + validated against a running dev app — not a single sonnet-implementer one-shot. | present-harm: K3 — 2026-06-14 Phase-3 run-phase returned `smokeStatus: CANNOT-LAUNCH`, reason "smoke-config.json not found at `C:\Web App\writing-w49-byok\.claude\smoke-config.json`"; affects automated smoke on all UI phases.
 
 ## Result
 
