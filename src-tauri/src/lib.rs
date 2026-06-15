@@ -1,6 +1,7 @@
 mod byok;
 mod grammar;
 mod license;
+pub mod local_endpoint;
 
 use tauri::Manager;
 
@@ -167,6 +168,8 @@ pub fn run() {
             byok::byok_clear_key,
             byok::byok_chat,
             byok::byok_stop,
+            local_endpoint::validate_endpoint,
+            local_endpoint::discover_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
