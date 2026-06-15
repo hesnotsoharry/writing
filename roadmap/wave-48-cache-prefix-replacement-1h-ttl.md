@@ -105,6 +105,24 @@ cost is. Acceptable, but must be confirmed, not assumed.)
     miss). Sonnet/Opus or a rich Haiku manuscript (must clear the floor — see P0 profile).
   - **P4 (economics):** measure a write→ask→write→ask session before/after; confirm the allowance
     stretches and the no-edit case has no cost regression (the 2× 1h-write premium offset by reads).
+  - **Ready-to-run script (staged on-branch):** `marketing/scripts/w48-cache-smoke.mjs` — behavior-level
+    HTTP probes against the deployed worker (auth → `/api/ai/chat`, oracle = the `done` SSE event's
+    `creditsCost`). Covers P2 (warm-edited turn ≈ warm no-edit turn ≪ cold) and P4 (session total vs
+    naive no-cache) in one run. `LICENSE_KEY=… node marketing/scripts/w48-cache-smoke.mjs`. Spends real
+    tokens. **Forces `model=claude-sonnet-4-6`** — see the follow-up candidate below for why Haiku can't
+    demonstrate it.
+
+## Follow-up candidates
+
+- **W48 cache benefit is DORMANT on the live all-Haiku verb-config.** present-harm: K3 — named consumer
+  `marketing/functions/_lib/verb-config.ts` pins every verb to `claude-haiku-4-5` (4096-token cache
+  floor); a realistic stable prefix is ~1,200 tokens (P0 measurement), so `shouldAttachCache` returns
+  false and the cache never attaches at typical manuscript sizes. W48's placement + 1h TTL are correct
+  but deliver zero user-facing savings until the verbs run on Sonnet/Opus (1024 floor) or a manuscript
+  carries a >16k-char Story Bible. Cannot be done in-wave (it's a model-tier product/cost decision, not
+  a code fix). Ties to [[ai-caching-favors-sonnet-upgrade-economics]] — revisit alongside any Haiku→Sonnet
+  upgrade wave. (Verifiable: run the smoke with default Haiku vs `MODEL=claude-sonnet-4-6` — the Haiku
+  run shows flat per-turn `creditsCost`; the Sonnet run shows the cold/warm split.)
 
 ## Risks / gotchas
 - **Haiku 4096 floor** (above) — the central "don't bust caches" risk; P0 gates on it.
