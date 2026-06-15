@@ -73,7 +73,8 @@ function makeArgs(model: ManagedModel): ExecSendArgs {
     onSaveNote: vi.fn(),
     newConvo: vi.fn().mockResolvedValue("c1"),
     projectId: null,
-    byokMode: false,
+    byokActive: false,
+    byokKeys: { anthropic: false, openai: false },
   };
 }
 

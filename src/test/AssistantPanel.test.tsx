@@ -33,6 +33,15 @@ vi.mock("../features/ai/byok.client", () => ({
   byokStop: vi.fn().mockResolvedValue(undefined),
 }));
 
+// OpenAI BYOK client — byokOpenAiHasKey is called on mount via useByokKeys (W49 P3).
+vi.mock("../features/ai/byok.openai.client", () => ({
+  byokOpenAiHasKey: vi.fn().mockResolvedValue(false),
+  byokOpenAiSetKey: vi.fn().mockResolvedValue(undefined),
+  byokOpenAiClearKey: vi.fn().mockResolvedValue(undefined),
+  byokOpenAiStop: vi.fn().mockResolvedValue(undefined),
+  streamByokOpenAiChat: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../features/ai/ai.context", () => ({
   assembleContext: vi.fn().mockResolvedValue({
     sceneTitle: "Test Scene",
@@ -147,6 +156,7 @@ import { aiEstimate } from "../features/ai/ai.helpers";
 import type { AssistantPanelProps } from "../features/ai/AssistantPanel";
 import { AssistantPanel, InspectorTabs } from "../features/ai/AssistantPanel";
 import { streamByokChat } from "../features/ai/byok.client";
+import { streamByokOpenAiChat } from "../features/ai/byok.openai.client";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -190,7 +200,8 @@ function makeProps(overrides: Partial<AssistantPanelProps> = {}): AssistantPanel
     onOpenContext: vi.fn(),
     onToast: vi.fn(),
     onSaveNote: vi.fn(),
-    byokMode: false,
+    byokActive: false,
+    byokKeys: { anthropic: false, openai: false },
     ...overrides,
   };
 }
@@ -345,18 +356,18 @@ describe("AssistantPanel — consented", () => {
     expect(sendBtn!.disabled).toBe(false);
   });
 
-  it("renders AiMeter when byokMode is false", () => {
-    render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+  it("renders AiMeter when byokActive is false", () => {
+    render(<AssistantPanel {...detailViewProps({ byokActive: false, byokKeys: { anthropic: false, openai: false } })} />);
     expect(screen.queryByTestId("ai-meter")).not.toBeNull();
   });
 
-  it("does not render AiMeter when byokMode is true", () => {
-    render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+  it("does not render AiMeter when byokActive is true", () => {
+    render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
     expect(screen.queryByTestId("ai-meter")).toBeNull();
   });
 
-  it("with byokMode=true, streamByokChat is called and acquireSession/streamChat are not", async () => {
-    render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+  it("with Anthropic byokKeys, streamByokChat is called and acquireSession/streamChat are not", async () => {
+    render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
     const textarea = screen.getByRole("textbox");
     fireEvent.change(textarea, { target: { value: "Write me a chapter" } });
     await act(async () => {
@@ -367,39 +378,67 @@ describe("AssistantPanel — consented", () => {
     expect(vi.mocked(streamChat)).not.toHaveBeenCalled();
   });
 
-  it("shows BYOK badge (no hidden attr) when byokMode is true", () => {
-    const { container } = render(<AssistantPanel {...makeProps({ byokMode: true })} />);
+  it("with OpenAI byokKeys, streamByokOpenAiChat is called and streamByokChat/acquireSession/streamChat are not", async () => {
+    render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: false, openai: true } })} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "Write me a chapter" } });
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("Ask"));
+    });
+    await waitFor(() => expect(vi.mocked(streamByokOpenAiChat)).toHaveBeenCalledOnce());
+    expect(vi.mocked(streamByokChat)).not.toHaveBeenCalled();
+    expect(vi.mocked(acquireSession)).not.toHaveBeenCalled();
+    expect(vi.mocked(streamChat)).not.toHaveBeenCalled();
+  });
+
+  it("shows BYOK badge (no hidden attr) when byokActive is true", () => {
+    const { container } = render(<AssistantPanel {...makeProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
     const bar = container.querySelector(".ai-byok-bar");
     expect(bar).not.toBeNull();
     expect(bar!.getAttribute("hidden")).toBeNull();
   });
 
-  it("hides BYOK badge (hidden attr present) when byokMode is false", () => {
-    const { container } = render(<AssistantPanel {...makeProps({ byokMode: false })} />);
+  it("hides BYOK badge (hidden attr present) when byokActive is false", () => {
+    const { container } = render(<AssistantPanel {...makeProps({ byokActive: false, byokKeys: { anthropic: false, openai: false } })} />);
     const bar = container.querySelector(".ai-byok-bar");
     expect(bar).not.toBeNull();
     expect(bar!.getAttribute("hidden")).not.toBeNull();
   });
 
-  it("suppresses cost-cue when byokMode is true even when est.pct >= 2", () => {
+  it("renders 'Your Anthropic key' badge text when byokActive=true, byokKeys={anthropic:true, openai:false}", () => {
+    render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
+    expect(screen.getByText("Your Anthropic key")).not.toBeNull();
+  });
+
+  it("renders 'Your OpenAI key' badge text when byokActive=true, byokKeys={anthropic:false, openai:true}", () => {
+    render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: false, openai: true } })} />);
+    expect(screen.getByText("Your OpenAI key")).not.toBeNull();
+  });
+
+  it("renders 'Your key' badge text when byokActive=true, byokKeys={anthropic:true, openai:true}", () => {
+    render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: true } })} />);
+    expect(screen.getByText("Your key")).not.toBeNull();
+  });
+
+  it("suppresses cost-cue when byokActive is true even when est.pct >= 2", () => {
     vi.mocked(aiEstimate).mockReturnValueOnce({ tokens: 500, pct: 5 });
-    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
     expect(container.querySelector(".ai-costcue")).toBeNull();
   });
 
-  it("shows cost-cue when byokMode is false and est.pct >= 2", () => {
+  it("shows cost-cue when byokActive is false and est.pct >= 2", () => {
     vi.mocked(aiEstimate).mockReturnValueOnce({ tokens: 500, pct: 5 });
-    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: false, byokKeys: { anthropic: false, openai: false } })} />);
     expect(container.querySelector(".ai-costcue")).not.toBeNull();
   });
 
-  it("hides model picker button when byokMode=true (Anthropic-key-only; OpenAI models unavailable)", () => {
-    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: true })} />);
+  it("hides model picker button when byokActive=true (any BYOK key; managed models unavailable)", () => {
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
     expect(container.querySelector(".ai-modelchip")).toBeNull();
   });
 
-  it("shows model picker button when byokMode=false (managed path supports multi-provider)", () => {
-    const { container } = render(<AssistantPanel {...detailViewProps({ byokMode: false })} />);
+  it("shows model picker button when byokActive=false (managed path supports multi-provider)", () => {
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: false, byokKeys: { anthropic: false, openai: false } })} />);
     expect(container.querySelector(".ai-modelchip")).not.toBeNull();
   });
 });

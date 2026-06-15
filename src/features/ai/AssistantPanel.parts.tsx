@@ -65,7 +65,7 @@ interface PanelFooterProps {
   est: AiEstimateResult;
   onToast: (msg: string) => void;
   resetLabel: string;
-  byokMode: boolean;
+  byokActive: boolean;
 }
 
 interface PanelThreadProps {
@@ -217,8 +217,8 @@ function ModelPop({ model, setModel, setModelPop, onAfterSelect }: {
   );
 }
 
-function CostCue({ byokMode, pct }: { byokMode: boolean; pct: number }) {
-  if (byokMode || pct < 2) return null;
+function CostCue({ byokActive, pct }: { byokActive: boolean; pct: number }) {
+  if (byokActive || pct < 2) return null;
   return <div className="ai-costcue">
     <Icon name="info" className="ic" />
     <span>A bigger ask than usual — about <b>{pct}%</b> of your monthly allowance in one go.</span>
@@ -257,7 +257,7 @@ export const PanelFooter = forwardRef<PanelFooterHandle, PanelFooterProps>(
     if (p.usedPct >= 100) return <ExhaustedAllowanceGuard resetLabel={p.resetLabel} onToast={p.onToast} />;
     return (
       <div className="ai-composer">
-        <CostCue byokMode={p.byokMode} pct={p.est.pct} />
+        <CostCue byokActive={p.byokActive} pct={p.est.pct} />
         <textarea ref={inputRef} className="ai-input" rows={2}
           placeholder={p.offline ? "Offline — your writing is unaffected" : verbDef.placeholder}
           value={p.prompt} disabled={p.offline}
@@ -270,12 +270,12 @@ export const PanelFooter = forwardRef<PanelFooterHandle, PanelFooterProps>(
           </button>
           {p.verbPop && <VerbPop verb={p.verb} setVerb={p.setVerb} setVerbPop={p.setVerbPop}
             onAfterSelect={() => { inputRef.current?.focus(); }} />}
-          {!p.byokMode && (
+          {!p.byokActive && (
             <button className="ai-modelchip" onClick={() => { p.setVerbPop(false); p.setModelPop((v) => !v); }} disabled={p.offline}>
               {AI_MODELS[p.model].label} <Icon name="chevDown" className="ic chev" />
             </button>
           )}
-          {!p.byokMode && p.modelPop && <ModelPop model={p.model} setModel={p.setModel} setModelPop={p.setModelPop}
+          {!p.byokActive && p.modelPop && <ModelPop model={p.model} setModel={p.setModel} setModelPop={p.setModelPop}
             onAfterSelect={() => { inputRef.current?.focus(); }} />}
           <span className="ai-kbd">⌘↵</span>
           {p.streamingId

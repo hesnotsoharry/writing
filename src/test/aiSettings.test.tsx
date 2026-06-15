@@ -10,6 +10,13 @@ vi.mock("../features/ai/byok.client", () => ({
   byokClearKey: vi.fn().mockResolvedValue(undefined),
 }));
 
+// OpenAI BYOK client — byokOpenAiHasKey is called on mount via ByokOpenAiKeyRow (W49 P3).
+vi.mock("../features/ai/byok.openai.client", () => ({
+  byokOpenAiHasKey: vi.fn().mockResolvedValue(false),
+  byokOpenAiSetKey: vi.fn().mockResolvedValue(undefined),
+  byokOpenAiClearKey: vi.fn().mockResolvedValue(undefined),
+}));
+
 afterEach(cleanup);
 
 import { AiSection } from "../features/settings/Settings.sections";
@@ -76,9 +83,20 @@ describe("AiSection — expanded Settings Assistant section", () => {
     ).toBeTruthy();
   });
 
-  it("renders the Your API key row label", () => {
+  it("renders the Anthropic API key row label (relabelled in W49 P3 when second provider row was added)", () => {
     renderSection();
-    expect(screen.getByText("Your API key")).toBeTruthy();
+    expect(screen.getByText("Anthropic API key")).toBeTruthy();
+  });
+
+  it("renders the OpenAI API key row label (W49 P3 second provider row)", () => {
+    renderSection();
+    expect(screen.getByText("OpenAI API key")).toBeTruthy();
+  });
+
+  it("renders the OpenAI API key row input with correct placeholder", () => {
+    renderSection();
+    const inputs = screen.getAllByPlaceholderText("sk-…");
+    expect(inputs.length).toBeGreaterThan(0);
   });
 
   it("renders the Custom endpoint row with Coming soon button", () => {
