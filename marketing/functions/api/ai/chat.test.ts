@@ -78,7 +78,10 @@ function makeMockClient() {
           error: null,
         });
       }
-      // refund_credits, refund_trial_credits, and others succeed by default
+      // refund_credits, refund_trial_credits, and others succeed by default.
+      // Mock note: the RPC returns JS numbers directly (bypassing PostgREST JSON serialization);
+      // production code relies on `typeof data === 'number'` being true for in-range BIGINTs,
+      // which works because credit balances are well under 2^53 and serialize as JSON numbers.
       return Promise.resolve({ data: subRow.credits_balance, error: null });
     },
   };
@@ -1027,5 +1030,156 @@ describe("refund-on-stream-error — full reserve returned after partial emissio
     const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
     expect(refundCall).toBeDefined();
     expect(refundCall!.args["p_request_id"]).toBe(reserveCall!.args["p_request_id"]);
+  });
+});
+
+// ── W51 P2 — balanceAfter on done event ──────────────────────────────────────
+//
+// Contracts:
+//   1. Subscriber WITH refund (normal path: actual < reserve):
+//      done carries creditsCost = actual AND balanceAfter = refund_credits return value.
+//   2. Subscriber NO-refund (actual >= reserve):
+//      done carries creditsCost = reserve AND balanceAfter = reserve-time balance
+//      (no extra DB call; refund_credits is NOT called).
+//   3. Trial WITH refund:
+//      done carries creditsCost = actual AND balanceAfter = refund_trial_credits return value.
+//
+// Mock contract recap:
+//   reserve_credits  → data: subRow.credits_balance - 1  (= 99999 with default subRow)
+//   refund_credits   → data: subRow.credits_balance       (= 100000)
+//   refund_trial_credits → data: subRow.credits_balance   (= 100000)
+//   reserve_trial_credits → trialReserveNewBalance        (= 99000 default)
+//
+// Credit math for message "Hello" (5 chars), FALLBACK verb (Haiku, maxTokens 1536):
+//   reserve = estimateCredits(5, 1536, 'claude-haiku-4-5-20251001') = ceil(1.25) + 768 = 769
+//   actual  = actualCredits(10, 7, 'claude-haiku-4-5-20251001')    = ceil(4.5)   = 5
+//   charged = 5   refundAmount = 764  (WITH-refund case)
+//
+// For NO-refund: use outputTokens = 1540 so actual = ceil(1 + 770) = 771 > reserve 769.
+//   charged = reserve = 769  refundAmount = 0
+
+/** Build an Anthropic SSE response with a custom output_tokens count. */
+function makeAnthropicResponseWithOutputTokens(outputTokens: number): Response {
+  const sse = [
+    `event: message_start\ndata: {"type":"message_start","message":{"id":"msg_01","usage":{"input_tokens":${MOCK_INPUT_TOKENS},"output_tokens":1}}}\n\n`,
+    `event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n`,
+    `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}\n\n`,
+    `event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n`,
+    `event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":${outputTokens}}}\n\n`,
+    `event: message_stop\ndata: {"type":"message_stop"}\n\n`,
+  ].join("");
+  return new Response(sse, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
+describe("W51 P2 — balanceAfter on done event", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+    trialReserveReason = null;
+    trialReserveNewBalance = 99000;
+    trialReserveErrors = false;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("subscriber WITH refund: done event carries creditsCost=5 AND balanceAfter=100000 (refund RPC return)", async () => {
+    // actual (5) < reserve (769) → refund fires → balanceAfter = refund_credits return = subRow.credits_balance = 100000
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    const done = events.find((e) => (e as { type: string }).type === "done") as {
+      type: string;
+      creditsCost: number;
+      balanceAfter: number;
+    } | undefined;
+    expect(done).toBeDefined();
+    expect(done!.creditsCost).toBe(5);
+    expect(done!.balanceAfter).toBe(100000);
+    // Confirm refund was issued (refund path is what supplies balanceAfter here)
+    expect(rpcCalls.find((c) => c.fn === "refund_credits")).toBeDefined();
+  });
+
+  it("subscriber NO-refund edge: done event carries creditsCost=reserve AND balanceAfter=99999 (reserve-time balance, no extra RPC)", async () => {
+    // outputTokens=1540 → actual = ceil(10×0.1 + 1540×0.5) = 771 > reserve=769
+    // → refundAmount=0, charged=769; balanceAfter = reserve-time balance = subRow.credits_balance - 1 = 99999
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponseWithOutputTokens(1540)));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    const done = events.find((e) => (e as { type: string }).type === "done") as {
+      type: string;
+      creditsCost: number;
+      balanceAfter: number;
+    } | undefined;
+    expect(done).toBeDefined();
+    expect(done!.creditsCost).toBe(769);
+    expect(done!.balanceAfter).toBe(99999);
+    // Confirm no refund was issued — balanceAfter came from the reserve call, not a refund RPC
+    expect(rpcCalls.find((c) => c.fn === "refund_credits")).toBeUndefined();
+  });
+
+  it("trial WITH refund: done event carries creditsCost=5 AND balanceAfter=100000 (refund_trial_credits return)", async () => {
+    // Trial path: reserve_trial_credits newBalance=99000; actual=5 < reserve → refund fires
+    // refund_trial_credits return = subRow.credits_balance = 100000
+    subRow = { status: "trial", credits_balance: 100000, reset_at: null };
+    trialReserveNewBalance = 99000;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    const done = events.find((e) => (e as { type: string }).type === "done") as {
+      type: string;
+      creditsCost: number;
+      balanceAfter: number;
+    } | undefined;
+    expect(done).toBeDefined();
+    expect(done!.creditsCost).toBe(5);
+    expect(done!.balanceAfter).toBe(100000);
+    expect(rpcCalls.find((c) => c.fn === "refund_trial_credits")).toBeDefined();
+  });
+
+  it("trial NO-refund edge: done event carries creditsCost=reserve AND balanceAfter=99000 (reserve-time balance, no extra RPC)", async () => {
+    // outputTokens=1540 → actual = ceil(10×0.1 + 1540×0.5) = 771 > reserve=769
+    // → refundAmount=0, charged=769; balanceAfter = reserve-time balance = trialReserveNewBalance = 99000
+    subRow = { status: "trial", credits_balance: 100000, reset_at: null };
+    trialReserveNewBalance = 99000;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponseWithOutputTokens(1540)));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    const done = events.find((e) => (e as { type: string }).type === "done") as {
+      type: string;
+      creditsCost: number;
+      balanceAfter: number;
+    } | undefined;
+    expect(done).toBeDefined();
+    expect(done!.creditsCost).toBe(769);
+    expect(done!.balanceAfter).toBe(99000);
+    // Confirm no refund was issued — balanceAfter came from the reserve call, not a refund RPC
+    expect(rpcCalls.find((c) => c.fn === "refund_trial_credits")).toBeUndefined();
   });
 });
