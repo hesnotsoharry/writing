@@ -8,3 +8,10 @@ target/
 .env
 .env.local
 .env.*.local
+
+# Eval API keys — never commit (load via --env-file=eval/.env.eval or export manually)
+eval/.env.eval
+# eval/runs/ holds dry-run scratch (regenerable placeholder) — gitignored.
+# Real pilot/matrix evidence is preserved deliberately at live-run time (copied
+# out of runs/ into a committed evidence path), not via this directory.
+eval/runs/
