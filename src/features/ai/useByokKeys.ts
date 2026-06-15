@@ -97,6 +97,6 @@ export function useByokKeys(): ByokKeys & { byokActive: boolean } {
     };
   }, []);
 
-  // W45 Phase 4: byokActive = anthropic || openai || local (trap guard — see ADR 0005 W45 correction)
+  // W45 Phase 4: byokActive = anthropic || openai || local (trap guard — see ADR 0013 W45 correction)
   return { anthropic, openai, local, byokActive: anthropic || openai || local };
 }

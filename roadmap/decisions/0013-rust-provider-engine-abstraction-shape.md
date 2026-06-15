@@ -1,10 +1,11 @@
 ---
+id: 0013
 status: ACTIVE
 decided-in: wave-49
 promoted-during: wave-49
 ---
 
-# Decision 0005: Rust provider-engine abstraction shape
+# Decision 0013: Rust provider-engine abstraction shape
 
 **Context:** Generalize the duplicated Rust BYOK drain loops (`byok_chat` for Anthropic + `byok_openai_chat` for OpenAI) into one shared engine that is behavior-preserving for the shipped Anthropic path and published for Wave 45 (local models) to consume without re-forking.
 

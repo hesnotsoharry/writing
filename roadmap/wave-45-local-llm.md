@@ -1,6 +1,7 @@
 ---
-status: PLANNED
+status: SHIPPED
 created: 2026-06-14
+shipped: 2026-06-15
 ---
 
 # Wave 45 — local-LLM / custom OpenAI-compatible endpoint
@@ -9,7 +10,7 @@ created: 2026-06-14
 
 ### Status
 
-DRAFT · target v0.9.0 (minor — new feature) · drafted 2026-06-14.
+SHIPPED · target v0.9.0 (minor — new feature) · drafted 2026-06-14 · landed to master 2026-06-15.
 
 ### Goal
 
@@ -169,8 +170,8 @@ surfaced to Cole in the plan-review message, not pre-baked here):
 | 1 | 2026-06-14 | 2026-06-14 | (Phase-1 commit) | Validate+discover commands + minimal Settings entry; gates green (18/18 oracle + 4/4 roundtrip, tsc/eslint clean); panel review PASS after fixing 7 FLAGs. Live Settings render not smoked (needs running Ollama + app launch) — verified via tests + code path. |
 | 2 | 2026-06-14 | 2026-06-14 | (Phase-2 commit) | Saved-endpoints manager (add/edit/delete + default), localStorage persistence, per-endpoint keychain (`local-endpoint-{id}`, disjoint from byok). Gates green (27/27 reducer oracle, Rust intact, tsc/eslint clean). Single-tier review BLOCK (validate-on-save) + FLAGs fixed; key now loads Rust-side (never crosses to JS). Live render/persist-across-restart not smoked (no app launch). |
 | 3 | 2026-06-14 | 2026-06-14 | (Phase-3 commit) | Live privacy line in endpoint form (localhost→"stays on your machine" / remote→"sent to <host>") + per-verb client config (mirror of server VERB_CONFIG). Gates green (15/15 oracle incl. egress-honesty regression, tsc/eslint clean). Single-tier review FLAG (127-prefixed domain misclassified loopback) fixed. Global managed consent unchanged. |
-| 4 | — | — | — | Contract RECEIVED 2026-06-14 (see W49 integration contract above). **BUILD-GATED: needs W49 code in tree → rebase after W49 merges.** |
-| 5 | — | — | — | Contract RECEIVED 2026-06-14. **BUILD-GATED: after Phase 4 (post-rebase).** |
+| 4 | 2026-06-15 | 2026-06-15 | 3541325 | Built post-integration (W49 merged to master `d40a156`; W45 integrated `3211f45`). Wired local through W49's `byok_engine` via `byok_local.rs` + appended `'local'` to `PROVIDER_REGISTRY`. The 4 corrected TS touch-points (decisions/0005 + Decision 5) all landed: `byokUsage` SupportedProvider widened to `'local'`; `useByokKeys` folds local into `byokActive` (unreachability-trap guard); byokKeys chain widened; AssistantPanel model-chip crash guard. Gates green (lint/tsc/1590 vitest). Causal oracle test added + mutation-verified (drop `\|\| local` → exactly the guard test goes RED). **Live CDP smoke (this session):** picker shows LOCAL group; selecting local + composing streams a reply through the real engine. |
+| 5 | 2026-06-15 | 2026-06-15 | d6bf83f | Free-path gating (`byokLocalHasKey` = endpoint-configured, keyless OR keyed → `byokActive` true → managed-credit branch unreachable); compose-time friendly error remap; discovery-failure → manual-model resolution (`endpoint.model ?? model`). Orchestrator-owned oracle tests (gating + error), RED-before-GREEN verified. Review FLAG×2 fixed: extracted `RUST_CONNECTION_ERROR_PREFIX` constant + cross-wave coupling comment; strengthened vacuous error test with positive assertion. Gates green (lint/tsc/1590 vitest). **Live CDP smoke (this session):** dead endpoint → "[Couldn't reach Test Ollama — is your model server running?]" surfaced through the REAL W49 Rust engine — empirically confirming the `Failed to connect` prefix coupling the unit tests could only mock. No credit decrement (gating oracle + byokActive=true by construction). |
 
 ## Follow-up candidates
 
@@ -178,4 +179,24 @@ surfaced to Cole in the plan-review message, not pre-baked here):
 
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+**Landed 2026-06-15** (merge-master session). All 5 phases complete; Phases 1–3 built pre-integration
+(W49-independent), Phases 4–5 built post-integration against the real `byok_engine.rs` + CSS pass.
+Commits: P1–P3 (pre-rebase) · integration `3211f45` · P4 `3541325` · P5 `d6bf83f` · CSS `872a5b8`.
+Wave-end gates: lint PASS · tsc PASS · vitest 1590/1590. Live CDP smoke confirmed every W45 surface
+(endpoint manager CRUD, picker LOCAL group, free-path gating, friendly compose error through the real
+Rust engine) plus the three W49 eyeball items (both BYOK key rows, license box, unified picker).
+
+**CSS note:** the shared input/key classes (`.set-input`, `.byok-key-*`) the W49 key rows reference
+were never defined — W45 added them retroactively alongside its own `.endpoint-*` classes (Cole-approved
+one-pass scope, 2026-06-15). Additive, class-scoped, smoke-confirmed.
+
+**ADR renumber:** the BYOK-batch decisions (wave-40/49) had reused ADR numbers 0002–0005, colliding with
+the original wave-4 Phase-1 sequence. Resolved during this land — the four newer files renumbered to
+0010–0013 (older wave-4 files keep their numbers; cited by stable full-URL links). All citations updated.
+
+**Unfiled item (no follow-up — no present harm):** the `RUST_CONNECTION_ERROR_PREFIX` string-match
+bridge between the JS error remap and W49's `byok_engine.rs` connection-error message is a textual
+coupling (now documented with a cross-wave comment + this session's smoke empirically confirmed the real
+Rust string matches). A typed enum-bridge would be more robust, but per scope-creep doctrine there is no
+present harm after the mitigation, so no follow-up was filed. If W49 ever changes its connection-error
+copy, the smoke/oracle tests are the tripwire.

@@ -122,7 +122,7 @@ cost visibility the managed meter provided. The engine and picker registry are s
    `byokMode` prop threading, the `execSend` route branch (~hooks.ts L247), and `ByokStreamArgs`
    (needs a `model` field).
 9. `src/features/settings/Settings.ai.tsx` — `ByokKeyRow` to mirror for OpenAI.
-10. `roadmap/wave-40-byok-phase-1.md` + `decisions/0002` / `0003` — the locked BYOK pattern (direct
+10. `roadmap/wave-40-byok-phase-1.md` + `decisions/0010` / `0011` — the locked BYOK pattern (direct
     routing, key stays in Rust) W49 extends, not replaces.
 11. `.claude/vendor-gotchas/keyring.md` + `anthropic.md` — prior BYOK traps to honor.
 
@@ -130,7 +130,7 @@ cost visibility the managed meter provided. The engine and picker registry are s
 
 The spirit of this wave: **extend the W40 BYOK pattern to a second provider by generalizing, not
 duplicating.** The privacy property is load-bearing — the key lives in the keychain, crosses the IPC
-boundary exactly once into Rust, and never re-enters JS (ADR 0003). Do not weaken that for OpenAI.
+boundary exactly once into Rust, and never re-enters JS (ADR 0011). Do not weaken that for OpenAI.
 First step: verify the `## Locked decisions` section has decisions filled in. Resist these
 temptations: do NOT build a custom/local endpoint UI or relax TLS — that's W45, and W49's only
 endpoint is the trusted `api.openai.com` constant (no URL validation needed). Do NOT touch the
@@ -267,7 +267,7 @@ W49 extended BYOK from Anthropic-only to multi-provider: a user pastes their own
 
 **Gates:** cargo 37/37 · vitest 1505/154 · lint 0 · tsc 0. **Wave-end adversarial review:** PASS (Angles 1-5 clean; Angle 6 W45-contract gaps addressed via guard + contract correction). **`/review` mechanical:** PASS (removed dead `PROVIDER_COMMAND`).
 
-**Promoted:** [decisions/0004](decisions/0004-w49-w45-boundary-scope.md) (W49↔W45 boundary) · [decisions/0005](decisions/0005-rust-provider-engine-abstraction-shape.md) (Rust provider-engine + W45 contract). **Vendor-gotchas:** [openai.md](../.claude/vendor-gotchas/openai.md) (new — cached-token double-bill trap, reasoning_effort/temperature 400, canonical aliases, stream usage) · keyring.md (`byok-openai` entry). **Follow-up filed:** `follow-ups/2026-06-15-agent-driven-ui-smoke-harness.md`.
+**Promoted:** [decisions/0012](decisions/0012-w49-w45-boundary-scope.md) (W49↔W45 boundary) · [decisions/0013](decisions/0013-rust-provider-engine-abstraction-shape.md) (Rust provider-engine + W45 contract). **Vendor-gotchas:** [openai.md](../.claude/vendor-gotchas/openai.md) (new — cached-token double-bill trap, reasoning_effort/temperature 400, canonical aliases, stream usage) · keyring.md (`byok-openai` entry). **Follow-up filed:** `follow-ups/2026-06-15-agent-driven-ui-smoke-harness.md`.
 
 **Deferred to Cole (live smoke — dev app not running this session):** (a) Settings two key rows + badge flip; (b) merged picker keyed-provider groups + GPT→OpenAI routing; (c) usage readout + Reset after a BYOK turn.
 

@@ -1,10 +1,11 @@
 ---
+id: 0012
 status: ACTIVE
 decided-in: wave-49
 promoted-during: wave-49
 ---
 
-# Decision 0004: W49 ↔ W45 boundary (scope)
+# Decision 0012: W49 ↔ W45 boundary (scope)
 
 **Context:** Wave 45 (local models) runs in parallel with Wave 49; both touch the Rust BYOK engine (`byok.rs`) and the model picker. This decision clarifies the responsibility boundary and reduces collision risk.
 
