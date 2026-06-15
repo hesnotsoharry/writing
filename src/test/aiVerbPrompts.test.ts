@@ -66,6 +66,32 @@ describe("buildMessages — stable grounding in system, volatile scene in messag
   }
 });
 
+describe("buildMessages — ask verb also gets the W48 placement (primary multi-turn path)", () => {
+  // `ask` (W47) is excluded from the VERBS loop because its output-format discipline
+  // differs, but it MUST still get the volatile-scene-in-user-turn placement — it is
+  // the highest-traffic multi-turn verb. Pinned separately here.
+  it("ask: scene excerpt is out of system and in the final user message", () => {
+    const out = buildMessages("ask", CTX, "my ask");
+    expect(out.system).not.toContain("The tide came in fast across the causeway.");
+    const last = out.messages[out.messages.length - 1];
+    expect(last.role).toBe("user");
+    expect(last.content).toContain("The tide came in fast across the causeway.");
+    expect(last.content).toContain("my ask");
+  });
+
+  it("ask: current scene rides with the new ask across multi-turn history", () => {
+    const history: AiMessage[] = [
+      { role: "user", content: "earlier ask" },
+      { role: "assistant", content: "earlier answer" },
+    ];
+    const out = buildMessages("ask", CTX, "follow-up", history);
+    expect(out.messages[0]).toEqual({ role: "user", content: "earlier ask" });
+    const last = out.messages[out.messages.length - 1];
+    expect(last.content).toContain("follow-up");
+    expect(last.content).toContain("The tide came in fast across the causeway.");
+  });
+});
+
 describe("buildMessages — per-verb output-format discipline", () => {
   it("brainstorm asks for a few short paragraphs", () => {
     expect(buildMessages("brainstorm", CTX, "x").system).toMatch(/paragraph/i);

@@ -70,4 +70,27 @@ describe("AnthropicAdapter.buildRequest — 1h cache TTL (W48 P3)", () => {
     });
     expect(headers["anthropic-beta"]).toBeUndefined();
   });
+
+  it("header and cache_control body form move together (header iff array system block)", () => {
+    // Long system: ARRAY body form (cache_control attached) AND beta header present.
+    const long = adapter.buildRequest({
+      messages,
+      config: sonnetConfig,
+      system: LONG_SYSTEM,
+      apiKey: API_KEY,
+    });
+    expect(Array.isArray((long.body as Record<string, unknown>)["system"])).toBe(true);
+    expect(long.headers["anthropic-beta"]).toBe("extended-cache-ttl-2025-04-11");
+
+    // Short system: PLAIN-STRING body form (no cache_control) AND no beta header.
+    // The two sides must never diverge — a ttl:"1h" block without the beta header 400s.
+    const short = adapter.buildRequest({
+      messages,
+      config: sonnetConfig,
+      system: "A".repeat(100),
+      apiKey: API_KEY,
+    });
+    expect(typeof (short.body as Record<string, unknown>)["system"]).toBe("string");
+    expect(short.headers["anthropic-beta"]).toBeUndefined();
+  });
 });

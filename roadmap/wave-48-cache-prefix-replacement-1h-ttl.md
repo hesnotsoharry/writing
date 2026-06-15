@@ -116,3 +116,45 @@ cost is. Acceptable, but must be confirmed, not assumed.)
 ## Sequencing
 After **W39 merges** (credits.ts). Serial with the worker/AI family. Independent of the UI-followups
 batch. Closes/addresses follow-up `2026-06-13-precise-cache-write-reserve` (assess at P3).
+
+## Result
+
+### Mechanical review
+
+**Inputs resolved:**
+- Plan: `roadmap/wave-48-cache-prefix-replacement-1h-ttl.md`
+- Diff range: `94ea18d..HEAD` (P1 `5642d8a`, P3 `e4d53d8`)
+- Graph: healthy (indexed, 5730 nodes / 9288 edges, 0 parse anomalies)
+- Run timestamp: 2026-06-15T00:52:39Z
+
+#### Check 1: Forward-trace — PASS
+- Change sites traced: 5 (`estimateCredits`, `buildRequest`, `actualCredits` call, `buildMessages`, `buildVolatileUserBlock`); flagged dead: 0.
+- `buildVolatileUserBlock` → `buildMessages` (index.ts:67) → AssistantPanel.hooks.ts:156 + AssistantPanel.byok.ts:65 (production, both managed + BYOK paths).
+- `estimateCredits(systemLength)` / `actualCredits("1h")` → chat.ts reserve + reconcile (production). Threaded `systemLength` consumed, no silent drop.
+
+#### Check 2: Plan universal-quantifier cross-reference — PASS
+- "affects all 4 verbs + Ask/W47, centralized" (P1): the volatile block is applied once in `buildMessages`, which is the sole entry for all 5 verbs via `routeVerb` — every verb covered. (Note: the acceptance test's VERBS array covers 4; `ask` is covered by the code path but not unit-asserted — coverage nuance, not a code gap.)
+
+#### Check 3: Export audit — PASS
+- New exports: 1 (`buildVolatileUserBlock`). Production consumer: `index.ts:13` import + `:67` call. `EXTENDED_CACHE_TTL_BETA` is module-internal (not exported).
+
+#### Checks 4–6 N/A
+- Check 4: no schema property removals. Check 5: no `cross-boundary` phase classification in the plan (orchestrator authored acceptance tests anyway: `aiVerbPrompts.test.ts` for P1, `credits.w48.test.ts` for P3). Check 6: no `stryker.config` in project.
+
+#### Verdict
+
+**PASS** — Checks 1–3 ran clean against the real call graph; 4–6 N/A. P1 placement and P3 TTL/billing changes all reach production consumers with no dead paths or narrowed universals. Live behavioral proof (cache survives edits; economics) is the post-deploy P2/P4 oracle, not in mechanical scope.
+
+### Wave-end adversarial review (attack-diff, wave granularity)
+
+**Verdict: FLAG → addressed.** Reviewer confirmed ZERO correctness defects: cross-phase
+composition clean (P1's smaller system + P3's reserve/adapter both gate on the identical
+`shouldAttachCache(ceil(system.length/4), model)`); reserve ≥ actual holds cold & warm for all 3
+models; the `actualCredits("1h")` reconcile is consistent with the adapter attach decision; OpenAI
+path untouched. Two test-adequacy flags raised and **both closed** (commit follows):
+- `ask` verb (primary multi-turn path) now has a dedicated `buildMessages("ask", …)` placement test
+  (single + multi-turn) in `aiVerbPrompts.test.ts`.
+- `anthropic.w48.test.ts` now has a combined "header iff cache_control body form" invariant test
+  (long → array system + beta header; short → plain-string system + no header).
+
+Tests after fixes: `aiVerbPrompts.test.ts` 36/36; marketing W48 suite 28/28.
