@@ -30,6 +30,22 @@ describe("estimateRepliesLeft", () => {
     });
   });
 
+  describe("rolling-average override (avgCostOverride)", () => {
+    it("uses avgCostOverride when positive, ignoring TYPICAL_REQUEST", () => {
+      expect(estimateRepliesLeft(150_000, "claude-haiku-4-5-20251001", 500)).toBe(300);
+    });
+    it("falls back to TYPICAL_REQUEST when avgCostOverride is 0", () => {
+      expect(estimateRepliesLeft(150_000, "claude-haiku-4-5-20251001", 0)).toBe(
+        estimateRepliesLeft(150_000, "claude-haiku-4-5-20251001"),
+      );
+    });
+    it("falls back to TYPICAL_REQUEST when avgCostOverride is undefined", () => {
+      expect(estimateRepliesLeft(150_000, "claude-haiku-4-5-20251001", undefined)).toBe(
+        estimateRepliesLeft(150_000, "claude-haiku-4-5-20251001"),
+      );
+    });
+  });
+
   describe("edge cases", () => {
     it("returns 0 when balance is zero", () => {
       expect(estimateRepliesLeft(0, "claude-haiku-4-5-20251001")).toBe(0);

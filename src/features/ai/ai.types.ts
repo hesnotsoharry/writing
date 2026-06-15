@@ -155,6 +155,7 @@ export interface AiMessageRecord {
   text: string;
   ctx: ContextSnapshot | null;
   streaming?: boolean;
+  creditsCost?: number | null;
 }
 
 export interface ConversationRecord {

@@ -18,6 +18,7 @@ import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore"
 import { getTweak, setStoredTweak } from "../settings/settings.store";
 import { type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext,filterAiEntities } from "./ai.context";
+import { pushCostEntry } from "./ai.cost-window";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
 import { acquireAnyToken } from "./ai.trialToken";
 import {
@@ -59,6 +60,7 @@ export interface ContextAssemblyArgs {
   active: ConversationRecord | null;
   /** Raw entity groups for the current scene — loaded by AiSlot, passed down. */
   sceneEntityGroups: SceneEntityGroup[];
+  model: ManagedModel; monthlyAllowance: number;
 }
 
 export interface PanelMsgArgs {
@@ -87,7 +89,7 @@ export interface PanelMsgArgs {
   convStore?: AiConversationStore;
   projectId?: string | null;
   onStreamDone?: () => void; // Called after each stream attempt completes (success or failure) to refresh balance.
-  onNetworkError?: () => void; // Called when a stream fetch fails with a network-class error (not 403, not abort).
+  onNetworkError?: () => void; onBalanceAfter?: (b: number) => void; // stream lifecycle: onNetworkError on non-403 failures; onBalanceAfter with server balance post-reply.
   /**
    * True when ANY BYOK provider is active (anthropic || openai || local).
    * Used for managed-meter suppression and canCompose gating.
@@ -122,7 +124,7 @@ interface StreamArgs {
   msgId: string;
   history: AiMessage[];
   setConvos: Dispatch<SetStateAction<ConversationRecord[]>>;
-  convStore?: AiConversationStore;
+  convStore?: AiConversationStore; onBalanceAfter?: (b: number) => void;
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -165,13 +167,14 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
   let accumulated = "";
   let terminalError: string | null = null;
   let doneCost: number | null = null;
+  let balanceAfterValue: number | null | undefined;
   const isProofread = a.verb === "proofread";
   await streamChat(a.token, messages, (ev: NormalizedEvent) => {
     if (ev.type === "token") {
       accumulated += ev.text;
       if (!isProofread) a.setConvos(patchMessage(a.convId, a.msgId, { text: accumulated }));
     } else if (ev.type === "done") {
-      doneCost = ev.creditsCost;
+      doneCost = ev.creditsCost; balanceAfterValue = ev.balanceAfter; pushCostEntry(a.model, ev.creditsCost);
     } else if (ev.type === "error") {
       terminalError = `[Something went wrong — ${ev.message}]`;
     } else if (ev.type === "credits-exhausted") {
@@ -185,8 +188,9 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
       terminalError = "[Session expired — check your subscription in Settings]";
     }
   }, { verb: a.verb, model: a.model, system, signal: a.ctrl.signal });
+  if (balanceAfterValue != null) a.onBalanceAfter?.(balanceAfterValue);
   const finalText = terminalError ?? accumulated;
-  a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
+  a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false, creditsCost: doneCost }));
   if (a.convStore) {
     await a.convStore.appendMessage(a.convId, { role: "ai", verb: a.verb, body: finalText, contextJson: null, creditsCost: doneCost });
   }
@@ -196,11 +200,7 @@ interface ApplyMsgOpts { currentTitle: string; derived: string; verb: VerbKey; y
 interface PersistSendOpts { currentTitle: string; derived: string; verb: VerbKey; q: string; snapshot: ContextSnapshot }
 
 /** Apply new messages + optional title derivation to convos state. */
-function applyMessageToState(
-  setConvos: Dispatch<SetStateAction<ConversationRecord[]>>,
-  cid: string,
-  opts: ApplyMsgOpts,
-): void {
+function applyMessageToState(setConvos: Dispatch<SetStateAction<ConversationRecord[]>>, cid: string, opts: ApplyMsgOpts): void {
   setConvos((cs) => cs.map((c) => c.id !== cid ? c : {
     ...c,
     title: opts.currentTitle === "New conversation" ? opts.derived : c.title,
@@ -230,7 +230,7 @@ function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, 
   const history = buildHistory(a.convos, ids.cid);
   return { token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
     verb: a.verb, model: a.model, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
-    sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx, selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history };
+    sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx, selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history, onBalanceAfter: a.onBalanceAfter };
 }
 
 function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgId: string; setConvos: Dispatch<SetStateAction<ConversationRecord[]>>; onNetworkError?: () => void }): void {
@@ -322,7 +322,7 @@ export function useContextAssembly(a: ContextAssemblyArgs) {
   const extraWords = extras.reduce((sum, s) => sum + s.words, 0);
   const hasAbout = Boolean(a.about?.synopsis);
   const turns = a.active ? Math.ceil(a.active.messages.length / 2) : 0;
-  const est = aiEstimate({ sceneWords: a.sceneWords, extraWords, entityCount: linked.length, about: a.aiCtx.about !== false && hasAbout, turns });
+  const est = aiEstimate({ sceneWords: a.sceneWords, extraWords, entityCount: linked.length, about: a.aiCtx.about !== false && hasAbout, turns }, a.model, a.monthlyAllowance);
   const boundaryLabel = a.aiCtx.boundary ? (a.tree.chapters.find((c) => c.id === a.aiCtx.boundary)?.title ?? null) : null;
   return { linked, extras, extraWords, hasAbout, turns, est, boundaryLabel };
 }

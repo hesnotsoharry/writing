@@ -10,7 +10,11 @@ export interface EstimateParams {
   turns?: number;
 }
 
-export function aiEstimate(ctx: EstimateParams): AiEstimateResult {
+export function aiEstimate(
+  ctx: EstimateParams,
+  model?: ManagedModel,
+  monthlyAllowance?: number,
+): AiEstimateResult {
   const words =
     (ctx.sceneWords || 0) +
     (ctx.extraWords || 0) +
@@ -18,7 +22,20 @@ export function aiEstimate(ctx: EstimateParams): AiEstimateResult {
     ctx.entityCount * 45 +
     (ctx.about ? 130 : 0) +
     (ctx.turns || 0) * 350;
-  const pct = Math.max(0.2, Math.round((words / 4000) * 10) / 10);
+
+  let pct: number;
+  if (model && monthlyAllowance && monthlyAllowance > 0) {
+    const rate = MODEL_RATES[model];
+    if (rate) {
+      const ctxTokens = words * (4 / 3); // ~1.33 tokens/word
+      const worstCostUnits = ctxTokens * rate.input + 800 * rate.output; // worst-case: no cache, 800 out
+      pct = Math.max(0.1, Math.round((worstCostUnits / monthlyAllowance) * 1000) / 10);
+    } else {
+      pct = Math.max(0.2, Math.round((words / 4000) * 10) / 10);
+    }
+  } else {
+    pct = Math.max(0.2, Math.round((words / 4000) * 10) / 10);
+  }
   return { words, pct };
 }
 
@@ -45,11 +62,18 @@ export function computeUsedPct(allowance: number, balance: number): number {
  * so we never promise a reply the balance can't cover. Returns 0 for non-finite
  * or non-positive balances, unknown models, or non-positive computed cost.
  */
-export function estimateRepliesLeft(balanceUnits: number, model: ManagedModel): number {
+export function estimateRepliesLeft(
+  balanceUnits: number,
+  model: ManagedModel,
+  avgCostOverride?: number,
+): number {
   const rate = MODEL_RATES[model];
   if (!rate) return 0;
   if (!Number.isFinite(balanceUnits) || balanceUnits <= 0) return 0;
-  const costPerReply = TYPICAL_REQUEST.inputTokens * rate.input + TYPICAL_REQUEST.outputTokens * rate.output;
+  const costPerReply =
+    avgCostOverride !== undefined && avgCostOverride > 0
+      ? avgCostOverride
+      : TYPICAL_REQUEST.inputTokens * rate.input + TYPICAL_REQUEST.outputTokens * rate.output;
   if (costPerReply <= 0) return 0;
   return Math.floor(balanceUnits / costPerReply);
 }

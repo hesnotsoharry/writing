@@ -1,6 +1,7 @@
 import React from "react";
 
 import { Icon, type IconName } from "../../components/Icon";
+import { avgCostForModel } from "./ai.cost-window";
 import { aiMeterStatus, estimateRepliesLeft } from "./ai.helpers";
 import { AI_MODEL_ORDER, AI_MODELS, AI_VERB_ORDER, AI_VERBS, type AiMessageRecord, type ContextSnapshot, type ConversationRecord, type ManagedModel, type VerbKey } from "./ai.types";
 
@@ -100,6 +101,9 @@ export function AiMessage({ msg, onCopy, onSaveNote }: { msg: AiMessageRecord; o
           <div className="ai-msg-act" role="button" onClick={() => onSaveNote(msg)}><Icon name="inbox" className="ic" /> Save to notes</div>
         </div>
       )}
+      {!msg.streaming && msg.creditsCost != null && msg.creditsCost > 0 && (
+        <div className="ai-msg-cost">~{msg.creditsCost.toLocaleString()} credits</div>
+      )}
     </div>
   );
 }
@@ -184,7 +188,7 @@ function MeterPop({ creditsBalance, model }: { creditsBalance: number; model: Ma
       {AI_MODEL_ORDER.map(m => (
         <div key={m} className={"ai-meterpop-row" + (m === model ? " on" : "")}>
           <span className="nm">{AI_MODELS[m].label}</span>
-          <span className="est">~{estimateRepliesLeft(creditsBalance, m)}</span>
+          <span className="est">~{estimateRepliesLeft(creditsBalance, m, avgCostForModel(m) ?? undefined)}</span>
         </div>
       ))}
       <div className="ai-meterpop-nudge">Cheaper models go further — switch any time.</div>
@@ -203,7 +207,7 @@ export function AiMeter({ usedPct, resetLabel, creditsBalance, model, plan }: {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const st = aiMeterStatus(usedPct, resetLabel);
   const pctLeft = Math.max(0, 100 - Math.min(100, usedPct));
-  const replies = estimateRepliesLeft(creditsBalance, model);
+  const replies = estimateRepliesLeft(creditsBalance, model, avgCostForModel(model) ?? undefined);
   const showReset = plan !== "trial"; // trials convert, not reset — hide the reset label so the meter doesn't contradict the Subscribe modal
   React.useEffect(() => {
     if (!pop) return;

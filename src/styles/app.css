@@ -2211,6 +2211,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-picker-foot .ai-meter { flex: 1; }
 .ai-est { font-size: var(--text-2xs); color: var(--ink-3); }
 .ai-est b { color: var(--ink); font-weight: 600; }
+.ai-msg-cost { font-size: var(--text-2xs); color: var(--ink-4); text-align: right; margin-top: 2px; }
 
 /* Settings — privacy block */
 .ai-privacy { display: flex; gap: 10px; padding: 12px; background: var(--paper); border: 1px solid var(--line);

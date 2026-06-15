@@ -380,6 +380,7 @@ describe("AssistantPanel — consented", () => {
   });
 
   it("with OpenAI byokKeys, streamByokOpenAiChat is called and streamByokChat/acquireSession/streamChat are not", async () => {
+    localStorage.setItem("writing.aiModel", JSON.stringify("gpt-5.4-mini"));
     render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: false, openai: true } })} />);
     const textarea = screen.getByRole("textbox");
     fireEvent.change(textarea, { target: { value: "Write me a chapter" } });
@@ -412,6 +413,7 @@ describe("AssistantPanel — consented", () => {
   });
 
   it("renders 'Your OpenAI key' badge text when byokActive=true, byokKeys={anthropic:false, openai:true}", () => {
+    localStorage.setItem("writing.aiModel", JSON.stringify("gpt-5.4-mini"));
     render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: false, openai: true } })} />);
     expect(screen.getByText("Your OpenAI key")).not.toBeNull();
   });
