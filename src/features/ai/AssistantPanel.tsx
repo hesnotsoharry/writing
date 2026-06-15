@@ -140,11 +140,16 @@ interface SlotPanelProps {
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
 
-// W49 P4: falls back to first keyed-provider model when managed-mode default is not in any keyed group.
-function computeEffectiveByokModel(model: ManagedModel, byokActive: boolean, byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }): ManagedModel {
+// W51 P1: exported for unit testing. Returns the chosen model unchanged — routeByokSend's
+// explicit guards surface "[No API key set]" or "[Unknown model]" when the model has no
+// configured key. Removed: the km[0]?.id swap that silently rerouted to a different model.
+export function computeEffectiveByokModel(model: ManagedModel, byokActive: boolean, byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }): ManagedModel {
   if (!byokActive) return model;
   const km = PROVIDER_REGISTRY.filter((g) => (byokKeys as Partial<Record<ProviderId, boolean>>)[g.provider]).flatMap((g) => g.models);
-  return (km.some((m) => m.id === model) ? model : (km[0]?.id as ManagedModel | undefined)) ?? model;
+  // find returns the entry whose id === model (same value) or undefined; ?? model
+  // makes this always return model — no substitution in either path. ModelEntry.id
+  // is `string` so the cast is safe: either branch resolves to model's string value.
+  return (km.find((m) => m.id === model)?.id ?? model) as ManagedModel;
 }
 
 function PanelReady(p: AssistantPanelProps) {

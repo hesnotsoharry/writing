@@ -347,6 +347,19 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   if (!resolved.ok) return new Response("Bad Request", { status: 400, headers: cors });
   const effectiveConfig = resolved.config;
 
+  // W51 P1: explicit adapter pre-flight — unknown model → 400 before any credit or stream work.
+  // resolveModelConfig+MANAGED_MODELS already prevents this in practice; this guard ensures
+  // getAdapter's throw never surfaces as an unhandled 500 or a silent fallback.
+  try {
+    getAdapter(effectiveConfig.model);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : `Unknown model: ${effectiveConfig.model}`;
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
+
   const db = makeServiceClient(context.env);
 
   // Subscription check

@@ -50,6 +50,7 @@ vi.mock("../db/aiConversationStore", () => ({
 import type { StoryBibleStore } from "../db/storyBibleStore";
 import { streamChat } from "../features/ai/ai.client";
 import type { ManagedModel } from "../features/ai/ai.types";
+import { computeEffectiveByokModel } from "../features/ai/AssistantPanel";
 import { BYOK_SEND } from "../features/ai/AssistantPanel.byok";
 import type { ExecSendArgs } from "../features/ai/AssistantPanel.hooks";
 import { execSend } from "../features/ai/AssistantPanel.hooks";
@@ -353,6 +354,41 @@ describe("getBadgeLabel — badge names the active model's provider", () => {
 
   it('returns "Your key" for an unknown model id (fallback for W45 local or unrecognized)', () => {
     expect(getBadgeLabel("unknown-model")).toBe("Your key");
+  });
+});
+
+// ── computeEffectiveByokModel — W51 P1 pass-through contract ─────────────────
+
+describe("computeEffectiveByokModel — W51 P1: always returns model unchanged", () => {
+  it("returns model unchanged when byokActive=false (non-BYOK path, model passthrough)", () => {
+    // Managed path: BYOK inactive → model falls through to managed routing untouched.
+    const result = computeEffectiveByokModel("gpt-5.4", false, { anthropic: true, openai: false });
+    expect(result).toBe("gpt-5.4");
+  });
+
+  it("returns model unchanged when it IS in the keyed provider groups (happy path — no regression)", () => {
+    // gpt-5.4 with openai key active → model is in keyed groups, returned as-is.
+    const result = computeEffectiveByokModel("gpt-5.4", true, { anthropic: false, openai: true });
+    expect(result).toBe("gpt-5.4");
+  });
+
+  it("returns model unchanged when it is NOT in the keyed groups (W51 P1 fix — was swapping to km[0])", () => {
+    // gpt-5.4 with ONLY anthropic key: old code swapped to claude-haiku-4-5-20251001 silently.
+    // New code returns 'gpt-5.4' unchanged; routeByokSend then surfaces "[No API key set]".
+    const result = computeEffectiveByokModel("gpt-5.4", true, { anthropic: true, openai: false });
+    expect(result).toBe("gpt-5.4");
+  });
+
+  it("returns claude model unchanged when anthropic key absent (symmetric case — was swapping to openai km[0])", () => {
+    // claude-sonnet-4-6 with ONLY openai key: old code would swap to first openai model.
+    // New code returns 'claude-sonnet-4-6' unchanged.
+    const result = computeEffectiveByokModel("claude-sonnet-4-6", true, { anthropic: false, openai: true });
+    expect(result).toBe("claude-sonnet-4-6");
+  });
+
+  it("returns model unchanged when no keys are set at all (empty keyed groups)", () => {
+    const result = computeEffectiveByokModel("claude-haiku-4-5-20251001", true, { anthropic: false, openai: false });
+    expect(result).toBe("claude-haiku-4-5-20251001");
   });
 });
 
