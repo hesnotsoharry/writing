@@ -18,6 +18,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { NormalizedEvent } from "./ai.client";
+import { BYOK_CMD_OPENAI } from "./providerRegistry";
 
 // Re-export so callers don't need to import from ai.client.ts just for the type.
 export type { NormalizedEvent };
@@ -118,7 +119,8 @@ export async function streamByokOpenAiChat(
   ch.onmessage = onEvent;
   if (signal) wireSignal(signal, streamId);
 
-  return invoke("byok_openai_chat", {
+  // W49 Phase 4: command name from shared BYOK_CMD_OPENAI constant (providerRegistry.ts).
+  return invoke(BYOK_CMD_OPENAI, {
     streamId, messages, onEvent: ch,
     model, system, maxCompletionTokens, temperature,
   });

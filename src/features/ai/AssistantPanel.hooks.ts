@@ -32,8 +32,9 @@ import {
   type ProseSelection,
   type VerbKey,
 } from "./ai.types";
-import { buildByokOpenAiStreamArgs,buildByokStreamArgs,streamByokOpenAiResponse,streamByokResponse } from "./AssistantPanel.byok";
+import { buildByokStreamArgs,BYOK_SEND } from "./AssistantPanel.byok";
 import { buildMessages } from "./prompts";
+import { getModelEntry, type ProviderId } from "./providerRegistry";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CtxArgs {
@@ -156,7 +157,7 @@ function patchMessage(convId: string, msgId: string, patch: Partial<AiMessageRec
     );
 }
 
-// Trial token helpers live in ai.trialToken.ts (extracted to keep this file under 300 code lines).
+// Trial token helpers live in ai.trialToken.ts (extracted to keep hooks.ts under 300 lines).
 import { acquireAnyToken, acquireTrialTokenCached } from "./ai.trialToken";
 export { acquireAnyToken, acquireTrialTokenCached };
 
@@ -226,12 +227,9 @@ export function buildHistory(convos: ConversationRecord[], cid: string): AiMessa
 
 function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, ids: { cid: string; msgId: string }): StreamArgs {
   const history = buildHistory(a.convos, ids.cid);
-  return {
-    token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
+  return { token, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
     verb: a.verb, model: a.model, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
-    sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx,
-    selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history,
-  };
+    sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx, selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history };
 }
 
 function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgId: string; setConvos: Dispatch<SetStateAction<ConversationRecord[]>>; onNetworkError?: () => void }): void {
@@ -239,6 +237,14 @@ function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgI
   const is403 = (err instanceof Error ? err.message : "").includes("403");
   r.setConvos(patchMessage(cid, r.msgId, { streaming: false, text: is403 ? "[Session expired — check your subscription]" : "[Connection failed — try again]" }));
   if (!is403) r.onNetworkError?.();
+}
+
+// W49 P4: registry-driven dispatch via BYOK_SEND; guards prevent cross-provider mis-route.
+async function routeByokSend(a: ExecSendArgs, ctrl: AbortController, ids: { cid: string; msgId: string }): Promise<void> {
+  const sid = crypto.randomUUID(); const entry = getModelEntry(a.model); const handler = entry ? BYOK_SEND[entry.provider] : undefined;
+  if (!entry || !handler) { a.setConvos(patchMessage(ids.cid, ids.msgId, { text: "[Unknown model or provider — check your settings]", streaming: false })); return; }
+  if (!(a.byokKeys as Partial<Record<ProviderId, boolean>>)[entry.provider]) { a.setConvos(patchMessage(ids.cid, ids.msgId, { text: "[No API key set — add one in Settings]", streaming: false })); return; }
+  return handler(buildByokStreamArgs(a, sid, ctrl, ids));
 }
 
 export async function execSend(a: ExecSendArgs): Promise<void> {
@@ -253,9 +259,8 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   const ctrl = (a.abortRef.current = new AbortController());
   try {
     if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
-    // W49 Phase 3 — provisional default routing; Phase 4 registry picker drives model→provider selection
-    if (a.byokKeys.openai) { const sid = crypto.randomUUID(); await streamByokOpenAiResponse(buildByokOpenAiStreamArgs(a, sid, ctrl, { cid, msgId: aiMsg.id })); }
-    else if (a.byokKeys.anthropic) { const sid = crypto.randomUUID(); await streamByokResponse(buildByokStreamArgs(a, sid, ctrl, { cid, msgId: aiMsg.id })); }
+    // W49 Phase 4: model-driven BYOK routing — routeByokSend selects path via registry.
+    if (a.byokActive) { await routeByokSend(a, ctrl, { cid, msgId: aiMsg.id }); }
     else { const token = await acquireAnyToken(a.sessionRef); await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id })); }
   } catch (err: unknown) {
     onSendCatch(err, ctrl, cid, { msgId: aiMsg.id, setConvos: a.setConvos, onNetworkError: a.onNetworkError });

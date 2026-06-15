@@ -415,9 +415,11 @@ describe("AssistantPanel — consented", () => {
     expect(screen.getByText("Your OpenAI key")).not.toBeNull();
   });
 
-  it("renders 'Your key' badge text when byokActive=true, byokKeys={anthropic:true, openai:true}", () => {
+  it("renders 'Your Anthropic key' badge text when byokActive=true and both keys set (default model is Claude Haiku → Anthropic provider)", () => {
+    // W49 Phase 4: badge reflects the active model's provider, not the key map.
+    // Default usePanelState model = claude-haiku-4-5-20251001 (Anthropic).
     render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: true } })} />);
-    expect(screen.getByText("Your key")).not.toBeNull();
+    expect(screen.getByText("Your Anthropic key")).not.toBeNull();
   });
 
   it("suppresses cost-cue when byokActive is true even when est.pct >= 2", () => {
@@ -432,13 +434,42 @@ describe("AssistantPanel — consented", () => {
     expect(container.querySelector(".ai-costcue")).not.toBeNull();
   });
 
-  it("hides model picker button when byokActive=true (any BYOK key; managed models unavailable)", () => {
+  it("shows model picker button when byokActive=true (W49 Phase 4: BYOK picker lifted, no longer hidden)", () => {
+    // Phase 4 lifts the !byokActive gate; the chip renders in BYOK mode showing the registry picker.
     const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
-    expect(container.querySelector(".ai-modelchip")).toBeNull();
+    expect(container.querySelector(".ai-modelchip")).not.toBeNull();
   });
 
   it("shows model picker button when byokActive=false (managed path supports multi-provider)", () => {
     const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: false, byokKeys: { anthropic: false, openai: false } })} />);
     expect(container.querySelector(".ai-modelchip")).not.toBeNull();
+  });
+
+  it("opens BYOK picker with Claude group only when byokKeys.anthropic=true and byokKeys.openai=false", () => {
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: false } })} />);
+    const chip = container.querySelector(".ai-modelchip") as HTMLElement;
+    expect(chip).not.toBeNull();
+    fireEvent.click(chip);
+    // ByokModelPop renders group.label headers; only "Claude" group is visible
+    expect(screen.queryByText("Claude")).not.toBeNull();
+    expect(screen.queryByText("ChatGPT")).toBeNull();
+  });
+
+  it("opens BYOK picker with both Claude and ChatGPT groups when both keys are set", () => {
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: true, openai: true } })} />);
+    const chip = container.querySelector(".ai-modelchip") as HTMLElement;
+    expect(chip).not.toBeNull();
+    fireEvent.click(chip);
+    expect(screen.queryByText("Claude")).not.toBeNull();
+    expect(screen.queryByText("ChatGPT")).not.toBeNull();
+  });
+
+  it("opens BYOK picker with ChatGPT group only when byokKeys.openai=true and byokKeys.anthropic=false", () => {
+    const { container } = render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: false, openai: true } })} />);
+    const chip = container.querySelector(".ai-modelchip") as HTMLElement;
+    expect(chip).not.toBeNull();
+    fireEvent.click(chip);
+    expect(screen.queryByText("ChatGPT")).not.toBeNull();
+    expect(screen.queryByText("Claude")).toBeNull();
   });
 });

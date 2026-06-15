@@ -21,6 +21,7 @@ import { buildHistory } from "./AssistantPanel.hooks";
 import { streamByokChat } from "./byok.client";
 import { streamByokOpenAiChat } from "./byok.openai.client";
 import { buildMessages } from "./prompts";
+import type { ProviderId } from "./providerRegistry";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ export interface ByokStreamArgs {
   store: StoryBibleStore;
   userQuestion: string;
   verb: VerbKey;
+  /** Model ID forwarded to the provider. W49 Phase 4: threaded from registry picker selection. */
+  model: string;
   aiCtx: AiCtxConfig;
   selectionText: string | null;
   projectId: string | null;
@@ -66,7 +69,7 @@ export async function streamByokResponse(a: ByokStreamArgs): Promise<void> {
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
   let accumulated = ""; let terminalError: string | null = null; let doneCost: number | null = null;
   const isProofread = a.verb === "proofread";
-  // W49 Phase 2 — model param added; picker wires real selection in Phase 4.
+  // W49 Phase 4: model from registry picker selection (a.model); Phase 1/2 hardcode removed.
   await streamByokChat(a.streamId, messages, (ev: NormalizedEvent) => {
     if (ev.type === "token") {
       accumulated += ev.text;
@@ -76,7 +79,7 @@ export async function streamByokResponse(a: ByokStreamArgs): Promise<void> {
     } else if (ev.type === "error") {
       terminalError = `[Something went wrong — ${ev.message}]`;
     }
-  }, { system, verb: a.verb, model: "claude-haiku-4-5-20251001", signal: a.ctrl.signal });
+  }, { system, verb: a.verb, model: a.model, signal: a.ctrl.signal });
   const finalText = terminalError ?? accumulated;
   a.setConvos(patchByokMessage(a.convId, a.msgId, { text: finalText, streaming: false }));
   if (a.convStore) {
@@ -90,24 +93,20 @@ export async function streamByokResponse(a: ByokStreamArgs): Promise<void> {
 export function buildByokStreamArgs(a: ExecSendArgs, streamId: string, ctrl: AbortController, ids: { cid: string; msgId: string }): ByokStreamArgs {
   const history = buildHistory(a.convos, ids.cid);
   return { streamId, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
-    verb: a.verb, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
+    verb: a.verb, model: a.model, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
     sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx,
     selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history };
 }
 
-// ── OpenAI BYOK (W49 Phase 1 provisional) ────────────────────────────────────
-// W49 Phase 1 provisional — replaced by registry picker in Phase 4.
-
-/** Stream context for an OpenAI BYOK send. Extends ByokStreamArgs with model. */
-export interface ByokOpenAiStreamArgs extends ByokStreamArgs {
-  /** Model ID forwarded to Rust. Phase 1 hardcode: 'gpt-5.4'. */
-  model: string;
-}
+// ── OpenAI BYOK ────────────────────────────────────────────────────────────────
 
 /**
- * Mirrors streamByokResponse but routes to the Rust OpenAI pipeline.
- * W49 Phase 1 provisional — replaced by registry picker in Phase 4.
+ * Stream context for an OpenAI BYOK send.
+ * W49 Phase 4: `model` is inherited from ByokStreamArgs (registry-driven); alias for clarity.
  */
+export type ByokOpenAiStreamArgs = ByokStreamArgs;
+
+/** Mirrors streamByokResponse but routes to the Rust OpenAI pipeline. */
 export async function streamByokOpenAiResponse(a: ByokOpenAiStreamArgs): Promise<void> {
   const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
@@ -130,15 +129,26 @@ export async function streamByokOpenAiResponse(a: ByokOpenAiStreamArgs): Promise
   }
 }
 
-/**
- * Mirrors buildByokStreamArgs; constructs ByokOpenAiStreamArgs from ExecSendArgs.
- * W49 Phase 1 provisional — replaced by registry picker in Phase 4.
- */
+/** Mirrors buildByokStreamArgs; constructs ByokOpenAiStreamArgs from ExecSendArgs. */
 export function buildByokOpenAiStreamArgs(a: ExecSendArgs, streamId: string, ctrl: AbortController, ids: { cid: string; msgId: string }): ByokOpenAiStreamArgs {
   const history = buildHistory(a.convos, ids.cid);
+  // W49 Phase 4: model from a.model (registry picker selection); Phase 1 hardcode removed.
   return { streamId, doc: a.doc, sceneId: a.sceneId, store: a.store, userQuestion: a.q,
-    verb: a.verb, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
+    verb: a.verb, model: a.model, ctrl, convId: ids.cid, msgId: ids.msgId, setConvos: a.setConvos, convStore: a.convStore,
     sceneTitle: a.sceneName ?? "Untitled", aiCtx: a.ctxArgs.aiCtx,
-    selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history,
-    model: "gpt-5.4" }; // W49 Phase 1 provisional — Phase 4 injects registry model
+    selectionText: a.attachedSel?.text ?? null, projectId: a.projectId ?? null, history };
 }
+
+// ── Registry-driven dispatch map ──────────────────────────────────────────────
+
+/**
+ * BYOK_SEND — maps ProviderId → send handler.
+ * routeByokSend in AssistantPanel.hooks.ts looks up entry.provider here.
+ * Partial so unregistered providers return undefined (guard in routeByokSend fires).
+ * W45 registers 'local' here (local: streamByokLocalResponse).
+ */
+export const BYOK_SEND: Partial<Record<ProviderId, (args: ByokStreamArgs) => Promise<void>>> = {
+  anthropic: streamByokResponse,
+  openai: streamByokOpenAiResponse,
+  // W45 registers 'local' here
+};

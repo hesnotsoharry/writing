@@ -13,6 +13,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { NormalizedEvent } from "./ai.client";
+import { BYOK_CMD_ANTHROPIC } from "./providerRegistry";
 
 // Re-export so callers don't need to import from ai.client.ts just for the type.
 export type { NormalizedEvent };
@@ -88,8 +89,8 @@ export async function streamByokChat(
     options.signal.addEventListener("abort", () => void byokStop(streamId));
   }
 
-  // W49 Phase 2 — model param added; picker wires real selection in Phase 4.
-  return invoke("byok_chat", {
+  // W49 Phase 4: command name from shared BYOK_CMD_ANTHROPIC constant (providerRegistry.ts).
+  return invoke(BYOK_CMD_ANTHROPIC, {
     streamId,
     messages,
     system: options?.system ?? "",

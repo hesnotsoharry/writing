@@ -3,13 +3,12 @@
  * Not part of the public module boundary; consumed only by AssistantPanel.tsx.
  */
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { Icon } from "../../components/Icon";
 import { getTweak } from "../settings/settings.store";
 import {
-  AI_MODEL_ORDER,
   AI_MODELS,
   AI_VERB_ORDER,
   AI_VERBS,
@@ -23,6 +22,8 @@ import {
   type VerbKey,
 } from "./ai.types";
 import { AiConvoList, AiEmptyState, AiMessage } from "./AiComponents";
+import { ModelPop } from "./AssistantPanel.model-pop";
+import { PROVIDER_REGISTRY,type ProviderId } from "./providerRegistry";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,8 @@ interface PanelFooterProps {
   onToast: (msg: string) => void;
   resetLabel: string;
   byokActive: boolean;
+  /** Provider key-presence map — required for BYOK picker filtering. */
+  byokKeys: { anthropic: boolean; openai: boolean };
 }
 
 interface PanelThreadProps {
@@ -182,40 +185,6 @@ function VerbPop({ verb, setVerb, setVerbPop, onAfterSelect }: {
   );
 }
 
-// ── ModelPop ──────────────────────────────────────────────────────────────────
-
-function ModelPop({ model, setModel, setModelPop, onAfterSelect }: {
-  model: ManagedModel; setModel: (m: ManagedModel) => void;
-  setModelPop: (b: boolean) => void; onAfterSelect: () => void;
-}) {
-  // Auto-expand premium section when the current model is premium — so the active
-  // selection is always visible even when the user re-opens the picker.
-  const [showPremium, setShowPremium] = useState(AI_MODELS[model].tier === "premium");
-
-  const standardClaude  = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].provider === "claude"  && AI_MODELS[k].tier === "standard");
-  const standardChatGPT = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].provider === "chatgpt" && AI_MODELS[k].tier === "standard");
-  const premiumModels   = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].tier === "premium");
-
-  const renderModel = (k: ManagedModel) => (<button key={k} onClick={() => { setModel(k); setModelPop(false); onAfterSelect(); }}>
-    <span className="nm">{AI_MODELS[k].label}</span>
-    {k === model && <span className="tick"><Icon name="check" className="ic" /></span>}
-  </button>);
-
-  return (
-    <div className="ai-modelpop">
-      <div className="ai-modelpop-provider">Claude</div>
-      {standardClaude.map(renderModel)}
-      <div className="ai-modelpop-provider">ChatGPT</div>
-      {standardChatGPT.map(renderModel)}
-      <button className="ai-modelpop-premium-toggle" onClick={() => setShowPremium((v) => !v)}>
-        <Icon name={showPremium ? "chevDown" : "chevRight"} className="ic" />
-        Show premium models
-        <span className="ai-modelpop-cost">~3× cost</span>
-      </button>
-      {showPremium && premiumModels.map(renderModel)}
-    </div>
-  );
-}
 
 function CostCue({ byokActive, pct }: { byokActive: boolean; pct: number }) {
   if (byokActive || pct < 2) return null;
@@ -270,13 +239,12 @@ export const PanelFooter = forwardRef<PanelFooterHandle, PanelFooterProps>(
           </button>
           {p.verbPop && <VerbPop verb={p.verb} setVerb={p.setVerb} setVerbPop={p.setVerbPop}
             onAfterSelect={() => { inputRef.current?.focus(); }} />}
-          {!p.byokActive && (
-            <button className="ai-modelchip" onClick={() => { p.setVerbPop(false); p.setModelPop((v) => !v); }} disabled={p.offline}>
-              {AI_MODELS[p.model].label} <Icon name="chevDown" className="ic chev" />
-            </button>
-          )}
-          {!p.byokActive && p.modelPop && <ModelPop model={p.model} setModel={p.setModel} setModelPop={p.setModelPop}
-            onAfterSelect={() => { inputRef.current?.focus(); }} />}
+          <button className="ai-modelchip" onClick={() => { p.setVerbPop(false); p.setModelPop((v) => !v); }} disabled={p.offline}>
+            {AI_MODELS[p.model].label} <Icon name="chevDown" className="ic chev" />
+          </button>
+          {p.modelPop && <ModelPop model={p.model} setModel={p.setModel} setModelPop={p.setModelPop}
+            onAfterSelect={() => { inputRef.current?.focus(); }}
+            byokGroups={p.byokActive ? PROVIDER_REGISTRY.filter((g) => (p.byokKeys as Partial<Record<ProviderId, boolean>>)[g.provider]) : undefined} />}
           <span className="ai-kbd">⌘↵</span>
           {p.streamingId
             ? <button className="ai-send ai-stop" title="Stop" onClick={p.onStop}><Icon name="square" className="ic" /></button>
