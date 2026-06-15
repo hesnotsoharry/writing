@@ -8,7 +8,7 @@
  *      in PROVIDER_REGISTRY determines which stream function execSend calls.
  *
  * Also tests the providerRegistry pure utilities: getModelEntry, getBadgeLabel,
- * registry shape, and PROVIDER_COMMAND constants.
+ * and registry shape.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -56,11 +56,8 @@ import { execSend } from "../features/ai/AssistantPanel.hooks";
 import { streamByokChat } from "../features/ai/byok.client";
 import { streamByokOpenAiChat } from "../features/ai/byok.openai.client";
 import {
-  BYOK_CMD_ANTHROPIC,
-  BYOK_CMD_OPENAI,
   getBadgeLabel,
   getModelEntry,
-  PROVIDER_COMMAND,
   PROVIDER_REGISTRY,
 } from "../features/ai/providerRegistry";
 
@@ -357,16 +354,3 @@ describe("getBadgeLabel — badge names the active model's provider", () => {
   });
 });
 
-// ── PROVIDER_COMMAND ──────────────────────────────────────────────────────────
-
-describe("PROVIDER_COMMAND uses shared constants (not string literals)", () => {
-  it("anthropic command equals BYOK_CMD_ANTHROPIC constant", () => {
-    expect(PROVIDER_COMMAND["anthropic"]).toBe(BYOK_CMD_ANTHROPIC);
-    expect(PROVIDER_COMMAND["anthropic"]).toBe("byok_chat");
-  });
-
-  it("openai command equals BYOK_CMD_OPENAI constant", () => {
-    expect(PROVIDER_COMMAND["openai"]).toBe(BYOK_CMD_OPENAI);
-    expect(PROVIDER_COMMAND["openai"]).toBe("byok_openai_chat");
-  });
-});

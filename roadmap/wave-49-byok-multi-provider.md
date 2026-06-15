@@ -220,7 +220,7 @@ registry-driven; the badge becomes provider-aware.
 
 **Published W45 contract** (the W45 agent builds against this — relayed to Cole for the parallel session):
 - Rust: W45 authors `byok_local.rs` with `byok_local_chat(state, stream_id, base_url: String, model, messages, system, max_completion_tokens, temperature, api_key: Option<String>, on_event)` — builds a `RequestSpec` (Authorization header omitted when `api_key` is `None`, for keyless local servers) and calls `run_stream(..., WireFormat::OpenAiCompatible, ...)`. W45 validates `base_url` before calling; omits `reasoning_effort` (local servers reject it). No `byok_engine.rs` change needed unless a local-server wire quirk forces a `WireFormat::LocalCompat` variant.
-- TS: Phase 4 creates `src/features/ai/providerRegistry.ts` with `ProviderId = 'anthropic' | 'openai' | 'local'`, `ProviderGroup[]` `PROVIDER_REGISTRY`, and a `PROVIDER_COMMAND` map (values derived from a shared command-name constant, NOT duplicated string literals — guards the typo-routes-to-nonexistent-command gap). W45 appends a `'local'` group + the `'local'` command entry.
+- TS: Phase 4 creates `src/features/ai/providerRegistry.ts` with `ProviderId = 'anthropic' | 'openai' | 'local'`, `ProviderGroup[]` `PROVIDER_REGISTRY`, the `BYOK_CMD_*` shared command-name constants, `getModelEntry`, and `getBadgeLabel`. **Dispatch is the `BYOK_SEND` map** (`src/features/ai/AssistantPanel.byok.ts`) keyed `ProviderId → stream-handler-fn`. W45 registers a local provider by: appending a `'local'` group to `PROVIDER_REGISTRY` + adding a `local:` entry to `BYOK_SEND` (referencing a `streamByokLocalResponse` wrapper). (An earlier `PROVIDER_COMMAND` map was removed at wave-end — it was dead; `BYOK_SEND` is the single dispatch registry.)
 
 **⚠️ Correction to the W45 contract (wave-end review, 2026-06-15) — RELAY THIS to the W45 agent.** The Rust + registry surface above is necessary but NOT sufficient. To make a `'local'` provider functionally reachable, W45 ALSO edits these 4 TS sites (W49 left them anthropic/openai-shaped; the registry-ready hooks exist but the BYOK *key-tracking* chain is provider-pair-shaped):
   1. `src/features/ai/byokUsage.ts` — widen `type SupportedProvider = "anthropic" | "openai"` to include `'local'` (else `recordUsage("local", …)` is a TS error).
@@ -261,4 +261,19 @@ because the migration constraint leaves a single defensible option (no architect
 
 ## Result
 
-<!-- Filled at ship by wrap team. -->
+### Mechanical review
+
+**Inputs:** Plan `roadmap/wave-49-byok-multi-provider.md` · Diff `master..HEAD` (W49 commits) · Graph available · 2026-06-15.
+
+- **Check 1 (forward-trace):** PASS — the wave-end cross-phase review traced the full BYOK flow (picker → `routeByokSend` → `BYOK_SEND` → `byok_openai_chat`/`byok_chat` with the selected model → SSE → `Done{cached}` → `recordUsage`) to production consumers; the threaded `model` + `cached_tokens` reach production at every hop. No silent drops.
+- **Check 2 (plan universals):** PASS — both providers handled consistently (meter suppressed for EITHER key; picker shows groups for ALL keyed providers; all prior cargo/vitest tests stay green). No narrowed quantifier.
+- **Check 3 (dead exports):** PASS *after fix* — flagged `PROVIDER_COMMAND` (providerRegistry.ts) as dead (zero production consumers; the Phase-4 routing fix uses the `BYOK_SEND` map). Removed it + its test + the unused `CommandName` type; updated the W45 contract to register in `BYOK_SEND`. Grep-clean; tsc/lint/vitest green.
+- **Check 4 (schema-removal migration):** N/A — Tauri app, no electron-store JSON-Schema config; the wave ADDED `cached_tokens` (additive), removed no persisted schema property.
+- **Check 5 (boundary-phase acceptance tests):** PASS-with-note — cross-boundary phases 1 (external OpenAI API) + 4 (W45-shared picker). Phase 1's boundary contract was orchestrator-authored (the `byok_openai.rs` frozen parser/usage tests — the cached-token subtraction + SSE parse), Written before the implementer dispatch and built-around (not modified) by the implementer. Deviation from the formal convention: the contract is embedded in the impl module (a frozen `#[cfg(test)]` block) rather than a separate `…-acceptance/` file with a predating commit. Substance met (orchestrator owns the contract, implementer couldn't change it, it passed).
+- **Check 6 (mutation score):** N/A — no `stryker.config` in project root.
+
+#### Verdict
+
+**PASS** (Check 3 flagged the `PROVIDER_COMMAND` dead export; addressed inline by removal before this verdict). Checks 1/2/5 ran clean; 4/6 N/A.
+
+<!-- Wave summary + telemetry filled below at wrap. -->
