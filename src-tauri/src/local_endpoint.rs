@@ -8,6 +8,7 @@
 //! TLS certificate validation is enforced at request time and never relaxed
 //! (no `danger_accept_invalid_certs`, no user-facing "skip cert" control).
 
+use keyring_core::Entry;
 use serde::Deserialize;
 use url::{Host, Url};
 
@@ -143,18 +144,44 @@ pub async fn validate_endpoint(url: String) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Load the stored API key for `endpoint_id` from the OS keychain (Rust-side only).
+/// Returns `None` if no key is stored or the keychain is unavailable.
+/// Used by `discover_models` so the raw key never crosses to JS for saved endpoints.
+async fn load_endpoint_key(endpoint_id: &str) -> Option<String> {
+    let account = endpoint_account(endpoint_id);
+    tokio::task::spawn_blocking(move || {
+        Entry::new(SERVICE, &account)
+            .ok()
+            .and_then(|e| e.get_password().ok())
+            .filter(|p| !p.trim().is_empty())
+    })
+    .await
+    .unwrap_or(None)
+}
+
 /// Probe a model server at `url` and return the list of available model names.
 /// Tries Ollama `GET /api/tags` first; falls back to OpenAI `GET /v1/models`.
-/// `api_key` is forwarded as `Authorization: Bearer <key>` when present.
+///
+/// Key resolution: if `endpoint_id` is `Some`, the bearer key is loaded from the OS
+/// keychain Rust-side (key never crosses to JS). If `None`, `api_key` is used directly
+/// (covers the add-form case where the user typed a key into the form field).
 /// TLS defaults apply: cert validation is ON and is never relaxed.
 /// Redirects are disabled — a validated loopback URL must never redirect off-loopback.
 #[tauri::command]
 pub async fn discover_models(
     url: String,
     api_key: Option<String>,
+    endpoint_id: Option<String>,
 ) -> Result<Vec<String>, String> {
     // Reject invalid / insecure URLs before any network call.
     classify_endpoint(&url).map_err(|e| e.to_string())?;
+
+    // Resolve bearer key: saved-endpoint path loads from keychain Rust-side;
+    // add-form path uses the typed value that is unavoidably in the JS form field.
+    let resolved_key: Option<String> = match endpoint_id {
+        Some(ref id) => load_endpoint_key(id).await,
+        None => api_key,
+    };
 
     // Build the base URL from origin only (scheme + host + optional port),
     // discarding any path/query/fragment. This ensures /v1-suffixed bases
@@ -183,7 +210,7 @@ pub async fn discover_models(
 
     // ── Try Ollama /api/tags ──────────────────────────────────────────────────
     let mut ollama_req = client.get(format!("{}/api/tags", base));
-    if let Some(ref key) = api_key {
+    if let Some(ref key) = resolved_key {
         ollama_req = ollama_req.bearer_auth(key);
     }
     let ollama_models = match ollama_req.send().await {
@@ -198,7 +225,7 @@ pub async fn discover_models(
 
     // ── Fall back to OpenAI /v1/models ────────────────────────────────────────
     let mut openai_req = client.get(format!("{}/v1/models", base));
-    if let Some(ref key) = api_key {
+    if let Some(ref key) = resolved_key {
         openai_req = openai_req.bearer_auth(key);
     }
     match openai_req.send().await {
@@ -215,3 +242,70 @@ pub async fn discover_models(
         ),
     }
 }
+
+// ── Per-endpoint keychain commands (Wave 45 Phase 2) ─────────────────────────
+//
+// Each saved endpoint gets its own OS keychain entry, keyed under the same
+// service namespace as BYOK but with a distinct `local-endpoint-{id}` account
+// string — preventing any collision with the global `byok-anthropic` entry.
+
+const SERVICE: &str = "com.coles.writing";
+
+fn endpoint_account(endpoint_id: &str) -> String {
+    format!("local-endpoint-{}", endpoint_id)
+}
+
+/// Store an API key for a specific saved endpoint in the OS keychain.
+/// Rejects empty/whitespace keys. Key MUST NOT re-enter JS after this call.
+#[tauri::command]
+pub async fn local_endpoint_set_key(endpoint_id: String, api_key: String) -> Result<(), String> {
+    let trimmed = api_key.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
+    let account = endpoint_account(&endpoint_id);
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let entry = Entry::new(SERVICE, &account)
+            .map_err(|_| "Keychain entry creation failed".to_string())?;
+        entry
+            .set_password(&trimmed)
+            .map_err(|_| "Failed to store API key in keychain".to_string())
+    })
+    .await
+    .map_err(|_| "Keychain task failed".to_string())?
+}
+
+/// Returns `true` iff a non-empty API key is stored for this endpoint.
+/// Safe to call from JS — returns only a boolean, never the key.
+#[tauri::command]
+pub async fn local_endpoint_has_key(endpoint_id: String) -> bool {
+    let account = endpoint_account(&endpoint_id);
+    tokio::task::spawn_blocking(move || {
+        Entry::new(SERVICE, &account)
+            .ok()
+            .and_then(|e| e.get_password().ok())
+            .filter(|p| !p.trim().is_empty())
+    })
+    .await
+    .unwrap_or(None)
+    .is_some()
+}
+
+/// Remove the API key for this endpoint from the OS keychain.
+/// Idempotent — `NoEntry` is treated as success (mirrors `byok_clear_key`).
+#[tauri::command]
+pub async fn local_endpoint_clear_key(endpoint_id: String) -> Result<(), String> {
+    let account = endpoint_account(&endpoint_id);
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let entry = Entry::new(SERVICE, &account)
+            .map_err(|_| "Keychain entry creation failed".to_string())?;
+        match entry.delete_credential() {
+            Ok(()) => Ok(()),
+            Err(keyring_core::Error::NoEntry) => Ok(()),
+            Err(_) => Err("Failed to clear API key from keychain".to_string()),
+        }
+    })
+    .await
+    .map_err(|_| "Keychain task failed".to_string())?
+}
+

@@ -170,6 +170,9 @@ pub fn run() {
             byok::byok_stop,
             local_endpoint::validate_endpoint,
             local_endpoint::discover_models,
+            local_endpoint::local_endpoint_set_key,
+            local_endpoint::local_endpoint_has_key,
+            local_endpoint::local_endpoint_clear_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

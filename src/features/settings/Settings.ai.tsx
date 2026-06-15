@@ -2,10 +2,10 @@
  * Settings.ai.tsx — AI Assistant section for the Settings panel (Wave 35).
  * Extracted from Settings.sections.tsx to keep each file under the 300-line limit.
  */
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 
 import { byokClearKey, byokHasKey, byokSetKey } from "../ai/byok.client";
+import { CustomEndpointsManager } from "./Settings.ai.manager";
 import { SetRow, SetToggle } from "./Settings.primitives";
 import { AI_REPLAY_EVENT, type Tweaks } from "./settings.store";
 
@@ -87,55 +87,6 @@ function ByokKeyRow() {
   );
 }
 
-// ── CustomEndpointRow — minimal Phase-1 entry (W45) ──────────────────────────
-// URL input + Discover button: validates the URL guardrail then probes the
-// server for model names. No keychain, no saved-list, no picker — Phase 2.
-
-function EndpointModelsList({ models }: { models: string[] }) {
-  if (models.length === 0) return null;
-  return <ul className="endpoint-models-list">{models.map((m) => <li key={m}>{m}</li>)}</ul>;
-}
-
-function CustomEndpointRow() {
-  const [endpointUrl, setEndpointUrl] = useState("");
-  const [discovering, setDiscovering] = useState(false);
-  const [models, setModels] = useState<string[]>([]);
-  const [error, setError] = useState("");
-  const [hasDiscovered, setHasDiscovered] = useState(false);
-
-  async function handleDiscover() {
-    const trimmed = endpointUrl.trim();
-    if (!trimmed) { setError("Enter an endpoint URL first."); return; }
-    setDiscovering(true);
-    setError("");
-    setModels([]); setHasDiscovered(false);
-    try {
-      const result = await invoke<string[]>("discover_models", { url: trimmed, apiKey: null });
-      setModels(result);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDiscovering(false);
-      setHasDiscovered(true);
-    }
-  }
-
-  return (<>
-    <SetRow label="Custom endpoint" desc="Use a local or self-hosted model server." last>
-      <div className="byok-key-entry">
-        <input className="set-input" type="url" placeholder="http://localhost:11434"
-          value={endpointUrl} disabled={discovering}
-          onChange={(e) => { setEndpointUrl(e.target.value); setError(""); setModels([]); setHasDiscovered(false); }} />
-        <button className="btn btn-soft" onClick={() => { void handleDiscover(); }}
-          disabled={discovering}>{discovering ? "Discovering…" : "Discover"}</button>
-        {error && <span className="byok-key-error">{error}</span>}
-      </div>
-    </SetRow>
-    <EndpointModelsList models={models} />
-    {hasDiscovered && !error && models.length === 0 && <p className="endpoint-empty-hint">No models found — have you pulled one? (e.g. <code>ollama pull llama3.2</code>)</p>}
-  </>);
-}
-
 // ── Expanded AI rows (shown when aiEnabled is true) ───────────────────────────
 
 function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
@@ -147,7 +98,9 @@ function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
     <div className="ai-privacy-block">{AI_PRIVACY_COPY}</div>
     {showKeyRow && <SetRow label="AI license key" desc="Clear to re-enter a different one."><button className="ai-change-key-btn" onClick={() => setTweak("aiLicenseKey", "")}>Change license key…</button></SetRow>}
     <ByokKeyRow />
-    <CustomEndpointRow />
+    <SetRow label="Custom endpoints" desc="Use local or self-hosted model servers." last>
+      <CustomEndpointsManager />
+    </SetRow>
   </>);
 }
 

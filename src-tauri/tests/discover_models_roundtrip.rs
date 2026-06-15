@@ -19,7 +19,7 @@ async fn ollama_probe_returns_model_list() {
         .mount(&server)
         .await;
 
-    let result = discover_models(server.uri(), None).await;
+    let result = discover_models(server.uri(), None, None).await;
     assert_eq!(result, Ok(vec!["llama3".to_string()]));
 }
 
@@ -41,7 +41,7 @@ async fn openai_fallback_when_ollama_returns_404() {
         .mount(&server)
         .await;
 
-    let result = discover_models(server.uri(), None).await;
+    let result = discover_models(server.uri(), None, None).await;
     assert_eq!(result, Ok(vec!["gpt-x".to_string()]));
 }
 
@@ -61,7 +61,7 @@ async fn v1_suffixed_base_url_is_normalized() {
         .await;
 
     let v1_url = format!("{}/v1", server.uri());
-    let result = discover_models(v1_url, None).await;
+    let result = discover_models(v1_url, None, None).await;
     assert_eq!(result, Ok(vec!["mistral".to_string()]));
 }
 
@@ -69,7 +69,7 @@ async fn v1_suffixed_base_url_is_normalized() {
 /// Port 1 on loopback is virtually never open; connection refused is immediate.
 #[tokio::test]
 async fn unreachable_host_returns_err_containing_reach() {
-    let result = discover_models("http://127.0.0.1:1".to_string(), None).await;
+    let result = discover_models("http://127.0.0.1:1".to_string(), None, None).await;
     assert!(result.is_err());
     let msg = result.unwrap_err();
     assert!(

@@ -142,7 +142,7 @@ surfaced to Cole in the plan-review message, not pre-baked here):
 | Phase | Dispatched | Completed | Commit | Observation point hit |
 |---|---|---|---|---|
 | 1 | 2026-06-14 | 2026-06-14 | (Phase-1 commit) | Validate+discover commands + minimal Settings entry; gates green (18/18 oracle + 4/4 roundtrip, tsc/eslint clean); panel review PASS after fixing 7 FLAGs. Live Settings render not smoked (needs running Ollama + app launch) — verified via tests + code path. |
-| 2 | — | — | — | (W49-independent — next) |
+| 2 | 2026-06-14 | 2026-06-14 | (Phase-2 commit) | Saved-endpoints manager (add/edit/delete + default), localStorage persistence, per-endpoint keychain (`local-endpoint-{id}`, disjoint from byok). Gates green (27/27 reducer oracle, Rust intact, tsc/eslint clean). Single-tier review BLOCK (validate-on-save) + FLAGs fixed; key now loads Rust-side (never crosses to JS). Live render/persist-across-restart not smoked (no app launch). |
 | 3 | — | — | — | (W49-independent) |
 | 4 | — | — | — | **BLOCKED on W49 contract** |
 | 5 | — | — | — | **BLOCKED on W49 contract** |

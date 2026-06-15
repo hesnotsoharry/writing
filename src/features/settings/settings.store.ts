@@ -7,6 +7,7 @@ import {
   type Theme,
 } from "../../theme/useTheme";
 import type { ManagedModel } from "../ai/ai.types";
+import type { CustomEndpointStore } from "../ai/customEndpoints";
 
 // Re-export so callers that need the type surface can get it from one place.
 export type { AccentPalette, Theme };
@@ -69,6 +70,9 @@ export interface Tweaks {
   // ── AI model preference (Wave 44) ─────────────────────────────────────────
   /** Global AI model choice — persisted across sessions. */
   aiModel: ManagedModel;
+  // ── Custom endpoints (Wave 45) ─────────────────────────────────────────────
+  /** Saved local/custom OpenAI-compatible endpoint list + default selection. */
+  customEndpoints: CustomEndpointStore;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -97,6 +101,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   aiSelPill: true,
   aiSelMenu: false,
   aiModel: "claude-haiku-4-5-20251001",
+  customEndpoints: { endpoints: [], defaultId: null },
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
