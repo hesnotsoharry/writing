@@ -79,6 +79,33 @@ cost is. Acceptable, but must be confirmed, not assumed.)
 - **P3 — Flip TTL to 1h:** add `ttl: '1h'` to the `cache_control` block (`chat.ts:223`) + pass `cacheWriteTtl: '1h'` to `actualCredits` (`credits.ts` already has `cacheWrite1h` rates). Reconcile with the `precise-cache-write-reserve` follow-up — reserve the 1h cache-write rate when caching fires.
 - **P4 — Verify economics:** measure a realistic session (write→ask→write→ask) before/after; confirm the allowance stretches further and there are no cost regressions for the no-edit case (the 2× write premium must be offset by enough reads).
 
+## Execution results (2026-06-14)
+
+- **P0 — GO** (above). Live repro skipped per Cole; live oracle moved to P2.
+- **P1 — DONE** (commit `5642d8a`). `buildGrounding()` now returns only stable grounding;
+  new `buildVolatileUserBlock(ctx)` assembles scene excerpt + truncation notice + selection;
+  `buildMessages()` prepends it to the current ask for all 5 verbs. Scene TITLE stays in `system`
+  (stable during an edit). Gates green (lint/tsc/tests); reviewer FLAG resolved (lockfile sync
+  excluded from commit; acceptance test orchestrator-authored pre-dispatch). Provider-agnostic —
+  no adapter change (Decision 3 honored).
+- **P3 — DONE** (commit `e4d53d8`). `cache_control: { type: "ephemeral", ttl: "1h" }` +
+  required `anthropic-beta: extended-cache-ttl-2025-04-11` header (ctx7-verified: 1h gates on this
+  header; omitting it silently no-ops the flip). `actualCredits` now billed at `"1h"`;
+  `estimateCredits(systemLength?)` reserves the cacheable prefix at the 1h cache-write rate,
+  restoring `reserve ≥ actual` on cold cache-creation turns — **closes follow-up
+  `2026-06-13-precise-cache-write-reserve`**. 27/27 tests; tsc clean; reviewer FLAG_UNCERTAIN was a
+  diff-capture artifact (new test file verified on disk).
+- **P2 / P4 — LIVE ORACLE, POST-DEPLOY.** Both require the deployed worker (P3 deploys on merge to
+  master) + real Anthropic tokens, so they run **after the merge-master lands this branch and
+  Cloudflare deploys** — not in this branch-only session (merge protocol: do not merge/deploy here).
+  Procedure when deployed (dev app on CDP port 9222 per [[app-can-be-smoked-via-cdp-port]]):
+  - **P2 (cache survives edits):** open the app → run an AI assist on a rich-context scene (note
+    credits) → EDIT the scene text → run the same verb again → confirm the worker response shows
+    `cache_read_input_tokens > 0` across the edit (this is the proof P1 worked; pre-fix this was a
+    miss). Sonnet/Opus or a rich Haiku manuscript (must clear the floor — see P0 profile).
+  - **P4 (economics):** measure a write→ask→write→ask session before/after; confirm the allowance
+    stretches and the no-edit case has no cost regression (the 2× 1h-write premium offset by reads).
+
 ## Risks / gotchas
 - **Haiku 4096 floor** (above) — the central "don't bust caches" risk; P0 gates on it.
 - **Anthropic semantics drift** — confirm current behavior via ctx7, don't trust training memory.
