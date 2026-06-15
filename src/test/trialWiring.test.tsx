@@ -249,7 +249,8 @@ const FOOTER_BASE = {
   model: "claude-haiku-4-5-20251001" as ManagedModel,
   modelPop: false, setModelPop: () => {}, setModel: () => {},
   streamingId: null as string | null, onSend: () => {}, onStop: () => {},
-  est: { pct: 0, tokens: 0 }, onToast: () => {}, byokMode: false,
+  est: { pct: 0, tokens: 0 }, onToast: () => {},
+  byokActive: false, byokKeys: { anthropic: false, openai: false },
 };
 
 describe("PanelFooter exhaustion guard routing (resolveExhaustedGuard)", () => {

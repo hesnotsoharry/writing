@@ -37,6 +37,16 @@ vi.mock("../features/ai/byok.client", () => ({
   streamByokChat: vi.fn().mockResolvedValue(undefined),
 }));
 
+// OpenAI BYOK client — symmetric to byok.client; byokOpenAiHasKey is called on
+// mount via useOpenAiByokMode (W49), so mock it too or invoke() throws in jsdom.
+vi.mock("../features/ai/byok.openai.client", () => ({
+  byokOpenAiHasKey: vi.fn().mockResolvedValue(false),
+  byokOpenAiSetKey: vi.fn().mockResolvedValue(undefined),
+  byokOpenAiClearKey: vi.fn().mockResolvedValue(undefined),
+  byokOpenAiStop: vi.fn().mockResolvedValue(undefined),
+  streamByokOpenAiChat: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../features/ai/ai.context", () => ({
   assembleContext: vi.fn().mockResolvedValue({
     sceneTitle: "Test Scene",

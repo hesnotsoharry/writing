@@ -27,6 +27,7 @@ import {
   type AiMessageRecord,
   type ContextSnapshot,
   type ConversationRecord,
+  type ManagedModel,
   type ManuscriptAbout,
   type ProseSelection,
   type VerbKey,
@@ -37,7 +38,8 @@ import { AiConsent, AiContextPicker } from "./AiOverlays";
 import { acquireAnyToken, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
 import { useAiPanelSeed, useAiSlotHandlers, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
-import { useByokMode } from "./useByokMode";
+import { getBadgeLabel, PROVIDER_REGISTRY,type ProviderId } from "./providerRegistry";
+import { useByokKeys } from "./useByokKeys";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ export interface AssistantPanelProps {
   onStreamDone?: () => void;
   onNetworkError?: () => void;
   convStore?: AiConversationStore;
-  projectId?: string | null; byokMode: boolean; // true when BYOK key is stored — hides the managed credit meter
+  projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean }; // W49 P3: any-key-present flag + provider MAP (Decision 4)
 }
 
 /** Props consumed by wrapInspectorSlot — App.content.tsx passes a superset. */
@@ -133,14 +135,21 @@ interface SlotPanelProps {
   onStreamDone: () => void;
   onNetworkError?: () => void;
   sel?: ProseSelection | null;
-  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokMode: boolean;
+  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean }; // W49 P3
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
 
+// W49 P4: falls back to first keyed-provider model when managed-mode default is not in any keyed group.
+function computeEffectiveByokModel(model: ManagedModel, byokActive: boolean, byokKeys: { anthropic: boolean; openai: boolean }): ManagedModel {
+  if (!byokActive) return model;
+  const km = PROVIDER_REGISTRY.filter((g) => (byokKeys as Partial<Record<ProviderId, boolean>>)[g.provider]).flatMap((g) => g.models);
+  return (km.some((m) => m.id === model) ? model : (km[0]?.id as ManagedModel | undefined)) ?? model;
+}
+
 function PanelReady(p: AssistantPanelProps) {
-  const { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel,
-    streamingId, setStreamingId, model, setModel, modelPop, setModelPop, abortRef, sessionRef } = usePanelState(p.initialVerb, p.initialSel);
+  const { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel, streamingId, setStreamingId, model, setModel, modelPop, setModelPop, abortRef, sessionRef } = usePanelState(p.initialVerb, p.initialSel);
+  const effectiveByokModel = useMemo(() => computeEffectiveByokModel(model, p.byokActive, p.byokKeys), [model, p.byokActive, p.byokKeys]);
   const footerRef = useRef<PanelFooterHandle | null>(null);
   const active = p.convos.find((c) => c.id === p.activeId) ?? null;
   // D4: merge neverNames into offEntityNames so display + send use the same filter.
@@ -151,9 +160,9 @@ function PanelReady(p: AssistantPanelProps) {
   const canCompose = !p.offline && p.plan !== "expired" && p.usedPct < 100;
   const { send, stop, copyMsg, saveMsg, newConvo, deleteConvo } = usePanelMessages({
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
-    prompt, setPrompt, verb, model, attachedSel, setAttachedSel, streamingId, setStreamingId,
+    prompt, setPrompt, verb, model: effectiveByokModel, attachedSel, setAttachedSel, streamingId, setStreamingId,
     canCompose, ctxArgs, sceneId: p.sceneId, sceneName: p.sceneName,
-    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError, byokMode: p.byokMode,
+    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError, byokActive: p.byokActive, byokKeys: p.byokKeys,
   });
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,7 +171,8 @@ function PanelReady(p: AssistantPanelProps) {
   return (
     <div className="ai-panel">
       {p.offline && <OfflineBanner />}
-      <div className="ai-byok-bar" hidden={!p.byokMode}><span className="ai-chip"><Icon name="shield" className="ic" /><span>Your key</span></span></div>
+      {/* W49 Phase 4: badge names the active model's provider (getBadgeLabel), not just the keyed providers. */}
+      <div className="ai-byok-bar" hidden={!p.byokActive}><span className="ai-chip"><Icon name="shield" className="ic" /><span>{getBadgeLabel(effectiveByokModel)}</span></span></div>
       <PanelNav active={active} onBack={() => p.setActiveId(null)} onNew={newConvo} />
       <PanelThread msgCount={msgCount} lastLen={lastLen} activeId={p.activeId} listMode={listMode}
         active={active} convos={p.convos} verb={verb} setVerb={setVerb} onOpen={p.setActiveId}
@@ -173,10 +183,9 @@ function PanelReady(p: AssistantPanelProps) {
           attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
           boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} />
         <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
-          prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb}
-          model={model} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
-          est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokMode={p.byokMode} />
-        {!p.byokMode && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} plan={p.plan} />}
+          prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb} model={effectiveByokModel} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
+          est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokActive={p.byokActive} byokKeys={p.byokKeys} />
+        {!p.byokActive && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} plan={p.plan} />}
       </div>}
     </div>
   );
@@ -261,9 +270,10 @@ function useConvoPersistence(activeProjectId: string | null) {
 // ── useAiBalance ──────────────────────────────────────────────────────────────
 
 /** Fetches balance on mount + on each refresh() call; derives meter + plan + offline state.
- *  When byokMode is true: skips all managed-meter fetches and returns safe no-op values so
- *  canCompose stays true (Decision 4). When gateStatus==='trial', allows a lazily-minted trial token. */
-function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateStatus = "checking") {
+ *  When byokActive is true (any BYOK key present): skips all managed-meter fetches and returns
+ *  safe no-op values so canCompose stays true (Decision 4). When gateStatus==='trial', allows
+ *  a lazily-minted trial token. */
+function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateStatus = "checking") {
   const [usedPct, setUsedPct] = useState(0); const [creditsBalance, setCreditsBalance] = useState(0);
   const [plan, setPlan] = useState<"active" | "trial" | "expired">("active");
   const [resetLabel, setResetLabel] = useState("soon");
@@ -272,7 +282,7 @@ function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateSta
   const sessionRef = useRef<SessionResult | null>(null);
   const licenseKeyRef = useRef(getTweak("aiLicenseKey", ""));
   useEffect(() => {
-    if (!consented || byokMode) return; // BYOK: no managed-meter fetch
+    if (!consented || byokActive) return; // BYOK: no managed-meter fetch
     let cancelled = false;
     const load = async () => {
       const key = getTweak("aiLicenseKey", "");
@@ -291,34 +301,30 @@ function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateSta
     };
     void load();
     return () => { cancelled = true; };
-  }, [consented, balanceKey, byokMode, gateStatus]); // stable module-level fns omitted from deps
+  }, [consented, balanceKey, byokActive, gateStatus]); // stable module-level fns omitted from deps
   useEffect(() => {
     const goOnline = () => setOffline(false); const goOffline = () => setOffline(true);
     window.addEventListener("online", goOnline); window.addEventListener("offline", goOffline);
     return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
   }, []);
   const refresh = useCallback(() => setBalanceKey((k) => k + 1), []);
-  useEffect(() => { if (byokMode) return; const h = () => { const cur = getTweak("aiLicenseKey", ""); if (cur !== licenseKeyRef.current) { licenseKeyRef.current = cur; refresh(); } }; window.addEventListener(SETTINGS_CHANGED_EVENT, h); return () => { window.removeEventListener(SETTINGS_CHANGED_EVENT, h); }; }, [byokMode, refresh]);
+  useEffect(() => { if (byokActive) return; const h = () => { const cur = getTweak("aiLicenseKey", ""); if (cur !== licenseKeyRef.current) { licenseKeyRef.current = cur; refresh(); } }; window.addEventListener(SETTINGS_CHANGED_EVENT, h); return () => { window.removeEventListener(SETTINGS_CHANGED_EVENT, h); }; }, [byokActive, refresh]);
   // D4: BYOK has no managed meter; return safe no-ops so canCompose stays true.
-  return byokMode ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} } : { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh };
+  return byokActive ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} } : { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh };
 }
 
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
 
 function SlotPanel(p: SlotPanelProps) {
-  return (
-    <AiErrorBoundary>
-      <AssistantPanel
-        sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords} store={p.store} tree={p.aiTree} sceneEntityGroups={p.sceneEntityGroups}
-        convos={p.convos} setConvos={p.setConvos} activeId={p.activeId} setActiveId={p.setActiveId}
-        about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx} neverNames={p.neverNames} toggleNever={p.toggleNever}
-        usedPct={p.usedPct} creditsBalance={p.creditsBalance} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
-        consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
-        onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
-        convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokMode={p.byokMode}
-      />
-    </AiErrorBoundary>
-  );
+  return <AiErrorBoundary><AssistantPanel
+    sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords} store={p.store} tree={p.aiTree} sceneEntityGroups={p.sceneEntityGroups}
+    convos={p.convos} setConvos={p.setConvos} activeId={p.activeId} setActiveId={p.setActiveId}
+    about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx} neverNames={p.neverNames} toggleNever={p.toggleNever}
+    usedPct={p.usedPct} creditsBalance={p.creditsBalance} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
+    consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
+    onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
+    convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokActive={p.byokActive} byokKeys={p.byokKeys}
+  /></AiErrorBoundary>;
 }
 
 function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
@@ -331,7 +337,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
-  const byokMode = useByokMode(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode, p.gateStatus);
+  const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokActive, p.gateStatus);
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
@@ -344,21 +350,18 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
       <SlotPanel key={panelKey} convos={convos} setConvos={setConvos} activeId={activeId} setActiveId={setActiveId}
         about={about} setAbout={saveAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
         neverNames={neverNames} toggleNever={toggleNever} consented={consented}
-        aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords}
-        sceneEntityGroups={sceneEntityGroups}
+        aiTree={aiTree} sceneId={sceneId} sceneName={sceneName} sceneWords={sceneWords} sceneEntityGroups={sceneEntityGroups}
         doc={p.doc} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")}
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
         usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline}
-        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokMode={byokMode} />
+        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys} />
     } />
     {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("ask", liveSel)} />}
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
-    {overlay === "context" && (
-      <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
-        entities={allEntities} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
-        about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />
-    )}
+    {overlay === "context" && <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
+      entities={allEntities} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
+      about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />}
     <AiToast msg={toast} />
   </>);
 }

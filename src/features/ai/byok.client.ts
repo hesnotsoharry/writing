@@ -13,6 +13,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import type { NormalizedEvent } from "./ai.client";
+import { BYOK_CMD_ANTHROPIC } from "./providerRegistry";
 
 // Re-export so callers don't need to import from ai.client.ts just for the type.
 export type { NormalizedEvent };
@@ -55,6 +56,12 @@ export interface StreamByokChatOptions {
   system?: string;
   /** Verb key — resolves temperature + max_tokens in Rust. Default: "brainstorm". */
   verb?: string;
+  /**
+   * Anthropic model ID forwarded to Rust's byok_chat.
+   * W49 Phase 2 — model param added; picker wires real selection in Phase 4.
+   * Default: 'claude-haiku-4-5-20251001' (preserves pre-Phase-2 behavior).
+   */
+  model?: string;
   /** AbortSignal — abort fires `byokStop` automatically. */
   signal?: AbortSignal;
 }
@@ -82,11 +89,13 @@ export async function streamByokChat(
     options.signal.addEventListener("abort", () => void byokStop(streamId));
   }
 
-  return invoke("byok_chat", {
+  // W49 Phase 4: command name from shared BYOK_CMD_ANTHROPIC constant (providerRegistry.ts).
+  return invoke(BYOK_CMD_ANTHROPIC, {
     streamId,
     messages,
     system: options?.system ?? "",
     verb: options?.verb ?? "brainstorm",
+    model: options?.model ?? "claude-haiku-4-5-20251001",
     onEvent: ch,
   });
 }

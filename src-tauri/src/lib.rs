@@ -1,4 +1,6 @@
 mod byok;
+mod byok_engine;
+mod byok_openai;
 mod grammar;
 mod license;
 
@@ -167,6 +169,11 @@ pub fn run() {
             byok::byok_clear_key,
             byok::byok_chat,
             byok::byok_stop,
+            byok_openai::byok_openai_set_key,
+            byok_openai::byok_openai_has_key,
+            byok_openai::byok_openai_clear_key,
+            byok_openai::byok_openai_chat,
+            byok_openai::byok_openai_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

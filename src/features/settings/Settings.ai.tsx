@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 
 import { acquireSession } from "../ai/ai.client";
 import { byokClearKey, byokHasKey, byokSetKey } from "../ai/byok.client";
+import { byokOpenAiClearKey, byokOpenAiHasKey, byokOpenAiSetKey } from "../ai/byok.openai.client";
+import { clearUsage, getUsage, type ProviderUsage } from "../ai/byokUsage";
 import { SetRow, SetToggle } from "./Settings.primitives";
 import { AI_REPLAY_EVENT, type Tweaks } from "./settings.store";
 
@@ -29,12 +31,13 @@ interface ByokKeyEntryProps {
   saveError: string;
   onInput: (v: string) => void;
   onSave: () => void;
+  placeholder?: string;
 }
 
-function ByokKeyEntry({ keyInput, saveError, onInput, onSave }: ByokKeyEntryProps) {
+function ByokKeyEntry({ keyInput, saveError, onInput, onSave, placeholder = "sk-ant-…" }: ByokKeyEntryProps) {
   return (
     <div className="byok-key-entry">
-      <input className="set-input" type="password" placeholder="sk-ant-…" value={keyInput}
+      <input className="set-input" type="password" placeholder={placeholder} value={keyInput}
         onChange={(e) => { onInput(e.target.value); }} autoComplete="off" />
       <button className="btn btn-soft" onClick={onSave}>Save</button>
       {saveError && <span className="byok-key-error">{saveError}</span>}
@@ -79,7 +82,7 @@ function ByokKeyRow() {
     void byokClearKey().then(() => { window.dispatchEvent(new CustomEvent("byok:key-changed")); setKeySet(false); });
   }
   return (
-    <SetRow label="Your API key" desc="Direct to Anthropic — your prose never touches our servers.">
+    <SetRow label="Anthropic API key" desc="Direct to Anthropic — your prose never touches our servers.">
       {keySet
         ? <ByokKeySaved onRemove={handleRemove} />
         : <ByokKeyEntry keyInput={keyInput} saveError={saveError} onInput={(v) => { setKeyInput(v); setSaveError(""); }} onSave={handleSave} />}
@@ -154,6 +157,78 @@ function AiKeyEntryRow({ setTweak }: AiKeyEntryRowProps) {
   );
 }
 
+// ── ByokOpenAiKeyRow (internal) ───────────────────────────────────────────────
+// Mirrors ByokKeyRow but targets the OpenAI keychain slot.
+// Fires/reacts to `byok:openai-key-changed` — does NOT cross-fire with the
+// Anthropic `byok:key-changed` event (distinct events per W49 Decision 4).
+
+function ByokOpenAiKeyRow() {
+  const [keySet, setKeySet] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const [saveError, setSaveError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void byokOpenAiHasKey().then((has) => { if (!cancelled) setKeySet(has); });
+    const onChanged = () => { void byokOpenAiHasKey().then((has) => { if (!cancelled) setKeySet(has); }); };
+    window.addEventListener("byok:openai-key-changed", onChanged);
+    return () => { cancelled = true; window.removeEventListener("byok:openai-key-changed", onChanged); };
+  }, []);
+  function handleSave() {
+    const trimmed = keyInput.trim();
+    if (!trimmed) { setSaveError("Key cannot be empty."); return; }
+    void byokOpenAiSetKey(trimmed).then(() => {
+      setKeyInput(""); setSaveError(""); setKeySet(true);
+      // byokOpenAiSetKey already dispatches `byok:openai-key-changed` — no double-fire needed.
+    }).catch((err: unknown) => { setSaveError(err instanceof Error ? err.message : "Failed to save key."); });
+  }
+  function handleRemove() {
+    void byokOpenAiClearKey().then(() => { setKeySet(false); });
+    // byokOpenAiClearKey already dispatches `byok:openai-key-changed`.
+  }
+  return (
+    <SetRow label="OpenAI API key" desc="Direct to OpenAI — your prose never touches our servers.">
+      {keySet
+        ? <ByokKeySaved onRemove={handleRemove} />
+        : <ByokKeyEntry keyInput={keyInput} saveError={saveError} placeholder="sk-…"
+            onInput={(v) => { setKeyInput(v); setSaveError(""); }} onSave={handleSave} />}
+    </SetRow>
+  );
+}
+
+// ── ByokUsageReadout ──────────────────────────────────────────────────────────
+// Shows accumulated per-provider BYOK token counts + estimated USD cost.
+// Rendered below the key rows; hidden when all counts are zero.
+// Re-renders on the `byok:usage-updated` CustomEvent dispatched by recordUsage /
+// clearUsage — no polling needed.
+
+function fmtLine(u: ProviderUsage): string {
+  const total = u.inputTokens + u.cachedTokens + u.outputTokens;
+  return `${total.toLocaleString()} tokens · est. $${u.estUsd.toFixed(4)}`;
+}
+
+function ByokUsageReadout() {
+  const [usage, setUsage] = useState(() => getUsage());
+  useEffect(() => {
+    const refresh = () => { setUsage(getUsage()); };
+    window.addEventListener("byok:usage-updated", refresh);
+    return () => { window.removeEventListener("byok:usage-updated", refresh); };
+  }, []);
+
+  const anthTotal = usage.anthropic.inputTokens + usage.anthropic.cachedTokens + usage.anthropic.outputTokens;
+  const oaiTotal = usage.openai.inputTokens + usage.openai.cachedTokens + usage.openai.outputTokens;
+  if (anthTotal === 0 && oaiTotal === 0) return null;
+
+  return (
+    <SetRow label="BYOK usage" desc="Accumulated tokens and estimated cost since last reset. Resets do not affect your provider billing.">
+      <div className="byok-usage-summary">
+        {anthTotal > 0 && <div className="byok-usage-line">Claude — {fmtLine(usage.anthropic)}</div>}
+        {oaiTotal > 0 && <div className="byok-usage-line">ChatGPT — {fmtLine(usage.openai)}</div>}
+        <button className="btn btn-soft byok-usage-reset" onClick={() => { clearUsage(); }}>Reset</button>
+      </div>
+    </SetRow>
+  );
+}
+
 // ── Expanded AI rows (shown when aiEnabled is true) ───────────────────────────
 
 function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
@@ -166,6 +241,8 @@ function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
     {showKeyRow && <SetRow label="AI license key" desc="Clear to re-enter a different one."><button className="ai-change-key-btn" onClick={() => setTweak("aiLicenseKey", "")}>Change license key…</button></SetRow>}
     {!showKeyRow && <AiKeyEntryRow setTweak={setTweak} />}
     <ByokKeyRow />
+    <ByokOpenAiKeyRow />
+    <ByokUsageReadout />
     <SetRow label="Custom endpoint" desc="Use a different API gateway." last><button className="btn btn-soft" disabled>Coming soon</button></SetRow>
   </>);
 }
