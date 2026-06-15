@@ -2,7 +2,7 @@
 project: writing
 wave: 46
 title: Model writing-quality eval + harness-steerability experiment
-status: P0 LOCKED — methodology researched + adversarially validated 2026-06-14 (attack-decision PASS); P1+ build unblocked. Interactive/Cole-driven from P1; pick up when ready
+status: P0 LOCKED 2026-06-14 (attack-decision PASS). P0-completion in progress 2026-06-15 — P0-5/P0-8 done, P0-6 dispatched, P0-7 panel+billing documented, OpenRouter key acquired; budget deferred to pilot review. NEXT — adapter architect dispatch (P0-5 brief) + pick pilot excerpt (P0-3) with Cole → cost pilot
 created: 2026-06-13
 depends_on: [W40 (BYOK client-direct + provider adapter seed), informs W42 (harness) + W44 (model picker/recommendation)]
 ---
@@ -47,6 +47,37 @@ not raw generation. This wave produces the *evidence* behind that bet and the *t
 8. **Run through the app's real harness** — the eval imports the actual `build{Brainstorm,Critique,BetaRead,Proofread}Messages` from `src/features/ai/prompts/`. The live output IS the oracle (green unit tests ≠ real behavior).
 9. **Shared provider adapter** (Anthropic SDK + OpenAI SDK, model-keyed) built here **becomes W44's adapter** — eval de-risks W44 instead of being throwaway.
 10. **Recommend a winner, positively.** Even if the finding is "slop is partly unfixable at the model level," crown the best-after-harness model and position it as a strength ("writes with the most natural voice in WritersNook"), never as a jab at the others. Feeds the "recommended" hint in W44's picker.
+
+## Decision 11: Provider adapter interface (ADR — refines Decision 9)
+**Context:** The shared adapter built for the eval (P1) must also serve W44 production unchanged — Node eval (buffered, env keys) and Tauri prod (streaming, keychain) behind one interface. Design at `roadmap/wave-46-adapter-design.md`; attack-decision review returned FLAG (core sound, two pre-lock gaps).
+**Pick:** Thin `ProviderAdapter` with `complete()` (buffered, eval) + `stream(params, onToken, signal?)` (W44) over a `ProviderTransport` seam (`NodeSdkTransport` now / `TauriTransport` in W44); one normalized `AdapterResult`. **D1** OpenRouter = distinct `providerName` (self-preference routing needs true provider). **D2** callback+Promise over AsyncIterable (matches existing `NormalizedEvent`). **D3** SDKs (`@anthropic-ai/sdk@0.104.2`, `openai@6.42.0`) in `devDependencies` (eval-only import path; Vite never bundles).
+**Rationale:** Single interface, two transports = W44 slots in without reshaping callers (Decision 9 intent). SDKs over raw fetch for typed errors + auto-retry (highest-value at ~1700 calls).
+**Consequences:** Commits W44 to this interface; post-ship changes to `AdapterCallParams`/`AdapterResult` need coordinated eval+W44 edits. Four review amendments folded in (A1 `AbortSignal` on `stream()`; A2 Anthropic `TauriTransport` needs a NEW Rust command — surface in W44 brief; A3 `pause_turn`≠`end_turn` is an eval-correctness signal; A4 capture partial usage on throw for honest cost-pilot figures).
+**Enforcement:** advisory-only (design doc + this ADR are the contract the P1 implementer builds to; no mechanical gate). attack-decision review fired (FLAG adjudicated address-or-justify).
+
+## Decision 12: Judging architecture — in-session cross-architecture panel (ADR — supersedes Decision 6 + P0-7 + Section 4)
+**Context:** P0-7 had judging run on a cheap automated API panel (Haiku-4-5 / GPT-5.4-mini / OpenRouter) billed to Cole's keys, with Opus-4.8 3-way-tie adjudication. Cole's Codex tool (subscription-authed `codex exec`, $0) + the Claude session both let judging run **in-session at zero judge-cost**. Full design at `roadmap/wave-46-judging-architecture.md`; two attack-decision passes (BLOCK→FLAG): pass 1 caught a condition-dependent self-preference confound, pass 2 closed it and FLAGged 5 address-or-justify items (all resolved §R1–R7).
+**Pick:** The rig only **generates + strips + blinds + emits briefs**; an orchestrator drives **2 cross-architecture judges** — Claude Opus-4.8 (subagent) + Codex gpt-5.5 (`codex exec`) — each judgment attacked by a **mixed adversarial panel**, then verdicts ingested to `eval-scores.json`. **Cross-provider judge is authoritative for ALL steerability deltas** (an Anthropic judge over-rewards harness-ON Anthropic outputs because the harness enforces Anthropic's own RLHF objectives — β_ON > β_OFF, a condition-dependent bias that does NOT cancel in the delta); same-provider is diagnostic-only; third-party (OpenRouter) models average both cross-provider judges. **Primary metric is swap-averaged signed pairwise ON-vs-OFF preference** (not absolute mean-difference). Gate: mean signed pairwise ≥ +0.5 AND ON-preferred ≥ 60%.
+**Rationale:** $0 judge cost on subscriptions (only generation hits paid keys); cross-architecture diversity (GPT vs Claude) is a real provider-bias firewall a same-family panel can't be; pairwise is more reliable than Likert for subjective/directional judgments; the cross-provider-authoritative rule is the one fix that actually closes the self-preference confound rather than assuming it cancels.
+**Consequences:** Only generation consumes Cole's API keys (dominant + only cost). Two judges (not three) → no majority/tiebreaker machinery; reliability moves to human-anchor ρ≥0.6 + authoritative-vs-diagnostic divergence flagging (§R2, replaces the now-inert Krippendorff α gate). Codex must stay subscription-authed for the $0 property to hold. P0-7, Section 4, the Section 3 primary-metric, and the α gate in this spec are superseded (markers added in-place).
+**Enforcement:** advisory-only (`wave-46-judging-architecture.md` is the canonical judging spec the P2/P6 implementer builds to; no mechanical gate). Two attack-decision reviews fired (BLOCK→FLAG→resolved §R1–R7).
+
+## Decision 13: Adult-content tier split — managed = SFW, explicit = BYOK/local + permissive model (durable: candidate)
+**Context:** WritersNook's users include erotica/romance writers. Could explicit fiction route through the managed tier (Cole's Anthropic/OpenAI keys)? Researched 2026-06-15 via 4 parallel passes (competitors / embedded-content behavior / reseller-compliance / permissive-model landscape); Cole ratified the split 2026-06-15. Not an architect-proposed decision — research-grounded + stakeholder-ratified; the 4 passes WERE the adversarial attack (each hunted failure modes + cheaper alternatives + the "is it actually blocked" question).
+**Pick:** **Managed tier (Cole's keys) serves non-explicit writing only; explicit/mature content is a BYOK + permissive-model path** over the existing OpenAI-compatible BYOK/local endpoint (W45/W49). Explicit content NEVER flows through Cole's managed keys. No managed uncensored lane (would make Cole a moderation operator: age-gate + CSAM block + ToS). CSAM = universal hard block, every tier, NCMEC obligation — separate absolute line, never conflated with the adult question.
+**Rationale:** Confirmed 4 ways that NO app resells frontier API (Anthropic/OpenAI) for explicit fiction under a managed sub — ToS bans resale/wrapper, models refuse explicit at the weights level, and **Anthropic moderates at the INPUT stage** so even a benign task (proofread) on a chapter *containing* an explicit scene refuses AND risks Cole's account (~1.45M deactivations/6mo, ~3.3% appeal success; end-user-ID tags reduce but don't shield liability). Market pattern: own-models (NovelAI/Sudowrite/DreamGen) OR BYOK+OpenRouter-uncensored (NovelCrafter) OR local (KoboldAI). Permissive-model quality gap is small (Dolphin 3.0 / Hermes 3-4 / NovelAI Erato — single digits on reasoning, ~margin-of-error on prose) and plugs into the existing custom-endpoint support.
+**Consequences:** Managed tier is positioned SFW (not marketed for adult content). Adult path needs to become a *documented, intentional* BYOK/local route + a recommended permissive model. **Embedded-content UX warning required** (managed-tier refusal on a chapter with an explicit scene must NOT fail silently — detect + surface "connect BYOK/local for mature content"; Cole ratified "100%, silent feels bad, allowing it very bad"). W46 eval: keep explicit content OUT of the matrix run on Cole's generation keys; content-permissiveness is a separate screening; the eval's "recommended default" is for the managed SFW tier (unaffected). Touches W44 adapter + marketing positioning → durable.
+**Enforcement:** advisory-only (product-positioning + UX decision; no mechanical gate). UX-warning feature is its own slice (see `## Follow-up candidates`). durable: candidate → promote to `roadmap/decisions/` at wrap.
+
+## Follow-up candidates
+> These emerged from W46 research/discussion but are NOT eval work — they're Phase-1 product features (editor + harness + UI). Out of W46 scope (the eval wave); should run as their own slice. Cole ratified the content strategy + both features 2026-06-15.
+
+- **"AI context control & mature-content handling" slice (committed — Decision 13).** Pairs two measures into one coherent slice. | why-not-in-wave: W46 is the model-eval wave (no product-feature scope); this is editor-mark + harness-assembly + UI work spanning ≥4 files. | present-harm: explicit content reaching Cole's managed Anthropic key risks account suspension (Decision 13 — ~1.45M deactivations/6mo, ~3.3% appeal success).
+  - **(a) Granular per-text-range "hide from AI" exclusion.** A custom TipTap `aiExclude` **Mark** (anchored to content, survives edits, **Yjs-persisted** → durable, syncs in Phase 2). User selects text → "Hide from AI"; marked ranges are stripped (replace with `[passage hidden by author]` placeholder, not silent-delete, to preserve coherence) at assembly time. Visible treatment (shaded bg / gutter marker); hidden text stays in manuscript/exports/word-count. **Integration seams (scouted 2026-06-15):** register the Mark in `buildExtensions()` `src/editor/Editor.tsx:96` (no custom marks exist yet — existing effects are `Decoration.inline`, not Marks; new file e.g. `src/editor/extensions/AiExcludeExtension.ts`); strip marked ranges in `assembleContext()` `src/features/ai/ai.context.ts:118` (alongside `filterAiEntities()` `ai.context.ts:56`) before prose hits `buildGrounding()` `src/features/ai/prompts/shared.ts:123`; **no DB change** (Yjs-stored). **Composes with — does NOT duplicate — the existing coarse control** `AiContextPicker` (`src/features/ai/AiOverlays.tsx:258`, the "What the assistant sees" modal: scene/entity/About-level toggles + spoiler boundary, state in `AiCtxConfig` `ai.types.ts:143`). New feature = the finer text-range layer that modal lacks.
+  - **(b) Reactive managed-refusal warning.** When the managed tier refuses (or input-moderation rejects) a request whose manuscript contains explicit content, surface a calm notice ("connect a BYOK/local model for mature content") — never fail silently. **Design dependency (scout first):** how a managed refusal actually surfaces — an `error` `NormalizedEvent` we can catch vs. an in-band polite-refusal token stream (latter is brittle to detect). Reactive (catch-the-refusal) preferred over proactive content-scanning (the latter rebuilds the moderation layer we're avoiding).
+  - **Related pre-existing observation (surface, don't auto-fix):** the existing entity `exclude_from_ai` shield (`toggleNever`, `AssistantPanel.tsx:337` session-local `useState`) is wired but **not persisted** — resets each session; characters/locations hardcode `false` (`sqliteStoryBibleStore.ts:197-199`, generic-entities only). Consider folding a persistence fix into this slice since it's the same conceptual surface.
+
+- **[Adapter hardening, NOT a product feature] Targeted `node.transport.ts` integration tests — before W44 production consumes the adapter.** P1a's adversarial review (FLAG, 2026-06-15) confirmed the SDK wire layer has zero unit coverage: the fake-transport test bypasses it by design. Deferred (not mock-tested now) deliberately — SDK-mock tests risk false confidence (a mock encoding the impl's own shape assumption passes even when the real SDK shape differs). The live cost pilot (P5) is the genuine integration check for the eval; production hardening tests belong with P1b/W44 when there's live evidence. | why-not-in-wave: meaningful transport tests need live SDK calls (keys + spend) or fine-grained SDK mocks whose value is gated on real-pilot evidence — both are post-pilot, and the production consumer (W44) is a separate wave. | present-harm: `node.transport.ts` error-mappers (billing/overloaded `.type` detection), streaming accumulation, and AbortSignal wiring are verified only at live-run time; `wave-46-adapter-design.md` Known Gaps flagged billing/overloaded detection + `stream()` ergonomics as medium-confidence; named consumer = W44 production Tauri path (`tauri.transport.ts`, P1b). Fold in the reviewer's AbortError note: aborted signals currently normalize to `{code:"network", retryable:true}` — W44's retry loop must exclude already-aborted signals.
 
 ## Model matrix
 **Tier 1 — current (the offering candidates):**
@@ -153,6 +184,46 @@ defaults to accept:
 
 Carried in from elsewhere (not P0-blocking): W44 Q2 (global + cheap-proofread) / Q5 (open-access+top-up
 vs Pro tier) — the recommendation output (P8) should match whatever picker shape W44 lands on.
+
+## P0 completion status (updated 2026-06-15)
+
+The 8 Section-11 artifacts:
+
+| # | Artifact | Owner | Status | Location |
+|---|---|---|---|---|
+| P0-1 | Spec locked | Orch | ✅ 2026-06-14 | appended below |
+| P0-2 | Budget ceiling | Cole | ⏸ DEFERRED — set at pilot review w/ real per-call data (Cole, 2026-06-15) | — |
+| P0-3 | Manuscript excerpts | Cole | 🔲 picking pilot excerpt with Cole | `wave-46-excerpts.md` (pending) |
+| P0-4 | Model live-probe | P1 | ⏳ runs at Phase-1 start | `eval/eval-model-probe-{date}.json` |
+| P0-5 | Adapter context brief | Orch | ✅ 2026-06-15 | `wave-46-adapter-brief.md` |
+| P0-6 | Scorer design note | Orch | 🔲 in progress (dispatched 2026-06-15) | `wave-46-scorer-design.md` (+ `wave-46-scorer-wordlists.md`) |
+| P0-7 | Judge panel | Orch+Cole | ◑ design locked below; OpenRouter key acquired 2026-06-15 | this section |
+| P0-8 | Blinding schema | Orch | ✅ 2026-06-15 | `wave-46-blinding-schema.md` |
+
+### P0-7 — Judge panel + billing model (2026-06-15)
+
+> **⚠️ SUPERSEDED (2026-06-15) — see `wave-46-judging-architecture.md`.** The cheap-API automated
+> panel below (Haiku-4-5 / GPT-5.4-mini / OpenRouter) and the "subscriptions CANNOT drive the panel"
+> billing conclusion are REPLACED. Judging now runs **in-session** via Cole's **subscriptions** at $0:
+> an orchestrator drives Claude(Opus-4.8) judge subagents + Codex(gpt-5.5) judges → mixed adversarial
+> attackers per output, then ingests verdicts to `eval-scores.json`. Cross-provider judge is
+> **authoritative for all steerability deltas** (closes the condition-dependent self-preference
+> confound); same-provider is diagnostic-only. Only **generation** (the 6 models under test) consumes
+> Cole's paid API keys. The text below is retained for history; `wave-46-judging-architecture.md` is
+> canonical.
+
+**Panel (Section 4 design holds):**
+- Judge A — Claude Haiku-4-5 (`claude-haiku-4-5-20251001`), Anthropic.
+- Judge B — GPT-5.4-mini (`gpt-5.4-mini`), OpenAI.
+- Judge C — Mistral Large or Llama-3.3-70B via **OpenRouter** (key acquired 2026-06-15).
+- Swap configs: scoring Anthropic outputs → drop Judge A; scoring OpenAI outputs → drop Judge B (self-preference exclusion).
+- Adjudicator: panel-majority default; Opus-4.8 (xhigh) only on a true 3-way tie AND only for non-Anthropic outputs; Anthropic ties → average + flag.
+
+**Billing model (decided 2026-06-15):**
+- **Generation** (the 6 models under test, ~1710 full-matrix calls) → Cole's Anthropic + OpenAI API keys. Dominant cost.
+- **Scoring panel** (Judges A/B/C, automated blind, rig-driven) → API: Anthropic key (Judge A), OpenAI key (Judge B), OpenRouter (Judge C). Judge models are the cheap tier by design.
+- **Web subscriptions (Claude.ai / ChatGPT) CANNOT drive the automated panel** — no programmatic API access; ~180 pilot / ~1700 full blind-scored outputs is not paste-by-hand feasible and would break the blind + CoT logging. Subscriptions are not in the eval path.
+- **Decision-6 adversarial panel + Opus-4.8 adjudication (P6)** → runs as Claude Code subagent / Workflow dispatches on the session's Claude billing ("our Claude side") — does NOT consume Cole's API keys. The heavy Opus reasoning lives here.
 
 ## P0 — LOCKED eval-methodology spec (converged 2026-06-14)
 
@@ -436,7 +507,14 @@ Post-hoc delta = mean(D_post-hoc aggregate) - mean(D_ON aggregate) per model per
 
 #### Primary Steerability Metric
 
-Per model: mean(D_ON aggregate score) - mean(D_OFF aggregate score) across all applicable tasks (T1-T4), all excerpts, all n=5 samples.
+> **⚠️ REVISED (2026-06-15) — see `wave-46-judging-architecture.md` §R1.** The primary metric is now the
+> **cross-provider judge's signed pairwise ON-vs-OFF preference, swap-averaged** (winner ON/OFF/tie ×
+> magnitude slight/moderate/strong → ±1/±2/±3; average both presentation orders; aggregate across T1–T4
+> × n=5). **Steerability gate (replaces the 0.25 absolute floor below):** mean signed pairwise ≥ **+0.5**
+> AND ON preferred in ≥ **60%** of swap-averaged pairs. The absolute mean-difference below is retained as
+> a **descriptive** secondary statistic, not the gate. Tune thresholds at the pilot.
+
+Per model (descriptive secondary): mean(D_ON aggregate score) - mean(D_OFF aggregate score) across all applicable tasks (T1-T4), all excerpts, all n=5 samples.
 
 Report per-dimension deltas in addition to the aggregate:
 - **D2 delta** — most direct measure of whether the grounding context component works ("harness makes outputs more manuscript-specific").
@@ -454,11 +532,20 @@ At n=5 per cell, Bradley-Terry rankings carry wide bootstrap confidence interval
 
 #### Winner Recommendation
 
-The recommended model is NOT necessarily the model with the highest steerability delta. It is the model that achieves the best harness-ON quality score among models with a positive steerability delta (≥ 0.25 floor met per task-type vote) across all 3 independent task-type votes. Rationale: a model that improves dramatically with the harness from a bad baseline is less useful than a model that starts well and responds reliably. The steerability ranking answers "what model does our harness help most?"; the quality ranking answers "what model should we ship with?" Both are reported; the recommendation synthesizes them, framed positively (Decision 10).
+The recommended model is NOT necessarily the model with the highest steerability delta. It is the model that achieves the best harness-ON quality score among models that clear the steerability gate (per `wave-46-judging-architecture.md` §R1: mean signed pairwise ≥ +0.5 AND ON preferred in ≥ 60% of swap-averaged pairs; the old "≥ 0.25 absolute floor" is superseded) across the task-type votes. Rationale: a model that improves dramatically with the harness from a bad baseline is less useful than a model that starts well and responds reliably. The steerability ranking answers "what model does our harness help most?"; the quality ranking answers "what model should we ship with?" Both are reported; the recommendation synthesizes them, framed positively (Decision 10).
 
 **W44 product-hint disclaimer (required):** When this evaluation's winner recommendation feeds into the W44 multi-provider adapter decision — which model to ship as the default — the recommendation MUST carry the following disclaimer in any W44 planning artifact that cites it: "Recommended based on exploratory evaluation at n=5 samples per cell. Rankings reflect observed tendencies, not statistically confirmed differences. A minimum of n ≥ 20 per cell is recommended before treating this ranking as a definitive production-selection decision." The eval is a useful W44 directional signal, not a statistically backed mandate. Phase 1 implementation should not treat the winner as a locked production choice without a follow-up validation run.
 
 #### Inter-Judge Agreement
+
+> **⚠️ SUPERSEDED (2026-06-15) — see `wave-46-judging-architecture.md` §R2.** Krippendorff's α (a
+> 3-rater agreement statistic that excludes a dimension when judges disagree) is **semantically inert**
+> under the new 1-authoritative (cross-provider) + 1-diagnostic (same-provider) judge structure — judge
+> agreement is irrelevant when the cross-provider judge is authoritative regardless. Replacement
+> reliability checks: **(a)** the human-anchor ρ≥0.6 gate (Section 4 calibration) is the primary
+> reliability check; **(b)** authoritative-vs-diagnostic divergence ≥1.5 (0-4) on a dimension, or a
+> pairwise-direction disagreement, flags that cell low-confidence for human spot-check (annotate, never
+> silently drop). The α computation below is retained for history only.
 
 Compute Krippendorff's α per scoring dimension (D1, D2, D5) across all judge-output pairs after keymap reveal. Target α ≥ 0.60 (Brief 1, based on HANNA achieving 0.60-0.82 with 3 raters on 6 dimensions). Report α with bootstrap confidence intervals; at n=5 per cell with a 3-judge panel, the CI will span approximately ±0.15-0.20 — note this limitation explicitly.
 
@@ -469,6 +556,13 @@ A high adjudicator-trigger rate (Opus-4.8 called for > 20% of outputs due to jud
 ---
 
 ### Section 4 — Judge / Panel Design
+
+> **⚠️ SUPERSEDED (2026-06-15) — see `wave-46-judging-architecture.md`.** The 3-cheap-judge panel, the
+> provider-swap exclusion configs, and the Opus-4.8 3-way-tie adjudicator below are REPLACED by the
+> 2-judge cross-architecture design (Claude Opus-4.8 + Codex gpt-5.5, each attacked by a mixed
+> adversarial panel; cross-provider authoritative). The **self-judging-exclusion principle** and the
+> **human-anchor ρ≥0.6 calibration gate** carry forward; the panel-majority / Opus-tiebreaker machinery
+> does not (void with 2 judges). Retained for history; the judging-architecture doc is canonical.
 
 **Emerging best practice: diverse multi-judge panel (PoLL, Brief 1).**
 
@@ -920,9 +1014,9 @@ Cole documents each excerpt's AssembledContext fields in `roadmap/wave-46-excerp
 | T3 generation: 4 core models × 2 conditions × 5 samples | 40 |
 | T6 generation: 4 core models × 1 condition × 5 samples | 20 |
 | Post-hoc pass (T3-ON, T3-OFF, T6 — via Haiku-4-5): 4 models × 3 condition-sets × 5 samples | 60 |
-| Judge scoring — Pass 1 (3 judges × 60 outputs): | 180 |
-| Judge scoring — Pass 2 pairwise (T3 steerability, 3 judges × 2 orderings × 4 models × 5 pairs): | ~120 |
-| Scorer validation (50 calibration corpus excerpts × hybrid scorer): | ~100 |
+| Judge scoring — Pass 1 (3 judges × 60 outputs): $0 — codex subscription | 180 |
+| Judge scoring — Pass 2 pairwise (T3 steerability, 3 judges × 2 orderings × 4 models × 5 pairs): $0 — codex subscription | ~120 |
+| Scorer validation (50 calibration corpus excerpts × hybrid scorer): $0 — codex subscription | ~100 |
 | **Estimated total pilot calls** | **≈ 524** |
 
 Note: scorer validation calls (Section 7) are included in the pilot phase total because they must complete before the full matrix. The 50-excerpt validation corpus requires the 60 T3/T6 outputs from the pilot generation step.
@@ -1168,7 +1262,7 @@ Residual Goodhart risk: acknowledged. The scorer is a signal, not a verdict. All
 
 **The attack:** Frontier models with high per-token costs and a ~1710-call full matrix could easily exceed $500-1000. The eval becomes cost-prohibitive before it can be run.
 
-**The response:** Section 10 addresses this structurally. The cost pilot runs first — always. The pilot costs ≈ $20-50 in the expected range (60 generation calls at Tier-1 prices + scoring). The pilot produces a precise per-call cost measurement. The full matrix projection is computed from actual pilot data, not estimates.
+**The response:** Section 10 addresses this structurally. The cost pilot runs first — always. The pilot costs ≈ $5-25 in the expected range (generation only: ~124 calls at Tier-1 prices; judging and scorer-validation calls are $0 via codex subscription — Decision 12). The pilot produces a precise per-call cost measurement. The full matrix projection is computed from actual pilot data, not estimates.
 
 For Opus-4.8 and GPT-5.5 (the two most expensive Tier-1 models with no public per-call pricing before the probe), the pilot includes a **mini cost-probe** (2 calls each at target task lengths) specifically to establish per-call cost before the go/no-go gate fires. These models have the widest cost uncertainty; the mini-probe closes that gap before any commitment to a full matrix run.
 
