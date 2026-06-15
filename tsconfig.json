@@ -20,7 +20,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
+  "include": ["src", "eval/scorer"],
   "exclude": ["src/test"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
