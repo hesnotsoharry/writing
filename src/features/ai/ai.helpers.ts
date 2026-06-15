@@ -1,4 +1,5 @@
-import type { AiEstimateResult, MeterStatus } from "./ai.types";
+import type { AiEstimateResult, ManagedModel, MeterStatus } from "./ai.types";
+import { MODEL_RATES, TYPICAL_REQUEST } from "./ai.types";
 
 export interface EstimateParams {
   sceneWords: number;
@@ -35,6 +36,22 @@ export function aiMeterStatus(usedPct: number, resetLabel: string): MeterStatus 
 export function computeUsedPct(allowance: number, balance: number): number {
   if (allowance <= 0) return 0;
   return Math.min(100, Math.max(0, Math.round(((allowance - balance) / allowance) * 100)));
+}
+
+/**
+ * Estimate how many more "typical" replies a credit-unit balance buys on a given model.
+ * Pure + approximate (the UI always renders the result with a "~" prefix). Uses the
+ * static TYPICAL_REQUEST profile and the client MODEL_RATES mirror. Floors the result
+ * so we never promise a reply the balance can't cover. Returns 0 for non-finite
+ * or non-positive balances, unknown models, or non-positive computed cost.
+ */
+export function estimateRepliesLeft(balanceUnits: number, model: ManagedModel): number {
+  const rate = MODEL_RATES[model];
+  if (!rate) return 0;
+  if (!Number.isFinite(balanceUnits) || balanceUnits <= 0) return 0;
+  const costPerReply = TYPICAL_REQUEST.inputTokens * rate.input + TYPICAL_REQUEST.outputTokens * rate.output;
+  if (costPerReply <= 0) return 0;
+  return Math.floor(balanceUnits / costPerReply);
 }
 
 /**

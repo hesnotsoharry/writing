@@ -84,18 +84,45 @@ Before declaring a phase complete, restate that phase's Observation-column point
 
 ## Locked decisions
 
-> **STUB — design ratified with Cole 2026-06-14, formal entry pending at Phase 1.** These were settled collaboratively this session and are NOT yet entered as decision-cell-cleared ADRs. At Phase 1 execution, run each through the decision cell (`sonnet-architect` → `sonnet-adversarial-reviewer` `Posture: attack-decision` → adjudicate) or, since they are user-ratified UX choices rather than contested architecture, write the `review-tier-{session_id}.json = {"tier":"skip"}` sidecar and enter them directly. The ratified choices to formalize:
->
-> 1. **Model-agnostic bar.** The % bar shows allowance-remaining and does not move on model switch (only the helper number does). Rationale: switching models spends nothing; a per-model bar would jump misleadingly. Enforcement: advisory-only (acceptance criteria assert it).
-> 2. **Per-model estimate computed client-side from `RATES`** (no `balance.ts` change). Rationale: data already on client; no round-trip; keeps the endpoint contract frozen. Consequence: a static typical-request token-profile constant lives client-side; server-side RATES drift could skew the "~" estimate (acceptable — it's explicitly approximate). Enforcement: advisory-only.
-> 3. **No raw units, no dollars in user-facing usage UI.** Translate to "~replies" + %. Rationale: calm brand; units are meaningless; dollars expose margin + cheapen $1.50. Enforcement: acceptance criterion (no-dollars/no-units check) — advisory-only.
-> 4. **Static typical-request-cost constant per model for launch** (not rolling per-user average). Enforcement: none (convention); per-user calibration is an out-of-scope future refinement.
+> Formalized at Phase 1 execution (2026-06-14). These are **user-ratified UX choices** settled collaboratively with Cole, not contested architecture — entered directly without the `sonnet-architect` decision cell (no architect dispatched, so the cell's enforcement hook never arms). Recorded here as the wave's binding design constraints.
+
+## Decision 1: Model-agnostic usage bar
+
+**Context:** The % bar must read as the stable truth of "how much allowance is left"; the per-model detail is a separate layer.
+**Pick:** The % bar shows allowance-remaining and does **not** move when the user switches models — only the per-model helper line number changes.
+**Rationale:** Switching models spends nothing; a bar that shrinks on model-switch is both confusing and dishonest. The bar is the stable truth; per-model variance lives in the helper line + popover.
+**Consequences:** `AiMeter` takes `usedPct` (model-independent) for the bar; model-dependent reply estimates are computed separately and never feed the bar width.
+**Enforcement:** advisory-only (acceptance criteria assert the bar doesn't move on model switch).
+
+## Decision 2: Per-model estimate computed client-side from a mirrored `RATES` table
+
+**Context:** The "~N replies on <model>" estimate needs per-model cost data; the authoritative `RATES` table lives server-side in `marketing/functions/_lib/credits.ts`.
+**Pick:** Mirror the per-model rate data client-side (in `ai.types.ts`) and compute the estimate on the client from a static typical-request token profile. No `balance.ts` change, no new endpoint round-trip.
+**Rationale:** The balance data is already on the client; a round-trip per model-switch would be wasteful and the endpoint contract stays frozen.
+**Consequences:** A static typical-request token-profile constant + a client `RATES` mirror live in `ai.types.ts`. Server-side `RATES` drift could skew the "~" estimate — acceptable because the estimate is explicitly approximate ("~"). If the client mirror and server `RATES` ever diverge, the estimate degrades gracefully (wrong "~N", correct %).
+**Enforcement:** advisory-only.
+
+## Decision 3: No raw units, no dollars in user-facing usage UI
+
+**Context:** Internal balance is in credit units; the API cost has a margin ($10 allowance on $15/mo). Surfacing either harms the "a meter, not a bill" brand.
+**Pick:** Translate everything to "~replies" + "% left". No raw "units" and no dollar figures anywhere in the user-facing AI usage UI.
+**Rationale:** Units are meaningless to users; dollars expose the margin and make $1.50 sound cheap. The brand is calm and legible, not a billing statement.
+**Consequences:** All Phase 2–4 UI copy uses % and "~replies"; the popover and helper line never render `$` or unit counts.
+**Enforcement:** acceptance criterion (no-dollars/no-units check) — advisory-only.
+
+## Decision 4: Static typical-request-cost constant per model for launch
+
+**Context:** Real request cost varies by verb + context (a Story-Bible-grounded beta-read ≫ a quick proofread).
+**Pick:** Use a static typical-request token-profile constant per model for the launch estimate, not a rolling per-user average.
+**Rationale:** Per-user calibration is a meaningful refinement but out of scope for the launch-gating wave; a static profile is honest enough given the "~" framing.
+**Consequences:** The estimate is a fixed approximation; per-user calibration is deferred to a future wave.
+**Enforcement:** none (convention) — per-user calibration is an out-of-scope future refinement.
 
 ## Status
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
+| 1 | 2026-06-14 | 2026-06-14 | (this commit) | Internal — pure helper; 17/17 oracle tests green; reviewer FLAG (Infinity/NaN guard) addressed. |
 | 2 | — | — | — | — |
 | 3 | — | — | — | — |
 | 4 | — | — | — | — |

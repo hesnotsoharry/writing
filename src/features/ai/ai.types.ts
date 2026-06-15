@@ -37,6 +37,28 @@ export const AI_MODEL_ORDER: readonly ManagedModel[] = [
   "claude-opus-4-8", "gpt-5.5",
 ];
 
+/**
+ * Per-model cost in credit units per token, mirrored from the server RATES table
+ * (marketing/functions/_lib/credits.ts). Only input/output are needed for the
+ * client-side reply estimate — cache rates are irrelevant to the "~N replies" cue.
+ * Keep in sync with the server if rates change; the estimate is explicitly approximate ("~").
+ */
+export const MODEL_RATES: Record<ManagedModel, { input: number; output: number }> = {
+  "claude-haiku-4-5-20251001": { input: 0.1,   output: 0.5 },
+  "claude-sonnet-4-6":         { input: 0.3,   output: 1.5 },
+  "claude-opus-4-8":           { input: 0.5,   output: 2.5 },
+  "gpt-5.4-mini":              { input: 0.075, output: 0.45 },
+  "gpt-5.4":                   { input: 0.25,  output: 1.5 },
+  "gpt-5.5":                   { input: 0.5,   output: 3.0 },
+};
+
+/**
+ * A static "typical request" token profile used to translate a credit-unit balance
+ * into an approximate per-model reply count. Real cost varies by verb + context;
+ * this is a launch-time approximation (per W50 Locked Decision 4).
+ */
+export const TYPICAL_REQUEST = { inputTokens: 6000, outputTokens: 800 } as const;
+
 export interface VerbDef {
   label: string;
   icon: IconName;
