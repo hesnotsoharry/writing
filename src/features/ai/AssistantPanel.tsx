@@ -16,6 +16,7 @@ import { Icon } from "../../components/Icon";
 import { type AiConversationStore,makeProductionAiConversationStore } from "../../db/aiConversationStore";
 import type { Scene } from "../../db/binderStore";
 import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
+import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import type { GateStatus } from "../license/license.gate";
 import { getTweak } from "../settings/settings.store";
 import { getBalance, type SessionResult } from "./ai.client";
@@ -269,14 +270,13 @@ function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateSta
   const [offline, setOffline] = useState(!navigator.onLine);
   const [balanceKey, setBalanceKey] = useState(0);
   const sessionRef = useRef<SessionResult | null>(null);
+  const licenseKeyRef = useRef(getTweak("aiLicenseKey", ""));
   useEffect(() => {
     if (!consented || byokMode) return; // BYOK: no managed-meter fetch
     let cancelled = false;
     const load = async () => {
       const key = getTweak("aiLicenseKey", "");
-      // Skip balance fetch when there is no license key AND the user is not a trial user.
-      // Trial users (gateStatus==='trial') get a lazily-minted trial token via acquireAnyToken.
-      if (!key && gateStatus !== "trial") return;
+      if (!key && gateStatus !== "trial") return; // no key + not trial → no fetch
       try {
         const token = await acquireAnyToken(sessionRef as MutableRefObject<SessionResult | null>);
         const data = await getBalance(token);
@@ -293,16 +293,14 @@ function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateSta
     return () => { cancelled = true; };
   }, [consented, balanceKey, byokMode, gateStatus]); // stable module-level fns omitted from deps
   useEffect(() => {
-    const goOnline = () => { setOffline(false); };
-    const goOffline = () => { setOffline(true); };
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
+    const goOnline = () => setOffline(false); const goOffline = () => setOffline(true);
+    window.addEventListener("online", goOnline); window.addEventListener("offline", goOffline);
     return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
   }, []);
   const refresh = useCallback(() => setBalanceKey((k) => k + 1), []);
-  // Decision 4: BYOK has no managed meter; offline is always false so canCompose stays true.
-  if (byokMode) return { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} };
-  return { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh };
+  useEffect(() => { if (byokMode) return; const h = () => { const cur = getTweak("aiLicenseKey", ""); if (cur !== licenseKeyRef.current) { licenseKeyRef.current = cur; refresh(); } }; window.addEventListener(SETTINGS_CHANGED_EVENT, h); return () => { window.removeEventListener(SETTINGS_CHANGED_EVENT, h); }; }, [byokMode, refresh]);
+  // D4: BYOK has no managed meter; return safe no-ops so canCompose stays true.
+  return byokMode ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} } : { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh };
 }
 
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────

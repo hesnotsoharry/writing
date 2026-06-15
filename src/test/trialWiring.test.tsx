@@ -12,7 +12,7 @@
  * persists aiTrialKey. acquireTrialSession's own behavior (POST body, throw-on-!ok) is
  * verified separately in src/test/trialSession.client.acceptance.test.ts against a stubbed fetch.
  */
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // ── Module mocks (hoisted before imports) ─────────────────────────────────────
@@ -103,7 +103,9 @@ vi.mock("../features/ai/ai.helpers", () => ({
 }));
 
 import type { SceneEntityGroup, StoryBibleStore } from "../db/storyBibleStore";
+import type { ManagedModel, VerbKey } from "../features/ai/ai.types";
 import { wrapInspectorSlot } from "../features/ai/AssistantPanel";
+import { PanelFooter } from "../features/ai/AssistantPanel.parts";
 import { SETTINGS_NS } from "../features/settings/settings.store";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -234,5 +236,46 @@ describe("useAiBalance — trial token path (aiLicenseKey empty, gateStatus='tri
     await new Promise((r) => setTimeout(r, 20));
     expect(mockAcquireTrialSession).not.toHaveBeenCalled();
     expect(mockAcquireSession).not.toHaveBeenCalled();
+  });
+});
+
+// ── Guard routing (Phase-4 conversion-critical deliverable) ───────────────────
+// Tests the 3-way exhaustion routing in resolveExhaustedGuard via PanelFooter.
+// Verifies guard component selection for trial vs active plans at usedPct >= 100.
+
+const FOOTER_BASE = {
+  offline: false, prompt: "", setPrompt: () => {}, verb: "brainstorm" as VerbKey,
+  verbPop: false, setVerbPop: () => {}, setVerb: () => {},
+  model: "claude-haiku-4-5-20251001" as ManagedModel,
+  modelPop: false, setModelPop: () => {}, setModel: () => {},
+  streamingId: null as string | null, onSend: () => {}, onStop: () => {},
+  est: { pct: 0, tokens: 0 }, onToast: () => {}, byokMode: false,
+};
+
+describe("PanelFooter exhaustion guard routing (resolveExhaustedGuard)", () => {
+  it("plan=trial + usedPct>=100: Subscribe/$14.99 CTA renders, no top-up or wait-for-reset text", () => {
+    render(<PanelFooter {...FOOTER_BASE} plan="trial" usedPct={100} resetLabel="Resets July 1" />);
+
+    expect(screen.getByRole("button", { name: /Subscribe · \$14\.99\/mo/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Top up/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Wait for reset/ })).toBeNull();
+  });
+
+  it("plan=active + usedPct>=100: top-up and wait-for-reset render, no Subscribe/$14.99 CTA", () => {
+    render(<PanelFooter {...FOOTER_BASE} plan="active" usedPct={100} resetLabel="Resets July 1" />);
+
+    expect(screen.getByRole("button", { name: "Top up" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Wait for reset" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Subscribe · \$14\.99\/mo/ })).toBeNull();
+  });
+
+  it("trial guard contains no reset-promise language (trial does not reset)", () => {
+    render(<PanelFooter {...FOOTER_BASE} plan="trial" usedPct={100} resetLabel="Resets July 1" />);
+
+    // "Maybe later" is the trial dismiss; "Wait for reset" must not appear.
+    expect(screen.getByRole("button", { name: "Maybe later" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Wait for reset/ })).toBeNull();
+    // The resetLabel text must not leak into the trial guard.
+    expect(screen.queryByText(/resets/i)).toBeNull();
   });
 });

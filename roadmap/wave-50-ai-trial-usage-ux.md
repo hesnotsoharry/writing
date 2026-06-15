@@ -134,4 +134,35 @@ _(empty — stage here only if a Tier-3 item clears the VALUE + STRUCTURAL + CLE
 
 ## Result
 
-_(filled at ship by the wrap team: what shipped, mechanical-review verdict, CDP smoke summary, the v0.8.2 publish, and the resolution of follow-up `2026-06-14-ai-license-key-entry-ui`.)_
+### Mechanical review
+
+**Inputs resolved:**
+- Plan: `roadmap/wave-50-ai-trial-usage-ux.md`
+- Diff range: `94ea18d..HEAD` (29baa1a, 0f77d6e, 566f130, 622b30d, bb62d8e)
+- Graph: fallback (grep + import-following — findings verified manually)
+- Run: 2026-06-14
+
+#### Check 1: Forward-trace
+- Change sites traced: 10 (estimateRepliesLeft, MODEL_RATES, TYPICAL_REQUEST, TRIAL_ALLOWANCE_UNITS, AiMeter[mod], MeterPop, TrialExhaustedGuard, resolveExhaustedGuard, AiKeyEntryRow/useAiKeyEntry/classifyKeyError)
+- Paths reaching production consumer: 10 — all reach panel/settings render or the pure helper. `estimateRepliesLeft` → AiComponents (AiMeter+MeterPop) + AiOverlays; `MODEL_RATES`/`TYPICAL_REQUEST` → ai.helpers; `TRIAL_ALLOWANCE_UNITS` → AiOverlays; exhaustion/key components → PanelFooter / AiExpandedRows.
+- Paths flagged as dead: 0
+
+#### Check 2: Plan universal-quantifier cross-reference
+- Universals found: "unit-test across … each model in `RATES`" (covered: all 6 models × trial/monthly in estimateRepliesLeft.test.ts); "No raw credit units and no dollar figures appear anywhere in the user-facing AI usage UI" (verified across Phases 2–4 reviews; only `$` is the deliberate $14.99 offer); per-model popover lists all of `AI_MODEL_ORDER` (6).
+- Flagged as narrowed: 0
+
+#### Check 3: Export audit
+- New exports added: 4 (estimateRepliesLeft, MODEL_RATES, TYPICAL_REQUEST, TRIAL_ALLOWANCE_UNITS)
+- Exports with production consumers: 4 / 4
+- Flagged as dead: 0
+
+#### Checks N/A: 4–6
+- Check 4 skipped: no schema property removals in this wave's diff.
+- Check 5 skipped: no cross-boundary phases declared (all phases `internal-only`; wave adds no new architectural surface per the plan's no-walking-skeleton note).
+- Check 6 skipped: no `stryker.config` found in project root and no `mutation:test` script in package.json (project has no mutation-testing infrastructure — not a W50 regression).
+
+#### Verdict
+
+**PASS.** Checks 1–3 ran clean against the real diff (graph-fallback, manually verified): every new export and changed component reaches a production consumer, no plan universal was narrowed, no dead exports. Checks 4–6 N/A. Full gate green at wave-end: tsc clean, ESLint clean, 1478/1478 vitest pass.
+
+_(remaining at ship: wave-end adversarial review, CDP smoke summary, v0.8.2 publish — see below.)_
