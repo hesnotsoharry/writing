@@ -2227,3 +2227,181 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   font-size: var(--text-sm); line-height: 1.55;
   display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-3);
 }
+
+/* ── Settings ▸ AI — shared key rows + custom-endpoint manager ─────────────
+   All classes below were undefined before this section. ADDITIVE ONLY.
+   Input look matches .ai-input (border + focus ring + placeholder).
+   Layout tokens: --s-1/2/3/4, --r-md/sm/pill/xs, --ink-*/--accent-*/--line-*.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* -- Shared form input (BYOK key fields, endpoint name/url, license key) --- */
+.set-input {
+  width: 100%; padding: 8px 11px;
+  font-size: var(--text-sm); font-family: var(--font-ui);
+  border: 1px solid var(--parchment-edge); border-radius: var(--r-md);
+  background: var(--paper); color: var(--ink);
+  outline: none;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.set-input::placeholder { color: var(--ink-4); font-style: italic; }
+.set-input:focus { border-color: var(--accent-ring); box-shadow: 0 0 0 2px var(--accent-wash); }
+.set-input:disabled { opacity: 0.55; background: var(--parchment); color: var(--ink-3); }
+
+/* -- BYOK shared primitives ------------------------------------------------ */
+
+/* Column stack: input(s) → button → error */
+.byok-key-entry {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2);
+  width: 100%;
+}
+
+/* "Key saved" state: hint label + Remove button side-by-side */
+.byok-key-saved {
+  display: flex; align-items: center; gap: var(--s-3);
+}
+
+/* Muted helper/status text ("A key is saved", "key saved") */
+.byok-key-hint {
+  font-size: var(--text-xs); color: var(--ink-3);
+}
+
+/* Inline error text (key save failure, endpoint validation) */
+.byok-key-error {
+  font-size: var(--text-xs); color: var(--danger); line-height: 1.45;
+}
+
+/* -- License-key entry row (AiKeyEntryRow) --------------------------------- */
+/* Same column-stack shape as .byok-key-entry; separate class for specificity */
+.ai-key-entry {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2);
+  width: 100%;
+}
+.ai-key-error {
+  font-size: var(--text-xs); color: var(--danger); line-height: 1.45;
+}
+
+/* -- Settings AI expanded: privacy copy + change-key button --------------- */
+.ai-privacy-block {
+  font-size: var(--text-xs); color: var(--ink-3);
+  line-height: 1.65; padding: var(--s-1) 0;
+}
+
+/* "Change license key…" — text-link style, no background */
+.ai-change-key-btn {
+  font-size: var(--text-sm); color: var(--accent);
+  background: none; cursor: pointer; padding: 0;
+  text-decoration: underline; text-underline-offset: 2px;
+  transition: color var(--dur-fast);
+}
+.ai-change-key-btn:hover { color: var(--accent-deep); }
+
+/* -- BYOK usage readout ---------------------------------------------------- */
+.byok-usage-summary {
+  display: flex; flex-direction: column; gap: var(--s-1); width: 100%;
+}
+.byok-usage-line {
+  font-size: var(--text-xs); color: var(--ink-2);
+}
+/* .byok-usage-reset is already .btn.btn-soft — no additional rules needed */
+
+/* ── Custom Endpoints Manager ─────────────────────────────────────────────── */
+
+.custom-endpoints-manager {
+  display: flex; flex-direction: column; gap: var(--s-3);
+  width: 100%; padding-top: var(--s-2);
+}
+
+/* Add / Edit form card */
+.endpoint-form {
+  display: flex; flex-direction: column; gap: var(--s-3);
+  padding: var(--s-3) var(--s-3) var(--s-3);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+/* Save + Cancel action row */
+.endpoint-form-actions {
+  display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
+}
+
+/* Saved endpoint card */
+.endpoint-item {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--s-3); padding: var(--s-3);
+  background: var(--paper);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  transition: border-color var(--dur-fast);
+}
+.endpoint-item:hover { border-color: var(--parchment-edge); }
+
+/* Left column: badge · name · url · model tag */
+.endpoint-item-info {
+  display: flex; flex-direction: column; gap: var(--s-1);
+  min-width: 0; flex: 1;
+}
+
+/* Right column: action buttons */
+.endpoint-item-actions {
+  display: flex; align-items: center; gap: var(--s-2); flex: none;
+}
+
+/* "default" accent badge */
+.endpoint-default-badge {
+  display: inline-flex; align-items: center; align-self: flex-start;
+  padding: 1px 7px; border-radius: var(--r-pill);
+  font-size: var(--text-2xs); font-weight: var(--w-semi);
+  background: var(--accent-tint); color: var(--accent-deep);
+}
+
+/* URL row in the saved-endpoint info block */
+.endpoint-url {
+  font-size: var(--text-xs); color: var(--ink-3);
+  word-break: break-all; line-height: 1.4;
+}
+
+/* Selected / discovered model chip */
+.endpoint-model-tag {
+  display: inline-flex; align-items: center; align-self: flex-start;
+  padding: 1px 7px; border-radius: var(--r-pill);
+  font-size: var(--text-2xs); color: var(--ink-2);
+  background: var(--parchment-deep);
+}
+
+/* Discovered-models list */
+.endpoint-models-list {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 0; padding: 0; list-style: none;
+}
+
+/* One model row — clickable */
+.endpoint-model-item {
+  padding: var(--s-1) var(--s-2); border-radius: var(--r-sm);
+  font-size: var(--text-xs); color: var(--ink-2);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.endpoint-model-item:hover { background: var(--parchment-deep); color: var(--ink); }
+
+/* Privacy hint below the URL input (coloured by data-kind attribute) */
+.endpoint-privacy-note {
+  font-size: var(--text-2xs); color: var(--ink-3); line-height: 1.4;
+}
+.endpoint-privacy-note[data-kind="local"]  { color: var(--good); }
+.endpoint-privacy-note[data-kind="remote"] { color: var(--warn); }
+
+/* Discover models section (button + optional model tag + error) */
+.discover-section {
+  display: flex; flex-direction: column; gap: var(--s-2);
+}
+
+/* "No models found" empty state hint */
+.endpoint-empty-hint {
+  font-size: var(--text-xs); color: var(--ink-3);
+  margin: 0; font-style: italic;
+}
+.endpoint-empty-hint code {
+  font-family: var(--font-mono); font-size: var(--text-2xs);
+  background: var(--parchment-deep); padding: 1px 4px;
+  border-radius: var(--r-xs); font-style: normal;
+}
