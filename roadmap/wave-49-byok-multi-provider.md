@@ -236,6 +236,7 @@ unless there's a strong reason. **Enforcement:** decision-review cell.
 | Phase | Dispatched | Completed | Commit | Observation point hit |
 |---|---|---|---|---|
 | 1 | 2026-06-14 | 2026-06-14 | `83f216d` | ✅ Panel rendered "Invalid API key — check Settings" via live OpenAI 401 (CDP smoke through the React UI route). |
+| 2 | 2026-06-14 | 2026-06-14 | `11fac3a` | ✅ Internal refactor (behavior-preserving). Smoke: both Anthropic + OpenAI invalid-key paths render sanitized 401 through the shared `run_stream` (CDP). Panel PASS (security FLAG addressed). |
 
 ## Follow-up candidates
 
