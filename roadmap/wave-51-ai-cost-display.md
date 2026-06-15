@@ -89,8 +89,8 @@ Before declaring a phase complete, restate that phase's Observation point in you
 |---|---|---|---|---|
 | 0 | 2026-06-15 | 2026-06-15 | 3e95e25 | pending (CDP self-smoke at wave-end with P3) |
 | 1 | 2026-06-15 | 2026-06-15 | 6c186bf | unit + reviewer-trace (managed error path is structurally unreachable — invariant test; BYOK error string verified by trace) |
-| 2 | 2026-06-15 | 2026-06-15 | (pending) | network/test: `done` event carries `balanceAfter` (4 tests incl. trial+subscriber × refund/no-refund, 46/46 green) |
-| 3 | — | — | — | — |
+| 2 | 2026-06-15 | 2026-06-15 | 76c7345 | network/test: `done` event carries `balanceAfter` (4 tests incl. trial+subscriber × refund/no-refund, 46/46 green) |
+| 3 | 2026-06-15 | 2026-06-15 | 1a95d84 | pending (CDP self-smoke at wave-end with P0) — unit: 1598/1598 app tests green; adversarial review FLAG (cold-start meter blip) addressed via `applyBalance` guard |
 
 ## Follow-up candidates
 
