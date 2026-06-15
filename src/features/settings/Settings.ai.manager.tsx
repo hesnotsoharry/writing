@@ -22,6 +22,7 @@ import {
   CUSTOM_ENDPOINT_KEY_CHANGED,
   setEndpointKey,
 } from "../ai/customEndpoints.client";
+import { endpointPrivacyCopy } from "../ai/endpointPrivacy";
 
 // ── Internal types ─────────────────────────────────────────────────────────────
 
@@ -209,6 +210,17 @@ function DiscoverSection({ url, endpointId, keyInput, hasExistingKey, selectedMo
   );
 }
 
+// ── EndpointPrivacyNote — live privacy hint below the URL input ───────────────
+
+function EndpointPrivacyNote({ url }: { url: string }) {
+  const { kind, message } = endpointPrivacyCopy(url);
+  return (
+    <span className="endpoint-privacy-note" data-kind={kind}>
+      {message}
+    </span>
+  );
+}
+
 // ── EndpointForm — shared add / edit form ─────────────────────────────────────
 
 interface EndpointFormProps {
@@ -246,6 +258,7 @@ function EndpointForm({ initialName, initialUrl, initialModel, hasExistingKey, e
           value={name} onChange={(e) => setName(e.target.value)} />
         <input className="set-input" type="url" placeholder="http://localhost:11434"
           value={url} onChange={(e) => setUrl(e.target.value)} />
+        <EndpointPrivacyNote url={url} />
       </div>
       <KeySection hasExistingKey={effectiveHasKey} keyInput={keyInput}
         onKeyInput={(v) => { setKeyInput(v); }} onClearKey={() => setKeyCleared(true)} />

@@ -72,6 +72,31 @@ layer on top of W49's wire/adapter/registry, touching none of W49's owned code.
 | 4 | Wire local path through W49 adapter + append Local registry group | sonnet-implementer | **BLOCKED-ON-W49-CONTRACT** — requires W49's published provider-registry contract + adapter fn signature (W49 Phase 1). Append a "Local" provider group to W49's registry from the saved endpoints; route a local request through W49's OpenAI-compatible adapter fn with the local base URL + selected model. Honeycomb (the adapter-consumption seam). cross-boundary (W49 adapter + external endpoint). | The model picker shows a "Local" group; selecting a local model and sending a message streams the assistant's reply into the chat panel. |
 | 5 | Free-path gating bypass + compose-time error handling | sonnet-implementer | **BLOCKED-ON-W49-CONTRACT** — depends on Phase 4's provider routing. Bypass balance fetch + subscription gate for the local provider (force `canCompose`); inline "couldn't reach / is it running?" error; discovery-failure → manual-model fallback path confirmed at compose. Trophy (UI states) + honeycomb (error seam). cross-boundary (compose path). | With the local server stopped, sending a message shows an inline "Couldn't reach <name> — is your model server running?" message in the chat thread; with the server running, the credit/usage meter does not change after the reply. |
 
+### W49 integration contract (received 2026-06-14 — for Phases 4-5)
+
+> Status: contract PUBLISHED. **Phases 4-5 are now design-unblocked but BUILD-GATED** — W49's
+> `byok_engine.rs` + `src/features/ai/providerRegistry.ts` are not yet in this branch's tree (W49 merges
+> to master before W45 per the merge order). DO NOT author Phases 4-5 against the contract while the code
+> is absent — it won't compile or gate. Sequence: W49 merges → rebase `wave-45-local-llm` onto updated
+> master → build Phases 4-5 against the real `byok_engine.rs` + `providerRegistry.ts`.
+
+**Rust (W49 Phase 2 publishes `src-tauri/src/byok_engine.rs`):**
+- `enum WireFormat { Anthropic, OpenAiCompatible }`
+- `struct RequestSpec { url, headers, body }`
+- `async fn run_stream(state, stream_id, on_event, wire, request)`
+
+**W45 authors `src-tauri/src/byok_local.rs`:**
+- `byok_local_chat(state, stream_id, base_url: String, model, messages, system, max_completion_tokens, temperature, api_key: Option<String>, on_event)`
+- Build a `RequestSpec` from the **W45-validated** `base_url` (call `classify_endpoint` first — the engine has only a minimal http/https scheme tripwire, NOT full loopback/cert validation).
+- Omit the `Authorization` header when `api_key` is `None` (keyless local servers).
+- Omit `reasoning_effort` (local servers reject it).
+- Call `run_stream(.., WireFormat::OpenAiCompatible, ..)`.
+- For saved endpoints, load the key Rust-side (Phase-2 `endpoint_account` helper) — never cross it to JS.
+
+**Frontend:** append a `'local'` group to `PROVIDER_REGISTRY` + `PROVIDER_COMMAND` in
+`src/features/ai/providerRegistry.ts` (created by W49 Phase 4). Additive only — no structural picker edits.
+No `byok_engine.rs` changes unless a local-server wire quirk forces a new `WireFormat` variant.
+
 ### Acceptance criteria
 
 - [ ] Rust `validate_endpoint` command exists and: accepts `http://localhost:11434` and `http://127.0.0.1:11434`; rejects `http://some-remote-host` with an https-required message; rejects a malformed URL with a specific message.
@@ -143,9 +168,9 @@ surfaced to Cole in the plan-review message, not pre-baked here):
 |---|---|---|---|---|
 | 1 | 2026-06-14 | 2026-06-14 | (Phase-1 commit) | Validate+discover commands + minimal Settings entry; gates green (18/18 oracle + 4/4 roundtrip, tsc/eslint clean); panel review PASS after fixing 7 FLAGs. Live Settings render not smoked (needs running Ollama + app launch) — verified via tests + code path. |
 | 2 | 2026-06-14 | 2026-06-14 | (Phase-2 commit) | Saved-endpoints manager (add/edit/delete + default), localStorage persistence, per-endpoint keychain (`local-endpoint-{id}`, disjoint from byok). Gates green (27/27 reducer oracle, Rust intact, tsc/eslint clean). Single-tier review BLOCK (validate-on-save) + FLAGs fixed; key now loads Rust-side (never crosses to JS). Live render/persist-across-restart not smoked (no app launch). |
-| 3 | — | — | — | (W49-independent) |
-| 4 | — | — | — | **BLOCKED on W49 contract** |
-| 5 | — | — | — | **BLOCKED on W49 contract** |
+| 3 | 2026-06-14 | 2026-06-14 | (Phase-3 commit) | Live privacy line in endpoint form (localhost→"stays on your machine" / remote→"sent to <host>") + per-verb client config (mirror of server VERB_CONFIG). Gates green (15/15 oracle incl. egress-honesty regression, tsc/eslint clean). Single-tier review FLAG (127-prefixed domain misclassified loopback) fixed. Global managed consent unchanged. |
+| 4 | — | — | — | Contract RECEIVED 2026-06-14 (see W49 integration contract above). **BUILD-GATED: needs W49 code in tree → rebase after W49 merges.** |
+| 5 | — | — | — | Contract RECEIVED 2026-06-14. **BUILD-GATED: after Phase 4 (post-rebase).** |
 
 ## Follow-up candidates
 
