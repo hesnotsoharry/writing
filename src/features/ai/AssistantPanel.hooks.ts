@@ -32,7 +32,7 @@ import {
   type ProseSelection,
   type VerbKey,
 } from "./ai.types";
-import { buildByokStreamArgs,streamByokResponse } from "./AssistantPanel.byok";
+import { buildByokOpenAiStreamArgs,buildByokStreamArgs,streamByokOpenAiResponse,streamByokResponse } from "./AssistantPanel.byok";
 import { buildMessages } from "./prompts";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,6 +88,12 @@ export interface PanelMsgArgs {
   onNetworkError?: () => void; // Called when a stream fetch fails with a network-class error (not 403, not abort).
   /** True when a BYOK key is active — forks execSend to streamByokResponse. */
   byokMode: boolean;
+  /**
+   * True when an OpenAI BYOK key is active and the OpenAI route is selected.
+   * W49 Phase 1 provisional — replaced by registry picker in Phase 4.
+   * Checked before byokMode so OpenAI takes priority when both flags are set.
+   */
+  openaiByokMode?: boolean;
 }
 
 export type ExecSendArgs = PanelMsgArgs & { q: string; newConvo: () => Promise<string> };
@@ -244,7 +250,9 @@ export async function execSend(a: ExecSendArgs): Promise<void> {
   const ctrl = (a.abortRef.current = new AbortController());
   try {
     if (a.convStore) await persistSend(a.convStore, cid, { currentTitle, derived, verb: a.verb, q: a.q, snapshot });
-    if (a.byokMode) { const sid = crypto.randomUUID(); await streamByokResponse(buildByokStreamArgs(a, sid, ctrl, { cid, msgId: aiMsg.id })); }
+    // W49 Phase 1 provisional — replaced by registry picker in Phase 4.
+    if (a.openaiByokMode) { const sid = crypto.randomUUID(); await streamByokOpenAiResponse(buildByokOpenAiStreamArgs(a, sid, ctrl, { cid, msgId: aiMsg.id })); }
+    else if (a.byokMode) { const sid = crypto.randomUUID(); await streamByokResponse(buildByokStreamArgs(a, sid, ctrl, { cid, msgId: aiMsg.id })); }
     else { const token = await acquireAnyToken(a.sessionRef); await streamAiResponse(buildStreamArgs(a, token, ctrl, { cid, msgId: aiMsg.id })); }
   } catch (err: unknown) {
     onSendCatch(err, ctrl, cid, { msgId: aiMsg.id, setConvos: a.setConvos, onNetworkError: a.onNetworkError });

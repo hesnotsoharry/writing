@@ -37,6 +37,7 @@ import { acquireAnyToken, type CtxArgs, toAiTree, useContextAssembly, usePanelMe
 import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
 import { useAiPanelSeed, useAiSlotHandlers, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
 import { useByokMode } from "./useByokMode";
+import { useOpenAiByokMode } from "./useOpenAiByokMode";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ export interface AssistantPanelProps {
   onStreamDone?: () => void;
   onNetworkError?: () => void;
   convStore?: AiConversationStore;
-  projectId?: string | null; byokMode: boolean; // true when BYOK key is stored — hides the managed credit meter
+  projectId?: string | null; byokMode: boolean; openaiByokMode?: boolean; // byokMode: Anthropic BYOK; openaiByokMode: OpenAI BYOK (W49 P1 provisional — Phase 3 folds into discriminant)
 }
 
 /** Props consumed by wrapInspectorSlot — App.content.tsx passes a superset. */
@@ -132,7 +133,7 @@ interface SlotPanelProps {
   onStreamDone: () => void;
   onNetworkError?: () => void;
   sel?: ProseSelection | null;
-  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokMode: boolean;
+  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokMode: boolean; openaiByokMode?: boolean; // W49 P1 provisional
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
@@ -152,7 +153,7 @@ function PanelReady(p: AssistantPanelProps) {
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
     prompt, setPrompt, verb, model, attachedSel, setAttachedSel, streamingId, setStreamingId,
     canCompose, ctxArgs, sceneId: p.sceneId, sceneName: p.sceneName,
-    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError, byokMode: p.byokMode,
+    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError, byokMode: p.byokMode, openaiByokMode: p.openaiByokMode,
   });
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -316,7 +317,7 @@ function SlotPanel(p: SlotPanelProps) {
         usedPct={p.usedPct} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
         consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
         onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
-        convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokMode={p.byokMode}
+        convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokMode={p.byokMode} openaiByokMode={p.openaiByokMode}
       />
     </AiErrorBoundary>
   );
@@ -332,7 +333,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
-  const byokMode = useByokMode(); const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode, p.gateStatus);
+  const byokMode = useByokMode(); const openaiByokMode = useOpenAiByokMode(); const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode, p.gateStatus);
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
@@ -351,7 +352,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
         usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline}
-        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokMode={byokMode} />
+        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokMode={byokMode} openaiByokMode={openaiByokMode} />
     } />
     {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("ask", liveSel)} />}
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
