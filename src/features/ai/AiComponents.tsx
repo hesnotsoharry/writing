@@ -1,8 +1,8 @@
 import React from "react";
 
 import { Icon, type IconName } from "../../components/Icon";
-import { aiMeterStatus } from "./ai.helpers";
-import { AI_VERB_ORDER, AI_VERBS, type AiMessageRecord, type ContextSnapshot, type ConversationRecord, type VerbKey } from "./ai.types";
+import { aiMeterStatus, estimateRepliesLeft } from "./ai.helpers";
+import { AI_MODELS, AI_VERB_ORDER, AI_VERBS, type AiMessageRecord, type ContextSnapshot, type ConversationRecord, type ManagedModel, type VerbKey } from "./ai.types";
 
 /* ---- Markdown-lite inline renderer (module-private) ---- */
 
@@ -178,17 +178,26 @@ export function AiConvoList({ convos, activeId, onOpen, onNew, onDelete }: { con
 
 /* ---- Credit meter ---- */
 
-export function AiMeter({ usedPct, resetLabel }: { usedPct: number; resetLabel: string }) {
+export function AiMeter({ usedPct, resetLabel, creditsBalance, model }: {
+  usedPct: number;
+  resetLabel: string;
+  creditsBalance: number;
+  model: ManagedModel;
+}) {
   const st = aiMeterStatus(usedPct, resetLabel);
+  const pctLeft = Math.max(0, 100 - Math.min(100, usedPct));
+  const replies = estimateRepliesLeft(creditsBalance, model);
+  const modelLabel = AI_MODELS[model].label;
   return (
     <div className="ai-meter" title="Your monthly allowance. When it runs out, the assistant stops — it never runs up a bill.">
       <div className="ai-meter-row">
-        <span className={"st " + st.cls}>{st.label}</span>
+        <span className={"st " + st.cls}>{pctLeft}% left</span>
         <span>{st.sub}</span>
       </div>
       <div className="ai-meter-track">
-        <div className={"ai-meter-fill " + st.cls} style={{ width: Math.max(2, 100 - Math.min(100, usedPct)) + "%" }}></div>
+        <div className={"ai-meter-fill " + st.cls} style={{ width: Math.max(2, pctLeft) + "%" }}></div>
       </div>
+      <div className="ai-meter-replies">~{replies} more replies on {modelLabel}</div>
     </div>
   );
 }

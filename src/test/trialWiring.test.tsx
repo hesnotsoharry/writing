@@ -33,6 +33,14 @@ vi.mock("../features/ai/ai.client", () => ({
   CREDIT_UNIT_USD: 0.00001,
 }));
 
+vi.mock("../features/ai/byok.client", () => ({
+  byokHasKey: vi.fn().mockResolvedValue(false),
+  byokSetKey: vi.fn().mockResolvedValue(undefined),
+  byokClearKey: vi.fn().mockResolvedValue(undefined),
+  byokStop: vi.fn().mockResolvedValue(undefined),
+  streamByokChat: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../features/ai/ai.context", () => ({
   assembleContext: vi.fn().mockResolvedValue({
     sceneTitle: "Test Scene", sceneExcerpt: "", extraScenes: [],
@@ -48,7 +56,7 @@ vi.mock("../features/ai/AiComponents", () => ({
   AiConvoList: () => <div data-testid="ai-convo-list" />,
   AiEmptyState: () => <div data-testid="ai-empty-state" />,
   AiMessage: () => <div data-testid="ai-message" />,
-  AiMeter: ({ usedPct }: { usedPct: number }) => <div data-testid="ai-meter" data-pct={usedPct} />,
+  AiMeter: () => <div data-testid="ai-meter" />,
 }));
 
 vi.mock("../features/ai/AiOverlays", () => ({
@@ -67,6 +75,20 @@ vi.mock("../features/ai/ai.types", () => ({
   },
   AI_VERB_ORDER: ["brainstorm"],
   EMPTY_ABOUT: { synopsis: "" },
+  DEFAULT_MODEL: "claude-haiku-4-5-20251001",
+  AI_MODELS: {
+    "claude-haiku-4-5-20251001": { label: "Claude Haiku", provider: "claude", tier: "standard" },
+    "claude-sonnet-4-6":         { label: "Claude Sonnet", provider: "claude", tier: "standard" },
+    "gpt-5.4-mini":              { label: "GPT-5.4 mini", provider: "chatgpt", tier: "standard" },
+    "gpt-5.4":                   { label: "GPT-5.4", provider: "chatgpt", tier: "standard" },
+    "claude-opus-4-8":           { label: "Claude Opus", provider: "claude", tier: "premium" },
+    "gpt-5.5":                   { label: "GPT-5.5", provider: "chatgpt", tier: "premium" },
+  },
+  AI_MODEL_ORDER: [
+    "claude-haiku-4-5-20251001", "claude-sonnet-4-6",
+    "gpt-5.4-mini", "gpt-5.4",
+    "claude-opus-4-8", "gpt-5.5",
+  ],
 }));
 
 vi.mock("../features/ai/ai.helpers", () => ({

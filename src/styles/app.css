@@ -2069,6 +2069,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   transition: width var(--dur-slow) var(--ease); }
 .ai-meter-fill.warn { background: var(--warn); }
 .ai-meter-fill.out { background: var(--danger); }
+.ai-meter-replies { font-size: var(--text-2xs); color: var(--ink-5); margin-top: 1px; }
 
 /* ---- Guardrail notices (replace the composer, never alarm) -------------------- */
 .ai-guard {

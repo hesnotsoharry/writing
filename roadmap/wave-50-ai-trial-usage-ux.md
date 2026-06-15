@@ -123,7 +123,7 @@ Before declaring a phase complete, restate that phase's Observation-column point
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
 | 1 | 2026-06-14 | 2026-06-14 | (this commit) | Internal — pure helper; 17/17 oracle tests green; reviewer FLAG (Infinity/NaN guard) addressed. |
-| 2 | — | — | — | — |
+| 2 | 2026-06-14 | 2026-06-14 | (this commit) | Meter: model-agnostic % bar + per-model "~N replies" line; reviewer PASS all angles; CDP smoke deferred to wave-end. |
 | 3 | — | — | — | — |
 | 4 | — | — | — | — |
 | 5 | — | — | — | — |

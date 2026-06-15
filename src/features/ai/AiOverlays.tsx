@@ -2,7 +2,7 @@ import React from "react";
 
 import { Icon, type IconName } from "../../components/Icon";
 import { aiEstimate } from "./ai.helpers";
-import { type AiChapterRow, type AiCtxConfig, type AiEntity, type AiEstimateResult, type AiManuscriptTree, type AiSceneRow, type ManuscriptAbout } from "./ai.types";
+import { type AiChapterRow, type AiCtxConfig, type AiEntity, type AiEstimateResult, type AiManuscriptTree, type AiSceneRow, DEFAULT_MODEL, type ManuscriptAbout } from "./ai.types";
 import { AiMeter } from "./AiComponents";
 
 /* ---- Consent walkthrough step data (module-level JSX is valid in .tsx) ---- */
@@ -33,7 +33,7 @@ const CONSENT_STEPS: ConsentStep[] = [
     icon: "check",
     title: "A meter, not a bill",
     copy: <>Your plan — or free trial — includes an allowance. When it runs out, the assistant <b>stops</b> — it never runs up a bill behind your back. Top up only if you choose to.</>,
-    demo: <AiMeter usedPct={26} resetLabel="Resets July 1" />,
+    demo: <AiMeter usedPct={26} resetLabel="Resets July 1" creditsBalance={109_200} model={DEFAULT_MODEL} />,
   },
 ];
 

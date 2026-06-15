@@ -63,7 +63,7 @@ export interface AssistantPanelProps {
   setAiCtx: (c: AiCtxConfig) => void;
   neverNames: string[];
   toggleNever: (name: string) => void;
-  usedPct: number;
+  usedPct: number; creditsBalance: number;
   resetLabel: string;
   plan: "active" | "trial" | "expired";
   offline: boolean;
@@ -125,7 +125,7 @@ interface SlotPanelProps {
   onSaveNote: (body: string) => void;
   convStore: AiConversationStore;
   projectId: string | null;
-  usedPct: number;
+  usedPct: number; creditsBalance: number;
   resetLabel: string;
   plan: "active" | "trial" | "expired";
   offline: boolean;
@@ -175,7 +175,7 @@ function PanelReady(p: AssistantPanelProps) {
           prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb}
           model={model} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
           est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokMode={p.byokMode} />
-        {!p.byokMode && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} />}
+        {!p.byokMode && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} />}
       </div>}
     </div>
   );
@@ -263,7 +263,7 @@ function useConvoPersistence(activeProjectId: string | null) {
  *  When byokMode is true: skips all managed-meter fetches and returns safe no-op values so
  *  canCompose stays true (Decision 4). When gateStatus==='trial', allows a lazily-minted trial token. */
 function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateStatus = "checking") {
-  const [usedPct, setUsedPct] = useState(0);
+  const [usedPct, setUsedPct] = useState(0); const [creditsBalance, setCreditsBalance] = useState(0);
   const [plan, setPlan] = useState<"active" | "trial" | "expired">("active");
   const [resetLabel, setResetLabel] = useState("soon");
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -281,7 +281,8 @@ function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateSta
         const token = await acquireAnyToken(sessionRef as MutableRefObject<SessionResult | null>);
         const data = await getBalance(token);
         if (cancelled) return;
-        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance)); setPlan(data.status); setResetLabel(formatResetLabel(data.resetAt)); setOffline(false);
+        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance)); setCreditsBalance(data.creditsBalance);
+        setPlan(data.status); setResetLabel(formatResetLabel(data.resetAt)); setOffline(false);
       } catch (err: unknown) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : "";
@@ -300,8 +301,8 @@ function useAiBalance(consented: boolean, byokMode: boolean, gateStatus: GateSta
   }, []);
   const refresh = useCallback(() => setBalanceKey((k) => k + 1), []);
   // Decision 4: BYOK has no managed meter; offline is always false so canCompose stays true.
-  if (byokMode) return { usedPct: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} };
-  return { usedPct, plan, resetLabel, offline, setOffline, refresh };
+  if (byokMode) return { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} };
+  return { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh };
 }
 
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
@@ -313,7 +314,7 @@ function SlotPanel(p: SlotPanelProps) {
         sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords} store={p.store} tree={p.aiTree} sceneEntityGroups={p.sceneEntityGroups}
         convos={p.convos} setConvos={p.setConvos} activeId={p.activeId} setActiveId={p.setActiveId}
         about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx} neverNames={p.neverNames} toggleNever={p.toggleNever}
-        usedPct={p.usedPct} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
+        usedPct={p.usedPct} creditsBalance={p.creditsBalance} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
         consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
         onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
         convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokMode={p.byokMode}
@@ -332,7 +333,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
-  const byokMode = useByokMode(); const { usedPct, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode, p.gateStatus);
+  const byokMode = useByokMode(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokMode, p.gateStatus);
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
@@ -350,7 +351,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         doc={p.doc} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")}
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
-        usedPct={usedPct} resetLabel={resetLabel} plan={plan} offline={offline}
+        usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline}
         onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokMode={byokMode} />
     } />
     {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("ask", liveSel)} />}
