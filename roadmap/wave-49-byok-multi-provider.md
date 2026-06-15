@@ -217,7 +217,9 @@ unless there's a strong reason. **Enforcement:** decision-review cell.
 
 ## Status
 
-<!-- Per-phase rows added as work progresses: Phase | Dispatched | Completed | Commit SHA | Observation point hit -->
+| Phase | Dispatched | Completed | Commit | Observation point hit |
+|---|---|---|---|---|
+| 1 | 2026-06-14 | 2026-06-14 | `83f216d` | ✅ Panel rendered "Invalid API key — check Settings" via live OpenAI 401 (CDP smoke through the React UI route). |
 
 ## Follow-up candidates
 
