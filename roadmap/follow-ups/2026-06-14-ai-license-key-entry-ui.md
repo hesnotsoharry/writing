@@ -1,5 +1,6 @@
 ---
-status: OPEN
+resolved-by: W50 Phase 5 — AiKeyEntryRow added to Settings.ai.tsx; verifies via acquireSession before storing; 6 focused tests green.
+status: RESOLVED
 created: 2026-06-14
 updated: 2026-06-14
 qualifying-criterion: new-UI-primitive

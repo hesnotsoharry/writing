@@ -182,6 +182,7 @@ function makeProps(overrides: Partial<AssistantPanelProps> = {}): AssistantPanel
     toggleNever: vi.fn(),
     sceneEntityGroups: [],
     usedPct: 0,
+    creditsBalance: 0,
     resetLabel: "Resets soon",
     plan: "active",
     offline: false,
