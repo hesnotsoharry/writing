@@ -2232,7 +2232,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 /* ── Settings ▸ AI — shared key rows + custom-endpoint manager ─────────────
    All classes below were undefined before this section. ADDITIVE ONLY.
    Input look matches .ai-input (border + focus ring + placeholder).
-   Layout tokens: --s-1/2/3/4, --r-md/sm/pill/xs, --ink-*/--accent-*/--line-*.
+   Layout tokens: --s-1/2/3/4, --r-md/sm/pill/xs, --ink-*, --accent-*, --line-*.
    ───────────────────────────────────────────────────────────────────────── */
 
 /* -- Shared form input (BYOK key fields, endpoint name/url, license key) --- */
