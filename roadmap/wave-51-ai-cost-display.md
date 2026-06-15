@@ -1,5 +1,5 @@
 ---
-status: PLANNED
+status: HELD-READY
 created: 2026-06-15
 ---
 
@@ -98,4 +98,27 @@ _(empty — fix mid-wave friction inline per development-pipeline scope-creep ti
 
 ## Result
 
-_(filled at ship by wrap team)_
+**Status: HELD-READY (2026-06-15).** All 4 phases implemented, committed, and gates-green on
+branch `wave-51-ai-cost-display` (worktree `C:\Web App\writing-wave-51`). Wave-end adversarial
+review returned FLAG; both flags fixed (`c6c0cb8`). Cole's call: **hold the merge/ship until the
+concurrent W46 eval-harness wave wraps**, then merge + deploy together. Branch is fully merge-ready.
+
+**Merge readiness:** master diverged (W46 added `eval/` + `src/features/ai/adapter/` + 2 commits).
+Conflict surface is clean — the ONLY overlapping file is `package-lock.json` (regenerate per the
+lockfiles rule; do NOT hand-merge). Zero code-file overlap. Main tree was clean on master @`1c0525b`.
+
+**Gates at hold:** app `vitest 1598/1598` + `tsc` clean + `eslint` clean; marketing `vitest 284/284`
++ `tsc` clean.
+
+**CDP self-smoke (live WebView2, port 9222):**
+- P0 — model labels "Haiku 4.5"/"Sonnet 4.6" render; context modal scrolls internally with a pinned
+  footer + 86vh cap; `.set-input` recessed fill computes `rgb(236,228,212)` / `padding 8px 11px`
+  (required the pre-existing CSS-comment fix `e2955ec`); `.ai-picker-foot` inset now `12px 20px`.
+- P3 — "≈ up to X%" estimate label + assists-remaining + meter usedPct render correctly.
+- **NOT smoked** (honest gap): P3 post-send true-cost display + assists-remaining live-burn — these
+  require an actual managed AI reply, which spends real money on the shared production DB. Verified
+  at the unit/network boundary only (P2 `balanceAfter` 4-case test suite + P3 client unit tests).
+
+**Remaining at ship (post-W46):** run the wrap team (HANDOFF rewrite, promote Locked Decision 1 to
+`roadmap/decisions/`, vendor-gotcha promotion, follow-up audit), collapse this wave file to a stub,
+version bump, tag, `.\publish.ps1` (Cole runs interactively).

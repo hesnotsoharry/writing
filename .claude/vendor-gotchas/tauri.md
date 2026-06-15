@@ -2,7 +2,7 @@
 vendor: "Tauri 2.x"
 sdkVersion: "2"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-14
+lastVerified: 2026-06-15
 relatedPaths:
   - src/shell/WindowControls.tsx
   - src/shell/TitleBar.tsx
@@ -107,6 +107,12 @@ Source: wave-40, commit e946df6
 **Gotcha:** Using `reqwest::Client::get(url).send().await?.bytes_stream()` (or `text_stream()`) requires the `stream` feature on the `reqwest` dependency. However, `bytes_stream()` returns a type that implements `futures::stream::Stream`, and the crate does NOT export `futures` by default. Code attempting to use `StreamExt::next()` or other stream combinators will fail to compile with "cannot find StreamExt in scope" even though the `stream` feature is enabled. The missing piece is a separate `futures = "0.3"` dependency in `Cargo.toml`.
 **Workaround:** Add both to `Cargo.toml`: `reqwest = { version = "0.12", features = ["stream", "json"] }` (or whatever version pinned) AND `futures = "0.3"`. Then import and use: `use futures::stream::StreamExt; let mut stream = response.bytes_stream(); while let Some(chunk) = stream.next().await { /* handle chunk */ }`.
 **Why:** `reqwest` provides the streaming support but delegates the Stream trait to the `futures` crate. The dependency graph is not transitive from `reqwest`'s perspective (it does not re-export `futures` in the public API), so it must be declared explicitly.
+
+## 2026-06-15 — WebView2 modal: `max-height: N%` collapses to no-limit inside a grid/indefinite-height parent; use `Nvh`
+Source: wave-51, commit 3e95e25
+**Gotcha:** A scrollable overlay sheet styled `max-height: 86%` did not cap its height in WebView2 — the modal stretched to fit its content instead of scrolling internally. A percentage `max-height` only resolves when the containing block has a *definite* height; the overlay's parent was a CSS grid track whose height was indefinite (content-sized), so the `%` resolved to `auto` (no limit) and the cap silently did nothing. Standard CSS behavior, but the failure is invisible — no error, the rule just evaporates and the modal overgrows.
+**Workaround:** Use a viewport unit: `max-height: 86vh`. `vh` resolves against the viewport, which always has a definite height, so the cap holds regardless of the parent's height resolution. Pair with a flex-column sheet (`.sheet-body { flex:1; min-height:0; overflow-y:auto }`) and pin any footer as a sibling of the scroll body (NOT inside it) so it stays visible while the body scrolls. When moving a footer out of a padded scroll body, re-add the horizontal inset it was inheriting (`.sheet-body` had `padding: var(--s-5)`) or it sits flush to the sheet edge.
+**Why:** Not a WebView2 bug — it's the CSS percentage-height resolution rule (a `%` height/max-height against an indefinite-height containing block computes to `auto`). It surfaces easily in Tauri because frameless overlay shells are commonly laid out with grid/flex tracks that don't have an explicit height. `vh`/`dvh` sidestep the whole question.
 
 ## 2026-06-14 — Raw SSE (Server-Sent Events) parsing: buffer bytes across chunks for correct UTF-8 handling
 Source: wave-40, commit e946df6
