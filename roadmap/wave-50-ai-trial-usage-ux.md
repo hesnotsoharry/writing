@@ -165,4 +165,23 @@ _(empty — stage here only if a Tier-3 item clears the VALUE + STRUCTURAL + CLE
 
 **PASS.** Checks 1–3 ran clean against the real diff (graph-fallback, manually verified): every new export and changed component reaches a production consumer, no plan universal was narrowed, no dead exports. Checks 4–6 N/A. Full gate green at wave-end: tsc clean, ESLint clean, 1478/1478 vitest pass.
 
-_(remaining at ship: wave-end adversarial review, CDP smoke summary, v0.8.2 publish — see below.)_
+### Wave-end adversarial review (attack-diff, wave granularity)
+
+Ran a cross-phase integration review over the full diff (`94ea18d..bb62d8e`) after the per-phase reviews. It surfaced **3 FLAGs (no BLOCKs)** the per-phase lenses structurally couldn't catch — all on the conversion path — now all addressed in commit `0e1a071`:
+
+1. 🔴 **Trial `credits-exhausted` honesty.** A trial user exhausting their $1.50 mid-stream got the inline "resets soon" message contradicting the Subscribe modal — the exact "trials never see 'wait for reset'" rule. Fixed: the SSE branch is now trial-aware (subscribe message, no reset promise); subscriber message unchanged; global-cap branch untouched.
+2. 🟡 **In-session activation dead-end.** `useAiBalance` ignored `aiLicenseKey` changes, leaving a just-subscribed trial user stuck in `TrialExhaustedGuard` until restart. Fixed: `SETTINGS_CHANGED_EVENT` listener with a ref-compare guard (no fetch loop — `getBalance` writes no tweaks).
+3. 🟡 **Guard-routing test gap.** The Phase-4 3-way exhaustion routing had no automated coverage. Fixed: 3 PanelFooter render tests pin trial→Subscribe / active→top-up-reset / trial-no-reset-language.
+
+Final verdict after fixes: **PASS** (all flags closed; gates re-green).
+
+### CDP runtime smoke — DEFERRED to v0.8.2 build (not run this session)
+
+Per the plan's "say so explicitly if you could not observe directly": live CDP smoke was **not** run in this worktree session, deliberately:
+- The dev app shares the global `%APPDATA%\com.coles.writing\writing.db` (real manuscripts + a real **subscriber/active** license row), and concurrent sibling-wave sessions (W48/W49) may hold dev apps against it — launching another risks the known contested-dev-app/DB failure.
+- The wave's highest-value surfaces (trial **badge** + trial **exhaustion modal**) require a `status='trial'` row; the live DB row is subscriber, so a smoke here would only exercise the subscriber meter, not the trial path. Observing the trial path needs the DB-swap protocol at build time.
+- The branch isn't built yet; runtime smoke belongs at the v0.8.2 build (merge-master / Cole).
+
+**Coverage substitute:** 1481/1481 vitest pass, including the new guard-routing render tests covering the conversion-critical branches. The "green-tests-but-renders-wrong" risk in this repo is ProseMirror-specific (editor owns its content DOM); this wave is standard React conditional rendering that testing-library renders faithfully. **Recommended smoke checklist for the v0.8.2 build (trial DB state):** (1) meter shows "% left" + "~N replies on <model>" and the bar does NOT move on model switch; (2) tapping the meter opens the per-model popover; (3) trial user sees "Free trial" badge and NO "Resets" label; (4) exhausting the $1.50 shows the Subscribe-$14.99 modal → opens the subscription checkout; (5) Settings → AI key field validates + activates a pasted key.
+
+_(remaining at ship: v0.8.2 publish + the trial-state CDP smoke above — owned by merge-master / Cole.)_
