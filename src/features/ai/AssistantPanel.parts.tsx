@@ -217,6 +217,11 @@ function ExhaustedAllowanceGuard({ resetLabel, onToast }: { resetLabel: string; 
   </div>;
 }
 
+/** Model-chip label — falls back to the raw id for models not in AI_MODELS (e.g. W45 local IDs). */
+function modelChipLabel(model: ManagedModel): string {
+  return AI_MODELS[model]?.label ?? model;
+}
+
 export const PanelFooter = forwardRef<PanelFooterHandle, PanelFooterProps>(
   function PanelFooter(p, ref) {
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -240,7 +245,7 @@ export const PanelFooter = forwardRef<PanelFooterHandle, PanelFooterProps>(
           {p.verbPop && <VerbPop verb={p.verb} setVerb={p.setVerb} setVerbPop={p.setVerbPop}
             onAfterSelect={() => { inputRef.current?.focus(); }} />}
           <button className="ai-modelchip" onClick={() => { p.setVerbPop(false); p.setModelPop((v) => !v); }} disabled={p.offline}>
-            {AI_MODELS[p.model].label} <Icon name="chevDown" className="ic chev" />
+            {modelChipLabel(p.model)} <Icon name="chevDown" className="ic chev" />
           </button>
           {p.modelPop && <ModelPop model={p.model} setModel={p.setModel} setModelPop={p.setModelPop}
             onAfterSelect={() => { inputRef.current?.focus(); }}
