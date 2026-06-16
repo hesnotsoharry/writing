@@ -22,9 +22,13 @@ import { formatPrice } from "./account-render.js";
  * absent (direct link, incognito, different-tab redirect).
  *
  * Accepted params (all untrusted — rendered via textContent only):
- *   order_id — maps to orderNumber (minimum required; returns null if absent)
- *   email    — buyer email
- *   total    — formatted price string, e.g. "$29.00" (LS link variable [total])
+ *   order_id     — maps to orderNumber (minimum required; returns null if absent)
+ *   email        — buyer email
+ *   total        — formatted price string, e.g. "$29.00" (LS link variable [total])
+ *   product_name — LS product name (link variable [product_name]); drives the
+ *                  app-vs-subscription card routing in purchase-success.js. Falls
+ *                  back to "Writers Nook" so the app-purchase path is unchanged
+ *                  when LS does not supply it.
  *
  * Excluded params: license_key (never read; key reaches buyer via receiptUrl).
  *
@@ -46,11 +50,16 @@ export function parseOrderFromParams(search) {
     if (isFinite(numeric)) totalCents = Math.round(numeric * 100);
   }
 
+  // Default to the app product name so the existing one-time-purchase path is
+  // unchanged; subscription confirmation URLs pass [product_name] so the
+  // fallback path routes the buyer to the subscription card, not the app cards.
+  const productName = params.get("product_name") || "Writers Nook";
+
   return {
     email,
     orderNumber: orderId,
     totalCents,
-    productName: "Writers Nook",
+    productName,
     receiptUrl: null,
   };
 }

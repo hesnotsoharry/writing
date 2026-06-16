@@ -74,6 +74,15 @@ describe("parseOrderFromParams — builds order object from LS link-variable par
     expect(o.receiptUrl).toBeNull();
   });
 
+  it("defaults productName to 'Writers Nook' when product_name param is absent (app-purchase path)", () => {
+    expect(parseOrderFromParams("?order_id=1").productName).toBe("Writers Nook");
+  });
+
+  it("reads product_name when present so subscription buyers route to the sub card", () => {
+    const o = parseOrderFromParams("?order_id=1&product_name=AI%20Writing%20Assistant");
+    expect(o.productName).toBe("AI Writing Assistant");
+  });
+
   it("converts a bare dollar-sign total string to cents", () => {
     const o = parseOrderFromParams("?order_id=1&total=$49.00");
     expect(o.totalCents).toBe(4900);
