@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aiMeterStatus, computeUsedPct, formatResetLabel, parseResetAt } from "../features/ai/ai.helpers";
+import { aiMeterStatus, computeUsedPct, formatResetLabel, parseResetAt, shouldRetryBalance } from "../features/ai/ai.helpers";
 
 // Orchestrator-authored Phase G acceptance test (Wave 35) — the client-side billing
 // helpers. Implementer adds computeUsedPct + parseResetAt to ai.helpers.ts and may NOT
@@ -70,6 +70,32 @@ describe("parseResetAt (fixes the first-month 'resets null' bug)", () => {
 
   it("returns '' for an empty string", () => {
     expect(parseResetAt("")).toBe("");
+  });
+});
+
+describe("shouldRetryBalance", () => {
+  const MAX = 4;
+
+  it("returns true for a subscriber with zero balance below the retry cap", () => {
+    expect(shouldRetryBalance(true, 0, 0, MAX)).toBe(true);
+    expect(shouldRetryBalance(true, 0, 3, MAX)).toBe(true);
+  });
+
+  it("returns false when attempt equals maxAttempts (cap exhausted)", () => {
+    expect(shouldRetryBalance(true, 0, MAX, MAX)).toBe(false);
+  });
+
+  it("returns false when attempt exceeds maxAttempts", () => {
+    expect(shouldRetryBalance(true, 0, MAX + 1, MAX)).toBe(false);
+  });
+
+  it("returns false when creditsBalance is nonzero (subscription has credited)", () => {
+    expect(shouldRetryBalance(true, 1, 0, MAX)).toBe(false);
+    expect(shouldRetryBalance(true, 500_000, 0, MAX)).toBe(false);
+  });
+
+  it("returns false when the user is not a subscriber (trial/no-key path)", () => {
+    expect(shouldRetryBalance(false, 0, 0, MAX)).toBe(false);
   });
 });
 

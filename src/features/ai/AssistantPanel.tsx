@@ -8,7 +8,7 @@
  * Sub-components live in AssistantPanel.parts.tsx;
  * hooks + pure helpers live in AssistantPanel.hooks.ts.
  */
-import { type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 
 import type { BinderTree } from "../../binder/buildTree";
@@ -19,8 +19,8 @@ import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore"
 import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import type { GateStatus } from "../license/license.gate";
 import { getTweak } from "../settings/settings.store";
-import { getBalance, type SessionResult } from "./ai.client";
-import { computeUsedPct, formatResetLabel } from "./ai.helpers";
+import type { SessionResult } from "./ai.client";
+import { computeUsedPct, shouldRetryBalance } from "./ai.helpers";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
@@ -36,7 +36,8 @@ import {
 import { AiDormant, AiMeter } from "./AiComponents";
 import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
-import { acquireAnyToken, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
+import { BALANCE_RETRY_DELAYS, type BalanceSetters, fetchBalance } from "./AssistantPanel.balance";
+import { type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { AiAskPill, AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
 import { useAiPanelSeed, useAiSlotHandlers, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
 import { getBadgeLabel, PROVIDER_REGISTRY,type ProviderId } from "./providerRegistry";
@@ -57,33 +58,19 @@ export interface AssistantPanelProps {
   /** Raw entity groups for the active scene — used by PanelReady for D4 display parity. */
   sceneEntityGroups: SceneEntityGroup[];
   tree: AiManuscriptTree;
-  convos: ConversationRecord[];
-  setConvos: React.Dispatch<React.SetStateAction<ConversationRecord[]>>;
-  activeId: string | null;
-  setActiveId: React.Dispatch<React.SetStateAction<string | null>>;
-  about: ManuscriptAbout;
-  setAbout: (a: ManuscriptAbout) => void;
-  aiCtx: AiCtxConfig;
-  setAiCtx: (c: AiCtxConfig) => void;
-  neverNames: string[];
-  toggleNever: (name: string) => void;
-  usedPct: number; creditsBalance: number;
-  resetLabel: string;
-  plan: "active" | "trial" | "expired";
-  offline: boolean;
-  consented: boolean;
-  sel?: ProseSelection | null;
-  initialVerb?: VerbKey;
-  initialSel?: Pick<ProseSelection, "text" | "words"> | null;
-  onOpenConsent: () => void;
-  onOpenContext: () => void;
-  onToast: (msg: string) => void;
-  onSaveNote: (body: string) => void;
-  onStreamDone?: () => void;
-  onNetworkError?: () => void;
+  convos: ConversationRecord[]; setConvos: React.Dispatch<React.SetStateAction<ConversationRecord[]>>;
+  activeId: string | null; setActiveId: React.Dispatch<React.SetStateAction<string | null>>;
+  about: ManuscriptAbout; setAbout: (a: ManuscriptAbout) => void;
+  aiCtx: AiCtxConfig; setAiCtx: (c: AiCtxConfig) => void;
+  neverNames: string[]; toggleNever: (name: string) => void;
+  usedPct: number; creditsBalance: number; resetLabel: string;
+  plan: "active" | "trial" | "expired"; offline: boolean; consented: boolean;
+  sel?: ProseSelection | null; initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
+  onOpenConsent: () => void; onOpenContext: () => void; onToast: (msg: string) => void; onSaveNote: (body: string) => void;
+  onStreamDone?: () => void; onNetworkError?: () => void;
   monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
   convStore?: AiConversationStore;
-  projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; // W49 P3 + W45 P4: any-key-present flag + provider MAP
+  projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; gateStatus?: GateStatus; // W49/Fix2: byok key map + app trial state
 }
 
 /** Props consumed by wrapInspectorSlot — App.content.tsx passes a superset. */
@@ -101,39 +88,22 @@ export interface SlotHostProps {
 interface InspectorTabsProps { tab: "scene" | "assistant"; setTab: (t: "scene" | "assistant") => void; scenePane: ReactNode; assistantPane: ReactNode; }
 
 interface SlotPanelProps {
-  convos: ConversationRecord[];
-  setConvos: React.Dispatch<React.SetStateAction<ConversationRecord[]>>;
-  activeId: string | null;
-  setActiveId: React.Dispatch<React.SetStateAction<string | null>>;
-  about: ManuscriptAbout;
-  setAbout: (a: ManuscriptAbout) => void;
-  aiCtx: AiCtxConfig;
-  setAiCtx: (c: AiCtxConfig) => void;
-  neverNames: string[];
-  toggleNever: (n: string) => void;
-  consented: boolean;
-  aiTree: AiManuscriptTree;
-  sceneId: string | null;
-  sceneName: string | null;
-  sceneWords: number;
-  sceneEntityGroups: SceneEntityGroup[];
-  doc: Y.Doc | null | undefined;
-  store: StoryBibleStore;
-  onOpenConsent: () => void;
-  onOpenContext: () => void;
-  onToast: (msg: string) => void;
-  onSaveNote: (body: string) => void;
-  convStore: AiConversationStore;
-  projectId: string | null;
-  usedPct: number; creditsBalance: number;
-  resetLabel: string;
-  plan: "active" | "trial" | "expired";
-  offline: boolean;
-  onStreamDone: () => void;
-  onNetworkError?: () => void;
+  convos: ConversationRecord[]; setConvos: React.Dispatch<React.SetStateAction<ConversationRecord[]>>;
+  activeId: string | null; setActiveId: React.Dispatch<React.SetStateAction<string | null>>;
+  about: ManuscriptAbout; setAbout: (a: ManuscriptAbout) => void;
+  aiCtx: AiCtxConfig; setAiCtx: (c: AiCtxConfig) => void;
+  neverNames: string[]; toggleNever: (n: string) => void;
+  consented: boolean; aiTree: AiManuscriptTree;
+  sceneId: string | null; sceneName: string | null; sceneWords: number;
+  sceneEntityGroups: SceneEntityGroup[]; doc: Y.Doc | null | undefined; store: StoryBibleStore;
+  onOpenConsent: () => void; onOpenContext: () => void; onToast: (msg: string) => void; onSaveNote: (body: string) => void;
+  convStore: AiConversationStore; projectId: string | null;
+  usedPct: number; creditsBalance: number; resetLabel: string;
+  plan: "active" | "trial" | "expired"; offline: boolean;
+  onStreamDone: () => void; onNetworkError?: () => void;
   monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
-  sel?: ProseSelection | null;
-  initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; // W49 P3 + W45 P4
+  sel?: ProseSelection | null; initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
+  byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; gateStatus?: GateStatus; // W49/Fix2
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
@@ -148,6 +118,39 @@ export function computeEffectiveByokModel(model: ManagedModel, byokActive: boole
   // makes this always return model — no substitution in either path. ModelEntry.id
   // is `string` so the cast is safe: either branch resolves to model's string value.
   return (km.find((m) => m.id === model)?.id ?? model) as ManagedModel;
+}
+
+type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
+interface PanelFootProps {
+  p: AssistantPanelProps; ctx: ReturnType<typeof useContextAssembly>;
+  attachedSel: Pick<ProseSelection, "text" | "words"> | null; setAttachedSel: (s: Pick<ProseSelection, "text" | "words"> | null) => void;
+  footerRef: React.RefObject<PanelFooterHandle | null>; model: ManagedModel; effectiveByokModel: ManagedModel;
+  prompt: string; setPrompt: (v: string) => void; verb: VerbKey; verbPop: boolean; setVerbPop: Setter<boolean>;
+  setVerb: (v: VerbKey) => void; modelPop: boolean; setModelPop: Setter<boolean>; setModel: (v: ManagedModel) => void;
+  streamingId: string | null; send: () => void; stop: () => void;
+}
+
+function PanelFoot({ p, ctx, attachedSel, setAttachedSel, footerRef, model, effectiveByokModel, prompt, setPrompt, verb, verbPop, setVerbPop, setVerb, modelPop, setModelPop, setModel, streamingId, send, stop }: PanelFootProps) {
+  const showTrialNudge = p.gateStatus === "trial" && p.plan === "active" && !p.byokActive && !!getTweak("aiLicenseKey", "");
+  return (
+    <div className="ai-foot">
+      <ContextStripPanel sceneName={p.sceneName} extras={ctx.extras} linked={ctx.linked}
+        attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
+        boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} />
+      <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
+        prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb} model={effectiveByokModel} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
+        est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokActive={p.byokActive} byokKeys={p.byokKeys} />
+      {!p.byokActive && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} plan={p.plan} />}
+      {/* Trial-app + active-AI-subscription nudge: shows when the app is in its 14-day trial
+          but the user already has a managed AI subscription. Nudges purchase before trial ends.
+          Not shown for BYOK users or users who have already purchased. */}
+      {showTrialNudge && (
+        <div className="ai-trial-nudge">
+          Your AI subscription is active. Purchase WritersNook before your trial ends to keep using it.
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PanelReady(p: AssistantPanelProps) {
@@ -171,6 +174,7 @@ function PanelReady(p: AssistantPanelProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => { abortRef.current?.abort(); }, []);
   const listMode = !active; const msgCount = active?.messages.length ?? 0; const lastLen = msgCount ? active!.messages[msgCount - 1].text.length : 0;
+  const footProps: PanelFootProps = { p, ctx, attachedSel, setAttachedSel, footerRef, model, effectiveByokModel, prompt, setPrompt, verb, verbPop, setVerbPop, setVerb, modelPop, setModelPop, setModel, streamingId, send, stop };
   return (
     <div className="ai-panel">
       {p.offline && <OfflineBanner />}
@@ -181,15 +185,7 @@ function PanelReady(p: AssistantPanelProps) {
         active={active} convos={p.convos} verb={verb} setVerb={setVerb} onOpen={p.setActiveId}
         onNew={newConvo} onDelete={deleteConvo} streamingId={streamingId} onCopy={copyMsg}
         onSaveNote={saveMsg} onStarter={(s) => { setPrompt(s); footerRef.current?.focusInput(); }} onFocusInput={() => footerRef.current?.focusInput()} />
-      {!listMode && <div className="ai-foot">
-        <ContextStripPanel sceneName={p.sceneName} extras={ctx.extras} linked={ctx.linked}
-          attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
-          boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} />
-        <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
-          prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb} model={effectiveByokModel} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
-          est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokActive={p.byokActive} byokKeys={p.byokKeys} />
-        {!p.byokActive && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} plan={p.plan} />}
-      </div>}
+      {!listMode && <PanelFoot {...footProps} />}
     </div>
   );
 }
@@ -287,23 +283,18 @@ function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateS
   useEffect(() => {
     if (!consented || byokActive) return; // BYOK: no managed-meter fetch
     let cancelled = false;
-    const load = async () => {
-      const key = getTweak("aiLicenseKey", "");
-      if (!key && gateStatus !== "trial") return; // no key + not trial → no fetch
-      try {
-        const token = await acquireAnyToken(sessionRef as MutableRefObject<SessionResult | null>);
-        const data = await getBalance(token);
-        if (cancelled) return;
-        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance)); setCreditsBalance(data.creditsBalance); setMonthlyAllowance(data.monthlyAllowance);
-        setPlan(data.status); setResetLabel(formatResetLabel(data.resetAt)); setOffline(false);
-      } catch (err: unknown) {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "";
-        if (msg.includes("403")) { setPlan("expired"); setOffline(false); } else { setOffline(true); }
-      }
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const setters: BalanceSetters = { setUsedPct, setCreditsBalance, setMonthlyAllowance, setPlan, setResetLabel, setOffline };
+    const scheduleRetry = (balance: number, key: string) => {
+      if (!shouldRetryBalance(!!key, balance, attempt, BALANCE_RETRY_DELAYS.length)) return;
+      const delay = BALANCE_RETRY_DELAYS[attempt];
+      attempt += 1;
+      retryTimer = setTimeout(() => { void run(); }, delay);
     };
-    void load();
-    return () => { cancelled = true; };
+    const run = () => fetchBalance({ sessionRef, setters, gateStatus, getCancelled: () => cancelled, scheduleRetry });
+    void run();
+    return () => { cancelled = true; if (retryTimer !== null) clearTimeout(retryTimer); };
   }, [consented, balanceKey, byokActive, gateStatus]); // stable module-level fns omitted from deps
   useEffect(() => {
     const goOnline = () => setOffline(false); const goOffline = () => setOffline(true);
@@ -327,6 +318,7 @@ function SlotPanel(p: SlotPanelProps) {
     consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
     onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError} onBalanceAfter={p.onBalanceAfter} monthlyAllowance={p.monthlyAllowance}
     convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokActive={p.byokActive} byokKeys={p.byokKeys}
+    gateStatus={p.gateStatus}
   /></AiErrorBoundary>;
 }
 
@@ -358,7 +350,8 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
         usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline}
-        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} onBalanceAfter={applyBalance} monthlyAllowance={monthlyAllowance} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys} />
+        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} onBalanceAfter={applyBalance} monthlyAllowance={monthlyAllowance} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys}
+        gateStatus={p.gateStatus} />
     } />
     {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("ask", liveSel)} />}
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}

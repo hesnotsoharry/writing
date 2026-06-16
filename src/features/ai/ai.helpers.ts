@@ -108,6 +108,27 @@ export function aiMsgId(): string { return "m-" + (__aiMsgN++); }
 export function aiConvoId(): string { return "cv-" + Date.now().toString(36); }
 
 /**
+ * Determines whether the balance fetch should be retried after receiving a zero
+ * balance. Returns true only when ALL of:
+ *   - the user IS a managed subscriber (isSubscriber)
+ *   - the fetched balance is exactly zero (server hasn't credited yet)
+ *   - we haven't exhausted the retry budget (attempt < maxAttempts)
+ *
+ * NOTE: a subscriber who has genuinely used all their credits also reads
+ * creditsBalance === 0, so this will schedule ≤ maxAttempts harmless
+ * background refetches before settling on the exhausted state. The cost
+ * is negligible — do not add complex logic to distinguish the two cases.
+ */
+export function shouldRetryBalance(
+  isSubscriber: boolean,
+  creditsBalance: number,
+  attempt: number,
+  maxAttempts: number,
+): boolean {
+  return isSubscriber && creditsBalance === 0 && attempt < maxAttempts;
+}
+
+/**
  * Parse a raw prose selection string into a word-counted record.
  * Returns null when the selection is empty or below the 3-word minimum.
  */

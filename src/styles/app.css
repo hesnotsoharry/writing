@@ -2106,6 +2106,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   padding: 5px 8px; border-top: 1px solid var(--line); margin-top: 2px;
 }
 
+/* Trial-app + active-AI-sub nudge — calm inline note below the meter */
+.ai-trial-nudge {
+  font-size: var(--text-2xs); color: var(--ink-3); line-height: 1.5;
+  padding: 4px 0; border-top: 1px solid var(--line); margin-top: 2px;
+}
+
 /* ---- Guardrail notices (replace the composer, never alarm) -------------------- */
 .ai-guard {
   padding: var(--s-3); border-radius: var(--r-md); background: var(--paper); border: 1px solid var(--line);
