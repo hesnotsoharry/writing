@@ -124,7 +124,11 @@ describe("FormatButtons — active-state consultation", () => {
 // ---------------------------------------------------------------------------
 
 describe("FormatButtons — rendered structure", () => {
-  it("renders exactly 10 buttons: 5 format + 4 highlight swatches + Remove highlight", () => {
+  // W52 Phase 1 added AiExcludeToggle ("Hide from AI") — always visible.
+  // W52 Phase 3 added AiAskAction ("Ask assistant") — consent-gated; hidden
+  // by default (aiConsentGiven defaults false in jsdom / no localStorage set).
+  // Total: 5 format + 4 highlight swatches + Remove highlight + Hide from AI = 11.
+  it("renders exactly 11 buttons: 5 format + 4 highlight swatches + Remove highlight + Hide from AI", () => {
     const { editor } = makeMockEditor();
     render(<FormatButtons editor={editor} />);
     expect(screen.getByRole("button", { name: "Bold" })).toBeDefined();
@@ -137,7 +141,8 @@ describe("FormatButtons — rendered structure", () => {
     expect(screen.getByRole("button", { name: "Highlight blue" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Highlight rose" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Remove highlight" })).toBeDefined();
-    expect(screen.getAllByRole("button")).toHaveLength(10);
+    expect(screen.getByRole("button", { name: "Hide from AI" })).toBeDefined();
+    expect(screen.getAllByRole("button")).toHaveLength(11);
   });
 });
 

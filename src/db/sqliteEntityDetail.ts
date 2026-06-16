@@ -234,3 +234,26 @@ export async function sqlitePurgeEntityDetail(db: DbHandle, id: string): Promise
   await db.execute("DELETE FROM entity_links WHERE from_id = $1 OR to_id = $1", [id]);
   await db.execute("DELETE FROM entity_relations WHERE from_entity = $1 OR to_entity = $1", [id]);
 }
+
+/**
+ * Persist the "never share with AI" flag for an entity.
+ * Routes to characters / locations / entities based on type — same three-table
+ * discriminator used by renameEntity / updateEntityNotes / deleteEntity.
+ * Extracted as a free function so tests can call it with an injected DbHandle
+ * without needing the Tauri runtime.
+ */
+export async function sqliteSetEntityExclusion(
+  db: DbHandle,
+  type: EntityType,
+  id: string,
+  exclude: boolean
+): Promise<void> {
+  const val = exclude ? 1 : 0;
+  if (type === "character") {
+    await db.execute("UPDATE characters SET exclude_from_ai = $1 WHERE id = $2", [val, id]);
+  } else if (type === "location") {
+    await db.execute("UPDATE locations SET exclude_from_ai = $1 WHERE id = $2", [val, id]);
+  } else {
+    await db.execute("UPDATE entities SET exclude_from_ai = $1 WHERE id = $2", [val, id]);
+  }
+}

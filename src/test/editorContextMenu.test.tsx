@@ -34,6 +34,16 @@ function makeEditorWithSelection(
   textBetweenResult = "hello",
 ) {
   const { chain, run } = makeChain();
+  // W52 Phase 2: buildEditorContextMenu now calls extractAiSafeSelection which
+  // uses doc.nodesBetween (a ProseMirror Node method). The mock must provide it.
+  // We invoke the callback once with a plain text node carrying no aiExclude marks
+  // so the extraction returns the expected text string.
+  const doc = {
+    textBetween: vi.fn(() => textBetweenResult),
+    nodesBetween: vi.fn((_from: number, _to: number, cb: (node: unknown, pos: number) => boolean | void) => {
+      cb({ isText: true, text: textBetweenResult, marks: [] }, _from);
+    }),
+  };
   const editor = {
     chain: vi.fn(() => chain),
     state: {
@@ -42,9 +52,7 @@ function makeEditorWithSelection(
         from: fromPos,
         to: toPos,
       },
-      doc: {
-        textBetween: vi.fn(() => textBetweenResult),
-      },
+      doc,
     },
   } as unknown as Editor;
   return { editor, chain, run };

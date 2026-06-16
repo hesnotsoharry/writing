@@ -213,6 +213,7 @@ describe("StoryBibleStore contract", () => {
       name: "Arya",
       notes: "Faceless",
       aliases: null,
+      exclude_from_ai: false,
     });
     expect(entities.find((e) => e.id === loc.id)).toEqual({
       id: loc.id,
@@ -221,6 +222,7 @@ describe("StoryBibleStore contract", () => {
       name: "Winterfell",
       notes: "Cold",
       aliases: null,
+      exclude_from_ai: false,
     });
   });
 

@@ -8,6 +8,7 @@ import {
   migration_015_boards,
   migration_016_ai_assistant,
   migration_017_manuscript_about,
+  migration_018_entity_exclusion,
 } from "./migrations2";
 import type { DbHandle } from "./schema";
 import { ensureColumn } from "./schema";
@@ -378,6 +379,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 15, name: "boards", up: migration_015_boards },
   { version: 16, name: "ai-assistant", up: migration_016_ai_assistant },
   { version: 17, name: "manuscript-about", up: migration_017_manuscript_about },
+  { version: 18, name: "entity-exclusion", up: migration_018_entity_exclusion },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

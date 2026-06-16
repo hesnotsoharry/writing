@@ -290,6 +290,19 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     return this.listRelations(projectId);
   }
 
+  async setEntityExclusion(type: EntityType, id: string, exclude: boolean): Promise<void> {
+    if (type === "character") {
+      const c = this.characters.find((x) => x.id === id);
+      if (c) (c as unknown as Record<string, unknown>)["exclude_from_ai"] = exclude;
+    } else if (type === "location") {
+      const l = this.locations.find((x) => x.id === id);
+      if (l) (l as unknown as Record<string, unknown>)["exclude_from_ai"] = exclude;
+    } else {
+      const e = this.genericEntities.find((x) => x.id === id);
+      if (e) e.exclude_from_ai = exclude;
+    }
+  }
+
   // ── Wave 35 Phase E — AI context v2 ──────────────────────────────────────
 
   async getManuscriptAbout(projectId: string): Promise<ManuscriptAbout> {

@@ -16,8 +16,9 @@ import { EMPTY_ABOUT } from "./ai.types";
 /**
  * Load SceneEntityGroup[] for sceneId; reloads on change. Uses async iife to
  * avoid synchronous setState inside the effect body (React 19 lint requirement).
+ * refreshKey: bump to force a re-read after a mutation (e.g. setEntityExclusion).
  */
-export function useSceneEntityGroups(sceneId: string | null, store: StoryBibleStore): SceneEntityGroup[] {
+export function useSceneEntityGroups(sceneId: string | null, store: StoryBibleStore, refreshKey?: number): SceneEntityGroup[] {
   const [groups, setGroups] = useState<SceneEntityGroup[]>([]);
   useEffect(() => {
     let cancelled = false;
@@ -26,7 +27,7 @@ export function useSceneEntityGroups(sceneId: string | null, store: StoryBibleSt
       if (!cancelled) setGroups(g);
     })();
     return () => { cancelled = true; };
-  }, [sceneId, store]);
+  }, [sceneId, store, refreshKey]);
   return groups;
 }
 

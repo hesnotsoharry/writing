@@ -224,5 +224,27 @@ export async function migration_017_manuscript_about(db: DbHandle): Promise<void
   );
 }
 
+/**
+ * Add exclude_from_ai to characters and locations so all three entity tables
+ * share the same "never share with AI" flag that entities already carries.
+ *
+ * Uses ensureColumn (idempotent ALTER TABLE ADD COLUMN with IF NOT EXISTS guard)
+ * so re-running on crash is safe.
+ *
+ * The existence check via PRAGMA table_info protects against partial-seed test
+ * environments where the baseline schema may not have been applied yet —
+ * ensureColumn calls ALTER TABLE, which errors if the table doesn't exist.
+ */
+export async function migration_018_entity_exclusion(db: DbHandle): Promise<void> {
+  const charInfo = await db.select<{ name: string }[]>("PRAGMA table_info(characters)");
+  if (charInfo.length > 0) {
+    await ensureColumn(db, "characters", "exclude_from_ai", "INTEGER NOT NULL DEFAULT 0");
+  }
+  const locInfo = await db.select<{ name: string }[]>("PRAGMA table_info(locations)");
+  if (locInfo.length > 0) {
+    await ensureColumn(db, "locations", "exclude_from_ai", "INTEGER NOT NULL DEFAULT 0");
+  }
+}
+
 // ensureColumn is re-exported so callers that import from migrations2 can use it.
 export { ensureColumn };

@@ -1,5 +1,5 @@
 import type { ManuscriptAbout } from "../features/ai/ai.types";
-import { getDb } from "./schema";
+import { type DbHandle,getDb } from "./schema";
 import { sqliteGetManuscriptAbout, sqliteGetSceneText, sqliteSetManuscriptAbout } from "./sqliteAiContextStore";
 import {
   sqliteAddEntityField,
@@ -13,6 +13,7 @@ import {
   sqlitePurgeEntityDetail,
   sqliteRemoveLink,
   sqliteReorderEntityFields,
+  sqliteSetEntityExclusion,
   sqliteSetEntityField,
   sqliteSetPortrait,
   sqliteUpdateEntityFieldKey,
@@ -49,8 +50,39 @@ import type {
   StoryBibleStore,
 } from "./storyBibleStore";
 
+// ── Row mappers for Entity hydration ────────────────────────────────────────
+type EntityRow = { id: string; project_id: string; name: string; notes: string | null; aliases: string | null; exclude_from_ai: number };
+const rowToEntity = (r: EntityRow, type: string): Entity => ({ id: r.id, projectId: r.project_id, type, name: r.name, notes: r.notes, aliases: r.aliases, exclude_from_ai: r.exclude_from_ai !== 0 });
+
+/**
+ * Free-function form of `listEntities` — takes a `DbHandle` so it works with
+ * the sql.js test harness. The class method delegates here. Exercises `rowToEntity`
+ * (including the `exclude_from_ai !== 0` boolean conversion) on all three entity tables.
+ */
+export async function sqliteListEntities(db: DbHandle, projectId: string): Promise<Entity[]> {
+  const charRows = await db.select<EntityRow[]>(
+    "SELECT id, project_id, name, notes, aliases, exclude_from_ai FROM characters WHERE project_id = $1",
+    [projectId]
+  );
+  const locRows = await db.select<EntityRow[]>(
+    "SELECT id, project_id, name, notes, aliases, exclude_from_ai FROM locations WHERE project_id = $1",
+    [projectId]
+  );
+  const genRows = await db.select<(EntityRow & { entity_type: string })[]>(
+    "SELECT id, project_id, entity_type, name, notes, aliases, exclude_from_ai FROM entities WHERE project_id = $1",
+    [projectId]
+  );
+  return [
+    ...charRows.map((r) => rowToEntity(r, "character")),
+    ...locRows.map((r) => rowToEntity(r, "location")),
+    ...genRows.map((r) => rowToEntity(r, r.entity_type)),
+  ];
+}
+
 /** SQLite-backed StoryBibleStore over tauri-plugin-sql. */
 export class SqliteStoryBibleStore implements StoryBibleStore {
+  // NOTE: deliberately omits exclude_from_ai. Privacy-aware callers assembling AI context
+  // MUST use loadSceneEntities or listEntities (via sqliteListEntities) instead.
   async listCharacters(projectId: string): Promise<Character[]> {
     const db = await getDb();
     const rows = await db.select<
@@ -68,6 +100,8 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     }));
   }
 
+  // NOTE: deliberately omits exclude_from_ai. Privacy-aware callers assembling AI context
+  // MUST use loadSceneEntities or listEntities (via sqliteListEntities) instead.
   async listLocations(projectId: string): Promise<Location[]> {
     const db = await getDb();
     const rows = await db.select<
@@ -159,6 +193,10 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     await sqlitePurgeEntityDetail(db, id);
   }
 
+  async setEntityExclusion(type: EntityType, id: string, exclude: boolean): Promise<void> {
+    return sqliteSetEntityExclusion(await getDb(), type, id, exclude);
+  }
+
   async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {
     const db = await getDb();
     await db.execute("DELETE FROM scene_links WHERE scene_id = $1", [sceneId]);
@@ -193,10 +231,6 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     // One read per distinct entity_type present in scene_links for this scene.
     // tauri-plugin-sql has no multi-statement execute; sequential reads are the only option.
     // Single-user local app — no concurrent writer, so the non-atomic sequence is safe.
-    type PlainRow = { id: string; project_id: string; name: string; notes: string | null; aliases: string | null };
-    type GenRow = PlainRow & { exclude_from_ai: number };
-    const toPlain = (r: PlainRow, t: string): Entity => ({ id: r.id, projectId: r.project_id, type: t, name: r.name, notes: r.notes, aliases: r.aliases, exclude_from_ai: false });
-    const toGen = (r: GenRow, t: string): Entity => ({ id: r.id, projectId: r.project_id, type: t, name: r.name, notes: r.notes, aliases: r.aliases, exclude_from_ai: r.exclude_from_ai !== 0 });
     const typeRows = await db.select<{ entity_type: string }[]>(
       "SELECT DISTINCT entity_type FROM scene_links WHERE scene_id = $1", [sceneId]
     );
@@ -210,20 +244,20 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
     const groups: SceneEntityGroup[] = [];
     for (const type of sortedTypes) {
       if (type === "character") {
-        const rows = await db.select<PlainRow[]>(
-          "SELECT c.id, c.project_id, c.name, c.notes, c.aliases FROM scene_links sl JOIN characters c ON c.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'character' ORDER BY c.name", [sceneId]
+        const rows = await db.select<EntityRow[]>(
+          "SELECT c.id, c.project_id, c.name, c.notes, c.aliases, c.exclude_from_ai FROM scene_links sl JOIN characters c ON c.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'character' ORDER BY c.name", [sceneId]
         );
-        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toPlain(r, type)) });
+        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => rowToEntity(r, type)) });
       } else if (type === "location") {
-        const rows = await db.select<PlainRow[]>(
-          "SELECT l.id, l.project_id, l.name, l.notes, l.aliases FROM scene_links sl JOIN locations l ON l.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'location' ORDER BY l.name", [sceneId]
+        const rows = await db.select<EntityRow[]>(
+          "SELECT l.id, l.project_id, l.name, l.notes, l.aliases, l.exclude_from_ai FROM scene_links sl JOIN locations l ON l.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = 'location' ORDER BY l.name", [sceneId]
         );
-        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toPlain(r, type)) });
+        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => rowToEntity(r, type)) });
       } else {
-        const rows = await db.select<GenRow[]>(
+        const rows = await db.select<EntityRow[]>(
           "SELECT e.id, e.project_id, e.name, e.notes, e.aliases, e.exclude_from_ai FROM scene_links sl JOIN entities e ON e.id = sl.entity_id WHERE sl.scene_id = $1 AND sl.entity_type = $2 ORDER BY e.name", [sceneId, type]
         );
-        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => toGen(r, type)) });
+        if (rows.length > 0) groups.push({ type, entities: rows.map((r) => rowToEntity(r, type)) });
       }
     }
     return groups;
@@ -241,20 +275,7 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   }
 
   async listEntities(projectId: string): Promise<Entity[]> {
-    const db = await getDb();
-    const chars = await this.listCharacters(projectId);
-    const locs = await this.listLocations(projectId);
-    const genRows = await db.select<
-      { id: string; project_id: string; entity_type: string; name: string; notes: string | null; aliases: string | null }[]
-    >(
-      "SELECT id, project_id, entity_type, name, notes, aliases FROM entities WHERE project_id = $1",
-      [projectId]
-    );
-    return [
-      ...chars.map((c) => ({ id: c.id, projectId: c.projectId, type: "character" as EntityType, name: c.name, notes: c.notes, aliases: c.aliases })),
-      ...locs.map((l) => ({ id: l.id, projectId: l.projectId, type: "location" as EntityType, name: l.name, notes: l.notes, aliases: l.aliases })),
-      ...genRows.map((r) => ({ id: r.id, projectId: r.project_id, type: r.entity_type, name: r.name, notes: r.notes, aliases: r.aliases })),
-    ];
+    return sqliteListEntities(await getDb(), projectId);
   }
 
   // ── Wave 24 Full Entry additive surface ──────────────────────────────────

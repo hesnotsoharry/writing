@@ -207,6 +207,8 @@ export interface StoryBibleStore {
   ): Promise<void>;
   /** Delete entity and remove all its scene_links rows. */
   deleteEntity(type: EntityType, id: string): Promise<void>;
+  /** Persist the "never share with AI" flag for an entity across all three tables. */
+  setEntityExclusion(type: EntityType, id: string, exclude: boolean): Promise<void>;
   /**
    * Replace the full set of links for a scene: DELETE all rows for sceneId,
    * then INSERT the new set. Not a merge — caller owns the full replacement.

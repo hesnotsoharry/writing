@@ -389,12 +389,12 @@ describe("migrations 16–17 — ai assistant + manuscript_about schema", () => 
   });
 
   describe("final state: PRAGMA user_version reaches LATEST", () => {
-    it("after fresh migrations, user_version equals LATEST (17)", async () => {
+    it("after fresh migrations, user_version equals LATEST (18)", async () => {
       const db = await makeSqlJsDb();
       try {
         await runMigrations(db);
         expect(await readUserVersion(db)).toBe(LATEST);
-        expect(LATEST).toBe(17);
+        expect(LATEST).toBe(18);
       } finally {
         db.close();
       }

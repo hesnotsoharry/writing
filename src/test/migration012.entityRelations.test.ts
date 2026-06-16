@@ -145,7 +145,7 @@ describe("migration suite — after entity_relations", () => {
     try {
       await runMigrations(db);
       expect(await readUserVersion(db)).toBe(LATEST);
-      expect(LATEST).toBe(17);
+      expect(LATEST).toBe(18);
     } finally {
       db.close();
     }

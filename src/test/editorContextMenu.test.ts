@@ -22,7 +22,16 @@ function makeMockEditor(empty: boolean) {
     toggleHighlight: vi.fn(() => chain),
     run,
   };
-  const doc = { textBetween: vi.fn(() => empty ? "" : "selected text") };
+  // W52 Phase 2: buildEditorContextMenu now calls extractAiSafeSelection which
+  // uses doc.nodesBetween (a ProseMirror Node method). Provide a mock that
+  // invokes the callback with a plain text node carrying no aiExclude marks.
+  const selText = empty ? "" : "selected text";
+  const doc = {
+    textBetween: vi.fn(() => selText),
+    nodesBetween: vi.fn((_from: number, _to: number, cb: (node: unknown, pos: number) => boolean | void) => {
+      if (!empty) cb({ isText: true, text: selText, marks: [] }, _from);
+    }),
+  };
   const state = {
     selection: { empty, from: 0, to: empty ? 0 : 13 },
     doc,

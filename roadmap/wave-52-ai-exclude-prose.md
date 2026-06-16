@@ -243,8 +243,8 @@ appended migrations break prior migration tests via hardcoded LATEST + partial s
 |---|---|---|---|---|
 | 1 | ✓ | ✓ | 4fdf4c3 | code+gates green, review PASS 6/6; runtime CDP smoke deferred to batched client smoke |
 | 2 | ✓ | ✓ | 2bc4f13 | strip unit-tested at all 3 redaction targets (sceneExcerpt + selectionText two-path + extra-scene); panel-tier review caught a CRITICAL `s.toString()` selection leak (all 3 seats converged), fixed + suppression-branch regression test added; 37/37 tests green; runtime CDP smoke deferred to batched client smoke |
-| 3 | ✓ | ✓ | (pending) | "Ask assistant" folded into FormatBubble (single bubble, removes AiAskPill overlap); AI action consent-gated (`aiEnabled && aiConsentGiven && aiSelPill`), formatting + AiExcludeToggle ungated; editor-ask inherits Phase-2 redaction via `extractAiSafeSelection` (review PASS on the security angle); 6/6 tests green; single-bubble visual confirm deferred to batched CDP smoke |
-| 4 | — | — | — | — |
+| 3 | ✓ | ✓ | c4af305 | "Ask assistant" folded into FormatBubble (single bubble, removes AiAskPill overlap); AI action consent-gated (`aiEnabled && aiConsentGiven && aiSelPill`), formatting + AiExcludeToggle ungated; editor-ask inherits Phase-2 redaction via `extractAiSafeSelection` (review PASS on the security angle); 6/6 tests green; single-bubble visual confirm deferred to batched CDP smoke |
+| 4 | ✓ | ✓ | (pending) | migration #18 adds `exclude_from_ai` to characters+locations; `sqliteSetEntityExclusion` free-fn routes write by type; `rowToEntity` read-path surfaces the real flag (was hardcoded — the original bug); in-memory parity + interface + UI `toggleNever` rewire with refresh-key re-read. Oracle (entityExclusionPersist) exercises write→`sqliteListEntities`→`rowToEntity` round-trip for all 3 tables; review FLAG (oracle didn't hit `rowToEntity`) closed by extracting `sqliteListEntities` + adding a real-read-path case; full suite green (modulo 6 known-unrelated W46-eval failures); toggle-persists confirm deferred to batched CDP smoke |
 | 5 | — | — | — | — |
 
 ## Follow-up candidates

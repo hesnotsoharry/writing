@@ -95,10 +95,10 @@ export function imLoadSceneEntities(sceneId: string, ctx: ImSceneEntitiesCtx): S
     let entity: Entity | undefined;
     if (link.entityType === "character") {
       const c = characters.find((ch) => ch.id === link.entityId);
-      if (c) entity = { id: c.id, projectId: c.projectId, type: "character", name: c.name, notes: c.notes, aliases: c.aliases };
+      if (c) entity = { id: c.id, projectId: c.projectId, type: "character", name: c.name, notes: c.notes, aliases: c.aliases, exclude_from_ai: (c as unknown as Record<string, unknown>)["exclude_from_ai"] === true };
     } else if (link.entityType === "location") {
       const l = locations.find((lo) => lo.id === link.entityId);
-      if (l) entity = { id: l.id, projectId: l.projectId, type: "location", name: l.name, notes: l.notes, aliases: l.aliases };
+      if (l) entity = { id: l.id, projectId: l.projectId, type: "location", name: l.name, notes: l.notes, aliases: l.aliases, exclude_from_ai: (l as unknown as Record<string, unknown>)["exclude_from_ai"] === true };
     } else {
       entity = genericEntities.find((e) => e.id === link.entityId);
     }
@@ -120,8 +120,8 @@ export function imLoadSceneEntities(sceneId: string, ctx: ImSceneEntitiesCtx): S
 
 export function imListEntities(characters: Character[], locations: Location[]): Entity[] {
   return [
-    ...characters.map((c) => ({ id: c.id, projectId: c.projectId, type: "character" as const, name: c.name, notes: c.notes, aliases: c.aliases })),
-    ...locations.map((l) => ({ id: l.id, projectId: l.projectId, type: "location" as const, name: l.name, notes: l.notes, aliases: l.aliases })),
+    ...characters.map((c) => ({ id: c.id, projectId: c.projectId, type: "character" as const, name: c.name, notes: c.notes, aliases: c.aliases, exclude_from_ai: (c as unknown as Record<string, unknown>)["exclude_from_ai"] === true })),
+    ...locations.map((l) => ({ id: l.id, projectId: l.projectId, type: "location" as const, name: l.name, notes: l.notes, aliases: l.aliases, exclude_from_ai: (l as unknown as Record<string, unknown>)["exclude_from_ai"] === true })),
   ];
 }
 
