@@ -2,11 +2,11 @@
 vendor: "anthropic"
 sdkVersion: "claude-haiku-4-5-20251001, claude-sonnet-4-6, claude-opus-4-8"
 firstWritten: 2026-06-12
-lastVerified: 2026-06-13
+lastVerified: 2026-06-16
 relatedPaths:
   - marketing/functions/api/ai/chat.ts
   - src/features/ai/prompts/
-notes: "Messages API: prompt caching, pricing, model IDs, extended thinking constraints"
+notes: "Messages API: prompt caching, pricing, model IDs, extended thinking constraints; content-policy INPUT blocks"
 ---
 
 # Anthropic gotchas
@@ -80,3 +80,23 @@ Source: wave-37, commit TBD
 **Workaround:** always use versioned model IDs in production (`claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-8`) for reproducibility and cache stability. When calculating reserve credits or budget limits, account for the possibility of cache writes (1.25× or 2×) on every request and cache reads (0.1×) on subsequent calls. As of June 2026, pricing per million tokens: Haiku in/out ($1/$5), Sonnet ($3/$15), Opus ($5/$25).
 
 **Why:** versioned IDs ensure you get the exact model you tested with; generic IDs may route to newer versions on Anthropic's schedule. Pricing differs per model; Opus is 5× more expensive per token than Haiku, so a brainstorm system using Haiku will cost dramatically less than one using Opus. Cache operations have flat multipliers (not model-dependent), but the base rates differ, so a 1.25× cache write is cheaper on Haiku ($1.25/MTok) than on Opus ($6.25/MTok).
+
+## 2026-06-16 — Content-policy INPUT block: HTTP 400 pre-stream, NOT mid-stream SSE error
+
+Source: wave-52, commit 35d561b
+
+**Gotcha:** an Anthropic INPUT content-policy block (e.g., explicit fiction reaching the managed API in violation of Anthropic's usage policy) returns as a **pre-stream HTTP 400** with envelope `{type:"error",error:{type:"invalid_request_error",message:"..."}}` — NOT a mid-stream SSE `error` event frame (which is a different class, e.g., overloaded service). A proxy that only checks for mid-stream SSE errors will miss the block and treat the failed request as if the stream started normally, returning an empty/partial response to the client. Additionally, the HTTP status can be 403 in edge cases (unconfirmed). The exact INPUT-block message wording is unconfirmed from docs (docs show OUTPUT "blocked by content filtering policy" only), so the ONLY reliable differentiator is status + regex pattern on `error.message`.
+
+**Workaround:** in the proxy `!res.ok` branch, defensively parse the response: `await res.json().catch(()=>null)`. When status is 400 or 403, test the error message against a pattern matching content-policy keywords: `/usage polic|content filtering|content policy|prohibited|moderat|violat/i`. If it matches, emit a new `{type:"content-blocked"}` `NormalizedEvent` (distinct from the generic `"error"` event); the client can then surface a calm "connect BYOK/local for mature content" nudge instead of a generic error. Non-policy upstream failures still yield the generic `"error"` event. **Critical:** log the raw upstream body to the server console (`console.warn`) so real blocked requests can tighten the regex pattern from production traffic. See `marketing/functions/api/ai/chat.ts:255-259` (`isContentPolicyBlock`).
+
+**Why:** Anthropic moderates INPUT content at the request level (pre-streaming), not during generation. The distinction between pre-stream HTTP failure and mid-stream SSE error is architectural. A proxy cannot surface a differentiated warning (vs. a generic error) unless it detects the policy block at the HTTP level and classifies it separately. The message text is the differentiator because `invalid_request_error` is shared with schema errors — regex is the only way to distinguish content policy from other 400s without relying on undocumented message wording.
+
+## 2026-06-16 — Note: W52 extended-cache-ttl header requirement persists (see project anthropic.md)
+
+Source: wave-52, commit 35d561b
+
+**Gotcha:** the **1-hour cache TTL** (`cache_control: {type:"ephemeral",ttl:"1h"}`) still requires the beta header `anthropic-beta: extended-cache-ttl-2025-04-11` as of June 2026 — it has NOT graduated to GA. (Earlier entries in this file note the June 2026 documentation claimed caching is GA; this applies to 5-minute cache only.) Sending `ttl:"1h"` without the header silently no-ops / fails; the TTL is ignored. The header is declared in `marketing/functions/_lib/providers/anthropic.ts` (`EXTENDED_CACHE_TTL_BETA`) and must accompany any 1-hour cache request.
+
+**Workaround:** guard 1-hour cache with the beta header via `shouldAttachCache()` logic that checks prefix length AND the model. See the linked provider file for the implementation.
+
+**Why:** the extended TTL beta has not graduated. Sending it without the header is a silent failure — Anthropic gives no error, just doesn't extend the cache beyond 5 minutes.

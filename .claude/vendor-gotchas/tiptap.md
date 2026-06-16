@@ -2,12 +2,13 @@
 vendor: "tiptap + yjs"
 sdkVersion: "TipTap v3 + Yjs"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-11
+lastVerified: 2026-06-16
 relatedPaths:
   - src/yjs/serialize.ts
   - src/yjs/bindPersistence.ts
   - src/editor/Editor.tsx
-notes: "TipTap v3 + Yjs binding gotchas, especially around content storage type and plaintext extraction"
+  - src/editor/aiSafeSelection.ts
+notes: "TipTap v3 + Yjs binding gotchas, especially around content storage type, plaintext extraction, and mark-aware redaction"
 ---
 
 # TipTap + Yjs gotchas
@@ -95,4 +96,13 @@ Source: wave-32-brainstorm-boards, commit 0c1784a
 - `doc.getXmlFragment('card-cardId1')` = card text content (bound to TipTap editor with `field: 'card-cardId1'`)
 
 **Why:** TipTap's Collaboration extension binds to a Y.XmlFragment at initialization time, using the `field:` parameter to look it up in the doc root. The lookup is a simple `doc.getXmlFragment(fieldName)` call, not a recursive key path; nested fragments are outside the protocol. Separating metadata from content respects this boundary and keeps the schema simple and sync-ready (Phase 2 forward).
+
+## 2026-06-16 — Custom Mark presence: read from **Yjs delta**, not ProseMirror node.marks
+Source: wave-52, commits 4fdf4c3..35d561b
+
+**Gotcha:** when implementing mark-aware prose redaction (e.g., "hide-from-AI" mark) for AI context assembly, the mark's presence MUST be read from the **Yjs delta** (`Y.XmlText.toDelta()` → check `op.attributes?.<markName>`) — NOT from the live ProseMirror `node.marks` API. The AI context is assembled from the Yjs serialize path (`src/yjs/serialize.ts`), which reads the Y.Doc directly; it does NOT have access to the live editor state. There are TWO redaction paths in the codebase: (1) Yjs delta for scene prose (used by `assembleContext` → `extractAiSafeText`), and (2) ProseMirror `nodesBetween` for the current editor selection (used by `extractAiSafeSelection`). Both MUST check the mark via their respective APIs, or one path will leak unredacted text to the AI.
+
+**Workaround:** in `src/yjs/serialize.ts`, iterate the Y.XmlText delta and check `op.attributes?.<markName>` for each op (see `xmlTextToAiSafe` at :62, which reads delta `attributes.aiExclude`). In `src/editor/aiSafeSelection.ts`, use `node.marks.some(m => m.type.name === "<markName>")` to check ProseMirror marks (see `:44`). A custom mark like `AiExcludeExtension` (registered as `Mark.create({name:"aiExclude"})`) automatically serializes to Yjs delta `attributes.aiExclude` via TipTap's Collaboration binding — you only need to READ the attribute in each path. Write a unit test that exercises BOTH paths: a Y.Doc with a marked run → `extractAiSafeText` asserts redaction, AND a ProseMirror selection spanning that run → `extractAiSafeSelection` asserts redaction.
+
+**Why:** TipTap's Collaboration extension binds editor marks to Yjs delta attributes at the Y.XmlText level. The serialize path reads the Y.Doc snapshot (what is persisted to storage), not the editor's live state. The selection path reads the editor's current state. The two are different sources and must both be checked. Code that only redacts the Yjs path (or only the selection path) will have one unredacted path that leaks to the AI — a privacy/security hole. See `src/yjs/serialize.ts:62-68` (Yjs path) and `src/editor/aiSafeSelection.ts:39-56` (selection path) for the two implementations.
 
