@@ -93,6 +93,28 @@ function HighlightSwatches({ editor }: { editor: Editor }) {
 }
 
 // ---------------------------------------------------------------------------
+// AiExcludeToggle — "Hide from AI" mark button
+// ---------------------------------------------------------------------------
+
+function AiExcludeToggle({ editor }: { editor: Editor }) {
+  const active = editor.isActive("aiExclude");
+  return (
+    <>
+      <span style={separatorStyle} />
+      <button
+        aria-label="Hide from AI"
+        aria-pressed={active}
+        title="Hide from AI"
+        style={active ? { ...btnBase, ...btnActive } : btnBase}
+        onClick={() => { editor.chain().focus().toggleAiExclude().run(); }}
+      >
+        <Icon name="shieldOff" style={{ width: 14, height: 14 }} />
+      </button>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FormatButtons — presentational dark-pill toolbar (testable without selection)
 // ---------------------------------------------------------------------------
 
@@ -181,6 +203,7 @@ export function FormatButtons({ editor }: { editor: Editor }) {
         </button>
       ))}
       <HighlightSwatches editor={editor} />
+      <AiExcludeToggle editor={editor} />
       <span style={caretStyle} />
     </span>
   );

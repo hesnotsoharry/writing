@@ -20,6 +20,7 @@ import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
 import { makeCanvasFocusHandler } from "./canvasFocus";
 import { buildAlLinkMenu, buildEditorContextMenu } from "./EditorContextMenu";
 import { EditorHeader } from "./EditorHeader";
+import AiExcludeExtension from "./extensions/AiExcludeExtension";
 import AutoLinkExtension, { type AutoLinkConfig, autolinkKey } from "./extensions/AutoLink";
 import DropCapGate from "./extensions/DropCapGate";
 import FocusModeExtension, { type FocusFlags,focusModeKey } from "./extensions/FocusModeExtension";
@@ -98,6 +99,7 @@ function buildExtensions(doc: Y.Doc, alCfg: AutoLinkConfig, flags: FocusFlags) {
     StarterKit.configure({ undoRedo: false }),
     Collaboration.configure({ document: doc, field: "content" }),
     Highlight.configure({ multicolor: true }),
+    AiExcludeExtension,
     // Placeholder applies the `is-editor-empty` class when the doc is empty; the
     // typing-cue itself is styled in app.css (.is-editor-empty::before). StarterKit v3
     // does NOT bundle Placeholder, so without this extension that class never lands
