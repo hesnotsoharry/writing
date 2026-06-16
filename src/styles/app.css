@@ -470,7 +470,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .sheet {
   background: var(--paper); border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg); border: 1px solid var(--parchment-edge);
-  display: flex; flex-direction: column; max-height: 86%;
+  display: flex; flex-direction: column; max-height: 86vh;
 }
 @keyframes pop { from { transform: translateY(12px) scale(0.985); } }
 .sheet-head {
@@ -2206,11 +2206,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   background: var(--paper); font-size: var(--text-xs); color: var(--ink); }
 .ai-boundary .note { font-size: var(--text-2xs); color: var(--ink-4); line-height: 1.45; }
 
-.ai-picker-foot { display: flex; align-items: center; gap: var(--s-4); padding-top: var(--s-3);
-  border-top: 1px solid var(--line); }
+.ai-picker-foot { display: flex; align-items: center; gap: var(--s-4);
+  padding: var(--s-3) var(--s-5); border-top: 1px solid var(--line); }
 .ai-picker-foot .ai-meter { flex: 1; }
 .ai-est { font-size: var(--text-2xs); color: var(--ink-3); }
 .ai-est b { color: var(--ink); font-weight: 600; }
+.ai-msg-cost { font-size: var(--text-2xs); color: var(--ink-4); text-align: right; margin-top: 2px; }
 
 /* Settings — privacy block */
 .ai-privacy { display: flex; gap: 10px; padding: 12px; background: var(--paper); border: 1px solid var(--line);
@@ -2231,7 +2232,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 /* ── Settings ▸ AI — shared key rows + custom-endpoint manager ─────────────
    All classes below were undefined before this section. ADDITIVE ONLY.
    Input look matches .ai-input (border + focus ring + placeholder).
-   Layout tokens: --s-1/2/3/4, --r-md/sm/pill/xs, --ink-*/--accent-*/--line-*.
+   Layout tokens: --s-1/2/3/4, --r-md/sm/pill/xs, --ink-*, --accent-*, --line-*.
    ───────────────────────────────────────────────────────────────────────── */
 
 /* -- Shared form input (BYOK key fields, endpoint name/url, license key) --- */
@@ -2239,7 +2240,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   width: 100%; padding: 8px 11px;
   font-size: var(--text-sm); font-family: var(--font-ui);
   border: 1px solid var(--parchment-edge); border-radius: var(--r-md);
-  background: var(--paper); color: var(--ink);
+  background: var(--parchment-deep); color: var(--ink);
   outline: none;
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }

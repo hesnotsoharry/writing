@@ -130,8 +130,8 @@ vi.mock("../features/ai/ai.types", () => ({
   // W44 model picker — needed by ModelPop + usePanelState (lazy initializer calls DEFAULT_MODEL)
   DEFAULT_MODEL: "claude-haiku-4-5-20251001",
   AI_MODELS: {
-    "claude-haiku-4-5-20251001": { label: "Claude Haiku",  provider: "claude",  tier: "standard" },
-    "claude-sonnet-4-6":         { label: "Claude Sonnet", provider: "claude",  tier: "standard" },
+    "claude-haiku-4-5-20251001": { label: "Haiku 4.5",     provider: "claude",  tier: "standard" },
+    "claude-sonnet-4-6":         { label: "Sonnet 4.6",   provider: "claude",  tier: "standard" },
     "gpt-5.4-mini":              { label: "GPT-5.4 mini",  provider: "chatgpt", tier: "standard" },
     "gpt-5.4":                   { label: "GPT-5.4",       provider: "chatgpt", tier: "standard" },
     "claude-opus-4-8":           { label: "Claude Opus",   provider: "claude",  tier: "premium"  },
@@ -380,6 +380,7 @@ describe("AssistantPanel — consented", () => {
   });
 
   it("with OpenAI byokKeys, streamByokOpenAiChat is called and streamByokChat/acquireSession/streamChat are not", async () => {
+    localStorage.setItem("writing.aiModel", JSON.stringify("gpt-5.4-mini"));
     render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: false, openai: true } })} />);
     const textarea = screen.getByRole("textbox");
     fireEvent.change(textarea, { target: { value: "Write me a chapter" } });
@@ -412,6 +413,7 @@ describe("AssistantPanel — consented", () => {
   });
 
   it("renders 'Your OpenAI key' badge text when byokActive=true, byokKeys={anthropic:false, openai:true}", () => {
+    localStorage.setItem("writing.aiModel", JSON.stringify("gpt-5.4-mini"));
     render(<AssistantPanel {...detailViewProps({ byokActive: true, byokKeys: { anthropic: false, openai: true } })} />);
     expect(screen.getByText("Your OpenAI key")).not.toBeNull();
   });

@@ -2,7 +2,7 @@ import React from "react";
 
 import { Icon, type IconName } from "../../components/Icon";
 import { aiEstimate, estimateRepliesLeft } from "./ai.helpers";
-import { type AiChapterRow, type AiCtxConfig, type AiEntity, type AiEstimateResult, type AiManuscriptTree, type AiSceneRow, DEFAULT_MODEL, type ManuscriptAbout, TRIAL_ALLOWANCE_UNITS } from "./ai.types";
+import { type AiChapterRow, type AiCtxConfig, type AiEntity, type AiEstimateResult, type AiManuscriptTree, type AiSceneRow, DEFAULT_MODEL, type ManagedModel, type ManuscriptAbout, TRIAL_ALLOWANCE_UNITS } from "./ai.types";
 import { AiMeter } from "./AiComponents";
 
 /* ---- Consent walkthrough step data (module-level JSX is valid in .tsx) ---- */
@@ -211,7 +211,7 @@ function AiPickerFoot({ est, onClose }: { est: AiEstimateResult; onClose: () => 
       <div className="ai-meter">
         <div className="ai-meter-row">
           <span className="st">Size of this context</span>
-          <span className="ai-est">≈ <b>{est.pct}%</b> of your monthly allowance per ask</span>
+          <span className="ai-est">≈ up to <b>{est.pct}%</b> of your monthly allowance</span>
         </div>
         <div className="ai-meter-track"><div className="ai-meter-fill" style={{ width: Math.min(100, est.pct * 8) + "%" }}></div></div>
       </div>
@@ -226,16 +226,18 @@ interface PickerDerivedParams {
   entities: AiEntity[];
   aiCtx: AiCtxConfig;
   neverNames: string[];
+  model: ManagedModel;
+  monthlyAllowance: number;
 }
 
-function pickerDerived({ tree, scene, entities, aiCtx, neverNames }: PickerDerivedParams) {
+function pickerDerived({ tree, scene, entities, aiCtx, neverNames, model, monthlyAllowance }: PickerDerivedParams) {
   const extraSet = new Set(aiCtx.extraSceneIds);
   const offSet = new Set(aiCtx.offEntityNames);
   const neverSet = new Set(neverNames);
   const allScenes = [...tree.chapters.flatMap(ch => ch.scenes), ...tree.shortPieces];
   const extraWords = [...extraSet].map(id => (allScenes.find(s => s.id === id) ?? { words: 0 }).words).reduce((a, b) => a + b, 0);
   const included = entities.filter(e => !neverSet.has(e.name) && !offSet.has(e.name)).length;
-  const est = aiEstimate({ sceneWords: scene.words, extraWords, entityCount: included, about: aiCtx.about });
+  const est = aiEstimate({ sceneWords: scene.words, extraWords, entityCount: included, about: aiCtx.about }, model, monthlyAllowance);
   return { extraSet, offSet, neverSet, est };
 }
 
@@ -253,10 +255,12 @@ interface AiContextPickerProps {
   setAbout: (a: ManuscriptAbout) => void;
   resetLabel: string;
   onClose: () => void;
+  model: ManagedModel;
+  monthlyAllowance: number;
 }
 
-export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverNames, toggleNever, about, setAbout, onClose }: AiContextPickerProps) {
-  const { extraSet, offSet, neverSet, est } = pickerDerived({ tree, scene, entities, aiCtx, neverNames });
+export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverNames, toggleNever, about, setAbout, onClose, model, monthlyAllowance }: AiContextPickerProps) {
+  const { extraSet, offSet, neverSet, est } = pickerDerived({ tree, scene, entities, aiCtx, neverNames, model, monthlyAllowance });
   const toggleScene = (id: string) => {
     if (id === scene.id) return;
     const next = new Set(extraSet);
@@ -288,8 +292,8 @@ export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverN
           <AiPickerSection icon="book" label="Spoiler boundary">
             <AiBoundarySelect tree={tree} aiCtx={aiCtx} setAiCtx={setAiCtx} />
           </AiPickerSection>
-          <AiPickerFoot est={est} onClose={onClose} />
         </div>
+        <AiPickerFoot est={est} onClose={onClose} />
       </div>
     </div>
   );

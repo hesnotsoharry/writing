@@ -20,7 +20,7 @@ export interface AiMessage {
 
 export type NormalizedEvent =
   | { type: "token"; text: string }
-  | { type: "done"; inputTokens: number; outputTokens: number; creditsCost: number; cachedTokens?: number }
+  | { type: "done"; inputTokens: number; outputTokens: number; creditsCost: number; cachedTokens?: number; balanceAfter?: number | null }
   | { type: "error"; message: string }
   /** Proxy returned 429 — personal credit balance exhausted. */
   | { type: "credits-exhausted"; resetAt: string }

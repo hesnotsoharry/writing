@@ -8,7 +8,7 @@
  *
  * Normalized SSE schema (Decision 4):
  *   {type:'token', text:string}
- *   {type:'done', inputTokens:number, outputTokens:number, creditsCost:number}
+ *   {type:'done', inputTokens:number, outputTokens:number, creditsCost:number, balanceAfter:number|null}
  *   {type:'error', message:string}
  *
  * Credit flow (Decision 3 — reserve-then-reconcile):
@@ -17,6 +17,8 @@
  *   3. On stream completion: refund_credits(reserve − actual) if reserve > actual.
  *   4. On stream failure: refund_credits(full reserve).
  *   creditsCost in 'done' = min(reserve, actual) — what was actually charged.
+ *   balanceAfter in 'done' = settled credits_balance after reconcile (authoritative;
+ *     lets the client update its meter without a follow-up /balance round-trip).
  *
  * 429 shapes (distinct bodies per caller):
  *   Zero-credit:  {creditsRemaining:0, resetAt:string|null}
@@ -137,6 +139,8 @@ interface StreamArgs {
   reserve: number;
   requestId: string;
   isTrial: boolean;
+  /** Credits balance immediately after the reserve deduction; used as balanceAfter when no refund fires. */
+  balanceAfterReserve: number | null;
 }
 
 // ── SSE write helper ──────────────────────────────────────────────────────────
@@ -176,13 +180,13 @@ async function reserveCredits(
   licenseKey: string,
   amount: number,
   requestId: string,
-): Promise<boolean> {
+): Promise<number | null> {
   const { data } = await db.rpc("reserve_credits", {
     p_license_key: licenseKey,
     p_amount: amount,
     p_request_id: requestId,
   });
-  return data !== null;
+  return typeof data === 'number' ? data : null;
 }
 
 async function refundCredits(
@@ -191,13 +195,14 @@ async function refundCredits(
   amount: number,
   requestId: string,
   meta: Record<string, unknown>,
-): Promise<void> {
-  await db.rpc("refund_credits", {
+): Promise<number | null> {
+  const { data } = await db.rpc("refund_credits", {
     p_license_key: licenseKey,
     p_amount: amount,
     p_request_id: requestId,
     p_meta: meta,
   });
+  return typeof data === 'number' ? data : null;
 }
 
 interface TrialReserveResult {
@@ -232,13 +237,14 @@ async function refundTrialCredits(
   amount: number,
   requestId: string,
   meta: Record<string, unknown>,
-): Promise<void> {
-  await db.rpc("refund_trial_credits", {
+): Promise<number | null> {
+  const { data } = await db.rpc("refund_trial_credits", {
     p_license_key: licenseKey,
     p_amount: amount,
     p_request_id: requestId,
     p_meta: meta ?? null,
   });
+  return typeof data === 'number' ? data : null;
 }
 
 // ── Stream runner (runs in waitUntil) ─────────────────────────────────────────
@@ -246,7 +252,7 @@ async function refundTrialCredits(
 async function runStream(args: StreamArgs): Promise<void> {
   const {
     anthropicKey, openaiKey, messages, verbConfig, system,
-    writer, encoder, db, licenseKey, reserve, requestId, isTrial,
+    writer, encoder, db, licenseKey, reserve, requestId, isTrial, balanceAfterReserve,
   } = args;
   const doRefund = isTrial ? refundTrialCredits : refundCredits;
   let refunded = false;
@@ -278,18 +284,26 @@ async function runStream(args: StreamArgs): Promise<void> {
     );
     const refundAmount = Math.max(0, reserve - actual);
     const charged = reserve - refundAmount;
+    // Compute the authoritative settled balance:
+    //   - Refund path: the refund RPC returns the new balance after restoring unused credits.
+    //   - No-refund path (actual >= reserve): no credits were returned, so the balance right
+    //     after the reserve deduction IS the settled balance (balanceAfterReserve).
+    let balanceAfter: number | null;
     if (refundAmount > 0) {
-      await doRefund(db, licenseKey, refundAmount, requestId, {
+      balanceAfter = await doRefund(db, licenseKey, refundAmount, requestId, {
         input_tokens: usage.inputTokens,
         output_tokens: usage.outputTokens,
         model: verbConfig.model,
       });
+    } else {
+      balanceAfter = balanceAfterReserve;
     }
     await writeSse(writer, encoder, {
       type: "done",
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
       creditsCost: charged,
+      balanceAfter,
     });
   } catch {
     if (!refunded) {
@@ -347,6 +361,19 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   if (!resolved.ok) return new Response("Bad Request", { status: 400, headers: cors });
   const effectiveConfig = resolved.config;
 
+  // W51 P1: explicit adapter pre-flight — unknown model → 400 before any credit or stream work.
+  // resolveModelConfig+MANAGED_MODELS already prevents this in practice; this guard ensures
+  // getAdapter's throw never surfaces as an unhandled 500 or a silent fallback.
+  try {
+    getAdapter(effectiveConfig.model);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : `Unknown model: ${effectiveConfig.model}`;
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
+
   const db = makeServiceClient(context.env);
 
   // Subscription check
@@ -378,6 +405,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const reserve = estimateCredits(totalChars, effectiveConfig.maxTokens, effectiveConfig.model, system?.length ?? 0);
   const requestId = crypto.randomUUID();
 
+  let balanceAfterReserve: number | null = null;
   if (isTrial) {
     const trialReserve = await reserveTrialCredits(db, licenseKey, reserve, requestId);
     if (!trialReserve.ok) {
@@ -393,14 +421,16 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
         { status: 429, headers: { "Content-Type": "application/json", ...cors } },
       );
     }
+    balanceAfterReserve = trialReserve.newBalance;
   } else {
     const reserved = await reserveCredits(db, licenseKey, reserve, requestId);
-    if (!reserved) {
+    if (reserved === null) {
       return new Response(
         JSON.stringify({ creditsRemaining: sub.credits_balance, resetAt: sub.reset_at ?? "" }),
         { status: 429, headers: { "Content-Type": "application/json", ...cors } },
       );
     }
+    balanceAfterReserve = reserved;
   }
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -420,6 +450,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
       reserve,
       requestId,
       isTrial,
+      balanceAfterReserve,
     }),
   );
   return new Response(readable, {

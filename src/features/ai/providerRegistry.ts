@@ -82,11 +82,11 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
       // Rates sourced from marketing/functions/_lib/credits.ts RATES (2026-06-14):
       //   units/token × 10 = $/MTok  (CREDIT_UNIT_USD = $0.00001; 1 unit/token = $10/MTok)
       {
-        id: "claude-haiku-4-5-20251001", displayName: "Claude Haiku", provider: "anthropic",
+        id: "claude-haiku-4-5-20251001", displayName: "Haiku 4.5", provider: "anthropic",
         rateUsd: { input: 1.0, cached: 0.10, output: 5.0 },
       },
       {
-        id: "claude-sonnet-4-6", displayName: "Claude Sonnet", provider: "anthropic",
+        id: "claude-sonnet-4-6", displayName: "Sonnet 4.6", provider: "anthropic",
         rateUsd: { input: 3.0, cached: 0.30, output: 15.0 },
       },
     ],

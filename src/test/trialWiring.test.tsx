@@ -77,8 +77,8 @@ vi.mock("../features/ai/ai.types", () => ({
   EMPTY_ABOUT: { synopsis: "" },
   DEFAULT_MODEL: "claude-haiku-4-5-20251001",
   AI_MODELS: {
-    "claude-haiku-4-5-20251001": { label: "Claude Haiku", provider: "claude", tier: "standard" },
-    "claude-sonnet-4-6":         { label: "Claude Sonnet", provider: "claude", tier: "standard" },
+    "claude-haiku-4-5-20251001": { label: "Haiku 4.5",    provider: "claude", tier: "standard" },
+    "claude-sonnet-4-6":         { label: "Sonnet 4.6",   provider: "claude", tier: "standard" },
     "gpt-5.4-mini":              { label: "GPT-5.4 mini", provider: "chatgpt", tier: "standard" },
     "gpt-5.4":                   { label: "GPT-5.4", provider: "chatgpt", tier: "standard" },
     "claude-opus-4-8":           { label: "Claude Opus", provider: "claude", tier: "premium" },

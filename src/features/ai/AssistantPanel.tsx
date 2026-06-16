@@ -27,6 +27,7 @@ import {
   type AiMessageRecord,
   type ContextSnapshot,
   type ConversationRecord,
+  DEFAULT_MODEL,
   type ManagedModel,
   type ManuscriptAbout,
   type ProseSelection,
@@ -80,6 +81,7 @@ export interface AssistantPanelProps {
   onSaveNote: (body: string) => void;
   onStreamDone?: () => void;
   onNetworkError?: () => void;
+  monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
   convStore?: AiConversationStore;
   projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; // W49 P3 + W45 P4: any-key-present flag + provider MAP
 }
@@ -96,12 +98,7 @@ export interface SlotHostProps {
   aiEnabled: boolean;  gateStatus?: GateStatus;
 }
 
-interface InspectorTabsProps {
-  tab: "scene" | "assistant";
-  setTab: (t: "scene" | "assistant") => void;
-  scenePane: ReactNode;
-  assistantPane: ReactNode;
-}
+interface InspectorTabsProps { tab: "scene" | "assistant"; setTab: (t: "scene" | "assistant") => void; scenePane: ReactNode; assistantPane: ReactNode; }
 
 interface SlotPanelProps {
   convos: ConversationRecord[];
@@ -134,17 +131,23 @@ interface SlotPanelProps {
   offline: boolean;
   onStreamDone: () => void;
   onNetworkError?: () => void;
+  monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
   sel?: ProseSelection | null;
   initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; // W49 P3 + W45 P4
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
 
-// W49 P4: falls back to first keyed-provider model when managed-mode default is not in any keyed group.
-function computeEffectiveByokModel(model: ManagedModel, byokActive: boolean, byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }): ManagedModel {
+// W51 P1: exported for unit testing. Returns the chosen model unchanged — routeByokSend's
+// explicit guards surface "[No API key set]" or "[Unknown model]" when the model has no
+// configured key. Removed: the km[0]?.id swap that silently rerouted to a different model.
+export function computeEffectiveByokModel(model: ManagedModel, byokActive: boolean, byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }): ManagedModel {
   if (!byokActive) return model;
   const km = PROVIDER_REGISTRY.filter((g) => (byokKeys as Partial<Record<ProviderId, boolean>>)[g.provider]).flatMap((g) => g.models);
-  return (km.some((m) => m.id === model) ? model : (km[0]?.id as ManagedModel | undefined)) ?? model;
+  // find returns the entry whose id === model (same value) or undefined; ?? model
+  // makes this always return model — no substitution in either path. ModelEntry.id
+  // is `string` so the cast is safe: either branch resolves to model's string value.
+  return (km.find((m) => m.id === model)?.id ?? model) as ManagedModel;
 }
 
 function PanelReady(p: AssistantPanelProps) {
@@ -154,7 +157,7 @@ function PanelReady(p: AssistantPanelProps) {
   const active = p.convos.find((c) => c.id === p.activeId) ?? null;
   // D4: merge neverNames into offEntityNames so display + send use the same filter.
   const effectiveAiCtx: AiCtxConfig = { ...p.aiCtx, offEntityNames: [...new Set([...p.aiCtx.offEntityNames, ...p.neverNames])] };
-  const ctx = useContextAssembly({ sceneId: p.sceneId, sceneWords: p.sceneWords, aiCtx: effectiveAiCtx, neverNames: p.neverNames, tree: p.tree, about: p.about, active, sceneEntityGroups: p.sceneEntityGroups });
+  const ctx = useContextAssembly({ sceneId: p.sceneId, sceneWords: p.sceneWords, aiCtx: effectiveAiCtx, neverNames: p.neverNames, tree: p.tree, about: p.about, active, sceneEntityGroups: p.sceneEntityGroups, model: effectiveByokModel, monthlyAllowance: p.monthlyAllowance });
   const ctxArgs: CtxArgs = { sceneName: p.sceneName, sceneWords: p.sceneWords, linked: ctx.linked,
     extras: ctx.extras, attachedSel, aiCtx: effectiveAiCtx, hasAbout: ctx.hasAbout, boundaryLabel: ctx.boundaryLabel };
   const canCompose = !p.offline && p.plan !== "expired" && p.usedPct < 100;
@@ -162,7 +165,7 @@ function PanelReady(p: AssistantPanelProps) {
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
     prompt, setPrompt, verb, model: effectiveByokModel, attachedSel, setAttachedSel, streamingId, setStreamingId,
     canCompose, ctxArgs, sceneId: p.sceneId, sceneName: p.sceneName,
-    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError, byokActive: p.byokActive, byokKeys: p.byokKeys,
+    doc: p.doc, store: p.store, abortRef, sessionRef, onToast: p.onToast, onSaveNote: p.onSaveNote, convStore: p.convStore, projectId: p.projectId, onStreamDone: p.onStreamDone, onNetworkError: p.onNetworkError, onBalanceAfter: p.onBalanceAfter, byokActive: p.byokActive, byokKeys: p.byokKeys,
   });
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -259,7 +262,7 @@ function useConvoPersistence(activeProjectId: string | null) {
         // Guard: if messages are already in local state (e.g. in-flight after newConvo + send),
         // skip the DB result so an empty/stale read never clobbers an in-flight message.
         if (c.messages.length > 0) return c;
-        return { ...c, messages: msgs.map((m): AiMessageRecord => ({ id: m.id, role: m.role, verb: m.verb as VerbKey, when: "now", text: m.body, ctx: m.contextJson ? (JSON.parse(m.contextJson) as ContextSnapshot) : null })) };
+        return { ...c, messages: msgs.map((m): AiMessageRecord => ({ id: m.id, role: m.role, verb: m.verb as VerbKey, when: "now", text: m.body, ctx: m.contextJson ? (JSON.parse(m.contextJson) as ContextSnapshot) : null, creditsCost: m.creditsCost })) };
       }));
     }).catch(console.error);
   }, [convStore]);
@@ -274,7 +277,7 @@ function useConvoPersistence(activeProjectId: string | null) {
  *  safe no-op values so canCompose stays true (Decision 4). When gateStatus==='trial', allows
  *  a lazily-minted trial token. */
 function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateStatus = "checking") {
-  const [usedPct, setUsedPct] = useState(0); const [creditsBalance, setCreditsBalance] = useState(0);
+  const [usedPct, setUsedPct] = useState(0); const [creditsBalance, setCreditsBalance] = useState(0); const [monthlyAllowance, setMonthlyAllowance] = useState(0);
   const [plan, setPlan] = useState<"active" | "trial" | "expired">("active");
   const [resetLabel, setResetLabel] = useState("soon");
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -291,7 +294,7 @@ function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateS
         const token = await acquireAnyToken(sessionRef as MutableRefObject<SessionResult | null>);
         const data = await getBalance(token);
         if (cancelled) return;
-        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance)); setCreditsBalance(data.creditsBalance);
+        setUsedPct(computeUsedPct(data.monthlyAllowance, data.creditsBalance)); setCreditsBalance(data.creditsBalance); setMonthlyAllowance(data.monthlyAllowance);
         setPlan(data.status); setResetLabel(formatResetLabel(data.resetAt)); setOffline(false);
       } catch (err: unknown) {
         if (cancelled) return;
@@ -307,10 +310,10 @@ function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateS
     window.addEventListener("online", goOnline); window.addEventListener("offline", goOffline);
     return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
   }, []);
-  const refresh = useCallback(() => setBalanceKey((k) => k + 1), []);
+  const refresh = useCallback(() => setBalanceKey((k) => k + 1), []); const applyBalance = useCallback((b: number) => { setCreditsBalance(b); if (monthlyAllowance > 0) setUsedPct(computeUsedPct(monthlyAllowance, b)); }, [monthlyAllowance]);
   useEffect(() => { if (byokActive) return; const h = () => { const cur = getTweak("aiLicenseKey", ""); if (cur !== licenseKeyRef.current) { licenseKeyRef.current = cur; refresh(); } }; window.addEventListener(SETTINGS_CHANGED_EVENT, h); return () => { window.removeEventListener(SETTINGS_CHANGED_EVENT, h); }; }, [byokActive, refresh]);
   // D4: BYOK has no managed meter; return safe no-ops so canCompose stays true.
-  return byokActive ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {} } : { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh };
+  return byokActive ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {}, monthlyAllowance: 0, applyBalance: () => {} } : { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance };
 }
 
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
@@ -322,7 +325,7 @@ function SlotPanel(p: SlotPanelProps) {
     about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx} neverNames={p.neverNames} toggleNever={p.toggleNever}
     usedPct={p.usedPct} creditsBalance={p.creditsBalance} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
     consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
-    onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError}
+    onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError} onBalanceAfter={p.onBalanceAfter} monthlyAllowance={p.monthlyAllowance}
     convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokActive={p.byokActive} byokKeys={p.byokKeys}
   /></AiErrorBoundary>;
 }
@@ -337,7 +340,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const toggleNever = useCallback((n: string) => setNeverNames((ns) => ns.includes(n) ? ns.filter((x) => x !== n) : [...ns, n]), []);
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
-  const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh } = useAiBalance(consented, byokActive, p.gateStatus);
+  const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance } = useAiBalance(consented, byokActive, p.gateStatus);
   const { panelKey, initialVerb, initialSel, seedAsk } = useAiPanelSeed(setInspTab);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
@@ -355,13 +358,13 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
         usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline}
-        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys} />
+        onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} onBalanceAfter={applyBalance} monthlyAllowance={monthlyAllowance} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys} />
     } />
     {liveSel && <AiAskPill sel={liveSel} onAsk={() => seedAsk("ask", liveSel)} />}
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
     {overlay === "context" && <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
       entities={allEntities} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
-      about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} />}
+      about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} model={getTweak("aiModel", DEFAULT_MODEL) as ManagedModel} monthlyAllowance={monthlyAllowance} />}
     <AiToast msg={toast} />
   </>);
 }

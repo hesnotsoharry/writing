@@ -36,6 +36,15 @@ describe('W44 MANAGED_MODELS ↔ RATES sync guard (silent-under-bill defense)', 
     }
   });
 
+  // W51 P1: getAdapter must throw for unknown models — no silent Anthropic fallback.
+  it('getAdapter throws for an unknown model id instead of silently returning AnthropicAdapter', () => {
+    expect(() => getAdapter('totally-unknown-model-xyz')).toThrow('Unknown model: totally-unknown-model-xyz');
+  });
+
+  it('getAdapter throws for a plausible-but-unlisted model id (no prefix-sniff fallback)', () => {
+    expect(() => getAdapter('claude-9-hyper')).toThrow('Unknown model: claude-9-hyper');
+  });
+
   it('offers the full Q1 lineup: Haiku, Sonnet, gpt-5.4-mini, gpt-5.4 (standard) + Opus, gpt-5.5 (premium)', () => {
     expect(MANAGED_MODELS.has('claude-haiku-4-5-20251001')).toBe(true);
     expect(MANAGED_MODELS.has('claude-sonnet-4-6')).toBe(true);
