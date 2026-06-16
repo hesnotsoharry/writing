@@ -15,6 +15,9 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+/** Shape of the on-disk judge cache. Keyed by outputId; each entry holds raw 0–10 scores per judge. */
+type JudgeCache = Record<string, Record<string, number>>;
+
 import { codexJudge } from "./judge.codex.ts";
 import { opusJudge } from "./judge.opus.ts";
 import { scoreComponent1 } from "./scorer/component1.ts";
@@ -102,10 +105,36 @@ function groupKey(model: string, condition: string): string {
   return `${model} :: ${condition}`;
 }
 
+/** Load the judge cache from disk, returning an empty object if not present. */
+async function loadJudgeCache(runDir: string): Promise<JudgeCache> {
+  try {
+    const raw = await readFile(join(runDir, "judge-cache.json"), "utf8");
+    return JSON.parse(raw) as JudgeCache;
+  } catch {
+    return {};
+  }
+}
+
+/** Flush the current judge cache to disk. */
+async function flushJudgeCache(runDir: string, cache: JudgeCache): Promise<void> {
+  await writeFile(join(runDir, "judge-cache.json"), JSON.stringify(cache, null, 2), "utf8");
+}
+
+/** True if the cache entry for this outputId has all panel judges' scores. */
+function cacheHit(cache: JudgeCache, outputId: string): boolean {
+  const entry = cache[outputId];
+  if (!entry) return false;
+  return PANEL.every((j) => typeof entry[j.name] === "number");
+}
+
 async function scoreAll(runDir: string, keymap: KeyMap): Promise<CellScore[]> {
   const cells: CellScore[] = [];
   const entries = Object.entries(keymap);
   let i = 0;
+
+  // Load judge cache once before the loop (panel mode only; ignored otherwise).
+  const judgeCache = USE_PANEL ? await loadJudgeCache(runDir) : ({} as JudgeCache);
+
   for (const [outputId, meta] of entries) {
     i += 1;
     const text = await loadOutputText(runDir, meta.task, outputId);
@@ -120,17 +149,41 @@ async function scoreAll(runDir: string, keymap: KeyMap): Promise<CellScore[]> {
       truncated: TRUNCATED.has(outputId),
     };
     if (USE_PANEL) {
-      process.stderr.write(`  panel ${i}/${entries.length} ${outputId} (${meta.model}/${meta.condition})... `);
-      const judges: Record<string, number> = {};
-      for (const judge of PANEL) {
-        const r = await scoreComponent2(text, judge.fn);
-        judges[judge.name] = r.score;
+      if (cacheHit(judgeCache, outputId)) {
+        // Reuse cached judge scores — skip all judge subprocess calls for this cell.
+        const cached = judgeCache[outputId];
+        process.stderr.write(`  panel ${i}/${entries.length} ${outputId} (cached)\n`);
+        const judges: Record<string, number> = {};
+        for (const judge of PANEL) judges[judge.name] = cached[judge.name];
+        cell.judges = judges;
+        cell.c2Panel = mean(Object.values(judges));
+        cell.d3 = (c1.score + normalizeC2ToC1Scale(cell.c2Panel)) / 2;
+      } else {
+        process.stderr.write(`  panel ${i}/${entries.length} ${outputId} (${meta.model}/${meta.condition})... `);
+        const judges: Record<string, number> = {};
+        try {
+          for (const judge of PANEL) {
+            const r = await scoreComponent2(text, judge.fn);
+            judges[judge.name] = r.score;
+          }
+        } catch (err) {
+          // Judge failed (e.g. codex hit the 5-hour usage limit). Flush the cache
+          // (already current through the last completed cell) and exit cleanly.
+          await flushJudgeCache(runDir, judgeCache);
+          process.stderr.write(`\n[judge-limit] judge failed at cell ${i}/${entries.length} — cache saved to judge-cache.json; relaunch the same command after the limit resets to resume\n`);
+          process.stderr.write(`  (error: ${err instanceof Error ? err.message : String(err)})\n`);
+          process.exit(1);
+        }
+        cell.judges = judges;
+        cell.c2Panel = mean(Object.values(judges));
+        // Judge values are 0–10; normalize to 0–4 before combining with C1 (also 0–4).
+        cell.d3 = (c1.score + normalizeC2ToC1Scale(cell.c2Panel)) / 2;
+        process.stderr.write(`gpt=${judges.gpt} opus=${judges.opus} panel=${cell.c2Panel.toFixed(2)}\n`);
+
+        // All judges succeeded — persist this cell's verdicts and flush entire cache to disk.
+        judgeCache[outputId] = { ...judges };
+        await flushJudgeCache(runDir, judgeCache);
       }
-      cell.judges = judges;
-      cell.c2Panel = mean(Object.values(judges));
-      // Judge values are 0–10; normalize to 0–4 before combining with C1 (also 0–4).
-      cell.d3 = (c1.score + normalizeC2ToC1Scale(cell.c2Panel)) / 2;
-      process.stderr.write(`gpt=${judges.gpt} opus=${judges.opus} panel=${cell.c2Panel.toFixed(2)}\n`);
     } else if (USE_JUDGE) {
       process.stderr.write(`  judging ${i}/${entries.length} ${outputId} (${meta.model}/${meta.condition})... `);
       const r = await scoreD3(text, codexJudge);
