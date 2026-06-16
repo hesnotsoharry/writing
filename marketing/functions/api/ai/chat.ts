@@ -249,6 +249,16 @@ async function refundTrialCredits(
 
 // ── Stream runner (runs in waitUntil) ─────────────────────────────────────────
 
+/** True when an upstream non-ok response looks like an Anthropic INPUT content-policy block.
+ *  Defensive: status 400/403 + a policy-keyword message. Exact INPUT message text is
+ *  unconfirmed (W52 P5 research) — we log the raw body to tighten this from real traffic. */
+function isContentPolicyBlock(status: number, body: unknown): boolean {
+  if (status !== 400 && status !== 403) return false;
+  const msg = (body as { error?: { message?: unknown } } | null)?.error?.message;
+  if (typeof msg !== "string") return false;
+  return /usage polic|content filtering|content policy|prohibited|moderat|violat/i.test(msg);
+}
+
 async function runStream(args: StreamArgs): Promise<void> {
   const {
     anthropicKey, openaiKey, messages, verbConfig, system,
@@ -261,7 +271,19 @@ async function runStream(args: StreamArgs): Promise<void> {
     const apiKey = adapter.provider === "openai" ? openaiKey : anthropicKey;
     const { url, headers, body } = adapter.buildRequest({ messages, config: verbConfig, system, apiKey });
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-    if (!res.ok || !res.body) {
+    if (!res.ok) {
+      const upstreamErr = await res.json().catch(() => null);
+      console.warn("[ai/chat] upstream non-ok", { status: res.status, body: upstreamErr });
+      await doRefund(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
+      refunded = true;
+      if (isContentPolicyBlock(res.status, upstreamErr)) {
+        await writeSse(writer, encoder, { type: "content-blocked" });
+      } else {
+        await writeSse(writer, encoder, { type: "error", message: "Upstream error" });
+      }
+      return;
+    }
+    if (!res.body) {
       await doRefund(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
       refunded = true;
       await writeSse(writer, encoder, { type: "error", message: "Upstream error" });

@@ -1183,3 +1183,90 @@ describe("W51 P2 — balanceAfter on done event", () => {
     expect(rpcCalls.find((c) => c.fn === "refund_trial_credits")).toBeUndefined();
   });
 });
+
+// ── W52 Phase 5 — managed content-policy block → content-blocked event ─────────
+//
+// Anthropic moderates at INPUT: an explicit passage in a managed request comes back as a
+// pre-stream HTTP 400 (invalid_request_error) BEFORE the SSE stream starts (research W52 P5:
+// input blocks are HTTP-level, not mid-stream SSE frames). The proxy must distinguish that
+// from a generic upstream error and emit {type:"content-blocked"} so the client can surface the
+// calm BYOK/local nudge — non-policy 400s must stay the generic "error". Detection is defensive
+// (status + policy-keyword message) because the exact INPUT message text is unconfirmed; the
+// proxy also logs the raw upstream body to tighten the parser from real traffic.
+
+/** Upstream 400 whose error message carries content-policy markers (a moderated input block). */
+function makeContentPolicyBlockResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: "Your request was blocked by our content filtering policy (prohibited content).",
+      },
+    }),
+    { status: 400, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+/** Upstream 400 with a NON-policy invalid_request message (e.g. a malformed request). */
+function makeGenericBadRequestResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      type: "error",
+      error: { type: "invalid_request_error", message: "messages: at least one message is required" },
+    }),
+    { status: 400, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+describe("W52 P5 — managed content-policy block surfaces a content-blocked event", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("upstream 400 content-policy block → SSE emits {type:'content-blocked'} (not generic error) and refunds the full reserve", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeContentPolicyBlockResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "an explicit passage" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    // The privacy-safety contract: a content-policy refusal is surfaced distinctly.
+    const blocked = events.find((e) => (e as { type: string }).type === "content-blocked");
+    expect(blocked).toBeDefined();
+    // It must NOT be misreported as the generic error event.
+    const generic = events.find((e) => (e as { type: string }).type === "error");
+    expect(generic).toBeUndefined();
+    // No output was generated → full reserve is refunded (same as any upstream failure).
+    const reserveCall = rpcCalls.find((c) => c.fn === "reserve_credits");
+    const refundCall = rpcCalls.find((c) => c.fn === "refund_credits");
+    expect(refundCall).toBeDefined();
+    expect(Number(refundCall!.args["p_amount"])).toBe(
+      Math.abs(Number(reserveCall!.args["p_amount"])),
+    );
+  });
+
+  it("upstream 400 NON-policy error (malformed request) → stays a generic {type:'error'} (no false content-blocked)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeGenericBadRequestResponse()));
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const events = await collectSseEvents(res, getWaitUntil());
+    const generic = events.find((e) => (e as { type: string }).type === "error");
+    expect(generic).toBeDefined();
+    const blocked = events.find((e) => (e as { type: string }).type === "content-blocked");
+    expect(blocked).toBeUndefined();
+  });
+});

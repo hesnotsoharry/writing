@@ -18,7 +18,6 @@ import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore"
 import { getTweak, setStoredTweak } from "../settings/settings.store";
 import { type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext,filterAiEntities } from "./ai.context";
-import { pushCostEntry } from "./ai.cost-window";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
 import { acquireAnyToken } from "./ai.trialToken";
 import {
@@ -35,6 +34,7 @@ import {
   type VerbKey,
 } from "./ai.types";
 import { buildByokStreamArgs,BYOK_SEND } from "./AssistantPanel.byok";
+import { type ApplyEventOpts,applyStreamEvent,type StreamState } from "./AssistantPanel.streamEvents";
 import { buildMessages } from "./prompts";
 import { getModelEntry, type ProviderId } from "./providerRegistry";
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -161,38 +161,25 @@ function patchMessage(convId: string, msgId: string, patch: Partial<AiMessageRec
 }
 
 export { acquireAnyToken } from "./ai.trialToken";
+
 async function streamAiResponse(a: StreamArgs): Promise<void> {
   const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
-  let accumulated = "";
-  let terminalError: string | null = null;
-  let doneCost: number | null = null;
-  let balanceAfterValue: number | null | undefined;
-  const isProofread = a.verb === "proofread";
-  await streamChat(a.token, messages, (ev: NormalizedEvent) => {
-    if (ev.type === "token") {
-      accumulated += ev.text;
-      if (!isProofread) a.setConvos(patchMessage(a.convId, a.msgId, { text: accumulated }));
-    } else if (ev.type === "done") {
-      doneCost = ev.creditsCost; balanceAfterValue = ev.balanceAfter; pushCostEntry(a.model, ev.creditsCost);
-    } else if (ev.type === "error") {
-      terminalError = `[Something went wrong — ${ev.message}]`;
-    } else if (ev.type === "credits-exhausted") {
-      const isTrial = !getTweak("aiLicenseKey", "");
-      terminalError = isTrial
-        ? "[Your free trial's used up — subscribe in the panel to keep going]"
-        : "[Monthly allowance used up" + (ev.resetAt ? " — resets " + ev.resetAt : "") + "]";
-    } else if (ev.type === "trial-budget-exhausted") {
-      terminalError = "[Trial AI is at today's shared limit — try again tomorrow]";
-    } else if (ev.type === "session-expired") {
-      terminalError = "[Session expired — check your subscription in Settings]";
-    }
-  }, { verb: a.verb, model: a.model, system, signal: a.ctrl.signal });
-  if (balanceAfterValue != null) a.onBalanceAfter?.(balanceAfterValue);
-  const finalText = terminalError ?? accumulated;
-  a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false, creditsCost: doneCost }));
+  const state: StreamState = { accumulated: "", terminalError: null, doneCost: null, balanceAfterValue: undefined };
+  const evOpts: ApplyEventOpts = {
+    isProofread: a.verb === "proofread",
+    onToken: (text) => { a.setConvos(patchMessage(a.convId, a.msgId, { text })); },
+    model: a.model,
+  };
+  await streamChat(a.token, messages,
+    (ev: NormalizedEvent) => applyStreamEvent(ev, state, evOpts),
+    { verb: a.verb, model: a.model, system, signal: a.ctrl.signal },
+  );
+  if (state.balanceAfterValue != null) a.onBalanceAfter?.(state.balanceAfterValue);
+  const finalText = state.terminalError ?? state.accumulated;
+  a.setConvos(patchMessage(a.convId, a.msgId, { text: finalText, streaming: false, creditsCost: state.doneCost }));
   if (a.convStore) {
-    await a.convStore.appendMessage(a.convId, { role: "ai", verb: a.verb, body: finalText, contextJson: null, creditsCost: doneCost });
+    await a.convStore.appendMessage(a.convId, { role: "ai", verb: a.verb, body: finalText, contextJson: null, creditsCost: state.doneCost });
   }
 }
 

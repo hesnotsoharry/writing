@@ -27,7 +27,9 @@ export type NormalizedEvent =
   /** Proxy returned 429 — shared daily trial budget exhausted (not a personal balance issue). */
   | { type: "trial-budget-exhausted" }
   /** Proxy returned 403 — session token invalid or subscription expired. */
-  | { type: "session-expired" };
+  | { type: "session-expired" }
+  /** Proxy detected an upstream content-policy block (managed tier; Anthropic moderates at input). */
+  | { type: "content-blocked" };
 
 export interface SessionResult {
   token: string;
