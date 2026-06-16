@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/react";
 import type { MenuDescriptor, MenuItem } from "../components/menu/ContextMenu";
 import { parseProseSelection } from "../features/ai/ai.helpers";
 import { AI_ASK_FROM_EDITOR, getTweak } from "../features/settings/settings.store";
+import { extractAiSafeSelection } from "./aiSafeSelection";
 
 // ---------------------------------------------------------------------------
 // buildAlLinkMenu — right-click menu for .al-link spans.
@@ -118,7 +119,9 @@ export function buildEditorContextMenu(
   y: number,
 ): MenuDescriptor {
   const { empty, from, to } = editor.state.selection;
-  const selText = empty ? "" : editor.state.doc.textBetween(from, to);
+  // Use mark-aware extraction so aiExclude-marked ranges emit the placeholder
+  // rather than raw prose when the selection is passed to AI context (W52 P2).
+  const selText = empty ? "" : extractAiSafeSelection(editor.state.doc, from, to);
 
   return {
     x,

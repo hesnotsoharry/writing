@@ -38,6 +38,12 @@ export function extractPlainText(doc: Y.Doc): string {
 }
 
 /**
+ * Placeholder injected into AI context in place of aiExclude-marked prose.
+ * The AI sees this string so it knows text was omitted (W52 Decision 2).
+ */
+export const AI_HIDDEN_PLACEHOLDER = "[passage hidden by author]";
+
+/**
  * Extract plain text from a Y.XmlText node via its delta.
  * Y.XmlText.toString() returns XML markup for attributed text (e.g.,
  * "The <bold>hero</bold> fought bravely") — this helper uses toDelta()
@@ -46,6 +52,19 @@ export function extractPlainText(doc: Y.Doc): string {
 export function xmlTextToPlain(node: Y.XmlText): string {
   return (node.toDelta() as { insert?: unknown }[])
     .reduce((s, op) => s + (typeof op.insert === "string" ? op.insert : ""), "");
+}
+
+/**
+ * Extract plain text from a Y.XmlText node, replacing any delta op whose
+ * `attributes.aiExclude` is truthy with AI_HIDDEN_PLACEHOLDER.
+ * Used exclusively by extractAiSafeText — never by extractPlainText.
+ */
+function xmlTextToAiSafe(node: Y.XmlText): string {
+  return (node.toDelta() as { insert?: unknown; attributes?: Record<string, unknown> }[])
+    .reduce((s, op) => {
+      if (typeof op.insert !== "string") return s;
+      return s + (op.attributes?.aiExclude ? AI_HIDDEN_PLACEHOLDER : op.insert);
+    }, "");
 }
 
 function collectText(node: Y.XmlElement): string {
@@ -59,4 +78,38 @@ function collectText(node: Y.XmlElement): string {
     }
   }
   return result;
+}
+
+function collectAiSafeText(node: Y.XmlElement): string {
+  let result = "";
+  for (let i = 0; i < node.length; i++) {
+    const child = node.get(i);
+    if (child instanceof Y.XmlText) {
+      result += xmlTextToAiSafe(child);
+    } else if (child instanceof Y.XmlElement) {
+      result += collectAiSafeText(child);
+    }
+  }
+  return result;
+}
+
+/**
+ * Mark-aware extraction for AI context: identical traversal to extractPlainText,
+ * but any delta op with `attributes.aiExclude` truthy is replaced by
+ * AI_HIDDEN_PLACEHOLDER. Used ONLY by assembleContext — never by export/word-count.
+ * extractPlainText is left UNCHANGED so the writer's export and word count are
+ * never redacted.
+ */
+export function extractAiSafeText(doc: Y.Doc): string {
+  const fragment = doc.getXmlFragment("content");
+  const blockTexts: string[] = [];
+
+  for (let i = 0; i < fragment.length; i++) {
+    const child = fragment.get(i);
+    if (child instanceof Y.XmlElement) {
+      blockTexts.push(collectAiSafeText(child));
+    }
+  }
+
+  return blockTexts.join("\n");
 }

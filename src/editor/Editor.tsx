@@ -17,6 +17,7 @@ import type { AlIndex } from "../lib/alBuildIndex";
 import { alBuildIndex } from "../lib/alBuildIndex";
 import { normalizeStatus, STATUS_META } from "../lib/status";
 import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
+import { activeEditorRef } from "./aiSafeSelection";
 import { makeCanvasFocusHandler } from "./canvasFocus";
 import { buildAlLinkMenu, buildEditorContextMenu } from "./EditorContextMenu";
 import { EditorHeader } from "./EditorHeader";
@@ -150,6 +151,12 @@ function useEditorCore(
   // Keep the shared ref in sync with the latest captureProse callback so
   // EditorPane's usePageFlip always snapshots the current editor DOM.
   useEffect(() => { captureProseRef.current = captureProse; }, [captureProse, captureProseRef]);
+  // Expose the live EditorView into the module-level ref so useProseSelection
+  // can read mark-aware selection text (W52 Phase 2 — aiSafeSelection.ts).
+  useEffect(() => {
+    activeEditorRef.current = editor?.view ?? null;
+    return () => { activeEditorRef.current = null; };
+  }, [editor]);
   return { editor, visible, popoverProps };
 }
 

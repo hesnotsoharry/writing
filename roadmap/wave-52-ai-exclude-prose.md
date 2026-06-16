@@ -241,8 +241,8 @@ appended migrations break prior migration tests via hardcoded LATEST + partial s
 
 | Phase | Dispatched | Completed | Commit SHA | Observation point hit |
 |---|---|---|---|---|
-| 1 | — | — | — | — |
-| 2 | — | — | — | — |
+| 1 | ✓ | ✓ | 4fdf4c3 | code+gates green, review PASS 6/6; runtime CDP smoke deferred to batched client smoke |
+| 2 | ✓ | ✓ | (pending) | strip unit-tested at all 3 redaction targets (sceneExcerpt + selectionText two-path + extra-scene); panel-tier review caught a CRITICAL `s.toString()` selection leak (all 3 seats converged), fixed + suppression-branch regression test added; 37/37 tests green; runtime CDP smoke deferred to batched client smoke |
 | 3 | — | — | — | — |
 | 4 | — | — | — | — |
 | 5 | — | — | — | — |

@@ -5,6 +5,7 @@
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 
 import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
+import { activeEditorRef, extractAiSafeSelection } from "../../editor/aiSafeSelection";
 import { QUICK_NOTES_CHANGED_EVENT } from "../../lib/settings";
 import { SqliteQuickNoteStore } from "../quickcapture/SqliteQuickNoteStore";
 import { AI_ASK_FROM_EDITOR, AI_REPLAY_EVENT, setStoredTweak } from "../settings/settings.store";
@@ -94,7 +95,13 @@ function proseElFromSelection(s: Selection): Element | null {
   return el?.closest(".prose") ? el : null;
 }
 
-/** Listens to DOM selectionchange; returns the current .prose selection or null. */
+/** Listens to DOM selectionchange; returns the current .prose selection or null.
+ *  Uses mark-aware extraction exclusively via activeEditorRef — NO raw DOM
+ *  s.toString() fallback for .prose content (W52 Phase 2 privacy guarantee).
+ *  If the editor view is not yet registered (ref null) or the PM selection is
+ *  empty, the selection is suppressed (null) rather than leaking unredacted
+ *  DOM text. proseElFromSelection already gates on .prose, so any selection
+ *  that reaches this point is editor content — we must redact or suppress. */
 export function useProseSelection(): ProseSelection | null {
   const [sel, setSel] = useState<ProseSelection | null>(null);
   useEffect(() => {
@@ -102,7 +109,12 @@ export function useProseSelection(): ProseSelection | null {
       const s = document.getSelection();
       if (!s || s.isCollapsed) { setSel(null); return; }
       if (!proseElFromSelection(s)) { setSel(null); return; }
-      const parsed = parseProseSelection(s.toString());
+      // Editor view required — suppress selection entirely if not yet registered.
+      const view = activeEditorRef.current;
+      if (!view || view.state.selection.empty) { setSel(null); return; }
+      const { from, to } = view.state.selection;
+      const selText = extractAiSafeSelection(view.state.doc, from, to);
+      const parsed = parseProseSelection(selText);
       if (!parsed) { setSel(null); return; }
       let rect: DOMRect | null = null;
       try { rect = s.getRangeAt(0).getBoundingClientRect(); } catch { /* geometry unavailable */ }

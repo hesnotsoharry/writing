@@ -257,6 +257,45 @@ describe("sqliteGetSceneText", () => {
     }
   });
 
+  it("redacts aiExclude-marked runs via extractAiSafeText — placeholder present, raw marked text absent", async () => {
+    const db = await freshDb();
+    try {
+      const sceneId = "scene-ai-exclude";
+      const sceneTitle = "Redaction Scene";
+
+      // Build a Yjs doc with a marked run using insert+format (TipTap-style).
+      const doc = new Y.Doc();
+      const fragment = doc.getXmlFragment("content");
+      doc.transact(() => {
+        const para = new Y.XmlElement("p");
+        const xt = new Y.XmlText();
+        para.push([xt]);
+        fragment.push([para]);
+        xt.insert(0, "Safe text. Hidden passage. More safe text.", undefined);
+        xt.format(11, 15, { aiExclude: true }); // "Hidden passage." (15 chars at pos 11)
+      });
+
+      const stateBase64 = encodeDoc(doc);
+      await db.execute(
+        "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count) VALUES (?,?,?,?,?,?,?)",
+        [sceneId, PROJECT, null, sceneTitle, null, 0, 0],
+      );
+      await db.execute(
+        "INSERT INTO scene_docs (scene_id, state_base64) VALUES (?,?)",
+        [sceneId, stateBase64],
+      );
+
+      const result = await sqliteGetSceneText(db, sceneId);
+      expect(result).not.toBeNull();
+      expect(result?.text).toContain("[passage hidden by author]");
+      expect(result?.text).toContain("Safe text.");
+      expect(result?.text).toContain("More safe text.");
+      expect(result?.text).not.toContain("Hidden passage.");
+    } finally {
+      db.close();
+    }
+  });
+
   it("returns empty text for a doc with no content in the fragment", async () => {
     const db = await freshDb();
     try {

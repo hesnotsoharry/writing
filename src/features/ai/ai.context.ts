@@ -10,7 +10,7 @@
 import type * as Y from "yjs";
 
 import type { StoryBibleStore } from "../../db/storyBibleStore";
-import { extractPlainText } from "../../yjs/serialize";
+import { extractAiSafeText } from "../../yjs/serialize";
 import type {
   AiCtxConfig,
   AssembledContext,
@@ -120,7 +120,7 @@ export async function assembleContext(
 ): Promise<AssembledContext> {
   const { cfg, sceneTitle, sceneId, doc, store, projectId, selectionText } = input;
 
-  const rawSceneText = doc ? extractPlainText(doc) : "";
+  const rawSceneText = doc ? extractAiSafeText(doc) : "";
   const sceneExcerptTruncated = rawSceneText.length > SCENE_EXCERPT_CHARS;
   const sceneExcerpt = rawSceneText.slice(0, SCENE_EXCERPT_CHARS);
 

@@ -6,7 +6,7 @@ import * as Y from "yjs";
 
 import type { ManuscriptAbout } from "../features/ai/ai.types";
 import { EMPTY_ABOUT } from "../features/ai/ai.types";
-import { applyEncoded, extractPlainText } from "../yjs/serialize";
+import { applyEncoded, extractAiSafeText } from "../yjs/serialize";
 import type { DbHandle } from "./schema";
 
 /** Read the manuscript_about row; return EMPTY_ABOUT when absent. */
@@ -58,5 +58,5 @@ export async function sqliteGetSceneText(
   if (docRows.length === 0) return { title, text: "" };
   const doc = new Y.Doc();
   applyEncoded(doc, docRows[0].state_base64);
-  return { title, text: extractPlainText(doc) };
+  return { title, text: extractAiSafeText(doc) };
 }
