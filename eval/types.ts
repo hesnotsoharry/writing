@@ -4,7 +4,7 @@
  */
 
 export type EvalTask = "T3" | "T6";
-export type EvalCondition = "harness-on" | "harness-off" | "blank-box";
+export type EvalCondition = "harness-on" | "harness-off" | "blank-box" | "principles-only" | "aggressive";
 
 /** One unique (model × task × condition × excerpt × sample) cell. */
 export interface CellSpec {

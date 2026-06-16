@@ -37,7 +37,9 @@ const DRY_RUN_PLACEHOLDER = "[DRY RUN — no API call made for this cell]";
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
 function runDate(): string {
-  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  // Override with env `EVAL_RUN_LABEL` to write to a dedicated dir (e.g. a
+  // calibration probe) without clobbering an existing dated run.
+  return process.env.EVAL_RUN_LABEL ?? new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 }
 
 function runDir(base: string, date: string): string {
@@ -92,7 +94,7 @@ async function executeLiveCell(
   params: EvalCallParams,
   base: string,
   date: string,
-): Promise<{ stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }> {
+): Promise<{ stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean; inputTokens: number | null; outputTokens: number | null }> {
   const adapter = bootstrapAdapter();
   const result = await adapter.complete({
     modelId: params.modelId,
@@ -102,6 +104,9 @@ async function executeLiveCell(
     temperature: params.temperature,
     seed: params.seed,
   });
+  // Capture token usage from AdapterResult.usage (always present; shape: { inputTokens, outputTokens }).
+  const inputTokens: number | null = result.usage?.inputTokens ?? null;
+  const outputTokens: number | null = result.usage?.outputTokens ?? null;
   const blindResult = blind(result.text);
   if (blindResult.flagged) {
     console.warn(`[warn] ${label} stripped > 20 words — human review needed`);
@@ -115,6 +120,8 @@ async function executeLiveCell(
     strip_removed_word_count: blindResult.strip_removed_word_count,
     regenerated: blindResult.regenerated,
     self_id_failure: blindResult.self_id_failure,
+    inputTokens,
+    outputTokens,
   };
 }
 
@@ -125,7 +132,7 @@ async function executeDryCell(
   spec: CellSpec,
   base: string,
   date: string,
-): Promise<{ stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }> {
+): Promise<{ stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean; inputTokens: number | null; outputTokens: number | null }> {
   const blindResult = blind(DRY_RUN_PLACEHOLDER);
   await writeOutput(base, spec.task, label, blindResult.text, date);
   return {
@@ -133,6 +140,9 @@ async function executeDryCell(
     strip_removed_word_count: blindResult.strip_removed_word_count,
     regenerated: blindResult.regenerated,
     self_id_failure: blindResult.self_id_failure,
+    // Dry-run: no API call, so no token usage available.
+    inputTokens: null,
+    outputTokens: null,
   };
 }
 
@@ -180,7 +190,7 @@ function printSummary(specs: CellSpec[], isLive: boolean, date: string): void {
 function buildMetadata(
   specs: CellSpec[],
   isLive: boolean,
-  stripMetadata: Record<string, { stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }>,
+  stripMetadata: Record<string, { stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean; inputTokens: number | null; outputTokens: number | null }>,
   date: string,
 ) {
   return {
@@ -211,7 +221,7 @@ async function runPilot(isLive: boolean): Promise<void> {
   await ensureDirs(projectRoot, taskSet, date);
 
   const dryPrompts: DryRunPromptEntry[] = [];
-  const stripMetadata: Record<string, { stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }> = {};
+  const stripMetadata: Record<string, { stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean; inputTokens: number | null; outputTokens: number | null }> = {};
 
   for (let i = 0; i < specs.length; i++) {
     const spec = specs[i];

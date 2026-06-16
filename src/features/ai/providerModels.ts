@@ -50,6 +50,15 @@ export const PROVIDER_MODELS: ModelEntry[] = [
     seedSupported: false,
   },
   {
+    // Prior-gen Sonnet anchor for the W46 rig-v2 matrix. Still served by the
+    // Anthropic API as of 2026-06-15 (live-verified at the rig-v2 probe).
+    modelId: "claude-sonnet-4-5-20250929",
+    provider: "anthropic",
+    defaultMaxTokens: 1024,
+    defaultTemperature: 0.3,
+    seedSupported: false,
+  },
+  {
     modelId: "claude-opus-4-8",
     provider: "anthropic",
     defaultMaxTokens: 1024,
@@ -79,6 +88,15 @@ export const PROVIDER_MODELS: ModelEntry[] = [
     defaultTemperature: 0.3,
     seedSupported: true,
   },
+  {
+    // Prior-gen GPT anchor for the W46 rig-v2 matrix (closest served analogue to
+    // Sonnet 4.5). Live-verified served as of 2026-06-15 at the rig-v2 probe.
+    modelId: "gpt-5.2",
+    provider: "openai",
+    defaultMaxTokens: 1024,
+    defaultTemperature: 0.3,
+    seedSupported: true,
+  },
 
   // ── Panel Judge C — OpenRouter ─────────────────────────────────────────────
   // Mistral Large per P0-7 decision; confirm slug at live probe.
@@ -91,8 +109,8 @@ export const PROVIDER_MODELS: ModelEntry[] = [
     seedSupported: true,
   },
 
-  // TODO(wave-46-P0-4): populate Tier-2 IDs after live probe.
-  // Confirmed retired as of 2026-06-14: Sonnet 4.5, Opus 4.5/4.1, GPT-4o.
+  // rig-v2 probe (2026-06-15) confirmed Sonnet 4.5 + GPT-5.2 are still served
+  // (added above). Opus 4.5/4.1 and GPT-4o remain out of the eval matrix by choice.
 ];
 
 // ── Accessors ─────────────────────────────────────────────────────────────────

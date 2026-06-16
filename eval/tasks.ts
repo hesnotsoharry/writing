@@ -45,35 +45,42 @@ export interface EvalCallParams {
 
 // ── Pilot constants (Section 10) ──────────────────────────────────────────────
 
-/** Four core pilot models (Section 10 — Tier-1 only, cost-pilot scope). */
+/** Six core pilot models (Section 10 — Tier-1 + Tier-2, rig-v2 scope). */
 export const PILOT_MODELS: readonly string[] = [
   "claude-haiku-4-5-20251001",
   "claude-sonnet-4-6",
+  "claude-sonnet-4-5-20250929",
   "gpt-5.4-mini",
   "gpt-5.4",
+  "gpt-5.2",
 ];
 
 /** Temperature for all pilot tasks (Section 5: T=0.3 for creative tasks). */
 const PILOT_TEMP = 0.3;
 
-/** T3 critique max tokens (matches CRITIQUE_MAX_TOKENS = 1024). */
-const T3_MAX = 1024;
+/** T3 critique max tokens (rig v2: raised to 2048 for longer critique headroom). */
+const T3_MAX = 2048;
 
-/** T6 blank-box max tokens (~150-250 word output target → 512 tokens). */
-const T6_MAX = 512;
+/** T6 blank-box max tokens (rig v2: raised to 1024 for longer rewrite headroom). */
+const T6_MAX = 1024;
 
 /** T3 user ask — Section 1 verbatim. */
 const T3_ASK = "Give me your honest craft feedback on this scene.";
 
-/** All (task, condition) pairs for the cost pilot (Section 10). */
+/** All (task, condition) pairs for the rig v2 run (4-level gradient + blank-box). */
 export const PILOT_CELLS: ReadonlyArray<{ task: EvalTask; condition: EvalCondition }> = [
-  { task: "T3", condition: "harness-on" },
-  { task: "T3", condition: "harness-off" },
+  { task: "T3", condition: "harness-off" },      // gradient level: off
+  { task: "T3", condition: "principles-only" },  // gradient level: principles-only (NEW)
+  { task: "T3", condition: "harness-on" },       // gradient level: full
+  { task: "T3", condition: "aggressive" },        // gradient level: aggressive (NEW)
   { task: "T6", condition: "blank-box" },
 ];
 
-/** n=5 samples per cell (Section 5). */
-export const PILOT_N = 5;
+/**
+ * Samples per cell — default 20 (rig v2). Override with env `EVAL_N` for a
+ * cheap calibration probe (e.g. EVAL_N=1 → one sample/cell) without editing.
+ */
+export const PILOT_N: number = process.env.EVAL_N ? Number(process.env.EVAL_N) : 20;
 
 // ── OpenAI seed (Section 5) ───────────────────────────────────────────────────
 
@@ -81,6 +88,20 @@ export const PILOT_N = 5;
 function seedFor(modelId: string): number | undefined {
   return modelId.startsWith("gpt-") ? 42 : undefined;
 }
+
+// ── Self-revision instruction (T3 aggressive condition) ───────────────────────
+
+/**
+ * Appended to the system prompt for the "aggressive" gradient level.
+ * Instructs the model to self-critique its draft against the house-style
+ * banned patterns before returning the final response.
+ */
+const SELF_REVISION_INSTRUCTION =
+  "Before returning your response, re-read your full draft and revise it: rewrite any sentence " +
+  "that matches one of the banned <house-style> patterns above (the \"X, not Y\" antithesis, " +
+  "smell-pairs, abstraction-equals-object metaphors, stacked negations or \"not quite\" hedging, " +
+  "vague abstraction like \"a sense of\"/\"a weight\", or naming an emotion instead of showing it). " +
+  "Return only the final, revised response — do not include the draft or describe the revisions you made.";
 
 // ── Harness-ON builder (T3) ───────────────────────────────────────────────────
 
@@ -92,6 +113,51 @@ function seedFor(modelId: string): number | undefined {
 export function buildT3HarnessOnParams(modelId: string, ctx: AssembledContext): EvalCallParams {
   const built = buildCritiqueMessages(ctx, T3_ASK);
   const system = applyHouseStyle(built.system, HOUSE_STYLE_DEFAULT);
+  const volatile = buildVolatileUserBlock(ctx);
+  const content = volatile ? `${volatile}\n\n${T3_ASK}` : T3_ASK;
+  return {
+    modelId,
+    system,
+    messages: [{ role: "user", content }],
+    maxTokens: T3_MAX,
+    temperature: PILOT_TEMP,
+    seed: seedFor(modelId),
+  };
+}
+
+// ── Principles-only builder (T3) ─────────────────────────────────────────────
+
+/**
+ * Build principles-only params for T3 critique.
+ * System = buildCritiqueMessages(ctx, ask).system — the role line + SHARED_PRINCIPLES
+ * + structural headers + grounding — WITHOUT applyHouseStyle (no house-style block).
+ * Volatile user block and ask wiring are identical to harness-ON (Decision 8 integrity).
+ */
+export function buildT3PrinciplesOnlyParams(modelId: string, ctx: AssembledContext): EvalCallParams {
+  const built = buildCritiqueMessages(ctx, T3_ASK);
+  const system = built.system; // no applyHouseStyle
+  const volatile = buildVolatileUserBlock(ctx);
+  const content = volatile ? `${volatile}\n\n${T3_ASK}` : T3_ASK;
+  return {
+    modelId,
+    system,
+    messages: [{ role: "user", content }],
+    maxTokens: T3_MAX,
+    temperature: PILOT_TEMP,
+    seed: seedFor(modelId),
+  };
+}
+
+// ── Aggressive builder (T3) ───────────────────────────────────────────────────
+
+/**
+ * Build aggressive params for T3 critique.
+ * System = applyHouseStyle(...) PLUS the self-revision instruction appended.
+ * Volatile user block and ask wiring are identical to harness-ON (Decision 8 integrity).
+ */
+export function buildT3AggressiveParams(modelId: string, ctx: AssembledContext): EvalCallParams {
+  const built = buildCritiqueMessages(ctx, T3_ASK);
+  const system = applyHouseStyle(built.system, HOUSE_STYLE_DEFAULT) + "\n" + SELF_REVISION_INSTRUCTION;
   const volatile = buildVolatileUserBlock(ctx);
   const content = volatile ? `${volatile}\n\n${T3_ASK}` : T3_ASK;
   return {
@@ -156,14 +222,16 @@ export function buildCellParams(
   const { modelId, task, condition } = spec;
   if (task === "T3" && condition === "harness-on") return buildT3HarnessOnParams(modelId, ctx);
   if (task === "T3" && condition === "harness-off") return buildT3HarnessOffParams(modelId, excerptText);
+  if (task === "T3" && condition === "principles-only") return buildT3PrinciplesOnlyParams(modelId, ctx);
+  if (task === "T3" && condition === "aggressive") return buildT3AggressiveParams(modelId, ctx);
   return buildT6BlankBoxParams(modelId, excerptText);
 }
 
 // ── All-cells generator ───────────────────────────────────────────────────────
 
 /**
- * Generate the full ordered array of CellSpec for the cost pilot.
- * Order: model × pilot_cell × sample — 4 × 3 × 5 = 60 cells.
+ * Generate the full ordered array of CellSpec for the rig v2 run.
+ * Order: model × pilot_cell × sample — 6 × 5 × 20 = 600 cells.
  */
 export function buildAllCells(excerptId: string): CellSpec[] {
   const specs: CellSpec[] = [];

@@ -14,7 +14,7 @@
  * corpus calibration has not yet run (design §5c).
  */
 
-import { scoreComponent2 } from "./component2.ts";
+import { normalizeC2ToC1Scale, scoreComponent2 } from "./component2.ts";
 import { scoreComponent1 } from "./component1.ts";
 import type { D3Result, DivergenceLog, JudgeFn } from "./types.ts";
 
@@ -59,7 +59,7 @@ export async function scoreD3(text: string, judgeFn?: JudgeFn): Promise<D3Result
   }
 
   const component2 = await scoreComponent2(text, judgeFn);
-  const d3 = (component1.score + component2.score) / 2;
+  const d3 = (component1.score + normalizeC2ToC1Scale(component2.score)) / 2;
 
   return {
     d3,
@@ -72,7 +72,7 @@ export async function scoreD3(text: string, judgeFn?: JudgeFn): Promise<D3Result
 
 export type { Component1Breakdown, Component1Result, Component2Result, D3Result, D3Status, DivergenceLog, JudgeFn } from "./types.ts";
 export { scoreComponent1 } from "./component1.ts";
-export { buildC2Prompt, parseJudgeResponse, scoreComponent2 } from "./component2.ts";
+export { buildC2Prompt, normalizeC2ToC1Scale, parseJudgeResponse, scoreComponent2 } from "./component2.ts";
 export {
   computeMTLD,
   computeMTLDOneDirection,
