@@ -559,6 +559,127 @@ describe("RPC-first ordering — money-path failure regression", () => {
   });
 });
 
+describe("subscription_payment_refunded — credits zeroed", () => {
+  it("calls zero_credits with the resolved row's license key on subscription_payment_refunded", async () => {
+    const body = JSON.stringify({
+      meta: { event_name: "subscription_payment_refunded" },
+      data: {
+        type: "subscription-invoices",
+        id: "inv_refund_001",
+        attributes: {
+          subscription_id: "sub_001",
+          updated_at: "2026-06-12T10:00:00Z",
+        },
+      },
+    });
+    const ctx = makeContext(body);
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(200);
+    const zero = rpcCalls.find((c) => c.fn === "zero_credits");
+    expect(zero).toBeDefined();
+    expect(zero!.args["p_license_key"]).toBe("WN-AI-EXISTING");
+    expect(zero!.args["p_request_id"]).toBe("sub:sub_001:refund:inv_refund_001");
+  });
+
+  it("returns 500 when refund arrives before subscription_created (resolveSubscription null → retryable)", async () => {
+    const body = JSON.stringify({
+      meta: { event_name: "subscription_payment_refunded" },
+      data: {
+        type: "subscription-invoices",
+        id: "inv_refund_oo",
+        attributes: {
+          subscription_id: "sub_UNKNOWN_REFUND",
+          updated_at: "2026-06-12T10:00:00Z",
+        },
+      },
+    });
+    const ctx = makeContext(body);
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(500);
+    expect(rpcCalls.find((c) => c.fn === "zero_credits")).toBeUndefined();
+  });
+
+  it("duplicate refund returns 200 via tombstone; zero_credits IS still invoked on the duplicate with the same idempotency key (RPC-first ordering)", async () => {
+    const body = JSON.stringify({
+      meta: { event_name: "subscription_payment_refunded" },
+      data: {
+        type: "subscription-invoices",
+        id: "inv_refund_dup",
+        attributes: {
+          subscription_id: "sub_001",
+          updated_at: "2026-06-12T10:00:00Z",
+        },
+      },
+    });
+    // First delivery
+    await onRequestPost(makeContext(body));
+    const firstCall = rpcCalls.find((c) => c.fn === "zero_credits");
+    expect(firstCall).toBeDefined();
+    const firstRequestId = firstCall!.args["p_request_id"];
+
+    // Duplicate delivery — RPC-first: zero_credits is called BEFORE the tombstone check.
+    // The tombstone 23505 short-circuits AFTER the idempotent RPC, returning 200.
+    rpcCalls = [];
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(200);
+    // Assert: zero_credits was invoked on the duplicate (RPC-first ordering).
+    const dupCall = rpcCalls.find((c) => c.fn === "zero_credits");
+    expect(dupCall).toBeDefined();
+    // Assert: the same idempotency key was used so the SQL-level ledger guard fires correctly.
+    expect(dupCall!.args["p_request_id"]).toBe(firstRequestId);
+  });
+
+  it("zero_credits failure returns 500 and does NOT write the tombstone (LS retries)", async () => {
+    rpcErrors.set("zero_credits", { message: "connection refused" });
+    const body = JSON.stringify({
+      meta: { event_name: "subscription_payment_refunded" },
+      data: {
+        type: "subscription-invoices",
+        id: "inv_refund_fail",
+        attributes: {
+          subscription_id: "sub_001",
+          updated_at: "2026-06-12T10:00:00Z",
+        },
+      },
+    });
+    const res = await onRequestPost(makeContext(body));
+    expect(res.status).toBe(500);
+    // Tombstone must NOT be written — the ledger stays empty
+    expect(ledger.size).toBe(0);
+    // The RPC was attempted (before the tombstone)
+    expect(rpcCalls.find((c) => c.fn === "zero_credits")).toBeDefined();
+  });
+});
+
+describe("subscription cancellation — grace period preserved", () => {
+  it("subscription_updated with status 'cancelled' sets row status 'active' (grace period, NOT expired)", async () => {
+    const body = subPayload("subscription_updated", "sub_001", "cancelled", {
+      ends_at: "2026-07-12T00:00:00Z",
+      renews_at: null,
+    });
+    const ctx = makeContext(body);
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(200);
+    const cancelled = updateCalls.find(
+      (c) => c.col === "ls_subscription_id" && c.val === "sub_001",
+    );
+    expect(cancelled).toBeDefined();
+    expect(cancelled!.data["status"]).toBe("active");
+  });
+
+  it("subscription_expired still sets status 'expired' (access ends at period end)", async () => {
+    const body = subPayload("subscription_expired", "sub_001", "expired");
+    const ctx = makeContext(body);
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(200);
+    const expired = updateCalls.find(
+      (c) => c.col === "ls_subscription_id" && c.val === "sub_001",
+    );
+    expect(expired).toBeDefined();
+    expect(expired!.data["status"]).toBe("expired");
+  });
+});
+
 describe("order_created — top-up out-of-order delivery and config guard", () => {
   // Tier 3: no custom_data, email miss → orphan alert (500, retryable).
   // Returning 500 lets LS retry over its finite window, which auto-heals the

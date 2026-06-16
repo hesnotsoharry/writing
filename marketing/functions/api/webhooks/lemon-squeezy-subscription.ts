@@ -59,7 +59,8 @@ interface SubscriptionPayload {
   data: { type: "subscriptions"; id: string; attributes: SubscriptionAttributes };
 }
 
-// subscription_payment_success: data is a subscription-invoice (NOT a subscription).
+// subscription_payment_success / subscription_payment_refunded: data is a
+// subscription-invoice (NOT a subscription).
 // Bug B (2026-06-12): data.id is the INVOICE id; sub id is at attributes.subscription_id.
 interface InvoiceAttributes {
   subscription_id: string;
@@ -70,7 +71,7 @@ interface InvoiceAttributes {
 }
 
 interface InvoicePayload {
-  meta: { event_name: "subscription_payment_success" };
+  meta: { event_name: "subscription_payment_success" | "subscription_payment_refunded" };
   data: { type: "subscription-invoices"; id: string; attributes: InvoiceAttributes };
 }
 
@@ -94,12 +95,12 @@ const SUBSCRIPTION_EVENTS = new Set([
   "subscription_expired",
 ]);
 
-const HANDLED_EVENTS = new Set([...SUBSCRIPTION_EVENTS, "order_created"]);
+const HANDLED_EVENTS = new Set([...SUBSCRIPTION_EVENTS, "order_created", "subscription_payment_refunded"]);
 
 // ── Status mapping ────────────────────────────────────────────────────────────
 
 function mapStatus(lsStatus: LsSubStatus): "active" | "expired" {
-  if (lsStatus === "cancelled" || lsStatus === "expired" || lsStatus === "unpaid") {
+  if (lsStatus === "expired" || lsStatus === "unpaid") {
     return "expired";
   }
   return "active";
@@ -308,6 +309,45 @@ async function handlePaymentSuccess(payload: InvoicePayload, env: WebhookEnv): P
 }
 
 /**
+ * subscription_payment_refunded: zero credits on a refunded invoice.
+ * Mirrors handlePaymentSuccess in shape (invoice payload, same id extraction).
+ * RPC FIRST, tombstone SECOND — same ordering rationale as handlePaymentSuccess.
+ * zero_credits uses an absolute SET (credits_balance = 0), so it is idempotent
+ * on LS retries without a separate SQL dedup guard.
+ */
+async function handlePaymentRefunded(payload: InvoicePayload, env: WebhookEnv): Promise<Response> {
+  const invoiceId = payload.data.id;
+  const subId = payload.data.attributes.subscription_id;
+  if (!subId) {
+    console.error("[subscription_payment_refunded] malformed payload — missing subscription_id", { invoiceId });
+    return new Response("Internal Server Error", { status: 500 });
+  }
+  const idempotencyKey = `sub:${subId}:refund:${invoiceId}`;
+  const db = makeServiceClient(env);
+
+  const existing = await resolveSubscription(db, subId);
+  if (!existing) return new Response("Internal Server Error", { status: 500 });
+
+  // RPC FIRST: zero_credits before the tombstone so a LS retry after RPC failure
+  // re-invokes the zeroing rather than short-circuiting on a committed tombstone.
+  const { data: newBalance, error: zeroErr } = await db.rpc("zero_credits", {
+    p_license_key: existing.license_key,
+    p_request_id: idempotencyKey,
+  });
+  if (zeroErr || newBalance === null) return new Response("Internal Server Error", { status: 500 });
+
+  // Tombstone SECOND: once the zeroing succeeds, write the idempotency ledger.
+  const { error: ledgerErr } = await db
+    .from("webhook_events")
+    .insert({ event_name: "subscription_payment_refunded", order_id: idempotencyKey });
+  const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
+  if (ledgerCode === "23505") return new Response(null, { status: 200 });
+  if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
+
+  return new Response(null, { status: 200 });
+}
+
+/**
  * subscription_updated / subscription_expired: status/reset_at update only.
  * Never creates rows; resolves existing row or returns 500 (retryable).
  * subscription_expired always sets status='expired' regardless of payload status field.
@@ -458,6 +498,9 @@ export const onRequestPost: PagesFunction<WebhookEnv> = async (context) => {
 
   if (eventName === "subscription_payment_success") {
     return handlePaymentSuccess(payload as InvoicePayload, context.env);
+  }
+  if (eventName === "subscription_payment_refunded") {
+    return handlePaymentRefunded(payload as InvoicePayload, context.env);
   }
   if (SUBSCRIPTION_EVENTS.has(eventName)) {
     const subPayload = payload as SubscriptionPayload;

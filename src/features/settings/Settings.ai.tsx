@@ -2,9 +2,11 @@
  * Settings.ai.tsx — AI Assistant section for the Settings panel (Wave 35).
  * Extracted from Settings.sections.tsx to keep each file under the 300-line limit.
  */
-import { useEffect, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { useEffect, useRef, useState } from "react";
 
-import { acquireSession } from "../ai/ai.client";
+import { acquireSession, getPortalUrl, type SessionResult } from "../ai/ai.client";
+import { acquireAnyToken } from "../ai/ai.trialToken";
 import { byokClearKey, byokHasKey, byokSetKey } from "../ai/byok.client";
 import { byokOpenAiClearKey, byokOpenAiHasKey, byokOpenAiSetKey } from "../ai/byok.openai.client";
 import { clearUsage, getUsage, type ProviderUsage } from "../ai/byokUsage";
@@ -230,6 +232,46 @@ function ByokUsageReadout() {
   );
 }
 
+// ── ManageBillingButton (shown when aiLicenseKey is set — managed subscribers only) ──
+// Fetches a fresh, short-lived Lemon Squeezy customer-portal URL on demand and
+// opens it externally. NOT shown for BYOK users or trial users (no license key).
+
+type BillingPhase = "idle" | "loading" | "error";
+
+function ManageBillingButton() {
+  const [phase, setPhase] = useState<BillingPhase>("idle");
+  const sessionRef = useRef<SessionResult | null>(null);
+
+  async function handleClick(): Promise<void> {
+    setPhase("loading");
+    try {
+      const token = await acquireAnyToken(sessionRef);
+      const { url } = await getPortalUrl(token);
+      await openUrl(url);
+      setPhase("idle");
+    } catch {
+      setPhase("error");
+    }
+  }
+
+  return (
+    <SetRow label="Billing" desc="Open your Lemon Squeezy customer portal to manage your subscription.">
+      <div className="ai-billing-row">
+        <button
+          className="btn btn-soft"
+          disabled={phase === "loading"}
+          onClick={() => { void handleClick(); }}
+        >
+          {phase === "loading" ? "Opening…" : "Manage billing"}
+        </button>
+        {phase === "error" && (
+          <span className="ai-key-error">Couldn&apos;t open billing portal — check your connection and try again.</span>
+        )}
+      </div>
+    </SetRow>
+  );
+}
+
 // ── Expanded AI rows (shown when aiEnabled is true) ───────────────────────────
 
 function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
@@ -240,6 +282,7 @@ function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
     <SetRow label="First-run walkthrough" desc="Re-open the consent walkthrough from the beginning."><button className="btn btn-soft" onClick={replayWalkthrough}>Show again</button></SetRow>
     <div className="ai-privacy-block">{AI_PRIVACY_COPY}</div>
     {showKeyRow && <SetRow label="AI license key" desc="Clear to re-enter a different one."><button className="ai-change-key-btn" onClick={() => setTweak("aiLicenseKey", "")}>Change license key…</button></SetRow>}
+    {showKeyRow && <ManageBillingButton />}
     {!showKeyRow && <AiKeyEntryRow setTweak={setTweak} />}
     <ByokKeyRow />
     <ByokOpenAiKeyRow />

@@ -144,6 +144,23 @@ export async function getBalance(token: string): Promise<BalanceResult> {
   return res.json() as Promise<BalanceResult>;
 }
 
+export interface PortalResult {
+  url: string;
+}
+
+/**
+ * Fetch a fresh Lemon Squeezy customer-portal URL for the caller's subscription.
+ * The URL is short-lived (~24 h) — callers should open it immediately and never cache it.
+ * Throws on network error or non-200 response.
+ */
+export async function getPortalUrl(token: string): Promise<PortalResult> {
+  const res = await fetch(`${API_BASE}/api/ai/portal`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Portal fetch failed: ${res.status}`);
+  return res.json() as Promise<PortalResult>;
+}
+
 function buildChatBody(
   messages: AiMessage[],
   options: StreamChatOptions | undefined,

@@ -120,10 +120,22 @@ describe("POST /api/ai/session contract", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 for a cancelled subscription", async () => {
-    subRow = { status: "cancelled" };
-    const res = await onRequestPost(fakeContext("CANCELLED-KEY"));
+  it("returns 403 for an expired subscription (status='expired' is the only genuinely non-active state after mapStatus)", async () => {
+    subRow = { status: "expired" };
+    const res = await onRequestPost(fakeContext("EXPIRED-KEY-002"));
     expect(res.status).toBe(403);
+  });
+
+  it("issues a session token (200) for a cancelled-but-in-grace-period subscription stored as status='active'", async () => {
+    // After the mapStatus change, a cancelled subscription within its paid period is stored
+    // with status='active' so the user retains access until the billing period ends.
+    // This row represents that state — the session endpoint must grant access.
+    subRow = { status: "active" };
+    const res = await onRequestPost(fakeContext("GRACE-PERIOD-KEY-001"));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { token: string; expiresAt: number };
+    expect(typeof body.token).toBe("string");
+    expect(body.token.split(".")).toHaveLength(2);
   });
 
   it("returns 403 when the license key is unknown (DB returns no row)", async () => {
