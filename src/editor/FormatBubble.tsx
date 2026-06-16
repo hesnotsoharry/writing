@@ -1,7 +1,16 @@
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import { useEffect, useState } from "react";
 
 import { Icon } from "../components/Icon";
+import { parseProseSelection } from "../features/ai/ai.helpers";
+import type { VerbKey } from "../features/ai/ai.types";
+import {
+  AI_ASK_FROM_EDITOR,
+  getTweak,
+} from "../features/settings/settings.store";
+import { SETTINGS_CHANGED_EVENT } from "../lib/settings";
+import { extractAiSafeSelection } from "./aiSafeSelection";
 
 // ---------------------------------------------------------------------------
 // formatActions — pure spec array, one entry per button
@@ -172,6 +181,53 @@ const caretStyle: React.CSSProperties = {
   borderTop: "5px solid var(--paper)",
 };
 
+// ---------------------------------------------------------------------------
+// AiAskAction — "Ask assistant" button, consent-gated
+// ---------------------------------------------------------------------------
+
+function useAiGateActive(): boolean {
+  const read = () =>
+    getTweak("aiEnabled", true) &&
+    getTweak("aiConsentGiven", false) &&
+    getTweak("aiSelPill", true);
+  const [active, setActive] = useState(read);
+  useEffect(() => {
+    const h = () => { setActive(read()); };
+    window.addEventListener(SETTINGS_CHANGED_EVENT, h);
+    return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, h);
+  }, []);
+  return active;
+}
+
+function AiAskAction({ editor }: { editor: Editor }) {
+  const gateActive = useAiGateActive();
+  if (!gateActive) return null;
+  const handleAsk = () => {
+    const { from, to } = editor.state.selection;
+    const redacted = extractAiSafeSelection(editor.state.doc, from, to);
+    const parsed = parseProseSelection(redacted);
+    if (!parsed) return;
+    window.dispatchEvent(
+      new CustomEvent(AI_ASK_FROM_EDITOR, {
+        detail: { verb: "ask" as VerbKey, sel: { text: parsed.text, words: parsed.words } },
+      }),
+    );
+  };
+  return (
+    <>
+      <span style={separatorStyle} />
+      <button
+        aria-label="Ask assistant"
+        title="Ask assistant"
+        style={btnBase}
+        onClick={handleAsk}
+      >
+        <Icon name="sparkle" style={{ width: 14, height: 14 }} />
+      </button>
+    </>
+  );
+}
+
 export function FormatButtons({ editor }: { editor: Editor }) {
   const actions = formatActions(editor);
   const [bold, italic, heading, quote, list] = actions;
@@ -204,6 +260,7 @@ export function FormatButtons({ editor }: { editor: Editor }) {
       ))}
       <HighlightSwatches editor={editor} />
       <AiExcludeToggle editor={editor} />
+      <AiAskAction editor={editor} />
       <span style={caretStyle} />
     </span>
   );
