@@ -100,12 +100,12 @@ describe("shouldRetryBalance", () => {
 });
 
 describe("formatResetLabel", () => {
-  it("returns 'soon' for an empty string", () => {
-    expect(formatResetLabel("")).toBe("soon");
+  it("returns '' for an empty string (grace-period sub has no reset date — never show 'soon')", () => {
+    expect(formatResetLabel("")).toBe("");
   });
 
-  it("returns 'soon' for an unparseable date", () => {
-    expect(formatResetLabel("not-a-date")).toBe("soon");
+  it("returns '' for an unparseable date", () => {
+    expect(formatResetLabel("not-a-date")).toBe("");
   });
 
   it("formats a valid ISO date as 'Resets {Mon D}' (locale-fixed, TZ-robust)", () => {

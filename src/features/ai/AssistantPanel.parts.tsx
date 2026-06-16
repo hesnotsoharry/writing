@@ -209,7 +209,7 @@ function ExhaustedAllowanceGuard({ resetLabel, onToast }: { resetLabel: string; 
   const licenseKey = getTweak("aiLicenseKey", "") || undefined;
   return <div className="ai-guard">
     <div className="gtitle"><Icon name="moon" className="ic" /> This month&apos;s allowance is used up</div>
-    <p>{resetLabel}. The assistant stops here rather than running up a bill.</p>
+    <p>{resetLabel ? resetLabel + ". " : ""}The assistant stops here rather than running up a bill.</p>
     <div className="gacts">
       <button className="btn btn-primary" onClick={() => openUrl(buildLsCheckoutUrl(AI_TOPUP_VARIANT, licenseKey)).catch(() => { onToast("Couldn't open checkout — try again"); })}>Top up</button>
       <button className="btn btn-ghost" onClick={() => onToast("Resets automatically")}>Wait for reset</button>

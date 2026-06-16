@@ -181,7 +181,7 @@ async function streamAiResponse(a: StreamArgs): Promise<void> {
       const isTrial = !getTweak("aiLicenseKey", "");
       terminalError = isTrial
         ? "[Your free trial's used up — subscribe in the panel to keep going]"
-        : "[Monthly allowance used up — resets " + (ev.resetAt || "soon") + "]";
+        : "[Monthly allowance used up" + (ev.resetAt ? " — resets " + ev.resetAt : "") + "]";
     } else if (ev.type === "trial-budget-exhausted") {
       terminalError = "[Trial AI is at today's shared limit — try again tomorrow]";
     } else if (ev.type === "session-expired") {

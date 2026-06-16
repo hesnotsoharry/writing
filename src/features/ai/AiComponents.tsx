@@ -225,7 +225,7 @@ export function AiMeter({ usedPct, resetLabel, creditsBalance, model, plan }: {
         <div className="ai-meter-row">
           <span className={"st " + st.cls}>{pctLeft}% left</span>
           {plan === "trial" && <span className="ai-meter-badge">Free trial</span>}
-          {showReset && <span>{st.sub}</span>}
+          {showReset && st.sub && <span>{st.sub}</span>}
         </div>
         <div className="ai-meter-track">
           <div className={"ai-meter-fill " + st.cls} style={{ width: Math.max(2, pctLeft) + "%" }}></div>

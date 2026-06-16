@@ -90,16 +90,18 @@ export function parseResetAt(raw: unknown): string {
 
 /**
  * Format a resetAt ISO string for display in the panel.
- * Returns "Resets {Mon D}" (e.g. "Resets Jul 1") or "soon" when the date is absent/invalid.
+ * Returns "Resets {Mon D}" (e.g. "Resets Jul 1"), or "" when the date is absent/invalid.
+ * Callers must guard on the empty string before rendering (do NOT fall back to "soon" —
+ * an absent reset date may mean the subscription is cancelled-in-grace and won't renew).
  */
 export function formatResetLabel(resetAt: string): string {
-  if (!resetAt) return "soon";
+  if (!resetAt) return "";
   try {
     const d = new Date(resetAt);
-    if (isNaN(d.getTime())) return "soon";
+    if (isNaN(d.getTime())) return "";
     return "Resets " + new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(d);
   } catch {
-    return "soon";
+    return "";
   }
 }
 
