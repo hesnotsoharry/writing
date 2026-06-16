@@ -40,25 +40,26 @@ function runDate(): string {
   return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
 }
 
-function runDir(base: string): string {
-  return join(base, "eval", "runs", runDate());
+function runDir(base: string, date: string): string {
+  return join(base, "eval", "runs", date);
 }
 
-function taskDir(base: string, task: string): string {
-  return join(runDir(base), task);
+function taskDir(base: string, task: string, date: string): string {
+  return join(runDir(base, date), task);
 }
 
-async function ensureDirs(base: string, tasks: string[]): Promise<void> {
-  await mkdir(runDir(base), { recursive: true });
+async function ensureDirs(base: string, tasks: string[], date: string): Promise<void> {
+  await mkdir(runDir(base, date), { recursive: true });
   for (const t of tasks) {
-    await mkdir(taskDir(base, t), { recursive: true });
+    await mkdir(taskDir(base, t, date), { recursive: true });
   }
 }
 
 // ── Per-cell output writer ────────────────────────────────────────────────────
 
-async function writeOutput(base: string, task: string, label: string, text: string): Promise<void> {
-  const filePath = join(taskDir(base, task), `${label}.md`);
+async function writeOutput(base: string, task: string, label: string, text: string, date: string): Promise<void> {
+  const filePath = join(taskDir(base, task, date), `${label}.md`);
+  await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, `# ${label}\n\n${text}\n`, "utf8");
 }
 
@@ -90,6 +91,7 @@ async function executeLiveCell(
   spec: CellSpec,
   params: EvalCallParams,
   base: string,
+  date: string,
 ): Promise<{ stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }> {
   const adapter = bootstrapAdapter();
   const result = await adapter.complete({
@@ -107,7 +109,7 @@ async function executeLiveCell(
   if (blindResult.self_id_failure) {
     console.warn(`[warn] ${label} self-ID fingerprint persisted after strip`);
   }
-  await writeOutput(base, spec.task, label, blindResult.text);
+  await writeOutput(base, spec.task, label, blindResult.text, date);
   return {
     stripped: blindResult.stripped,
     strip_removed_word_count: blindResult.strip_removed_word_count,
@@ -122,9 +124,10 @@ async function executeDryCell(
   label: string,
   spec: CellSpec,
   base: string,
+  date: string,
 ): Promise<{ stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }> {
   const blindResult = blind(DRY_RUN_PLACEHOLDER);
-  await writeOutput(base, spec.task, label, blindResult.text);
+  await writeOutput(base, spec.task, label, blindResult.text, date);
   return {
     stripped: blindResult.stripped,
     strip_removed_word_count: blindResult.strip_removed_word_count,
@@ -141,20 +144,21 @@ async function writeJson(filePath: string, data: unknown): Promise<void> {
 
 async function writeRunArtifacts(
   base: string,
+  date: string,
   keymap: Record<string, unknown>,
   metadata: unknown,
   dryPrompts: DryRunPromptEntry[] | null,
 ): Promise<void> {
-  await writeJson(join(runDir(base), "keymap.json"), keymap);
-  await writeJson(join(runDir(base), "metadata.json"), metadata);
+  await writeJson(join(runDir(base, date), "keymap.json"), keymap);
+  await writeJson(join(runDir(base, date), "metadata.json"), metadata);
   if (dryPrompts) {
-    await writeJson(join(runDir(base), "dry-run-prompts.json"), dryPrompts);
+    await writeJson(join(runDir(base, date), "dry-run-prompts.json"), dryPrompts);
   }
 }
 
 // ── Summary printer ───────────────────────────────────────────────────────────
 
-function printSummary(specs: CellSpec[], isLive: boolean): void {
+function printSummary(specs: CellSpec[], isLive: boolean, date: string): void {
   const total = specs.length;
   const mode = isLive ? "LIVE (paid)" : "DRY RUN (no paid calls)";
   console.warn(`\n=== W46 Cost Pilot — ${mode} ===`);
@@ -165,7 +169,7 @@ function printSummary(specs: CellSpec[], isLive: boolean): void {
     console.warn(`  ${model}: ${count} cells`);
   }
   console.warn(`\nConditions: T3-harness-on × ${PILOT_N}, T3-harness-off × ${PILOT_N}, T6-blank × ${PILOT_N}`);
-  console.warn(`Run date: ${runDate()}`);
+  console.warn(`Run date: ${date}`);
   if (!isLive) {
     console.warn("\nDry-run outputs + keymap + prompts written. Run with --live to make paid calls.");
   }
@@ -177,11 +181,12 @@ function buildMetadata(
   specs: CellSpec[],
   isLive: boolean,
   stripMetadata: Record<string, { stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }>,
+  date: string,
 ) {
   return {
     wave: 46,
     phase: "P2 cost-pilot",
-    date: runDate(),
+    date,
     mode: isLive ? "live" : "dry-run",
     excerpt: EXCERPT_ID,
     models: [...PILOT_MODELS],
@@ -196,13 +201,14 @@ function buildMetadata(
 // ── Main batch loop ───────────────────────────────────────────────────────────
 
 async function runPilot(isLive: boolean): Promise<void> {
+  const date = runDate();
   const specs = buildAllCells(EXCERPT_ID);
   const { keymap, labels } = buildKeymap(specs);
 
   const taskSet = [...new Set(specs.map((s) => s.task))];
   // dirname(eval/runner.ts) → eval/ → parent is project root
   const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-  await ensureDirs(projectRoot, taskSet);
+  await ensureDirs(projectRoot, taskSet, date);
 
   const dryPrompts: DryRunPromptEntry[] = [];
   const stripMetadata: Record<string, { stripped: boolean; strip_removed_word_count: number; regenerated: boolean; self_id_failure: boolean }> = {};
@@ -218,22 +224,23 @@ async function runPilot(isLive: boolean): Promise<void> {
 
     let metadata;
     if (isLive) {
-      metadata = await executeLiveCell(label, spec, params, projectRoot);
+      metadata = await executeLiveCell(label, spec, params, projectRoot, date);
     } else {
       dryPrompts.push(buildDryEntry(spec, label, params));
-      metadata = await executeDryCell(label, spec, projectRoot);
+      metadata = await executeDryCell(label, spec, projectRoot, date);
     }
     stripMetadata[label] = metadata;
   }
 
   await writeRunArtifacts(
     projectRoot,
+    date,
     keymap,
-    buildMetadata(specs, isLive, stripMetadata),
+    buildMetadata(specs, isLive, stripMetadata, date),
     isLive ? null : dryPrompts,
   );
 
-  printSummary(specs, isLive);
+  printSummary(specs, isLive, date);
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────

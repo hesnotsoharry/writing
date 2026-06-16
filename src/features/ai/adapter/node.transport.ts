@@ -257,19 +257,44 @@ async function openaiStream(
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 export class NodeSdkTransport {
-  readonly #anthropic: Anthropic;
-  readonly #openai: OpenAI;
-  readonly #openrouter: OpenAI;
+  readonly #opts: NodeSdkTransportOptions;
+  // Clients are lazily instantiated on first use so that constructing the
+  // transport with an empty key for an unused provider does not throw.
+  // (The OpenAI SDK throws OpenAIError: Missing credentials at `new OpenAI()`
+  // when apiKey is "", so eager construction crashes the whole run even when
+  // that provider is never called — e.g. the cost pilot has no OPENROUTER key.)
+  #anthropicClient: Anthropic | null = null;
+  #openaiClient: OpenAI | null = null;
+  #openrouterClient: OpenAI | null = null;
 
   constructor(opts: NodeSdkTransportOptions) {
-    this.#anthropic = new Anthropic({ apiKey: opts.anthropicKey, maxRetries: 2 });
-    this.#openai = new OpenAI({ apiKey: opts.openaiKey, maxRetries: 2 });
-    this.#openrouter = new OpenAI({
-      apiKey: opts.openrouterKey,
-      baseURL: OPENROUTER_BASE_URL,
-      defaultHeaders: { "HTTP-Referer": "https://writersnook.app", "X-Title": "WritersNook" },
-      maxRetries: 2,
-    });
+    this.#opts = opts;
+  }
+
+  get #anthropic(): Anthropic {
+    if (!this.#anthropicClient) {
+      this.#anthropicClient = new Anthropic({ apiKey: this.#opts.anthropicKey, maxRetries: 2 });
+    }
+    return this.#anthropicClient;
+  }
+
+  get #openai(): OpenAI {
+    if (!this.#openaiClient) {
+      this.#openaiClient = new OpenAI({ apiKey: this.#opts.openaiKey, maxRetries: 2 });
+    }
+    return this.#openaiClient;
+  }
+
+  get #openrouter(): OpenAI {
+    if (!this.#openrouterClient) {
+      this.#openrouterClient = new OpenAI({
+        apiKey: this.#opts.openrouterKey,
+        baseURL: OPENROUTER_BASE_URL,
+        defaultHeaders: { "HTTP-Referer": "https://writersnook.app", "X-Title": "WritersNook" },
+        maxRetries: 2,
+      });
+    }
+    return this.#openrouterClient;
   }
 
   async complete(req: WireRequest): Promise<WireResponse> {

@@ -3,6 +3,7 @@
  *
  * Tests: complete() mapping, stream() token forwarding, error propagation,
  * partial-usage passthrough (A4), and stop-reason normalization (A3/A1b).
+ * Also: NodeSdkTransport lazy-construction regression guard (empty key must not throw).
  *
  * No live API calls. The fake transport is the boundary — the adapter itself is real.
  * Node test environment (default for this project; no jsdom needed).
@@ -11,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createAdapter } from "../features/ai/adapter";
+import { NodeSdkTransport } from "../features/ai/adapter/node.transport";
 import { ProviderAdapterError, type ProviderTransport, type WireRequest, type WireResponse } from "../features/ai/adapter/types";
 
 // ── Fake transport factory ────────────────────────────────────────────────────
@@ -163,5 +165,24 @@ describe("createAdapter — stream()", () => {
     }
     expect(caught?.normalized.code).toBe("network");
     expect(caught?.normalized.partialText).toBe("partial");
+  });
+});
+
+// ── NodeSdkTransport — lazy construction regression guard ─────────────────────
+
+describe("NodeSdkTransport — lazy construction", () => {
+  it("does not throw when openaiKey or openrouterKey is empty string", () => {
+    // Regression guard: before the lazy-construction fix, the OpenAI SDK threw
+    // OpenAIError: Missing credentials at new OpenAI({ apiKey: "" }) during the
+    // NodeSdkTransport constructor — crashing runs that only used Anthropic.
+    expect(
+      () => new NodeSdkTransport({ anthropicKey: "k", openaiKey: "", openrouterKey: "" }),
+    ).not.toThrow();
+  });
+
+  it("does not throw when all keys are empty strings", () => {
+    expect(
+      () => new NodeSdkTransport({ anthropicKey: "", openaiKey: "", openrouterKey: "" }),
+    ).not.toThrow();
   });
 });
