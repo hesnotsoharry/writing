@@ -2,8 +2,8 @@
 vendor: "lemonsqueezy"
 sdkVersion: "TBD"
 firstWritten: 2026-06-04
-lastVerified: 2026-06-12
-notes: "API quirks, webhook event shape, lemon.js loader, License API public auth, subscription license key fetching"
+lastVerified: 2026-06-16
+notes: "API quirks, webhook event shape, lemon.js loader, License API public auth, subscription license key fetching, customer-portal signed-URL auth behavior"
 ---
 
 # lemonsqueezy gotchas
@@ -95,3 +95,13 @@ Source: wave-34-ai-assistant-foundation, commit 264c564
 **Workaround:** after any test→live flip, visit the LS dashboard for the live product and check the **Product Settings** → **License key** toggle. Enable it to match the test product. Verify one test purchase → one key generated (order created + license_key_created event lands) before pushing the endpoint code to production.
 
 **Why:** product settings are explicitly per-environment; the feature flag doesn't auto-propagate during the test→live promotion.
+
+## 2026-06-16 — signed customer_portal URL still shows a magic-link login when the browser isn't authenticated
+
+Source: wave-billing-lifecycle, /api/ai/portal smoke (commit f23c80f)
+
+**Gotcha:** the signed `customer_portal` URL (`data.attributes.urls.customer_portal` from the subscription or customer object — format `https://<store>.lemonsqueezy.com/billing?expires=…&signature=…&user=…`) does NOT always land the visitor straight in the billing portal. LS's two docs pages disagree on the surface: the developer guide says the signed URL "will automatically log in customers," but the store/help guide says "customers who are not already signed in to lemonsqueezy.com will be prompted to complete a magic link sign-in process." The reconciliation: auto-login only fires when the browser already holds a lemonsqueezy.com session for that customer; a fresh browser (the normal case when our app opens the link via the OS browser) gets the email magic-link gate instead. This looks like a broken integration but is LS behaving as designed — the signed URL was fetched and opened correctly; the login step is LS's own security gate. The link is valid for 24h (`expires` is unix seconds).
+
+**Workaround:** none needed — it is not a bug. Do NOT "fix" it by swapping URLs or adding auth params. To smoke end-to-end, complete the magic-link sign-in (LS emails the login link to the customer's email); after that the portal shows the cancel + update-payment controls. `customer_portal` is the correct field for a "Manage billing" button (full portal); `update_payment_method` is the narrower payment-details-only link — both are signed and share this same auth behavior.
+
+**Why:** the signature authenticates the *link* (proves it came from LS, scoped to a customer + expiry) but LS still wants a real browser session before exposing account controls, so it layers the magic-link on top when the session is absent.
