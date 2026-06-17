@@ -337,6 +337,12 @@ export interface StoryBibleStore {
    * scene_docs Yjs state.  Returns null if the scene or its doc row is absent.
    */
   getSceneText(sceneId: string): Promise<{ title: string; text: string } | null>;
+  /**
+   * Return whether the scene's exclude_from_ai flag is set.
+   * Checked by assembleContext before serializing scene prose to any AI path.
+   * Returns false when the scene row is absent.
+   */
+  getSceneExcludedFromAi(sceneId: string): Promise<boolean>;
 }
 
 // InMemoryStoryBibleStore lives in ./inMemoryStoryBibleStore.ts (extracted to stay under 300 lines).

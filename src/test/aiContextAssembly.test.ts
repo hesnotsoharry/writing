@@ -38,6 +38,7 @@ function mockStore(): StoryBibleStore {
   return {
     loadSceneEntities: async () => groups,
     getManuscriptAbout: async () => ABOUT,
+    getSceneExcludedFromAi: async () => false,
   } as unknown as StoryBibleStore;
 }
 

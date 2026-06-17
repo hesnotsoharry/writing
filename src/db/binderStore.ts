@@ -52,6 +52,8 @@ export interface Scene {
   sort_order: number;
   word_count: number;
   status: SceneStatus;
+  /** AI context shield flag — when true assembleContext replaces this scene's prose. Optional for backward compat (absent = false). */
+  excludeFromAi?: boolean;
 }
 
 /** Abstraction over binder persistence (project/folder/scene structure). */
@@ -86,6 +88,8 @@ export interface BinderStore {
   renameScene(sceneId: string, title: string): Promise<void>;
   /** Update a scene's status. */
   setSceneStatus(sceneId: string, status: SceneStatus): Promise<void>;
+  /** Persist the AI-context shield flag for a scene (true → prose is withheld from AI). */
+  setSceneExcludedFromAi(sceneId: string, exclude: boolean): Promise<void>;
   /** Update a scene's synopsis. null clears it. */
   setSceneSynopsis(sceneId: string, synopsis: string | null): Promise<void>;
   /**

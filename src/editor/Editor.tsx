@@ -253,9 +253,10 @@ interface CanvasWrapProps {
   onFindMentions?: (entityName: string) => void;
   onRenameScene?: (id: string, title: string) => void;
   onSetSceneStatus?: (id: string, status: SceneStatus) => void;
+  onSetSceneExcludedFromAi?: (id: string, exclude: boolean) => void;
 }
 
-function CanvasWrap({ editor, activeScene, liveWords, characters, locations, visible, popoverProps, storyBibleStore, onOpenEntry, onFindMentions, onRenameScene, onSetSceneStatus }: CanvasWrapProps) {
+function CanvasWrap({ editor, activeScene, liveWords, characters, locations, visible, popoverProps, storyBibleStore, onOpenEntry, onFindMentions, onRenameScene, onSetSceneStatus, onSetSceneExcludedFromAi }: CanvasWrapProps) {
   const { peek, handleMouseOver, handleMouseOut, closePeek } = useAutoLinkHover();
   const [alMenu, setAlMenu] = useState<MenuDescriptor | null>(null);
   const [editorMenu, setEditorMenu] = useState<MenuDescriptor | null>(null);
@@ -281,7 +282,7 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations, vis
       {activeScene && (
         <EditorHeader chapterTitle={activeScene.chapterTitle} title={activeScene.scene.title}
           status={normalizeStatus(activeScene.scene.status)} words={liveWords} characters={characters} locations={locations}
-          onRenameTitle={onRenameScene ? (t) => onRenameScene(activeScene.scene.id, t) : undefined} onSetStatus={onSetSceneStatus ? (s) => onSetSceneStatus(activeScene.scene.id, s) : undefined} />
+          onRenameTitle={onRenameScene ? (t) => onRenameScene(activeScene.scene.id, t) : undefined} onSetStatus={onSetSceneStatus ? (s) => onSetSceneStatus(activeScene.scene.id, s) : undefined} excludeFromAi={activeScene.scene.excludeFromAi} onToggleExcludeFromAi={onSetSceneExcludedFromAi ? (next) => onSetSceneExcludedFromAi(activeScene.scene.id, next) : undefined} />
       )}
       <EditorContent editor={editor} className="editor-content-mount" />
       {editor && <FormatBubble editor={editor} />}
@@ -322,6 +323,7 @@ interface EditorProps extends EditorFocusProps {
   onFindMentions?: (entityName: string) => void;  activeProjectId?: string | null;  onRegisterInsert?: (fn: (text: string) => void) => void;
   onRenameScene?: (id: string, title: string) => void;
   onSetSceneStatus?: (id: string, status: SceneStatus) => void;
+  onSetSceneExcludedFromAi?: (id: string, exclude: boolean) => void;
 }
 
 /**
@@ -357,7 +359,7 @@ export function Editor({
   flip, onAnimationEnd, captureProseRef,
   focusMode = false, typewriterOn = true, dimParagraphsOn = true,
   onOpenEntry, onFindMentions, activeProjectId = null, onRegisterInsert,
-  onRenameScene, onSetSceneStatus,
+  onRenameScene, onSetSceneStatus, onSetSceneExcludedFromAi,
 }: EditorProps) {
   const alIndex = useAutoLinkIndex(storyBibleStore, activeProjectId, linksVersion);
   const { editor, visible, popoverProps } = useEditorCore(
@@ -374,7 +376,8 @@ export function Editor({
       <CanvasWrap editor={editor} activeScene={activeScene} liveWords={liveWords}
         characters={characters} locations={locations} visible={visible} popoverProps={popoverProps}
         storyBibleStore={storyBibleStore} onOpenEntry={handleOpenEntry} onFindMentions={onFindMentions}
-        onRenameScene={onRenameScene} onSetSceneStatus={onSetSceneStatus} />
+        onRenameScene={onRenameScene} onSetSceneStatus={onSetSceneStatus}
+        onSetSceneExcludedFromAi={onSetSceneExcludedFromAi} />
       {flip && <PageFlipLeaf key={flip.key} flip={flip} onAnimationEnd={onAnimationEnd} />}
     </div>
   );

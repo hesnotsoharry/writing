@@ -47,6 +47,7 @@ function mockStoreWithExtraScene(extraId: string, doc: Y.Doc): StoryBibleStore {
       if (id !== extraId) return null;
       return { title: "Extra Scene", text: extractAiSafeText(doc) };
     },
+    getSceneExcludedFromAi: async () => false,
   } as unknown as StoryBibleStore;
 }
 

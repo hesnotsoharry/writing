@@ -15,7 +15,7 @@ import type { SceneStatus } from "./lib/status";
 
 export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion,
   focusMode, typewriterOn, dimParagraphsOn, onOpenEntry, activeProjectId, onFindMentions, onRegisterInsert,
-  onRenameScene, onSetSceneStatus,
+  onRenameScene, onSetSceneStatus, onSetSceneExcludedFromAi,
 }: {
   doc: Y.Doc | null;
   view: AppView;
@@ -29,6 +29,7 @@ export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, 
   onRegisterInsert?: (fn: (text: string) => void) => void;
   onRenameScene?: (id: string, title: string) => void;
   onSetSceneStatus?: (id: string, status: SceneStatus) => void;
+  onSetSceneExcludedFromAi?: (id: string, exclude: boolean) => void;
 } & EditorFocusProps) {
   // captureProseRef: Editor writes its captureProse fn here; usePageFlip reads it.
   const captureProseRef = useRef<() => string>(() => "");
@@ -44,7 +45,8 @@ export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, 
             focusMode={focusMode} typewriterOn={typewriterOn} dimParagraphsOn={dimParagraphsOn}
             onOpenEntry={onOpenEntry} activeProjectId={activeProjectId ?? null}
             onFindMentions={onFindMentions} onRegisterInsert={onRegisterInsert}
-            onRenameScene={onRenameScene} onSetSceneStatus={onSetSceneStatus} />
+            onRenameScene={onRenameScene} onSetSceneStatus={onSetSceneStatus}
+            onSetSceneExcludedFromAi={onSetSceneExcludedFromAi} />
         : <div className="canvas-empty">Select a scene to start writing.</div>}
     </main>
   );

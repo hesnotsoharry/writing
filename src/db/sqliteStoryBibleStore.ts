@@ -1,6 +1,6 @@
 import type { ManuscriptAbout } from "../features/ai/ai.types";
 import { type DbHandle,getDb } from "./schema";
-import { sqliteGetManuscriptAbout, sqliteGetSceneText, sqliteSetManuscriptAbout } from "./sqliteAiContextStore";
+import { sqliteGetManuscriptAbout, sqliteGetSceneExcludedFromAi, sqliteGetSceneText, sqliteSetManuscriptAbout } from "./sqliteAiContextStore";
 import {
   sqliteAddEntityField,
   sqliteAddLink,
@@ -352,5 +352,5 @@ export class SqliteStoryBibleStore implements StoryBibleStore {
   // ── Wave 35 Phase E — AI context v2 read paths ────────────────────────────
   async getManuscriptAbout(projectId: string): Promise<ManuscriptAbout> { return sqliteGetManuscriptAbout(await getDb(), projectId); }
   async setManuscriptAbout(projectId: string, about: ManuscriptAbout): Promise<void> { return sqliteSetManuscriptAbout(await getDb(), projectId, about); }
-  async getSceneText(sceneId: string): Promise<{ title: string; text: string } | null> { return sqliteGetSceneText(await getDb(), sceneId); }
+  async getSceneText(sceneId: string): Promise<{ title: string; text: string } | null> { return sqliteGetSceneText(await getDb(), sceneId); }  async getSceneExcludedFromAi(sceneId: string): Promise<boolean> { return sqliteGetSceneExcludedFromAi(await getDb(), sceneId); }
 }

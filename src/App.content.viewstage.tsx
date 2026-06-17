@@ -59,6 +59,7 @@ export interface ViewStageCtx {
   onOpenHistory?: (sceneId: string) => void;
   onRenameScene?: (id: string, title: string) => void;
   onSetSceneStatus?: (id: string, status: SceneStatus) => void;
+  onSetSceneExcludedFromAi?: (id: string, exclude: boolean) => void;
   /** Focus-mode props forwarded to EditorPane → Editor (all optional). */
   editorFocus?: EditorFocusProps;
   /** Opens Find & Replace with the given entity name prefilled. */
@@ -227,5 +228,5 @@ export function buildViewStage(
   return <EditorPane doc={doc} view={view} tree={ctx.tree} selectedSceneId={ctx.selectedSceneId}
     storyBibleStore={ctx.storyBibleStore} linksVersion={ctx.linksVersion}
     onOpenEntry={ctx.onOpenEntry} activeProjectId={activeProjectId}
-    onFindMentions={ctx.onFindMentions} onRegisterInsert={ctx.onRegisterInsert} onRenameScene={ctx.onRenameScene} onSetSceneStatus={ctx.onSetSceneStatus} {...(ctx.editorFocus ?? {})} />;
+    onFindMentions={ctx.onFindMentions} onRegisterInsert={ctx.onRegisterInsert} onRenameScene={ctx.onRenameScene} onSetSceneStatus={ctx.onSetSceneStatus} onSetSceneExcludedFromAi={ctx.onSetSceneExcludedFromAi} {...(ctx.editorFocus ?? {})} />;
 }

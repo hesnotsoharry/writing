@@ -147,6 +147,12 @@ export class InMemoryBinderStore implements BinderStore {
     );
   }
 
+  async setSceneExcludedFromAi(sceneId: string, exclude: boolean): Promise<void> {
+    this.scenes = this.scenes.map((s) =>
+      s.id === sceneId ? { ...s, excludeFromAi: exclude } : s
+    );
+  }
+
   async setSceneSynopsis(sceneId: string, synopsis: string | null): Promise<void> {
     this.scenes = this.scenes.map((s) =>
       s.id === sceneId ? { ...s, synopsis } : s

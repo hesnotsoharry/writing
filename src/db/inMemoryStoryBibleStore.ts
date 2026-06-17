@@ -317,4 +317,9 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   async getSceneText(_sceneId: string): Promise<{ title: string; text: string } | null> {
     return null;
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getSceneExcludedFromAi(_sceneId: string): Promise<boolean> {
+    return false;
+  }
 }

@@ -40,6 +40,19 @@ export async function sqliteSetManuscriptAbout(
   );
 }
 
+/** Return whether a scene's exclude_from_ai flag is set (false when absent). */
+export async function sqliteGetSceneExcludedFromAi(
+  db: DbHandle,
+  sceneId: string,
+): Promise<boolean> {
+  const rows = await db.select<{ exclude_from_ai: number }[]>(
+    "SELECT exclude_from_ai FROM scenes WHERE id = $1",
+    [sceneId],
+  );
+  if (rows.length === 0) return false;
+  return rows[0].exclude_from_ai === 1;
+}
+
 /** Load a scene's title and decoded plain-text from scene_docs. */
 export async function sqliteGetSceneText(
   db: DbHandle,

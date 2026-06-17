@@ -97,14 +97,16 @@ export class SqliteBinderStore implements BinderStore {
       "SELECT id, project_id, title, sort_order FROM folders WHERE project_id = $1 ORDER BY sort_order ASC",
       [projectId]
     );
-    const rawScenes = await db.select<(Omit<Scene, "status"> & { status: string })[]>(
-      "SELECT id, project_id, folder_id, title, synopsis, sort_order, word_count, status FROM scenes WHERE project_id = $1 ORDER BY sort_order ASC",
+    const rawScenes = await db.select<(Omit<Scene, "status" | "excludeFromAi"> & { status: string; exclude_from_ai: number })[]>(
+      "SELECT id, project_id, folder_id, title, synopsis, sort_order, word_count, status, exclude_from_ai FROM scenes WHERE project_id = $1 ORDER BY sort_order ASC",
       [projectId]
     );
-    // Normalize raw DB status strings (handles legacy "done" → "final").
+    // Normalize raw DB status strings (handles legacy "done" → "final") and map
+    // integer exclude_from_ai column to boolean excludeFromAi.
     const scenes: Scene[] = rawScenes.map((s) => ({
       ...s,
       status: normalizeStatus(s.status),
+      excludeFromAi: s.exclude_from_ai === 1,
     }));
     return { folders, scenes };
   }
@@ -140,6 +142,14 @@ export class SqliteBinderStore implements BinderStore {
     const db = await getDb();
     await db.execute("UPDATE scenes SET status=$1 WHERE id=$2", [
       status,
+      sceneId,
+    ]);
+  }
+
+  async setSceneExcludedFromAi(sceneId: string, exclude: boolean): Promise<void> {
+    const db = await getDb();
+    await db.execute("UPDATE scenes SET exclude_from_ai=$1 WHERE id=$2", [
+      exclude ? 1 : 0,
       sceneId,
     ]);
   }

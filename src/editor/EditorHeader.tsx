@@ -55,6 +55,27 @@ function useTitleEdit(title: string, onRenameTitle?: (t: string) => void) {
 }
 
 // ---------------------------------------------------------------------------
+// AI-shield toggle (optional, guarded — absent when onToggle is not provided)
+// ---------------------------------------------------------------------------
+
+function AiShieldToggle({ excludeFromAi, onToggle }: {
+  excludeFromAi?: boolean;
+  onToggle: (next: boolean) => void;
+}) {
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button type="button" onClick={() => onToggle(!excludeFromAi)}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0",
+          fontSize: "var(--text-xs, 11px)", color: excludeFromAi ? "var(--accent)" : "var(--ink-3)",
+          display: "inline-flex", alignItems: "center", gap: 5 }}
+        title={excludeFromAi ? "Scene is hidden from AI — click to allow" : "Scene is visible to AI — click to hide"}>
+        {excludeFromAi ? "Hidden from AI" : "Visible to AI"}
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
@@ -69,6 +90,10 @@ export interface EditorHeaderProps {
   onRenameTitle?: (title: string) => void;
   /** Called with the chosen status when the user picks from the inline status picker. No-op when absent. */
   onSetStatus?: (status: SceneStatus) => void;
+  /** Current AI-exclusion state; when true the scene prose is withheld from AI context. */
+  excludeFromAi?: boolean;
+  /** Called with the new exclusion state when the user toggles the AI shield. No-op when absent. */
+  onToggleExcludeFromAi?: (next: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,7 +107,7 @@ export interface EditorHeaderProps {
  */
 export function EditorHeader({
   chapterTitle, title, status, words, characters, locations,
-  onRenameTitle, onSetStatus,
+  onRenameTitle, onSetStatus, excludeFromAi, onToggleExcludeFromAi,
 }: EditorHeaderProps) {
   const { editing, draft, setDraft, begin, commit, onKeyDown } = useTitleEdit(title, onRenameTitle);
   const [statusMenu, setStatusMenu] = useState<MenuDescriptor | null>(null);
@@ -113,6 +138,9 @@ export function EditorHeader({
         <span className="dotsep" />
         <span>{characters} characters · {locations} locations present</span>
       </div>
+      {onToggleExcludeFromAi !== undefined && (
+        <AiShieldToggle excludeFromAi={excludeFromAi} onToggle={onToggleExcludeFromAi} />
+      )}
       {statusMenu && <ContextMenu menu={statusMenu} onClose={() => setStatusMenu(null)} />}
     </>
   );

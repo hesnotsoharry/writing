@@ -246,5 +246,19 @@ export async function migration_018_entity_exclusion(db: DbHandle): Promise<void
   }
 }
 
+/**
+ * Add exclude_from_ai to scenes so individual scenes can be shielded from AI context.
+ *
+ * Uses ensureColumn (idempotent ALTER TABLE ADD COLUMN with PRAGMA guard)
+ * so re-running on crash is safe. Mirrors migration_018_entity_exclusion exactly.
+ * The existence check via PRAGMA table_info protects partial-seed test environments.
+ */
+export async function migration_019_scene_exclusion(db: DbHandle): Promise<void> {
+  const sceneInfo = await db.select<{ name: string }[]>("PRAGMA table_info(scenes)");
+  if (sceneInfo.length > 0) {
+    await ensureColumn(db, "scenes", "exclude_from_ai", "INTEGER NOT NULL DEFAULT 0");
+  }
+}
+
 // ensureColumn is re-exported so callers that import from migrations2 can use it.
 export { ensureColumn };

@@ -44,6 +44,13 @@ export function extractPlainText(doc: Y.Doc): string {
 export const AI_HIDDEN_PLACEHOLDER = "[passage hidden by author]";
 
 /**
+ * Placeholder injected into AI context in place of a scene's full prose when
+ * the author has shielded the entire scene from AI access (W53 Phase 2).
+ * Value is load-bearing — oracle test pins the exact string.
+ */
+export const AI_SCENE_HIDDEN_PLACEHOLDER = "[this scene was withheld by the author]";
+
+/**
  * Extract plain text from a Y.XmlText node via its delta.
  * Y.XmlText.toString() returns XML markup for attributed text (e.g.,
  * "The <bold>hero</bold> fought bravely") — this helper uses toDelta()

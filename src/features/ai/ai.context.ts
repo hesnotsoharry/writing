@@ -10,7 +10,7 @@
 import type * as Y from "yjs";
 
 import type { StoryBibleStore } from "../../db/storyBibleStore";
-import { extractAiSafeText } from "../../yjs/serialize";
+import { AI_SCENE_HIDDEN_PLACEHOLDER, extractAiSafeText } from "../../yjs/serialize";
 import type {
   AiCtxConfig,
   AssembledContext,
@@ -76,7 +76,9 @@ function buildBoundaryLine(boundary: string | null): string | null {
   return `Treat this conversation as if you have not read past ${boundary}: do not reference or reveal events, revelations, or character arcs that occur after that point.`;
 }
 
-/** Fetch title + capped text for a list of extra scene ids. */
+/** Fetch title + capped text for a list of extra scene ids.
+ * Per-scene exclusion gate: if a scene's exclude_from_ai flag is set,
+ * the placeholder is substituted — real prose never enters the result. */
 async function loadExtraSceneExcerpts(
   store: StoryBibleStore,
   ids: string[],
@@ -84,8 +86,16 @@ async function loadExtraSceneExcerpts(
   const results: { title: string; excerpt: string }[] = [];
   for (const id of ids) {
     try {
-      const row = await store.getSceneText(id);
-      if (row) results.push({ title: row.title, excerpt: row.text.slice(0, SCENE_EXCERPT_CHARS) });
+      const [excluded, row] = await Promise.all([
+        store.getSceneExcludedFromAi(id),
+        store.getSceneText(id),
+      ]);
+      if (row) {
+        results.push({
+          title: row.title,
+          excerpt: excluded ? AI_SCENE_HIDDEN_PLACEHOLDER : row.text.slice(0, SCENE_EXCERPT_CHARS),
+        });
+      }
     } catch {
       // Non-fatal: skip missing extra scenes.
     }
@@ -120,9 +130,16 @@ export async function assembleContext(
 ): Promise<AssembledContext> {
   const { cfg, sceneTitle, sceneId, doc, store, projectId, selectionText } = input;
 
-  const rawSceneText = doc ? extractAiSafeText(doc) : "";
-  const sceneExcerptTruncated = rawSceneText.length > SCENE_EXCERPT_CHARS;
-  const sceneExcerpt = rawSceneText.slice(0, SCENE_EXCERPT_CHARS);
+  // Scene-level exclusion gate (W53 Phase 2 — security-critical).
+  // Check BEFORE extracting prose so no real text is ever materialized into context.
+  const isSceneExcluded = sceneId != null
+    ? await store.getSceneExcludedFromAi(sceneId)
+    : false;
+  const rawSceneText = (!isSceneExcluded && doc) ? extractAiSafeText(doc) : "";
+  const sceneExcerptTruncated = !isSceneExcluded && rawSceneText.length > SCENE_EXCERPT_CHARS;
+  const sceneExcerpt = isSceneExcluded
+    ? AI_SCENE_HIDDEN_PLACEHOLDER
+    : rawSceneText.slice(0, SCENE_EXCERPT_CHARS);
 
   const rawGroups = sceneId
     ? await store.loadSceneEntities(sceneId).catch(() => [])

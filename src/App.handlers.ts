@@ -83,6 +83,9 @@ function buildCrudCallbacks(deps: CrudDeps): BinderCallbacks {
     onSetSceneStatus: (id, status) => {
       binderStore.setSceneStatus(id, status).then(doReload).catch(logCrudError("setSceneStatus"));
     },
+    onSetSceneExcludedFromAi: (id, exclude) => {
+      binderStore.setSceneExcludedFromAi(id, exclude).then(doReload).catch(logCrudError("setSceneExcludedFromAi"));
+    },
     ...buildArchiveCallbacks(binderStore, getProjectId, doReload, onArchived),
   };
 }

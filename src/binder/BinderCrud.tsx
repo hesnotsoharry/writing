@@ -53,6 +53,11 @@ export interface BinderCallbacks {
    * Optional — existing callers omit it; missing = item hidden from menu.
    */
   onOpenHistory?: (sceneId: string) => void;
+  /**
+   * Persist the AI-context shield flag for a scene.
+   * Optional — omitting it disables the EditorHeader toggle.
+   */
+  onSetSceneExcludedFromAi?: (sceneId: string, exclude: boolean) => void;
 }
 
 // ── InlineRename ──────────────────────────────────────────────────────────
