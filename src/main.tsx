@@ -33,7 +33,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
+import { installContextMenuGuard } from "./lib/nativeContextMenu";
 
+if (!import.meta.env.DEV) installContextMenuGuard();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
