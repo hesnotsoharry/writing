@@ -156,13 +156,12 @@ function PanelFoot({ p, ctx, attachedSel, setAttachedSel, footerRef, model, effe
 function PanelReady(p: AssistantPanelProps) {
   const { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel, streamingId, setStreamingId, model, setModel, modelPop, setModelPop, abortRef, sessionRef } = usePanelState(p.initialVerb, p.initialSel);
   const effectiveByokModel = useMemo(() => computeEffectiveByokModel(model, p.byokActive, p.byokKeys), [model, p.byokActive, p.byokKeys]);
-  const footerRef = useRef<PanelFooterHandle | null>(null);
+  const footerRef = useRef<PanelFooterHandle | null>(null), hasSeededRef = useRef(false);
   const active = p.convos.find((c) => c.id === p.activeId) ?? null;
   // D4: merge neverNames into offEntityNames so display + send use the same filter.
   const effectiveAiCtx: AiCtxConfig = { ...p.aiCtx, offEntityNames: [...new Set([...p.aiCtx.offEntityNames, ...p.neverNames])] };
   const ctx = useContextAssembly({ sceneId: p.sceneId, sceneWords: p.sceneWords, aiCtx: effectiveAiCtx, neverNames: p.neverNames, tree: p.tree, about: p.about, active, sceneEntityGroups: p.sceneEntityGroups, model: effectiveByokModel, monthlyAllowance: p.monthlyAllowance });
-  const ctxArgs: CtxArgs = { sceneName: p.sceneName, sceneWords: p.sceneWords, linked: ctx.linked,
-    extras: ctx.extras, attachedSel, aiCtx: effectiveAiCtx, hasAbout: ctx.hasAbout, boundaryLabel: ctx.boundaryLabel };
+  const ctxArgs: CtxArgs = { sceneName: p.sceneName, sceneWords: p.sceneWords, linked: ctx.linked, extras: ctx.extras, attachedSel, aiCtx: effectiveAiCtx, hasAbout: ctx.hasAbout, boundaryLabel: ctx.boundaryLabel };
   const canCompose = !p.offline && p.plan !== "expired" && p.usedPct < 100;
   const { send, stop, copyMsg, saveMsg, newConvo, deleteConvo } = usePanelMessages({
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
@@ -173,6 +172,9 @@ function PanelReady(p: AssistantPanelProps) {
   // abortRef is a stable ref (never reassigned); a mount-once cleanup is correct here.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => { abortRef.current?.abort(); }, []);
+  // Seed: one new convo per selection-seed. Gate: initialSel. Non-seed paths have initialSel=null → inert.
+  // Declared after abort-cleanup. CONTRACT: see aiSeedNewConvo.test.ts.
+  useEffect(() => { if (hasSeededRef.current || !p.initialSel) return; hasSeededRef.current = true; void newConvo(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const listMode = !active; const msgCount = active?.messages.length ?? 0; const lastLen = msgCount ? active!.messages[msgCount - 1].text.length : 0;
   const footProps: PanelFootProps = { p, ctx, attachedSel, setAttachedSel, footerRef, model, effectiveByokModel, prompt, setPrompt, verb, verbPop, setVerbPop, setVerb, modelPop, setModelPop, setModel, streamingId, send, stop };
   return (
@@ -349,7 +351,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
   const consented = getTweak("aiConsentGiven", false);
   const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance } = useAiBalance(consented, byokActive, p.gateStatus);
-  const { panelKey, initialVerb, initialSel } = useAiPanelSeed(setInspTab);
+  const { panelKey, initialVerb, initialSel } = useAiPanelSeed(setInspTab, setActiveId);
   const liveSel = useProseSelection();
   const aiTree = toAiTree(p.tree);
   const sceneId = p.selectedSceneId; const sceneName = p.activeScene?.title ?? null; const sceneWords = p.activeScene?.word_count ?? 0;

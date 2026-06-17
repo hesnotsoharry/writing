@@ -133,16 +133,23 @@ export function useProseSelection(): ProseSelection | null {
 type SeedSel = Pick<ProseSelection, "text" | "words">;
 
 /** Owns panelKey + initial seed state; also listens for AI_ASK_FROM_EDITOR window events. */
-export function useAiPanelSeed(setInspTab: Dispatch<SetStateAction<"scene" | "assistant">>) {
+export function useAiPanelSeed(
+  setInspTab: Dispatch<SetStateAction<"scene" | "assistant">>,
+  setActiveId: Dispatch<SetStateAction<string | null>>,
+) {
   const [panelKey, setPanelKey] = useState(0);
   const [initialVerb, setInitialVerb] = useState<VerbKey>("ask");
   const [initialSel, setInitialSel] = useState<SeedSel | null>(null);
   const seedAsk = useCallback((verb: VerbKey, sel: SeedSel) => {
+    // Reset activeId BEFORE bumping panelKey so PanelReady remounts with activeId=null.
+    // Without this reset, a prior active conversation would survive the remount and the
+    // seed's auto-new-convo effect would open a SECOND conversation on top of it.
+    setActiveId(null);
     setInitialVerb(verb);
     setInitialSel(sel);
     setInspTab("assistant");
     setPanelKey((k) => k + 1);
-  }, [setInspTab]);
+  }, [setInspTab, setActiveId]);
   useEffect(() => {
     const h = (e: Event) => {
       const ev = e as CustomEvent<{ verb: VerbKey; sel: SeedSel }>;
