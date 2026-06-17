@@ -17,7 +17,8 @@ vi.mock("../features/ai/AiComponents", () => ({
 
 import type { BinderTree } from "../binder/buildTree";
 import type { Scene } from "../db/binderStore";
-import { applySceneExclusionToggle } from "../features/ai/ai.helpers";
+import type { SceneEntityGroup } from "../db/storyBibleStore";
+import { applyEntityToggle, applySceneExclusionToggle, buildEntityChips } from "../features/ai/ai.helpers";
 import type { AiCtxConfig, AiManuscriptTree } from "../features/ai/ai.types";
 import { toAiTree } from "../features/ai/AssistantPanel.hooks";
 import { ContextStripPanel } from "../features/ai/AssistantPanel.parts";
@@ -126,16 +127,17 @@ describe("ContextStripPanel — sceneExcludedFromAi", () => {
     expect(screen.queryByText("Hidden from AI")).toBeNull();
   });
 
-  it("renders 'Hidden from AI' chip when sceneExcludedFromAi is true", () => {
-    render(<ContextStripPanel {...makeCtxProps({ sceneExcludedFromAi: true })} />);
-    expect(screen.queryByText("Hidden from AI")).not.toBeNull();
-    expect(screen.queryByText("Test Scene")).toBeNull();
+  it("renders scene NAME when sceneExcludedFromAi is true (name stays visible; shield + withheld class applied)", () => {
+    const { container } = render(<ContextStripPanel {...makeCtxProps({ sceneExcludedFromAi: true })} />);
+    expect(screen.queryByText("Test Scene")).not.toBeNull();
+    expect(screen.queryByText("Hidden from AI")).toBeNull();
+    expect(container.querySelector(".ai-chip--scene.ai-chip--withheld")).not.toBeNull();
   });
 
   it("clicking the scene chip when excluded calls onToggleSceneExclusion exactly once", () => {
     const onToggle = vi.fn();
     render(<ContextStripPanel {...makeCtxProps({ sceneExcludedFromAi: true, onToggleSceneExclusion: onToggle })} />);
-    fireEvent.click(screen.getByText("Hidden from AI").closest("[role='button']")!);
+    fireEvent.click(screen.getByText("Test Scene").closest("[role='button']")!);
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
@@ -267,5 +269,102 @@ describe("AiContextPicker — current-scene row when excluded", () => {
     expect(row).not.toBeNull();
     fireEvent.click(row);
     expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── buildEntityChips: pure helper ─────────────────────────────────────────────
+
+describe("buildEntityChips", () => {
+  function makeGroups(...entities: { name: string; exclude_from_ai?: boolean }[]): SceneEntityGroup[] {
+    return [{ type: "character", entities: entities.map((e, i) => ({ id: `e${i}`, projectId: "p1", type: "character", name: e.name, notes: null, aliases: null, exclude_from_ai: e.exclude_from_ai })) }] as unknown as SceneEntityGroup[];
+  }
+
+  it("excludes entities with exclude_from_ai === true", () => {
+    const result = buildEntityChips(makeGroups({ name: "Alice" }, { name: "Bob", exclude_from_ai: true }), []);
+    expect(result.map((c) => c.name)).toEqual(["Alice"]);
+  });
+
+  it("marks off:true when name is in offEntityNames, off:false otherwise", () => {
+    const result = buildEntityChips(makeGroups({ name: "Alice" }, { name: "Bob" }), ["Bob"]);
+    expect(result.find((c) => c.name === "Alice")?.off).toBe(false);
+    expect(result.find((c) => c.name === "Bob")?.off).toBe(true);
+  });
+
+  it("dedupes entities with the same name across groups", () => {
+    const groups: SceneEntityGroup[] = [
+      { type: "character", entities: [{ id: "e1", projectId: "p1", type: "character", name: "Alice", notes: null, aliases: null }] },
+      { type: "location", entities: [{ id: "e2", projectId: "p1", type: "location", name: "Alice", notes: null, aliases: null }] },
+    ] as unknown as SceneEntityGroup[];
+    const result = buildEntityChips(groups, []);
+    expect(result.filter((c) => c.name === "Alice")).toHaveLength(1);
+  });
+});
+
+// ── applyEntityToggle: offEntityNames polarity + immutability ──────────────────
+
+describe("applyEntityToggle", () => {
+  const base = { extraSceneIds: ["s1"], offEntityNames: ["Bob"], about: true, boundary: null } as AiCtxConfig;
+
+  it("adds a name not yet in offEntityNames", () => {
+    const next = applyEntityToggle(base, "Alice");
+    expect(next.offEntityNames).toContain("Alice");
+    expect(next.offEntityNames).toContain("Bob");
+  });
+
+  it("removes a name already in offEntityNames", () => {
+    const next = applyEntityToggle(base, "Bob");
+    expect(next.offEntityNames).not.toContain("Bob");
+  });
+
+  it("preserves other aiCtx fields and does not mutate the input", () => {
+    const next = applyEntityToggle(base, "Alice");
+    expect(next.extraSceneIds).toEqual(["s1"]);
+    expect(next.about).toBe(true);
+    expect(next.boundary).toBeNull();
+    expect(base.offEntityNames).toEqual(["Bob"]); // input untouched
+    expect(next).not.toBe(base);
+  });
+});
+
+// ── ContextStripPanel: entity chip wiring ─────────────────────────────────────
+
+describe("ContextStripPanel — entityChips", () => {
+  function makeEntityCtxProps(overrides: Partial<Parameters<typeof ContextStripPanel>[0]> = {}) {
+    return makeCtxProps({
+      entityChips: [{ name: "Alice", off: false }, { name: "Bob", off: true }],
+      onToggleEntity: vi.fn(),
+      ...overrides,
+    });
+  }
+
+  it("renders both Alice and Bob chips", () => {
+    render(<ContextStripPanel {...makeEntityCtxProps()} />);
+    expect(screen.queryByText("Alice")).not.toBeNull();
+    expect(screen.queryByText("Bob")).not.toBeNull();
+  });
+
+
+  it("Bob chip has the withheld class; Alice chip does not", () => {
+    render(<ContextStripPanel {...makeEntityCtxProps()} />);
+    const bobEl = screen.getByText("Bob").closest(".ai-chip");
+    const aliceEl = screen.getByText("Alice").closest(".ai-chip");
+    expect(bobEl?.classList.contains("ai-chip--withheld")).toBe(true);
+    expect(aliceEl?.classList.contains("ai-chip--withheld")).toBe(false);
+  });
+
+  it("clicking the Bob chip calls onToggleEntity once with 'Bob'", () => {
+    const onToggleEntity = vi.fn();
+    render(<ContextStripPanel {...makeEntityCtxProps({ onToggleEntity })} />);
+    fireEvent.click(screen.getByText("Bob").closest("[role='button']")!);
+    expect(onToggleEntity).toHaveBeenCalledTimes(1);
+    expect(onToggleEntity).toHaveBeenCalledWith("Bob");
+  });
+
+  it("clicking the Alice chip calls onToggleEntity once with 'Alice'", () => {
+    const onToggleEntity = vi.fn();
+    render(<ContextStripPanel {...makeEntityCtxProps({ onToggleEntity })} />);
+    fireEvent.click(screen.getByText("Alice").closest("[role='button']")!);
+    expect(onToggleEntity).toHaveBeenCalledTimes(1);
+    expect(onToggleEntity).toHaveBeenCalledWith("Alice");
   });
 });

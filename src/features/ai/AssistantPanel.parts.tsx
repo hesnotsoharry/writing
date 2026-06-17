@@ -45,6 +45,8 @@ interface CtxStripProps {
   onOpenContext: () => void;
   sceneExcludedFromAi?: boolean;
   onToggleSceneExclusion?: () => void;
+  entityChips?: { name: string; off: boolean }[];
+  onToggleEntity?: (name: string) => void;
 }
 
 interface PanelFooterProps {
@@ -113,22 +115,29 @@ function buildLsCheckoutUrl(variant: string | undefined, licenseKey?: string): s
 /** Returns "scene" or "scenes" depending on count — removes ternary from ContextStripPanel to stay under complexity 10. */
 function sceneLabel(n: number): string { return n === 1 ? "scene" : "scenes"; }
 
-/** Scene chip in the context strip — handles both normal and hidden-from-AI states. */
+/** Scene chip in the context strip — keeps the scene name visible; shows a shield + withheld colour when hidden from AI. */
 function SceneChip({ name, excluded, onToggle }: { name: string; excluded?: boolean; onToggle?: () => void }) {
-  if (excluded) {
-    return (
-      <span className={"ai-chip ai-chip--scene ai-chip--withheld" + (onToggle ? " clickable" : "")}
-        role={onToggle ? "button" : undefined} onClick={onToggle}
-        title="Scene is hidden from AI — click to include">
-        <Icon name="shieldOff" className="ic" /><span>Hidden from AI</span>
-      </span>
-    );
-  }
+  const cls = "ai-chip ai-chip--scene" + (excluded ? " ai-chip--withheld" : "") + (onToggle ? " clickable" : "");
+  const title = onToggle
+    ? excluded ? "Scene is hidden from AI — click to include" : "Scene is visible to AI — click to hide"
+    : undefined;
   return (
-    <span className={"ai-chip ai-chip--scene" + (onToggle ? " clickable" : "")}
-      role={onToggle ? "button" : undefined} onClick={onToggle}
-      title={onToggle ? "Scene is visible to AI — click to hide" : undefined}>
-      <Icon name="fileText" className="ic" /><span>{name}</span>
+    <span className={cls} role={onToggle ? "button" : undefined} onClick={onToggle} title={title}>
+      <Icon name={excluded ? "shieldOff" : "fileText"} className="ic" /><span>{name}</span>
+    </span>
+  );
+}
+
+/** Merges explicit entityChips prop with the legacy linked-names fallback. */
+function resolveEntityChips(ec: { name: string; off: boolean }[] | undefined, linked: string[]): { name: string; off: boolean }[] { return ec ?? linked.map((n) => ({ name: n, off: false })); }
+
+/** Entity chip in the context strip — clickable to toggle in/out of AI context; shows a shield + withheld colour when off. */
+function EntityChip({ name, off, onToggle }: { name: string; off?: boolean; onToggle?: () => void }) {
+  const cls = "ai-chip" + (off ? " ai-chip--withheld" : "") + (onToggle ? " clickable" : "");
+  const title = onToggle ? (off ? name + " is hidden from AI — click to include" : name + " is visible to AI — click to hide") : undefined;
+  return (
+    <span className={cls} role={onToggle ? "button" : undefined} onClick={onToggle} title={title}>
+      <Icon name={off ? "shieldOff" : "user"} className="ic" /><span>{name}</span>
     </span>
   );
 }
@@ -167,7 +176,9 @@ export function ContextStripPanel(p: CtxStripProps) {
             <Icon name="book" className="ic" /><span>+{p.extras.length} {sceneLabel(p.extras.length)}</span>
           </span>
         )}
-        {p.linked.map((n) => <span className="ai-chip" key={n}><Icon name="user" className="ic" /><span>{n}</span></span>)}
+        {resolveEntityChips(p.entityChips, p.linked).map((e) =>
+          <EntityChip key={e.name} name={e.name} off={e.off}
+            onToggle={p.onToggleEntity ? () => p.onToggleEntity!(e.name) : undefined} />)}
         {p.attachedSel && (
           <span className="ai-chip ai-chip--sel">
             <Icon name="quote" className="ic" /><span>Selection · {p.attachedSel.words} words</span>

@@ -21,7 +21,7 @@ import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import type { GateStatus } from "../license/license.gate";
 import { BRAINSTORM_ADD_CARD, getTweak } from "../settings/settings.store";
 import type { SessionResult } from "./ai.client";
-import { applySceneExclusionToggle, computeUsedPct, readSceneExcluded, shouldRetryBalance } from "./ai.helpers";
+import { applyEntityToggle, applySceneExclusionToggle, buildEntityChips, computeUsedPct, readSceneExcluded, shouldRetryBalance } from "./ai.helpers";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
@@ -140,7 +140,7 @@ function PanelFoot({ p, ctx, attachedSel, setAttachedSel, footerRef, model, effe
     <div className="ai-foot">
       <ContextStripPanel sceneName={p.sceneName} extras={ctx.extras} linked={ctx.linked}
         attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
-        boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} sceneExcludedFromAi={p.sceneExcludedFromAi} onToggleSceneExclusion={p.onToggleSceneExclusion} />
+        boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} sceneExcludedFromAi={p.sceneExcludedFromAi} onToggleSceneExclusion={p.onToggleSceneExclusion} entityChips={buildEntityChips(p.sceneEntityGroups, p.aiCtx.offEntityNames)} onToggleEntity={(n: string) => p.setAiCtx(applyEntityToggle(p.aiCtx, n))} />
       <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
         prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb} model={effectiveByokModel} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
         est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokActive={p.byokActive} byokKeys={p.byokKeys} />

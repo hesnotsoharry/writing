@@ -1,5 +1,6 @@
 import type { Scene } from "../../db/binderStore";
-import type { AiEstimateResult, ManagedModel, MeterStatus } from "./ai.types";
+import type { SceneEntityGroup } from "../../db/storyBibleStore";
+import type { AiCtxConfig, AiEstimateResult, ManagedModel, MeterStatus } from "./ai.types";
 import { MODEL_RATES, TYPICAL_REQUEST } from "./ai.types";
 
 /** Derive whether the active scene is withheld from AI (pre-migration scenes → false). */
@@ -15,6 +16,17 @@ export function applySceneExclusionToggle(
   current: boolean,
 ): void {
   if (sceneId) onSet?.(sceneId, !current);
+}
+
+/**
+ * Pure helper: toggle an entity NAME in/out of aiCtx.offEntityNames (the strip's
+ * per-conversation hide set). Returns a NEW AiCtxConfig — does not mutate the input.
+ * Operates on the raw aiCtx the picker writes; never the neverNames-merged variant.
+ */
+export function applyEntityToggle(aiCtx: AiCtxConfig, name: string): AiCtxConfig {
+  const next = new Set(aiCtx.offEntityNames);
+  if (next.has(name)) next.delete(name); else next.add(name);
+  return { ...aiCtx, offEntityNames: [...next] };
 }
 
 export interface EstimateParams {
@@ -156,4 +168,19 @@ export function parseProseSelection(raw: string): { text: string; words: number 
   const words = text.split(/\s+/).filter((w) => w.length > 0).length;
   if (words < 3) return null;
   return { text, words };
+}
+
+/** Strip's entity-chip list: all non-persistent-never entities (deduped by name), marked off when in offEntityNames. */
+export function buildEntityChips(groups: SceneEntityGroup[], offEntityNames: string[]): { name: string; off: boolean }[] {
+  const off = new Set(offEntityNames);
+  const seen = new Set<string>();
+  const chips: { name: string; off: boolean }[] = [];
+  for (const g of groups) {
+    for (const e of g.entities) {
+      if (e.exclude_from_ai === true || seen.has(e.name)) continue;
+      seen.add(e.name);
+      chips.push({ name: e.name, off: off.has(e.name) });
+    }
+  }
+  return chips;
 }

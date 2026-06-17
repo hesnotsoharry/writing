@@ -1969,6 +1969,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-chip--withheld { background: var(--parchment-deep); color: var(--ink-3); border-color: var(--parchment-edge); font-weight: 500; }
 .ai-chip--withheld:hover { opacity: 0.8; cursor: pointer; }
 .ai-chip.clickable { cursor: pointer; }
+.ai-chip.clickable:hover { opacity: 0.8; }
 .ai-chip--scene.clickable:hover { opacity: 0.8; }
 .ai-chip--sel { background: var(--label-sea-tint, var(--parchment-deep)); border-color: transparent; font-weight: 500; }
 .ai-chip--ghost { background: transparent; border-style: dashed; color: var(--ink-4); cursor: pointer; }
