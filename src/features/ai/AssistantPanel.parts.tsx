@@ -84,6 +84,7 @@ interface PanelThreadProps {
   streamingId: string | null;
   onCopy: (m: AiMessageRecord) => void;
   onSaveNote: (m: AiMessageRecord) => void;
+  onAddToBoard?: (m: AiMessageRecord) => void;
   msgCount: number;
   lastLen: number;
   activeId: string | null;
@@ -294,7 +295,7 @@ export function PanelThread(p: PanelThreadProps) {
     <div className="ai-thread" ref={threadRef}>
       {!p.active || !msgs.length
         ? <AiEmptyState verb={p.verb} setVerb={p.setVerb} onStarter={(s) => { p.onStarter(s); }} onFocusInput={p.onFocusInput} />
-        : msgs.map((m) => <AiMessage key={m.id} msg={m} onCopy={p.onCopy} onSaveNote={p.onSaveNote} />)}
+        : msgs.map((m) => <AiMessage key={m.id} msg={m} onCopy={p.onCopy} onSaveNote={p.onSaveNote} onAddToBoard={p.onAddToBoard} />)}
     </div>
   );
 }

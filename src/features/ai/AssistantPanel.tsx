@@ -11,6 +11,7 @@
 import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 
+import type { AppView } from "../../App.state";
 import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import { type AiConversationStore,makeProductionAiConversationStore } from "../../db/aiConversationStore";
@@ -18,7 +19,7 @@ import type { Scene } from "../../db/binderStore";
 import type { SceneEntityGroup,StoryBibleStore } from "../../db/storyBibleStore";
 import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import type { GateStatus } from "../license/license.gate";
-import { getTweak } from "../settings/settings.store";
+import { BRAINSTORM_ADD_CARD, getTweak } from "../settings/settings.store";
 import type { SessionResult } from "./ai.client";
 import { computeUsedPct, shouldRetryBalance } from "./ai.helpers";
 import {
@@ -46,6 +47,8 @@ import { useByokKeys } from "./useByokKeys";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const INIT_AI_CTX: AiCtxConfig = { extraSceneIds: [], offEntityNames: [], about: true, boundary: null };
+/** P5 — add-to-board handlers keyed by view; missing key returns undefined (button hidden outside brainstorm). */
+const BOARD_ADD_HANDLERS: Partial<Record<AppView, (m: AiMessageRecord) => void>> = { brainstorm: (m) => window.dispatchEvent(new CustomEvent(BRAINSTORM_ADD_CARD, { detail: { text: m.text } })) };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,7 +70,7 @@ export interface AssistantPanelProps {
   plan: "active" | "trial" | "expired"; offline: boolean; consented: boolean;
   sel?: ProseSelection | null; initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
   onOpenConsent: () => void; onOpenContext: () => void; onToast: (msg: string) => void; onSaveNote: (body: string) => void;
-  onStreamDone?: () => void; onNetworkError?: () => void;
+  onAddToBoard?: (m: AiMessageRecord) => void; onStreamDone?: () => void; onNetworkError?: () => void;
   monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
   convStore?: AiConversationStore;
   projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; gateStatus?: GateStatus; // W49/Fix2: byok key map + app trial state
@@ -82,7 +85,7 @@ export interface SlotHostProps {
   activeProjectId: string | null;
   storyBibleStore: StoryBibleStore;
   /** License gate status; controls whether trial AI mint is attempted. Optional for backward compat. */
-  aiEnabled: boolean;  gateStatus?: GateStatus;
+  view?: AppView; aiEnabled: boolean;  gateStatus?: GateStatus;
 }
 
 interface InspectorTabsProps { tab: "scene" | "assistant"; setTab: (t: "scene" | "assistant") => void; scenePane: ReactNode; assistantPane: ReactNode; }
@@ -97,7 +100,7 @@ interface SlotPanelProps {
   sceneId: string | null; sceneName: string | null; sceneWords: number;
   sceneEntityGroups: SceneEntityGroup[]; doc: Y.Doc | null | undefined; store: StoryBibleStore;
   onOpenConsent: () => void; onOpenContext: () => void; onToast: (msg: string) => void; onSaveNote: (body: string) => void;
-  convStore: AiConversationStore; projectId: string | null;
+  convStore: AiConversationStore; projectId: string | null; onAddToBoard?: (m: AiMessageRecord) => void;
   usedPct: number; creditsBalance: number; resetLabel: string;
   plan: "active" | "trial" | "expired"; offline: boolean;
   onStreamDone: () => void; onNetworkError?: () => void;
@@ -186,7 +189,7 @@ function PanelReady(p: AssistantPanelProps) {
       <PanelThread msgCount={msgCount} lastLen={lastLen} activeId={p.activeId} listMode={listMode}
         active={active} convos={p.convos} verb={verb} setVerb={setVerb} onOpen={p.setActiveId}
         onNew={newConvo} onDelete={deleteConvo} streamingId={streamingId} onCopy={copyMsg}
-        onSaveNote={saveMsg} onStarter={(s) => { setPrompt(s); footerRef.current?.focusInput(); }} onFocusInput={() => footerRef.current?.focusInput()} />
+        onSaveNote={saveMsg} onAddToBoard={p.onAddToBoard} onStarter={(s) => { setPrompt(s); footerRef.current?.focusInput(); }} onFocusInput={() => footerRef.current?.focusInput()} />
       {!listMode && <PanelFoot {...footProps} />}
     </div>
   );
@@ -336,7 +339,7 @@ function SlotPanel(p: SlotPanelProps) {
     consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
     onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError} onBalanceAfter={p.onBalanceAfter} monthlyAllowance={p.monthlyAllowance}
     convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokActive={p.byokActive} byokKeys={p.byokKeys}
-    gateStatus={p.gateStatus}
+    gateStatus={p.gateStatus} onAddToBoard={p.onAddToBoard}
   /></AiErrorBoundary>;
 }
 
@@ -368,7 +371,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         convStore={convStore} projectId={p.activeProjectId}
         usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline}
         onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} onBalanceAfter={applyBalance} monthlyAllowance={monthlyAllowance} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys}
-        gateStatus={p.gateStatus} />
+        gateStatus={p.gateStatus} onAddToBoard={BOARD_ADD_HANDLERS[p.view!]} />
     } />
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
     {overlay === "context" && <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}

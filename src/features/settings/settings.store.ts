@@ -19,6 +19,8 @@ export const SETTINGS_NS = "writing.";
 export const AI_REPLAY_EVENT = "ai:replay-walkthrough";
 /** Custom event dispatched by the editor context menu; AiSlot listens to seed a new ask. */
 export const AI_ASK_FROM_EDITOR = "ai:ask-from-editor";
+/** Custom event dispatched by AiSlot (brainstorm view); BoardCanvasBody listens to add a card. */
+export const BRAINSTORM_ADD_CARD = "brainstorm:add-card";
 
 // ── Wave-16 cross-wave key contract ──────────────────────────────────────────
 // Wave 16 (Spelling & Grammar) imports these exact constants as its read contract.

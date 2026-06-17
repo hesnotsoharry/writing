@@ -133,6 +133,25 @@ export function createEntityCard(
   doc.getXmlFragment(`card-${cardId}`);
 }
 
+/**
+ * Write plain text into an existing card's top-level XmlFragment (P5 — WRITE direction).
+ *
+ * Splits on newlines, skips blank/whitespace-only lines, and inserts each non-empty
+ * line as a <paragraph><text> node — the schema TipTap Collaboration expects on a
+ * top-level fragment.  Must be called AFTER createBoardCard so the fragment exists.
+ * Does NOT wrap in a transaction; callers combining with createBoardCard should transact.
+ */
+export function plainTextToCardFragment(doc: Y.Doc, cardId: string, text: string): void {
+  const frag = doc.getXmlFragment(`card-${cardId}`);
+  for (const line of text.split("\n").filter((l) => l.trim())) {
+    const para = new Y.XmlElement("paragraph");
+    const t = new Y.XmlText();
+    t.insert(0, line);
+    para.insert(0, [t]);
+    frag.push([para]);
+  }
+}
+
 // ── Phase 6 helpers for getCardText ──────────────────────────────────────────
 
 function xmlTextContent(node: Y.XmlText): string {

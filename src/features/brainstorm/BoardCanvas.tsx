@@ -15,10 +15,10 @@ import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import { SqliteSceneDocStore } from "../../db/sqliteSceneDocStore";
 import type { CustomEntityType, Entity, StoryBibleStore } from "../../db/storyBibleStore";
-import { AI_ASK_FROM_EDITOR } from "../settings/settings.store";
+import { AI_ASK_FROM_EDITOR, BRAINSTORM_ADD_CARD } from "../settings/settings.store";
 import { type AnyCardData, type DocToNodesCallbacks, mergeEditRequests, nextCardFlowPosition, resolveDestLabel, type ScreenToFlowPos, useBoardCallbacks, useContextMenu, useEditRequests, useZOrderByArea } from "./boardCanvasHooks";
 import { BoundContextMenu } from "./BoardContextMenu";
-import { addConnection, createBoardCard, createEntityCard, getCardText, markCardGraduated, removeCard, removeConnection, removeConnectionsForCard, updateCardPosition } from "./boardDoc";
+import { addConnection, createBoardCard, createEntityCard, getCardText, markCardGraduated, plainTextToCardFragment, removeCard, removeConnection, removeConnectionsForCard, updateCardPosition } from "./boardDoc";
 import { CardNode, type CardNodeData } from "./CardNode";
 import { EntityCardNode, type EntityCardNodeData } from "./EntityCardNode";
 import { EntityPicker } from "./EntityPicker";
@@ -306,6 +306,16 @@ interface BoardCanvasProps {
   onViewChange?: (view: AppView) => void; onTreeChanged?: () => void; boardName?: string;
 }
 
+/** P5 WRITE — "brainstorm:add-card" window event → new card+text on the Yjs doc in one transaction. */
+function useBrainstormAddCard(doc: Y.Doc, screenToFlowPos: ScreenToFlowPos, wrapRef: { current: HTMLDivElement | null }, nodeCount: number) {
+  useEffect(() => {
+    const handler = (e: Event) => { const text = (e as CustomEvent<{ text: string }>).detail?.text;
+      if (!text?.trim()) return; const id = crypto.randomUUID();
+      const pos = nextCardFlowPosition(screenToFlowPos, wrapRef.current, nodeCount); doc.transact(() => { createBoardCard(doc, id, pos); plainTextToCardFragment(doc, id, text); }); };
+    window.addEventListener(BRAINSTORM_ADD_CARD, handler); return () => window.removeEventListener(BRAINSTORM_ADD_CARD, handler);
+  }, [doc, nodeCount, screenToFlowPos, wrapRef]);
+}
+
 // ── BoardEmptyState ───────────────────────────────────────────────────────────
 
 function BoardEmptyState() {
@@ -336,8 +346,8 @@ function BoardCanvasBody({ doc, storyBibleStore, projectId, selectedSceneId, liv
   const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length, screenToFlowPosition, wrapRef);
   const { displayNodes, displayEdges, onNodeMouseEnter, onNodeMouseLeave } = useHoverHighlight(nodes, edges);
   const toggleBtnRef = useRef<HTMLButtonElement>(null); const { editRequestMap, requestEdit } = useEditRequests();
-  const mergedNodes = useMemo(() => mergeEditRequests(displayNodes, editRequestMap), [displayNodes, editRequestMap]);
-  const finalNodes = useZOrderByArea(mergedNodes);
+  const finalNodes = useZOrderByArea(useMemo(() => mergeEditRequests(displayNodes, editRequestMap), [displayNodes, editRequestMap]));
+  useBrainstormAddCard(doc, screenToFlowPosition, wrapRef, nodes.length);
   return (
     <div ref={wrapRef} className="board-canvas-wrap">
       <BoardToolbar onAddCard={handleAddCard} entities={entities} showPicker={showPicker}

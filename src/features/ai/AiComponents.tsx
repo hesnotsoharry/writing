@@ -78,7 +78,7 @@ export function AiReceipt({ ctx }: { ctx: ContextSnapshot | null }) {
 
 /* ---- Messages ---- */
 
-export function AiMessage({ msg, onCopy, onSaveNote }: { msg: AiMessageRecord; onCopy: (m: AiMessageRecord) => void; onSaveNote: (m: AiMessageRecord) => void }) {
+export function AiMessage({ msg, onCopy, onSaveNote, onAddToBoard }: { msg: AiMessageRecord; onCopy: (m: AiMessageRecord) => void; onSaveNote: (m: AiMessageRecord) => void; onAddToBoard?: (m: AiMessageRecord) => void }) {
   if (msg.role === "you") {
     return (
       <div className="ai-msg-you">
@@ -99,6 +99,7 @@ export function AiMessage({ msg, onCopy, onSaveNote }: { msg: AiMessageRecord; o
         <div className="ai-msg-acts">
           <div className="ai-msg-act" role="button" onClick={() => onCopy(msg)}><Icon name="copy" className="ic" /> Copy</div>
           <div className="ai-msg-act" role="button" onClick={() => onSaveNote(msg)}><Icon name="inbox" className="ic" /> Save to notes</div>
+          {onAddToBoard && <div className="ai-msg-act" role="button" onClick={() => onAddToBoard(msg)}><Icon name="plus" className="ic" /> Add to board</div>}
         </div>
       )}
       {!msg.streaming && msg.creditsCost != null && msg.creditsCost > 0 && (
