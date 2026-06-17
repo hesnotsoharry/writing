@@ -282,9 +282,9 @@ export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverN
           <AiPickerSection icon="info" label="About this manuscript" hint="rides along with every request">
             <AiAboutCard about={about} onSave={setAbout} key={aboutKey} />
           </AiPickerSection>
-          <AiPickerSection icon="fileText" label="Scenes" hint="the open scene is always included">
+          {scene.id !== "" && <AiPickerSection icon="fileText" label="Scenes" hint="the open scene is always included">
             <AiSceneTree tree={tree} scene={scene} extraSceneIds={aiCtx.extraSceneIds} onToggle={toggleScene} />
-          </AiPickerSection>
+          </AiPickerSection>}
           <AiPickerSection icon="users" label="Story Bible" hint="linked to the open scene · shield = never share">
             <AiEntityGrid entities={entities} offEntityNames={aiCtx.offEntityNames} neverNames={neverNames}
               onToggle={toggleEntity} onToggleNever={toggleNever} />

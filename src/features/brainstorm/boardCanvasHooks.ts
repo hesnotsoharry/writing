@@ -19,9 +19,9 @@ import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
 import type { Entity, StoryBibleStore } from "../../db/storyBibleStore";
 import { noteBodyToSceneDoc } from "../quickcapture/promoteNoteToScene";
+import { AI_ASK_FROM_EDITOR } from "../settings/settings.store";
 import type { ContextNodeKind } from "./BoardContextMenu";
-import { removeCard, removeConnection, removeConnectionsForCard } from "./boardDoc";
-import { clearCardGraduation, getCardText, markCardGraduated } from "./boardDoc";
+import { clearCardGraduation, gatherMultiCardText, getCardText, markCardGraduated, removeCard, removeConnection, removeConnectionsForCard } from "./boardDoc";
 import type { CardNodeData } from "./CardNode";
 import type { EntityCardNodeData } from "./EntityCardNode";
 
@@ -297,6 +297,36 @@ export function useContextMenu({ doc }: { doc: Y.Doc }) {
     setContextMenu({ kind: "edge", edgeId: edge.id, x, y });
   }, []);
   return { contextMenu, menuRef, wrapRef, closeContextMenu, handleDeleteCard, handleDeleteEdge, handleNodeContextMenu, handleEdgeContextMenu };
+}
+
+// ── useAskAiHandler ───────────────────────────────────────────────────────────
+
+/**
+ * Returns a stable `handleAskAi(id)` callback that derives the effective card
+ * set from the React Flow `nodes` array (which carries `node.selected`):
+ *
+ * - If 2+ nodes are selected AND the right-clicked `id` is among them, all
+ *   selected cards' text is concatenated (multi-card path).
+ * - Otherwise only the right-clicked card's text is used (single-card path —
+ *   byte-for-byte identical to the pre-W53 behavior).
+ *
+ * Entity-cards and empty cards are silently filtered by `gatherMultiCardText`.
+ */
+export function useAskAiHandler(doc: Y.Doc, nodes: Node<AnyCardData>[]): (id: string) => void {
+  return useCallback(
+    (id: string) => {
+      const selectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
+      const effectiveIds = selectedIds.length > 1 && selectedIds.includes(id) ? selectedIds : [id];
+      const text = gatherMultiCardText(doc, effectiveIds);
+      if (!text.trim()) return;
+      window.dispatchEvent(
+        new CustomEvent(AI_ASK_FROM_EDITOR, {
+          detail: { verb: "ask", sel: { text, words: text.trim().split(/\s+/).filter(Boolean).length } },
+        }),
+      );
+    },
+    [doc, nodes],
+  );
 }
 
 // ── useZOrderByArea ───────────────────────────────────────────────────────────

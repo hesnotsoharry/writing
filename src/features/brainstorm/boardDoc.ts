@@ -191,6 +191,20 @@ export function getCardText(doc: Y.Doc, cardId: string): string {
 }
 
 /**
+ * Gather and concatenate text from multiple cards for multi-card AI dispatch.
+ *
+ * Cards with no text (entity-cards, empty fragments) are silently skipped.
+ * Non-empty texts are joined with a horizontal-rule separator so the AI sees
+ * distinct card boundaries.
+ */
+export function gatherMultiCardText(doc: Y.Doc, ids: string[]): string {
+  return ids
+    .map((id) => getCardText(doc, id))
+    .filter((t) => t.trim())
+    .join("\n\n---\n\n");
+}
+
+/**
  * Restore a graduated card to editable state (F7 — un-promote).
  *
  * Removes `graduated`, `destinationKind`, and `destinationId` from the card's

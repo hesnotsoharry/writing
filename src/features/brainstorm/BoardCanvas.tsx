@@ -15,10 +15,10 @@ import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import { SqliteSceneDocStore } from "../../db/sqliteSceneDocStore";
 import type { CustomEntityType, Entity, StoryBibleStore } from "../../db/storyBibleStore";
-import { AI_ASK_FROM_EDITOR, BRAINSTORM_ADD_CARD } from "../settings/settings.store";
-import { type AnyCardData, type DocToNodesCallbacks, mergeEditRequests, nextCardFlowPosition, resolveDestLabel, type ScreenToFlowPos, useBoardCallbacks, useContextMenu, useEditRequests, useZOrderByArea } from "./boardCanvasHooks";
+import { BRAINSTORM_ADD_CARD } from "../settings/settings.store";
+import { type AnyCardData, type DocToNodesCallbacks, mergeEditRequests, nextCardFlowPosition, resolveDestLabel, type ScreenToFlowPos, useAskAiHandler, useBoardCallbacks, useContextMenu, useEditRequests, useZOrderByArea } from "./boardCanvasHooks";
 import { BoundContextMenu } from "./BoardContextMenu";
-import { addConnection, createBoardCard, createEntityCard, getCardText, markCardGraduated, plainTextToCardFragment, removeCard, removeConnection, removeConnectionsForCard, updateCardPosition } from "./boardDoc";
+import { addConnection, createBoardCard, createEntityCard, markCardGraduated, plainTextToCardFragment, removeCard, removeConnection, removeConnectionsForCard, updateCardPosition } from "./boardDoc";
 import { CardNode, type CardNodeData } from "./CardNode";
 import { EntityCardNode, type EntityCardNodeData } from "./EntityCardNode";
 import { EntityPicker } from "./EntityPicker";
@@ -336,8 +336,7 @@ function BoardCanvasBody({ doc, storyBibleStore, projectId, selectedSceneId, liv
   const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, [], [], { tree: undefined }));
   const [edges, setEdges] = useState<Edge[]>(() => docToEdges(doc));
   const { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker } = useSendToScene(doc, selectedSceneId, liveDoc);
-  const handleAskAi = useCallback((id: string) => { const t = getCardText(doc, id);
-    if (t.trim()) window.dispatchEvent(new CustomEvent(AI_ASK_FROM_EDITOR, { detail: { verb: "ask", sel: { text: t, words: t.trim().split(/\s+/).filter(Boolean).length } } })); }, [doc]);
+  const handleAskAi = useAskAiHandler(doc, nodes);
   const { callbacksRef } = useBoardCallbacks({ doc, sceneDocStore, storyBibleStore, projectId,
     tree, onSendToSceneRef, entitiesRef, onSelectScene, onOpenEntry, onViewChange, onTreeChanged, onAskAi: handleAskAi });
   const { entities } = useEntityLoader(doc, storyBibleStore, projectId, { setNodes, callbacksRef, entitiesRef, customTypesRef });
