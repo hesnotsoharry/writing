@@ -91,11 +91,19 @@ Five user-facing improvements continuing the W52 AI-context-control theme:
 **Consequences:** Commits to a new `boardDoc.ts` helper; card-as-context piggybacks on attachedSel's {text, words} shape (no rect).
 **Enforcement:** advisory-only (unit test on `plainTextToCardFragment` round-trip via `getCardText`).
 
+### Decision 5: Item-5 cross-view bridge + v1 scoping (added after P4/P5 grounding)
+**Context:** The board `Y.Doc` lives in `BoardView` local state and never flows up to the AI panel's mount level, so the reply→card (write) path cannot prop-thread the board doc.
+**Pick:** Mirror the existing `AI_ASK_FROM_EDITOR` window-event decoupling. **Read (P4):** the card→context path dispatches `AI_ASK_FROM_EDITOR` with `{verb:"ask", sel:{text,words}}` from the card text — zero AI-panel-internal changes. **Write (P5):** a new `"brainstorm:add-card"` window event dispatched by `AiSlot`, handled inside `BoardCanvasBody` (which holds the board doc + React Flow context), which calls `createBoardCard` + new `plainTextToCardFragment` wrapped in `doc.transact`. **v1 scoping:** single-card context-menu target (React Flow `onSelectionChange` not wired → multi-select is a follow-up); one card per AI reply (paragraph-split is a follow-up); the "Add to board" button renders only when `p.view === "brainstorm"` (inert/confusing in editor view); the inspector **Scene tab is hidden in brainstorm** (no active scene) and the panel defaults to the Assistant tab.
+**Rationale:** The window-event bus is the codebase's established cross-view decoupling idiom; prop-threading the board doc is infeasible. v1 scoping ships the two-way bridge Cole asked for without speculative multi-select/split machinery.
+**Consequences:** Two new window-event channels; a new `boardDoc.ts` write primitive; the `AiSlot` "Add to board" button is brainstorm-view-gated. Multi-card-select and reply-splitting are deferred follow-ups.
+**Enforcement:** advisory-only (unit test on `plainTextToCardFragment` round-trip; the event wiring is smoke-confirmed by Cole).
+
 ## Status
-PLANNED. Phases not started.
+PLANNED. P1–P3 COMPLETE. P4–P5 in progress.
 
 ## Follow-up candidates
-_(none yet — populated during execution)_
+- AiContextPicker empty-scene section in brainstorm: when the AI panel is open in brainstorm (no active scene), the "Add About manuscript" ghost chip (`src/features/ai/AssistantPanel.parts.tsx:~162`) opens `AiContextPicker` with `scene={{ id: "", title: "", words: 0 }}`, so the picker's scene-specific section renders empty/blank. | why not in-wave: the clean fix is to conditionally hide the scene section inside the context-picker render path (AiContextPicker/AiSceneTree), which is outside P4's declared files and would expand the editor-panel surface. | present-harm: K2 — `src/features/ai/AssistantPanel.parts.tsx:162` ghost chip → `AiContextPicker` empty-scene render in brainstorm view (manuscript-About context itself IS useful in brainstorm; only the scene row is vestigial). Not a crash; cosmetic-but-visible.
+- Multi-card "Ask AI": v1 supports single-card via the context menu only; React Flow `onSelectionChange` is unwired. | why not in-wave: multi-select wiring + concatenation UX is its own slice. | present-harm: K3 — dated observation 2026-06-17, W53 P4 scope decision (Decision 5); users with multiple cards selected can only ask about the right-clicked one.
 
 ## Result
 _(populated at wave-end)_

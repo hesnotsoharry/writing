@@ -28,6 +28,7 @@ export interface BoardContextMenuProps {
   onSendToScene?: () => void;
   onPromoteToScene?: () => void;
   onPromoteToEntity?: (entityType: string) => void;
+  onAskAi?: () => void;
   /** graduated-only actions */
   onOpenDestination?: () => void;
   onRestoreCard?: () => void;
@@ -86,16 +87,18 @@ interface CardMenuRootProps {
   onSendToScene?: () => void;
   onPromoteToScene?: () => void;
   onPickEntityStep?: () => void;
+  onAskAi?: () => void;
   onDelete: () => void;
 }
 
-function CardMenuRoot({ onEdit, onSendToScene, onPromoteToScene, onPickEntityStep, onDelete }: CardMenuRootProps) {
+function CardMenuRoot({ onEdit, onSendToScene, onPromoteToScene, onPickEntityStep, onAskAi, onDelete }: CardMenuRootProps) {
   return (
     <>
       {onEdit && <CtxItem label="Edit" onClick={onEdit} />}
       {onSendToScene && <CtxItem label="Send to scene…" onClick={onSendToScene} />}
       {onPromoteToScene && <CtxItem label="Promote to scene" onClick={onPromoteToScene} />}
       {onPickEntityStep && <CtxItem label="Promote to entity…" onClick={onPickEntityStep} />}
+      {onAskAi && <CtxItem label="Ask AI about this card" onClick={onAskAi} />}
       <CtxSep />
       <CtxItem label="Delete" onClick={onDelete} />
     </>
@@ -112,6 +115,7 @@ interface ContentProps {
   onSendToScene?: () => void;
   onPromoteToScene?: () => void;
   onPromoteToEntity?: (type: string) => void;
+  onAskAi?: () => void;
   onOpenDestination?: () => void;
   onRestoreCard?: () => void;
   onOpenInBible?: () => void;
@@ -119,7 +123,7 @@ interface ContentProps {
 }
 
 function ContextContent({ nodeKind, step, setStep, onEdit, onSendToScene, onPromoteToScene,
-  onPromoteToEntity, onOpenDestination, onRestoreCard, onOpenInBible, onDelete }: ContentProps) {
+  onPromoteToEntity, onAskAi, onOpenDestination, onRestoreCard, onOpenInBible, onDelete }: ContentProps) {
   if (nodeKind === "graduated") {
     return (
       <>
@@ -146,7 +150,7 @@ function ContextContent({ nodeKind, step, setStep, onEdit, onSendToScene, onProm
   return (
     <CardMenuRoot onEdit={onEdit} onSendToScene={onSendToScene} onPromoteToScene={onPromoteToScene}
       onPickEntityStep={onPromoteToEntity ? () => setStep("entity-type") : undefined}
-      onDelete={onDelete} />
+      onAskAi={onAskAi} onDelete={onDelete} />
   );
 }
 
@@ -154,7 +158,7 @@ function ContextContent({ nodeKind, step, setStep, onEdit, onSendToScene, onProm
 
 export function BoardContextMenu({
   x, y, nodeKind, menuRef,
-  onEdit, onSendToScene, onPromoteToScene, onPromoteToEntity,
+  onEdit, onSendToScene, onPromoteToScene, onPromoteToEntity, onAskAi,
   onOpenDestination, onRestoreCard, onOpenInBible, onDelete,
 }: BoardContextMenuProps) {
   const [step, setStep] = useState<"root" | "entity-type">("root");
@@ -162,7 +166,7 @@ export function BoardContextMenu({
     <div ref={menuRef} className="board-ctx-menu" style={{ left: x, top: y }}>
       <ContextContent nodeKind={nodeKind} step={step} setStep={setStep}
         onEdit={onEdit} onSendToScene={onSendToScene} onPromoteToScene={onPromoteToScene}
-        onPromoteToEntity={onPromoteToEntity} onOpenDestination={onOpenDestination}
+        onPromoteToEntity={onPromoteToEntity} onAskAi={onAskAi} onOpenDestination={onOpenDestination}
         onRestoreCard={onRestoreCard} onOpenInBible={onOpenInBible} onDelete={onDelete} />
     </div>
   );
@@ -196,6 +200,7 @@ export function BoundContextMenu({ cm, menuRef, close, cbs, onDelete, onEdit, on
       onSendToScene={() => { cbs.current.onSendToScene?.(node.nodeId); close(); }}
       onPromoteToScene={() => { cbs.current.onPromoteToScene?.(node.nodeId); close(); }}
       onPromoteToEntity={(t) => { cbs.current.onPromoteToEntity?.(node.nodeId, t); close(); }}
+      onAskAi={cbs.current.onAskAi ? () => { cbs.current.onAskAi!(node.nodeId); close(); } : undefined}
       onOpenDestination={node.destKind && node.destId ? () => { cbs.current.onNavigateToDestination?.(node.destKind!, node.destId!); close(); } : undefined}
       onRestoreCard={() => { cbs.current.onClearGraduation?.(node.nodeId); close(); }}
       onOpenInBible={node.entityRef ? () => { cbs.current.onNavigateToDestination?.("entity", node.entityRef!); close(); } : undefined}

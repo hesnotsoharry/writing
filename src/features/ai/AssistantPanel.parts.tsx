@@ -105,6 +105,11 @@ function buildLsCheckoutUrl(variant: string | undefined, licenseKey?: string): s
   return licenseKey ? `${url}?checkout[custom][license_key]=${encodeURIComponent(licenseKey)}` : url;
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Returns "scene" or "scenes" depending on count — removes ternary from ContextStripPanel to stay under complexity 10. */
+function sceneLabel(n: number): string { return n === 1 ? "scene" : "scenes"; }
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 export function OfflineBanner() {
@@ -130,13 +135,13 @@ export function ContextStripPanel(p: CtxStripProps) {
     <>
       <div className="ai-ctx-label">
         <Icon name="shield" className="ic" /> What I can see
-        <span className="adjust" role="button" onClick={p.onOpenContext}>Adjust</span>
+        {p.sceneName != null && <span className="adjust" role="button" onClick={p.onOpenContext}>Adjust</span>}
       </div>
       <div className="ai-chips">
         {p.sceneName && <span className="ai-chip ai-chip--scene"><Icon name="fileText" className="ic" /><span>{p.sceneName}</span></span>}
         {p.extras.length > 0 && (
           <span className="ai-chip ai-chip--more" role="button" onClick={p.onOpenContext}>
-            <Icon name="book" className="ic" /><span>+{p.extras.length} scene{p.extras.length > 1 ? "s" : ""}</span>
+            <Icon name="book" className="ic" /><span>+{p.extras.length} {sceneLabel(p.extras.length)}</span>
           </span>
         )}
         {p.linked.map((n) => <span className="ai-chip" key={n}><Icon name="user" className="ic" /><span>{n}</span></span>)}

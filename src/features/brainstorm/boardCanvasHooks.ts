@@ -44,6 +44,8 @@ export interface DocToNodesCallbacks {
   onNavigateToDestination?: (kind: "scene" | "entity", id: string) => void;
   /** F7: restore a graduated card to editable state. */
   onClearGraduation?: (cardId: string) => void;
+  /** W53 P4: open a fresh AI conversation seeded with the card's text. */
+  onAskAi?: (cardId: string) => void;
 }
 
 // ── resolveDestLabel ──────────────────────────────────────────────────────────
@@ -135,11 +137,12 @@ export interface BoardCallbacksParams {
   entitiesRef: { current: Entity[] };
   onSelectScene?: (sceneId: string) => void; onOpenEntry?: (id: string, kind: string) => void;
   onViewChange?: (view: AppView) => void; onTreeChanged?: () => void;
+  onAskAi?: (cardId: string) => void;
 }
 
 export function useBoardCallbacks({
   doc, sceneDocStore, storyBibleStore, projectId, tree, onSendToSceneRef, entitiesRef,
-  onSelectScene, onOpenEntry, onViewChange, onTreeChanged,
+  onSelectScene, onOpenEntry, onViewChange, onTreeChanged, onAskAi,
 }: BoardCallbacksParams) {
   const callbacksRef = useRef<DocToNodesCallbacks>({ tree: undefined });
   const { handlePromoteToScene, handlePromoteToEntity } = usePromote({
@@ -167,9 +170,10 @@ export function useBoardCallbacks({
       onPromoteToEntity: handlePromoteToEntity,
       onNavigateToDestination: handleNavigateToDestination,
       onClearGraduation: handleClearGraduation,
+      onAskAi,
     };
   }, [tree, onSendToSceneRef, handlePromoteToScene, handlePromoteToEntity,
-    handleNavigateToDestination, handleClearGraduation]);
+    handleNavigateToDestination, handleClearGraduation, onAskAi]);
   return { callbacksRef };
 }
 

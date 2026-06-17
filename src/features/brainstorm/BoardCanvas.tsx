@@ -15,9 +15,10 @@ import type { BinderTree } from "../../binder/buildTree";
 import { Icon } from "../../components/Icon";
 import { SqliteSceneDocStore } from "../../db/sqliteSceneDocStore";
 import type { CustomEntityType, Entity, StoryBibleStore } from "../../db/storyBibleStore";
+import { AI_ASK_FROM_EDITOR } from "../settings/settings.store";
 import { type AnyCardData, type DocToNodesCallbacks, mergeEditRequests, nextCardFlowPosition, resolveDestLabel, type ScreenToFlowPos, useBoardCallbacks, useContextMenu, useEditRequests, useZOrderByArea } from "./boardCanvasHooks";
 import { BoundContextMenu } from "./BoardContextMenu";
-import { addConnection, createBoardCard, createEntityCard, markCardGraduated, removeCard, removeConnection, removeConnectionsForCard, updateCardPosition } from "./boardDoc";
+import { addConnection, createBoardCard, createEntityCard, getCardText, markCardGraduated, removeCard, removeConnection, removeConnectionsForCard, updateCardPosition } from "./boardDoc";
 import { CardNode, type CardNodeData } from "./CardNode";
 import { EntityCardNode, type EntityCardNodeData } from "./EntityCardNode";
 import { EntityPicker } from "./EntityPicker";
@@ -321,20 +322,20 @@ function BoardEmptyState() {
 function BoardCanvasBody({ doc, storyBibleStore, projectId, selectedSceneId, liveDoc, tree, onSelectScene, onOpenEntry, onViewChange, onTreeChanged, boardName }: BoardCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { contextMenu, menuRef, wrapRef, closeContextMenu, handleDeleteCard, handleDeleteEdge, handleNodeContextMenu, handleEdgeContextMenu } = useContextMenu({ doc });
-  const entitiesRef = useRef<Entity[]>([]);
-  const customTypesRef = useRef<CustomTypePick[]>([]);
+  const entitiesRef = useRef<Entity[]>([]); const customTypesRef = useRef<CustomTypePick[]>([]);
   const [nodes, setNodes] = useState<Node<AnyCardData>[]>(() => docToNodes(doc, [], [], { tree: undefined }));
   const [edges, setEdges] = useState<Edge[]>(() => docToEdges(doc));
   const { pendingSendCardId, onSendToSceneRef, handlePickScene, closePicker } = useSendToScene(doc, selectedSceneId, liveDoc);
+  const handleAskAi = useCallback((id: string) => { const t = getCardText(doc, id);
+    if (t.trim()) window.dispatchEvent(new CustomEvent(AI_ASK_FROM_EDITOR, { detail: { verb: "ask", sel: { text: t, words: t.trim().split(/\s+/).filter(Boolean).length } } })); }, [doc]);
   const { callbacksRef } = useBoardCallbacks({ doc, sceneDocStore, storyBibleStore, projectId,
-    tree, onSendToSceneRef, entitiesRef, onSelectScene, onOpenEntry, onViewChange, onTreeChanged });
+    tree, onSendToSceneRef, entitiesRef, onSelectScene, onOpenEntry, onViewChange, onTreeChanged, onAskAi: handleAskAi });
   const { entities } = useEntityLoader(doc, storyBibleStore, projectId, { setNodes, callbacksRef, entitiesRef, customTypesRef });
   const { onNodesChange, onNodeDragStop, handleNodesDelete, handleAddCard } = useCanvasHandlers(doc, setNodes, nodes.length, { entitiesRef, customTypesRef, callbacksRef, wrapRef, screenToFlowPos: screenToFlowPosition });
   const { onEdgesChange, onConnect, onEdgesDelete } = useEdgeHandlers(doc, setEdges);
   const { showPicker, setShowPicker, handleEntityPick } = useEntityPicker(doc, nodes.length, screenToFlowPosition, wrapRef);
   const { displayNodes, displayEdges, onNodeMouseEnter, onNodeMouseLeave } = useHoverHighlight(nodes, edges);
-  const toggleBtnRef = useRef<HTMLButtonElement>(null);
-  const { editRequestMap, requestEdit } = useEditRequests();
+  const toggleBtnRef = useRef<HTMLButtonElement>(null); const { editRequestMap, requestEdit } = useEditRequests();
   const mergedNodes = useMemo(() => mergeEditRequests(displayNodes, editRequestMap), [displayNodes, editRequestMap]);
   const finalNodes = useZOrderByArea(mergedNodes);
   return (

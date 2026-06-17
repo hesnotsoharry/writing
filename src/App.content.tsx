@@ -48,6 +48,10 @@ import { TitleBar } from "./shell/TitleBar";
 import { useEditorStyle } from "./theme/useEditorStyle";
 import { useMotion } from "./theme/useMotion";
 
+// ── Inspector view allowlist (brainstorm + editor show the right column) ──────
+
+const INSPECTOR_VIEWS = new Set<AppView>(["editor", "brainstorm"]);
+
 // ── Goal context menu ────────────────────────────────────────────────────────
 
 const appGoalsStore = new SqliteGoalsStore();
@@ -187,8 +191,7 @@ interface SideSlotsProps {
   onGoalMenu?: (e: React.MouseEvent, goal: GoalRecord) => void;
   showSidePanels: boolean; view: AppView;
   onOpenEntry: (id: string, kind: string) => void;
-  historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void;
-  onInsertAtCaret?: (name: string) => void;
+  historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void; onInsertAtCaret?: (name: string) => void;
   onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null;  aiEnabled: boolean;  gateStatus?: "checking" | "needed" | "trial" | "cleared";
 }
 
@@ -203,7 +206,7 @@ function buildSideSlots(p: SideSlotsProps) {
         onOpenArchive={() => p.overlays.setShowArchive(true)}
         onOpenBrainstorm={p.onOpenBrainstorm} activeBoardId={p.view === "brainstorm" ? (p.selectedBoardId ?? null) : null} />
     : null;
-  const base = (p.showSidePanels && p.view === "editor" && !!p.activeProjectId)
+  const base = (p.view === "editor" && !!p.activeProjectId)
     ? <SceneInspector store={p.storyBibleStore} projectId={p.activeProjectId!}
         sceneId={p.selectedSceneId} scene={p.activeScene} refreshKey={p.linksVersion}
         liveWordCount={p.liveWordCount} manuscriptTotal={p.manuscriptTotal}
@@ -216,7 +219,7 @@ function buildSideSlots(p: SideSlotsProps) {
           p.onOpenEntry(entityId, kind);
         }} />
     : null;
-  const inspectorSlot = base ? wrapInspectorSlot(base, p) : null;
+  const inspectorSlot = (p.showSidePanels && !!p.activeProjectId && INSPECTOR_VIEWS.has(p.view)) ? wrapInspectorSlot(base, p) : null;
   return { binderSlot, inspectorSlot };
 }
 

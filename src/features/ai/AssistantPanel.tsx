@@ -210,14 +210,14 @@ export function InspectorTabs({ tab, setTab, scenePane, assistantPane }: Inspect
   return (
     <div className="panel-inspector">
       <div className="insp-tabs">
-        <div className={"insp-tab" + (tab === "scene" ? " on" : "")} role="button" onClick={() => setTab("scene")}>
+        {scenePane != null && <div className={"insp-tab" + (tab === "scene" ? " on" : "")} role="button" onClick={() => setTab("scene")}>
           <Icon name="fileText" className="ic" /> Scene
-        </div>
+        </div>}
         <div className={"insp-tab" + (tab === "assistant" ? " on" : "")} role="button" onClick={() => setTab("assistant")}>
           <Icon name="sparkle" className="ic" /> Assistant
         </div>
       </div>
-      <div className="insp-pane" hidden={tab !== "scene"}>{scenePane}</div>
+      {scenePane != null && <div className="insp-pane" hidden={tab !== "scene"}>{scenePane}</div>}
       <div className="insp-pane" hidden={tab !== "assistant"}>{assistantPane}</div>
     </div>
   );
@@ -342,25 +342,23 @@ function SlotPanel(p: SlotPanelProps) {
 
 function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const [inspTab, setInspTab] = useState<"scene" | "assistant">("scene");
+  const tab = base != null ? inspTab : "assistant";
   const [overlay, setOverlay] = useState<"consent" | "context" | null>(null);
   const { convStore, convos, setConvos, activeId, setActiveId } = useConvoPersistence(p.activeProjectId);
-  const { about, saveAbout } = useManuscriptAbout(p.activeProjectId, p.storyBibleStore);
-  const [aiCtx, setAiCtx] = useState<AiCtxConfig>(INIT_AI_CTX);
+  const { about, saveAbout } = useManuscriptAbout(p.activeProjectId, p.storyBibleStore); const [aiCtx, setAiCtx] = useState<AiCtxConfig>(INIT_AI_CTX);
   // W52 Phase 4: exclusion refresh counter — bump after setEntityExclusion to reload entity groups.
   const [entityRefreshKey, setEntityRefreshKey] = useState(0);
-  const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab);
-  const consented = getTweak("aiConsentGiven", false);
+  const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab); const consented = getTweak("aiConsentGiven", false);
   const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance } = useAiBalance(consented, byokActive, p.gateStatus);
   const { panelKey, initialVerb, initialSel } = useAiPanelSeed(setInspTab, setActiveId);
-  const liveSel = useProseSelection();
-  const aiTree = toAiTree(p.tree);
+  const liveSel = useProseSelection(); const aiTree = toAiTree(p.tree);
   const sceneId = p.selectedSceneId; const sceneName = p.activeScene?.title ?? null; const sceneWords = p.activeScene?.word_count ?? 0;
   // D4: load raw entity groups; derive picker-facing list and persisted never-set.
   const sceneEntityGroups = useSceneEntityGroups(sceneId, p.storyBibleStore, entityRefreshKey);
   const allEntities = sceneEntityGroups.flatMap((g) => g.entities.filter((e) => e.exclude_from_ai !== true).map((e) => ({ id: e.id, name: e.name })));
   const { neverNames, toggleNever } = useToggleNever(sceneEntityGroups, p.storyBibleStore, setEntityRefreshKey);
   return (<>
-    <InspectorTabs tab={inspTab} setTab={setInspTab} scenePane={base} assistantPane={
+    <InspectorTabs tab={tab} setTab={setInspTab} scenePane={base} assistantPane={
       <SlotPanel key={panelKey} convos={convos} setConvos={setConvos} activeId={activeId} setActiveId={setActiveId}
         about={about} setAbout={saveAbout} aiCtx={aiCtx} setAiCtx={setAiCtx}
         neverNames={neverNames} toggleNever={toggleNever} consented={consented}
