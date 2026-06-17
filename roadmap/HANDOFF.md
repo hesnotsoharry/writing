@@ -4,7 +4,7 @@ updated: 2026-06-17
 ---
 
 ## Current state
-- Branch: master  ·  Latest commit: c068370  ·  v0.12.1 PUBLISHED (Cole ran publish.ps1) · v0.12.2 bumped, NOT yet published
+- Branch: master  ·  Latest commit: fd44826  ·  v0.12.2 PUBLISHED (Cole ran publish.ps1) · v0.12.3 bumped + tagged, NOT yet published
 - **W53 "Editor scene-header editing + AI context & brainstorm integration" SHIPPED + PUBLISHED (v0.12.1).**
   All 5 phases (one commit each):
   - P1 (e14b194): Inline-edit scene Title + Status from editor header
@@ -15,11 +15,14 @@ updated: 2026-06-17
 - **v0.12.2 (c068370) — the two W53 Phase-0 deferrals, now DONE (bumped, awaiting publish):**
   - Brainstorm AI picker hides the vestigial Scenes section when no active scene (About + Story Bible stay).
   - "Ask AI about this card" now spans the whole selection — multi-select + right-click concatenates all selected cards' text; single-card behavior unchanged. (gatherMultiCardText helper + useAskAiHandler reading React Flow node.selected; 8 tests.)
-- Gate results: tsc 0, eslint 0 (src/), touched-tests green. Six eval-harness failures (eval-runner.test.ts, scorer.test.ts) are W46-unrelated in-progress, untouched.
+- **v0.12.3 (fd44826) — AI panel now REFLECTS + TOGGLES the active scene's "Hidden from AI" state:**
+  - The exclude-from-AI state (header's "Hidden from AI" toggle, scenes.exclude_from_ai) now surfaces in the assistant panel and is togglable from two surfaces: the scene chip in the "What I can see" strip, and the active-scene row in the "Adjust" picker. Pure derive from activeScene.excludeFromAi (no setState-in-effect); both paths call the same binder setter the header uses.
+  - Refactor: readSceneExcluded + applySceneExclusionToggle moved to ai.helpers.ts (keeps AssistantPanel.tsx under the 300-line ceiling); three ai.helpers test mocks hardened to spread importOriginal. +15 seam tests incl. toggle-polarity assertions (review FLAG closed).
+- Gate results: tsc 0, eslint 0 (src/), full suite green except 6 pre-existing W46 eval-harness failures (eval-runner.test.ts, scorer.test.ts), untouched.
 - Active wave: NONE.
 
 ## Next 3 steps
-1. **Cole publishes v0.12.2:** version files already bumped to 0.12.2 in all 4 locations (package.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock, src-tauri/tauri.conf.json). `git tag v0.12.2`, then run `.\publish.ps1` interactively. Smoke before/after: brainstorm AI picker with no scene (no empty Scenes row), Shift-select 2+ cards → right-click → "Ask AI" carries all of them, single-card still works.
+1. **Cole publishes v0.12.3:** version files already bumped to 0.12.3 in all 4 locations (package.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock, src-tauri/tauri.conf.json) and tag v0.12.3 pushed. Run `.\publish.ps1` interactively. Smoke: open a scene → editor header "Hidden from AI" toggle → confirm the assistant panel's scene chip flips to "Hidden from AI" AND the "Adjust" picker's active-scene row shows the shield; click either to toggle back; confirm AI requests withhold the scene prose when hidden.
 2. **W46 eval-harness continues parallel:** panel-judge scoring pipeline on a separate thread (the 6 failing scorer/eval-runner tests are in-progress W46 rig-v2 work, not regressions).
 3. No queued app wave — next feature work is Cole's call.
 
