@@ -4,22 +4,24 @@ updated: 2026-06-17
 ---
 
 ## Current state
-- Branch: master  ·  Latest commit: c15bdeb  ·  Tag: v0.12.1
-- **W53 "Editor scene-header editing + AI context & brainstorm integration" SHIPPED TO MASTER.**
-  All 5 phases complete, one commit per phase, all passing gate suite:
+- Branch: master  ·  Latest commit: c068370  ·  v0.12.1 PUBLISHED (Cole ran publish.ps1) · v0.12.2 bumped, NOT yet published
+- **W53 "Editor scene-header editing + AI context & brainstorm integration" SHIPPED + PUBLISHED (v0.12.1).**
+  All 5 phases (one commit each):
   - P1 (e14b194): Inline-edit scene Title + Status from editor header
   - P2 (a49fac1): Block entire scene from AI — migration #19 adds scenes.exclude_from_ai column, placeholder "[this scene was withheld by the author]"
   - P3 (3f0bcc1): Selection sparkle icon opens ONE fresh conversation context, not the full AI conversation list
   - P4 (25160a1): AI panel accessible in brainstorm view; right-click card + "Ask AI about this card" opens conversation with card context
   - P5 (e8a972f): AI reply includes "Add to board" button; clicking creates new brainstorm card (seam test added c15bdeb)
-- Gate results: tsc 0, eslint 0, vitest 1797 pass. Six eval-harness test failures (eval-runner.test.ts, scorer.test.ts) are W46-unrelated in-progress, untouched.
-- **NOT YET PUBLISHED TO USERS.** Version v0.12.1 already bumped in all 4 config files (package.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock, src-tauri/tauri.conf.json). Cole's next action: git tag v0.12.1, then run `.\publish.ps1` interactively.
-- Active wave: NONE (W53 complete and wrapped)
+- **v0.12.2 (c068370) — the two W53 Phase-0 deferrals, now DONE (bumped, awaiting publish):**
+  - Brainstorm AI picker hides the vestigial Scenes section when no active scene (About + Story Bible stay).
+  - "Ask AI about this card" now spans the whole selection — multi-select + right-click concatenates all selected cards' text; single-card behavior unchanged. (gatherMultiCardText helper + useAskAiHandler reading React Flow node.selected; 8 tests.)
+- Gate results: tsc 0, eslint 0 (src/), touched-tests green. Six eval-harness failures (eval-runner.test.ts, scorer.test.ts) are W46-unrelated in-progress, untouched.
+- Active wave: NONE.
 
 ## Next 3 steps
-1. **Cole publishes v0.12.1 release:** (a) `git tag v0.12.1` (version files already bumped to 0.12.1 in all 4 locations). (b) Run `.\publish.ps1` interactively (launches Authenticode signing dialog, builds signed NSIS installer, uploads GitHub release, writes updater manifest to latest.json). (c) Smoke test flow before and after publish: editor-header title+status inline edit, AiShield toggle, selection→fresh-convo, brainstorm "Ask AI about this card", "Add to board" response flow (bidirectional).
-2. **Phase 0 inline items (both single-dispatch-clearable; do NOT file follow-up files):** (a) Cosmetic fix: AiContextPicker renders empty ghost chip when AI panel is open in brainstorm view with no active scene selected — add conditional-hide (AssistantPanel.parts.tsx near line 162, hide when scene context missing). (b) Multi-card Ask AI expansion: React Flow's `onSelectionChange` callback currently unwired; wire + concatenate multi-selected cards into Ask AI prompt (v1 only supports single right-clicked card now).
-3. **W46 eval-harness continues parallel:** Panel-judge scoring pipeline on separate thread (the 6 failing scorer/eval-runner tests are in-progress W46 rig-v2 work, not W53 regressions; expected to complete by morning).
+1. **Cole publishes v0.12.2:** version files already bumped to 0.12.2 in all 4 locations (package.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock, src-tauri/tauri.conf.json). `git tag v0.12.2`, then run `.\publish.ps1` interactively. Smoke before/after: brainstorm AI picker with no scene (no empty Scenes row), Shift-select 2+ cards → right-click → "Ask AI" carries all of them, single-card still works.
+2. **W46 eval-harness continues parallel:** panel-judge scoring pipeline on a separate thread (the 6 failing scorer/eval-runner tests are in-progress W46 rig-v2 work, not regressions).
+3. No queued app wave — next feature work is Cole's call.
 
 ## Active work
 - W53 complete; no wave currently in flight.
