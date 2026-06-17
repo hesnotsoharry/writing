@@ -11,9 +11,11 @@ import type { SqliteStoryBibleStore } from "./db/sqliteStoryBibleStore";
 import type { EditorFocusProps } from "./editor/Editor";
 import { Editor } from "./editor/Editor";
 import { usePageFlip } from "./editor/usePageFlip";
+import type { SceneStatus } from "./lib/status";
 
 export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, linksVersion,
   focusMode, typewriterOn, dimParagraphsOn, onOpenEntry, activeProjectId, onFindMentions, onRegisterInsert,
+  onRenameScene, onSetSceneStatus,
 }: {
   doc: Y.Doc | null;
   view: AppView;
@@ -25,6 +27,8 @@ export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, 
   activeProjectId?: string | null;
   onFindMentions?: (entityName: string) => void;
   onRegisterInsert?: (fn: (text: string) => void) => void;
+  onRenameScene?: (id: string, title: string) => void;
+  onSetSceneStatus?: (id: string, status: SceneStatus) => void;
 } & EditorFocusProps) {
   // captureProseRef: Editor writes its captureProse fn here; usePageFlip reads it.
   const captureProseRef = useRef<() => string>(() => "");
@@ -39,7 +43,8 @@ export function EditorPane({ doc, view, tree, selectedSceneId, storyBibleStore, 
             flip={flip} onAnimationEnd={onAnimationEnd} captureProseRef={captureProseRef}
             focusMode={focusMode} typewriterOn={typewriterOn} dimParagraphsOn={dimParagraphsOn}
             onOpenEntry={onOpenEntry} activeProjectId={activeProjectId ?? null}
-            onFindMentions={onFindMentions} onRegisterInsert={onRegisterInsert} />
+            onFindMentions={onFindMentions} onRegisterInsert={onRegisterInsert}
+            onRenameScene={onRenameScene} onSetSceneStatus={onSetSceneStatus} />
         : <div className="canvas-empty">Select a scene to start writing.</div>}
     </main>
   );

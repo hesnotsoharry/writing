@@ -15,7 +15,7 @@ import type { StoryBibleStore } from "../db/storyBibleStore";
 import { useAutolinkSettings } from "../features/settings/settings.store";
 import type { AlIndex } from "../lib/alBuildIndex";
 import { alBuildIndex } from "../lib/alBuildIndex";
-import { normalizeStatus, STATUS_META } from "../lib/status";
+import { normalizeStatus, type SceneStatus, STATUS_META } from "../lib/status";
 import { AutoLinkPeek } from "../storybible/AutoLinkPeek";
 import { activeEditorRef } from "./aiSafeSelection";
 import { makeCanvasFocusHandler } from "./canvasFocus";
@@ -251,10 +251,11 @@ interface CanvasWrapProps {
   storyBibleStore: StoryBibleStore;
   onOpenEntry: (id: string, kind: string) => void;
   onFindMentions?: (entityName: string) => void;
+  onRenameScene?: (id: string, title: string) => void;
+  onSetSceneStatus?: (id: string, status: SceneStatus) => void;
 }
 
-function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
-  visible, popoverProps, storyBibleStore, onOpenEntry, onFindMentions }: CanvasWrapProps) {
+function CanvasWrap({ editor, activeScene, liveWords, characters, locations, visible, popoverProps, storyBibleStore, onOpenEntry, onFindMentions, onRenameScene, onSetSceneStatus }: CanvasWrapProps) {
   const { peek, handleMouseOver, handleMouseOut, closePeek } = useAutoLinkHover();
   const [alMenu, setAlMenu] = useState<MenuDescriptor | null>(null);
   const [editorMenu, setEditorMenu] = useState<MenuDescriptor | null>(null);
@@ -279,8 +280,8 @@ function CanvasWrap({ editor, activeScene, liveWords, characters, locations,
       onContextMenu={handleEditorContextMenu}>
       {activeScene && (
         <EditorHeader chapterTitle={activeScene.chapterTitle} title={activeScene.scene.title}
-          status={normalizeStatus(activeScene.scene.status)}
-          words={liveWords} characters={characters} locations={locations} />
+          status={normalizeStatus(activeScene.scene.status)} words={liveWords} characters={characters} locations={locations}
+          onRenameTitle={onRenameScene ? (t) => onRenameScene(activeScene.scene.id, t) : undefined} onSetStatus={onSetSceneStatus ? (s) => onSetSceneStatus(activeScene.scene.id, s) : undefined} />
       )}
       <EditorContent editor={editor} className="editor-content-mount" />
       {editor && <FormatBubble editor={editor} />}
@@ -319,6 +320,8 @@ interface EditorProps extends EditorFocusProps {
   onOpenEntry?: (id: string, kind: string) => void;
   /** Find-mentions callback (opens Find & Replace); active project id for the AutoLink index; insert-at-caret registration fn. */
   onFindMentions?: (entityName: string) => void;  activeProjectId?: string | null;  onRegisterInsert?: (fn: (text: string) => void) => void;
+  onRenameScene?: (id: string, title: string) => void;
+  onSetSceneStatus?: (id: string, status: SceneStatus) => void;
 }
 
 /**
@@ -354,6 +357,7 @@ export function Editor({
   flip, onAnimationEnd, captureProseRef,
   focusMode = false, typewriterOn = true, dimParagraphsOn = true,
   onOpenEntry, onFindMentions, activeProjectId = null, onRegisterInsert,
+  onRenameScene, onSetSceneStatus,
 }: EditorProps) {
   const alIndex = useAutoLinkIndex(storyBibleStore, activeProjectId, linksVersion);
   const { editor, visible, popoverProps } = useEditorCore(
@@ -369,7 +373,8 @@ export function Editor({
     <div className="canvas-scroll" onClick={makeCanvasFocusHandler(editor)}>
       <CanvasWrap editor={editor} activeScene={activeScene} liveWords={liveWords}
         characters={characters} locations={locations} visible={visible} popoverProps={popoverProps}
-        storyBibleStore={storyBibleStore} onOpenEntry={handleOpenEntry} onFindMentions={onFindMentions} />
+        storyBibleStore={storyBibleStore} onOpenEntry={handleOpenEntry} onFindMentions={onFindMentions}
+        onRenameScene={onRenameScene} onSetSceneStatus={onSetSceneStatus} />
       {flip && <PageFlipLeaf key={flip.key} flip={flip} onAnimationEnd={onAnimationEnd} />}
     </div>
   );

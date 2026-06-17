@@ -241,7 +241,7 @@ interface ViewStageArgs {
   onDeleteEntity: (kind: string, id: string) => void;
   labelStore: LabelStore; ls: ReturnType<typeof useLabelState>; onTakeSnapshot?: (sceneId: string) => void; onOpenHistory?: (sceneId: string) => void;
   editorFocus?: { focusMode?: boolean; typewriterOn?: boolean; dimParagraphsOn?: boolean };
-  onFindMentions?: (entityName: string) => void;  onRegisterInsert?: (fn: (text: string) => void) => void;  brainstormBoardId?: string | null;
+  onFindMentions?: (entityName: string) => void;  onRegisterInsert?: (fn: (text: string) => void) => void;  brainstormBoardId?: string | null;  onRenameScene?: BinderCallbacks["onRenameScene"];  onSetSceneStatus?: BinderCallbacks["onSetSceneStatus"];
 }
 
 function makeViewStage(a: ViewStageArgs) {
@@ -256,7 +256,7 @@ function makeViewStage(a: ViewStageArgs) {
     labelStore: a.labelStore, labels: a.ls.labels, sceneLabels: a.ls.sceneLabels,
     outlinerSort: a.ls.outlinerSort, setOutlinerSort: a.ls.setOutlinerSort,
     outlinerRenaming: a.ls.outlinerRenaming, setOutlinerRenaming: a.ls.setOutlinerRenaming,
-    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, onTakeSnapshot: a.onTakeSnapshot, onOpenHistory: a.onOpenHistory, editorFocus: a.editorFocus, onFindMentions: a.onFindMentions, onRegisterInsert: a.onRegisterInsert, brainstormBoardId: a.brainstormBoardId,
+    onOpenLabelManager: () => a.ls.setShowLabelManager(true), onLabelsChanged: a.ls.refreshLabels, onTakeSnapshot: a.onTakeSnapshot, onOpenHistory: a.onOpenHistory, editorFocus: a.editorFocus, onFindMentions: a.onFindMentions, onRegisterInsert: a.onRegisterInsert, brainstormBoardId: a.brainstormBoardId, onRenameScene: a.onRenameScene, onSetSceneStatus: a.onSetSceneStatus,
   });
 }
 
@@ -295,7 +295,7 @@ function useAppContentSlots(props: AppContentProps) {
     view, doc, activeProjectId, storyBibleStore, onEntitiesChanged, tree, onSelectScene: selectSceneWithViewReset,
     onViewChange, selectedSceneId, linksVersion, reloadTree, dragCallbacks, onAddGoal,
     onArchiveScene: callbacks.onArchiveScene, onExport, entryStack, entryOrigin,
-    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onDeleteEntity, labelStore, ls, onTakeSnapshot: callbacks.onTakeSnapshot, onOpenHistory: callbacks.onOpenHistory, editorFocus, onFindMentions, onRegisterInsert, brainstormBoardId: selectedBoardId,
+    onOpenEntry, onPushEntry, onEntryBack, onExitEntry, onDeleteEntity, labelStore, ls, onTakeSnapshot: callbacks.onTakeSnapshot, onOpenHistory: callbacks.onOpenHistory, editorFocus, onFindMentions, onRegisterInsert, brainstormBoardId: selectedBoardId, onRenameScene: callbacks.onRenameScene, onSetSceneStatus: callbacks.onSetSceneStatus,
   });
   return {
     focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings,
