@@ -21,7 +21,7 @@ import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import type { GateStatus } from "../license/license.gate";
 import { BRAINSTORM_ADD_CARD, getTweak } from "../settings/settings.store";
 import type { SessionResult } from "./ai.client";
-import { computeUsedPct, shouldRetryBalance } from "./ai.helpers";
+import { applySceneExclusionToggle, computeUsedPct, readSceneExcluded, shouldRetryBalance } from "./ai.helpers";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
@@ -47,6 +47,7 @@ import { useByokKeys } from "./useByokKeys";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const INIT_AI_CTX: AiCtxConfig = { extraSceneIds: [], offEntityNames: [], about: true, boundary: null };
+
 /** P5 — add-to-board handlers keyed by view; missing key returns undefined (button hidden outside brainstorm). */
 const BOARD_ADD_HANDLERS: Partial<Record<AppView, (m: AiMessageRecord) => void>> = { brainstorm: (m) => window.dispatchEvent(new CustomEvent(BRAINSTORM_ADD_CARD, { detail: { text: m.text } })) };
 
@@ -72,7 +73,7 @@ export interface AssistantPanelProps {
   onOpenConsent: () => void; onOpenContext: () => void; onToast: (msg: string) => void; onSaveNote: (body: string) => void;
   onAddToBoard?: (m: AiMessageRecord) => void; onStreamDone?: () => void; onNetworkError?: () => void;
   monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
-  convStore?: AiConversationStore;
+  convStore?: AiConversationStore; sceneExcludedFromAi?: boolean; onToggleSceneExclusion?: () => void;
   projectId?: string | null; byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; gateStatus?: GateStatus; // W49/Fix2: byok key map + app trial state
 }
 
@@ -85,7 +86,7 @@ export interface SlotHostProps {
   activeProjectId: string | null;
   storyBibleStore: StoryBibleStore;
   /** License gate status; controls whether trial AI mint is attempted. Optional for backward compat. */
-  view?: AppView; aiEnabled: boolean;  gateStatus?: GateStatus;
+  view?: AppView; aiEnabled: boolean;  gateStatus?: GateStatus;  onSetSceneExcludedFromAi?: (id: string, exclude: boolean) => void;
 }
 
 interface InspectorTabsProps { tab: "scene" | "assistant"; setTab: (t: "scene" | "assistant") => void; scenePane: ReactNode; assistantPane: ReactNode; }
@@ -106,7 +107,7 @@ interface SlotPanelProps {
   onStreamDone: () => void; onNetworkError?: () => void;
   monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
   sel?: ProseSelection | null; initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
-  byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; gateStatus?: GateStatus; // W49/Fix2
+  byokActive: boolean; byokKeys: { anthropic: boolean; openai: boolean; local?: boolean }; gateStatus?: GateStatus; sceneExcludedFromAi?: boolean; onToggleSceneExclusion?: () => void; // W49/Fix2
 }
 
 // ── PanelReady (consented state) ──────────────────────────────────────────────
@@ -139,7 +140,7 @@ function PanelFoot({ p, ctx, attachedSel, setAttachedSel, footerRef, model, effe
     <div className="ai-foot">
       <ContextStripPanel sceneName={p.sceneName} extras={ctx.extras} linked={ctx.linked}
         attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
-        boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} />
+        boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} sceneExcludedFromAi={p.sceneExcludedFromAi} onToggleSceneExclusion={p.onToggleSceneExclusion} />
       <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
         prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb} model={effectiveByokModel} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
         est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokActive={p.byokActive} byokKeys={p.byokKeys} />
@@ -237,7 +238,6 @@ function useConvoPersistence(activeProjectId: string | null) {
   const convStore = useMemo(() => makeProductionAiConversationStore(), []);
   const [convos, setConvos] = useState<ConversationRecord[]>([]);
   const [activeId, setActiveId_] = useState<string | null>(null);
-
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -270,9 +270,7 @@ function useConvoPersistence(activeProjectId: string | null) {
 
   return { convStore, convos, setConvos, activeId, setActiveId };
 }
-
 // ── useAiBalance ──────────────────────────────────────────────────────────────
-
 /** Fetches balance on mount + on each refresh() call; derives meter + plan + offline state.
  *  When byokActive is true (any BYOK key present): skips all managed-meter fetches and returns
  *  safe no-op values so canCompose stays true (Decision 4). When gateStatus==='trial', allows
@@ -311,9 +309,7 @@ function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateS
   // D4: BYOK has no managed meter; return safe no-ops so canCompose stays true.
   return byokActive ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {}, monthlyAllowance: 0, applyBalance: () => {} } : { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance };
 }
-
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
-
 /** Derives neverNames from persisted exclude_from_ai and provides a toggleNever
  *  that persists via setEntityExclusion then bumps a refresh counter. */
 function useToggleNever(sceneEntityGroups: SceneEntityGroup[], store: SlotHostProps["storyBibleStore"], setEntityRefreshKey: React.Dispatch<React.SetStateAction<number>>) {
@@ -329,7 +325,6 @@ function useToggleNever(sceneEntityGroups: SceneEntityGroup[], store: SlotHostPr
   }, [sceneEntityGroups, store, setEntityRefreshKey]);
   return { neverNames, toggleNever };
 }
-
 function SlotPanel(p: SlotPanelProps) {
   return <AiErrorBoundary><AssistantPanel
     sceneId={p.sceneId} sceneName={p.sceneName} sceneWords={p.sceneWords} store={p.store} tree={p.aiTree} sceneEntityGroups={p.sceneEntityGroups}
@@ -339,7 +334,7 @@ function SlotPanel(p: SlotPanelProps) {
     consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
     onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError} onBalanceAfter={p.onBalanceAfter} monthlyAllowance={p.monthlyAllowance}
     convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokActive={p.byokActive} byokKeys={p.byokKeys}
-    gateStatus={p.gateStatus} onAddToBoard={p.onAddToBoard}
+    gateStatus={p.gateStatus} onAddToBoard={p.onAddToBoard} sceneExcludedFromAi={p.sceneExcludedFromAi} onToggleSceneExclusion={p.onToggleSceneExclusion}
   /></AiErrorBoundary>;
 }
 
@@ -355,7 +350,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance } = useAiBalance(consented, byokActive, p.gateStatus);
   const { panelKey, initialVerb, initialSel } = useAiPanelSeed(setInspTab, setActiveId);
   const liveSel = useProseSelection(); const aiTree = toAiTree(p.tree);
-  const sceneId = p.selectedSceneId; const sceneName = p.activeScene?.title ?? null; const sceneWords = p.activeScene?.word_count ?? 0;
+  const sceneId = p.selectedSceneId; const sceneName = p.activeScene?.title ?? null; const sceneWords = p.activeScene?.word_count ?? 0; const sceneExcludedFromAi = readSceneExcluded(p.activeScene);
   // D4: load raw entity groups; derive picker-facing list and persisted never-set.
   const sceneEntityGroups = useSceneEntityGroups(sceneId, p.storyBibleStore, entityRefreshKey);
   const allEntities = sceneEntityGroups.flatMap((g) => g.entities.filter((e) => e.exclude_from_ai !== true).map((e) => ({ id: e.id, name: e.name })));
@@ -371,18 +366,16 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         convStore={convStore} projectId={p.activeProjectId}
         usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline}
         onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} onBalanceAfter={applyBalance} monthlyAllowance={monthlyAllowance} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys}
-        gateStatus={p.gateStatus} onAddToBoard={BOARD_ADD_HANDLERS[p.view!]} />
+        gateStatus={p.gateStatus} onAddToBoard={BOARD_ADD_HANDLERS[p.view!]} sceneExcludedFromAi={sceneExcludedFromAi} onToggleSceneExclusion={() => applySceneExclusionToggle(p.onSetSceneExcludedFromAi, sceneId, sceneExcludedFromAi)} />
     } />
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
     {overlay === "context" && <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
       entities={allEntities} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
-      about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} model={getTweak("aiModel", DEFAULT_MODEL) as ManagedModel} monthlyAllowance={monthlyAllowance} />}
+      about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} model={getTweak("aiModel", DEFAULT_MODEL) as ManagedModel} monthlyAllowance={monthlyAllowance} excludeFromAi={sceneExcludedFromAi} onToggleSceneExclusion={() => applySceneExclusionToggle(p.onSetSceneExcludedFromAi, sceneId, sceneExcludedFromAi)} />}
     <AiToast msg={toast} />
   </>);
 }
-
 // ── wrapInspectorSlot ─────────────────────────────────────────────────────────
-
 /**
  * Wraps a SceneInspector node with the AI tab shell when aiEnabled is true.
  * Returns the base node unchanged when aiEnabled is false (all AI chrome gone).

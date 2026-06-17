@@ -1966,6 +1966,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-chip .ic { width: 10px; height: 10px; flex: none; }
 .ai-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ai-chip--scene { background: var(--accent-tint); color: var(--accent-deep); border-color: var(--accent-ring); font-weight: 500; }
+.ai-chip--withheld { background: var(--parchment-deep); color: var(--ink-3); border-color: var(--parchment-edge); font-weight: 500; }
+.ai-chip--withheld:hover { opacity: 0.8; cursor: pointer; }
+.ai-chip.clickable { cursor: pointer; }
+.ai-chip--scene.clickable:hover { opacity: 0.8; }
 .ai-chip--sel { background: var(--label-sea-tint, var(--parchment-deep)); border-color: transparent; font-weight: 500; }
 .ai-chip--ghost { background: transparent; border-style: dashed; color: var(--ink-4); cursor: pointer; }
 .ai-chip--ghost:hover { color: var(--accent); border-color: var(--accent-ring); }
@@ -2203,8 +2207,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-scenerow:hover { background: var(--parchment-deep); }
 .ai-scenerow .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ai-scenerow .wc { font-size: var(--text-2xs); color: var(--ink-4); }
-.ai-scenerow.current { color: var(--ink); font-weight: 500; cursor: default; }
+.ai-scenerow.current { color: var(--ink); font-weight: 500; cursor: pointer; }
 .ai-scenerow.current .nm::after { content: " · open scene"; color: var(--ink-4); font-weight: 400; font-size: var(--text-2xs); }
+.ai-scenerow.withheld { color: var(--ink-3); }
+.ai-scenerow-shield { width: 11px; height: 11px; color: var(--ink-3); flex: none; }
 .ai-check { flex: none; width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid var(--parchment-edge);
   display: grid; place-items: center; background: var(--paper); transition: all var(--dur-fast); }
 .ai-check.on { background: var(--accent); border-color: var(--accent); color: #fff; }

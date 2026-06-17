@@ -1,5 +1,21 @@
+import type { Scene } from "../../db/binderStore";
 import type { AiEstimateResult, ManagedModel, MeterStatus } from "./ai.types";
 import { MODEL_RATES, TYPICAL_REQUEST } from "./ai.types";
+
+/** Derive whether the active scene is withheld from AI (pre-migration scenes → false). */
+export const readSceneExcluded = (s: Scene | null | undefined): boolean => s?.excludeFromAi ?? false;
+
+/**
+ * Pure helper: applies the scene-exclusion toggle polarity — inverts the current
+ * state and calls onSet with the new value. Guards: only calls if sceneId is set.
+ */
+export function applySceneExclusionToggle(
+  onSet: ((id: string, exclude: boolean) => void) | undefined,
+  sceneId: string | null,
+  current: boolean,
+): void {
+  if (sceneId) onSet?.(sceneId, !current);
+}
 
 export interface EstimateParams {
   sceneWords: number;

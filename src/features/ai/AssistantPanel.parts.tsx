@@ -43,6 +43,8 @@ interface CtxStripProps {
   boundaryLabel: string | null;
   setAttachedSel: (s: Pick<ProseSelection, "text" | "words"> | null) => void;
   onOpenContext: () => void;
+  sceneExcludedFromAi?: boolean;
+  onToggleSceneExclusion?: () => void;
 }
 
 interface PanelFooterProps {
@@ -111,6 +113,26 @@ function buildLsCheckoutUrl(variant: string | undefined, licenseKey?: string): s
 /** Returns "scene" or "scenes" depending on count — removes ternary from ContextStripPanel to stay under complexity 10. */
 function sceneLabel(n: number): string { return n === 1 ? "scene" : "scenes"; }
 
+/** Scene chip in the context strip — handles both normal and hidden-from-AI states. */
+function SceneChip({ name, excluded, onToggle }: { name: string; excluded?: boolean; onToggle?: () => void }) {
+  if (excluded) {
+    return (
+      <span className={"ai-chip ai-chip--scene ai-chip--withheld" + (onToggle ? " clickable" : "")}
+        role={onToggle ? "button" : undefined} onClick={onToggle}
+        title="Scene is hidden from AI — click to include">
+        <Icon name="shieldOff" className="ic" /><span>Hidden from AI</span>
+      </span>
+    );
+  }
+  return (
+    <span className={"ai-chip ai-chip--scene" + (onToggle ? " clickable" : "")}
+      role={onToggle ? "button" : undefined} onClick={onToggle}
+      title={onToggle ? "Scene is visible to AI — click to hide" : undefined}>
+      <Icon name="fileText" className="ic" /><span>{name}</span>
+    </span>
+  );
+}
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 export function OfflineBanner() {
@@ -139,7 +161,7 @@ export function ContextStripPanel(p: CtxStripProps) {
         {p.sceneName != null && <span className="adjust" role="button" onClick={p.onOpenContext}>Adjust</span>}
       </div>
       <div className="ai-chips">
-        {p.sceneName && <span className="ai-chip ai-chip--scene"><Icon name="fileText" className="ic" /><span>{p.sceneName}</span></span>}
+        {p.sceneName && <SceneChip name={p.sceneName} excluded={p.sceneExcludedFromAi} onToggle={p.onToggleSceneExclusion} />}
         {p.extras.length > 0 && (
           <span className="ai-chip ai-chip--more" role="button" onClick={p.onOpenContext}>
             <Icon name="book" className="ic" /><span>+{p.extras.length} {sceneLabel(p.extras.length)}</span>

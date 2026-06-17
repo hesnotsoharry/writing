@@ -203,6 +203,7 @@ export interface AiSceneRow {
   id: string;
   title: string;
   words: number;
+  excludeFromAi?: boolean;
 }
 
 export interface AiChapterRow {

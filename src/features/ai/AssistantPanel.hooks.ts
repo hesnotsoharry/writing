@@ -132,9 +132,9 @@ export function toAiTree(tree: BinderTree): AiManuscriptTree {
   return {
     chapters: tree.chapters.map((ch) => ({
       id: ch.folder.id, title: ch.folder.title,
-      scenes: ch.scenes.map((s) => ({ id: s.id, title: s.title, words: s.word_count })),
+      scenes: ch.scenes.map((s) => ({ id: s.id, title: s.title, words: s.word_count, excludeFromAi: s.excludeFromAi })),
     })),
-    shortPieces: tree.shortPieces.map((s) => ({ id: s.id, title: s.title, words: s.word_count })),
+    shortPieces: tree.shortPieces.map((s) => ({ id: s.id, title: s.title, words: s.word_count, excludeFromAi: s.excludeFromAi })),
   };
 }
 

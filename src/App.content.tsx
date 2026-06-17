@@ -192,7 +192,7 @@ interface SideSlotsProps {
   showSidePanels: boolean; view: AppView;
   onOpenEntry: (id: string, kind: string) => void;
   historySnapshots?: Snapshot[]; onOpenHistory?: () => void; onTakeSnapshot?: () => void; onInsertAtCaret?: (name: string) => void;
-  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null;  aiEnabled: boolean;  gateStatus?: "checking" | "needed" | "trial" | "cleared";
+  onOpenBrainstorm?: (boardId: string) => void;  selectedBoardId?: string | null;  doc?: Y.Doc | null;  aiEnabled: boolean;  gateStatus?: "checking" | "needed" | "trial" | "cleared";  onSetSceneExcludedFromAi?: (id: string, exclude: boolean) => void;
 }
 
 function buildSideSlots(p: SideSlotsProps) {
@@ -289,7 +289,7 @@ function useAppContentSlots(props: AppContentProps) {
     manuscriptTotal, overlays, storyBibleStore, activeScene, linksVersion, liveWordCount,
     chapterId, chapterTotal, onAddGoal, onExport, onGoalMenu: openGoalMenu,
     showSidePanels, view, onOpenEntry, historySnapshots, onOpenHistory, onTakeSnapshot,
-    onInsertAtCaret, selectedBoardId, doc, aiEnabled, gateStatus,
+    onInsertAtCaret, selectedBoardId, doc, aiEnabled, gateStatus, onSetSceneExcludedFromAi: callbacks.onSetSceneExcludedFromAi,
     onOpenBrainstorm: (boardId: string) => { setSelectedBoardId(boardId); onViewChange("brainstorm"); } });
   const { onDeleteEntity } = makeEntityHandlers(storyBibleStore, onEntitiesChanged);  const ls = useLabelState(activeProjectId, labelStore);
   const editorFocus = { focusMode, typewriterOn: focusSettingsHook.settings.typewriter, dimParagraphsOn: focusSettingsHook.settings.dimParagraphs };  const onFindMentions = (n: string) => { setFindReplaceSeed?.(n); setShowFindReplace(true); };

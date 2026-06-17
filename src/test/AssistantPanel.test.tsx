@@ -144,7 +144,8 @@ vi.mock("../features/ai/ai.types", () => ({
   ],
 }));
 
-vi.mock("../features/ai/ai.helpers", () => ({
+vi.mock("../features/ai/ai.helpers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../features/ai/ai.helpers")>()),
   aiConvoId: () => "test-convo-id",
   aiMsgId: () => "test-msg-id",
   aiEstimate: vi.fn().mockReturnValue({ tokens: 100, pct: 1 }),

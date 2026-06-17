@@ -115,26 +115,36 @@ export function AiAboutCard({ about, onSave }: { about: ManuscriptAbout; onSave:
 
 /* ---- AiContextPicker sub-components ---- */
 
-interface SceneTreeProps { tree: AiManuscriptTree; scene: AiSceneRow; extraSceneIds: string[]; onToggle: (id: string) => void; }
+interface SceneTreeProps {
+  tree: AiManuscriptTree;
+  scene: AiSceneRow;
+  extraSceneIds: string[];
+  onToggle: (id: string) => void;
+  excludeFromAi?: boolean;
+  onToggleSceneExclusion?: () => void;
+}
 
-function AiSceneTree({ tree, scene, extraSceneIds, onToggle }: SceneTreeProps) {
+interface SceneRowArgs { s: AiSceneRow; isCur: boolean; on: boolean; curExcluded: boolean; onToggleSceneExclusion?: () => void; onToggle: (id: string) => void; }
+function renderSceneRow({ s, isCur, on, curExcluded, onToggleSceneExclusion, onToggle }: SceneRowArgs) {
+  const cls = "ai-scenerow" + (isCur ? " current" : "") + (curExcluded ? " withheld" : "");
+  return (
+    <div key={s.id} className={cls} role="button" onClick={isCur ? onToggleSceneExclusion : () => onToggle(s.id)}>
+      <span className={"ai-check" + (isCur ? " lock" : on ? " on" : "")}>{on && <Icon name="check" className="ic" />}</span>
+      <span className="nm">{s.title}</span>
+      {curExcluded && <span title="Hidden from AI"><Icon name="shieldOff" className="ic ai-scenerow-shield" /></span>}
+      <span className="wc">{(s.words || 0).toLocaleString()}</span>
+    </div>
+  );
+}
+
+function AiSceneTree({ tree, scene, extraSceneIds, onToggle, excludeFromAi, onToggleSceneExclusion }: SceneTreeProps) {
   const extraSet = new Set(extraSceneIds);
   return (
     <div className="ai-scenetree">
       {tree.chapters.map(ch => (
         <React.Fragment key={ch.id}>
           <div className="ai-chaprow">{ch.title}</div>
-          {ch.scenes.map(s => {
-            const isCur = s.id === scene.id;
-            const on = isCur || extraSet.has(s.id);
-            return (
-              <div key={s.id} className={"ai-scenerow" + (isCur ? " current" : "")} role="button" onClick={() => onToggle(s.id)}>
-                <span className={"ai-check" + (isCur ? " lock" : on ? " on" : "")}>{on && <Icon name="check" className="ic" />}</span>
-                <span className="nm">{s.title}</span>
-                <span className="wc">{(s.words || 0).toLocaleString()}</span>
-              </div>
-            );
-          })}
+          {ch.scenes.map(s => renderSceneRow({ s, isCur: s.id === scene.id, on: s.id === scene.id || extraSet.has(s.id), curExcluded: s.id === scene.id && !!excludeFromAi, onToggleSceneExclusion, onToggle }))}
         </React.Fragment>
       ))}
     </div>
@@ -257,9 +267,11 @@ interface AiContextPickerProps {
   onClose: () => void;
   model: ManagedModel;
   monthlyAllowance: number;
+  excludeFromAi?: boolean;
+  onToggleSceneExclusion?: () => void;
 }
 
-export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverNames, toggleNever, about, setAbout, onClose, model, monthlyAllowance }: AiContextPickerProps) {
+export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverNames, toggleNever, about, setAbout, onClose, model, monthlyAllowance, excludeFromAi, onToggleSceneExclusion }: AiContextPickerProps) {
   const { extraSet, offSet, neverSet, est } = pickerDerived({ tree, scene, entities, aiCtx, neverNames, model, monthlyAllowance });
   const toggleScene = (id: string) => {
     if (id === scene.id) return;
@@ -282,8 +294,8 @@ export function AiContextPicker({ tree, scene, entities, aiCtx, setAiCtx, neverN
           <AiPickerSection icon="info" label="About this manuscript" hint="rides along with every request">
             <AiAboutCard about={about} onSave={setAbout} key={aboutKey} />
           </AiPickerSection>
-          {scene.id !== "" && <AiPickerSection icon="fileText" label="Scenes" hint="the open scene is always included">
-            <AiSceneTree tree={tree} scene={scene} extraSceneIds={aiCtx.extraSceneIds} onToggle={toggleScene} />
+          {scene.id !== "" && <AiPickerSection icon="fileText" label="Scenes" hint={excludeFromAi ? "this scene is hidden from AI — click to include" : "the open scene is always included"}>
+            <AiSceneTree tree={tree} scene={scene} extraSceneIds={aiCtx.extraSceneIds} onToggle={toggleScene} excludeFromAi={excludeFromAi} onToggleSceneExclusion={onToggleSceneExclusion} />
           </AiPickerSection>}
           <AiPickerSection icon="users" label="Story Bible" hint="linked to the open scene · shield = never share">
             <AiEntityGrid entities={entities} offEntityNames={aiCtx.offEntityNames} neverNames={neverNames}
