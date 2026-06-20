@@ -63,7 +63,7 @@ plus the window-control hover all fire.
 **Out of scope:**
 
 - **Archive (Lane 22), Export (Lane 23), Full-Entry pages (Lane 24)** — the three parallel worktree
-  streams; merged separately per `roadmap/batch-2-coordination.md`.
+  streams; merged separately per `roadmap/coordination/batch-2-coordination.md`.
 - **Story-bible "Open full entry" navigation** — the menu item is built here as a deferred no-op; the
   actual open-entry view + nav stack is wired when Lane 24 lands (Decision 3).
 - **DB migrations** — this wave uses the existing schema; `entity_links` / `entity_fields` are Lane 24's.
@@ -108,7 +108,7 @@ plus the window-control hover all fire.
 ### Files the next agent should read first
 
 1. `roadmap/wave-25-canon-cleanup.md` `## Locked decisions` — the decisions governing this wave (read before any phase).
-2. `roadmap/canon-polish-coordination.md` — the sweep's global rules + the foundation contracts (status.ts, sceneMenu.ts, goalModel, manuscriptWords, useEditorStyle) the canon lanes consume.
+2. `roadmap/coordination/canon-polish-coordination.md` — the sweep's global rules + the foundation contracts (status.ts, sceneMenu.ts, goalModel, manuscriptWords, useEditorStyle) the canon lanes consume.
 3. `design-reference/` canon source for the phase you're on: `binder.jsx` (P2), `canvas.jsx`+`shell.jsx` (P3), `inspector.jsx`+`FULL-ENTRY-SPEC.md` §8 (P4), `views.jsx` (P5,P7), `dialogs.jsx` (P2 modal), `chrome.jsx`+`app.css` (P8). `tokens.css`/`app.css` are the styling source of truth.
 4. `src/App.content.tsx`, `src/App.state.ts`, `src/App.handlers.ts` — the wiring surface (was frozen during the sweep; editable now; Phase 1 owns the threading).
 5. `src/lib/status.ts`, `src/lib/manuscriptWords.ts`, `src/features/goals/goalModel.ts` + `useDailyGoalProgress.ts` — Wave 17 contracts P1/P2/P6 build on.

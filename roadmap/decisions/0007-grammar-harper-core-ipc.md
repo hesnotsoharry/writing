@@ -22,4 +22,4 @@ Wave 16 grows by `src-tauri/src/grammar.rs` + a version-PINNED `harper-core` Car
 
 ## Enforcement
 
-Advisory-only at wave-11 scope (recorded in `roadmap/parallel-feature-waves-coordination.md` + `feature-waves-plan.md § Wave S2`). The harper-core IPC-contract + `grammar.rs` API-shape decision goes through `sonnet-architect` + the attack-decision review cell at wave-16's `/wave-plan`.
+Advisory-only at wave-11 scope (recorded in `roadmap/coordination/parallel-feature-waves-coordination.md` + `feature-waves-plan.md § Wave S2`). The harper-core IPC-contract + `grammar.rs` API-shape decision goes through `sonnet-architect` + the attack-decision review cell at wave-16's `/wave-plan`.

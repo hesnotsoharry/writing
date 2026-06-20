@@ -1,7 +1,7 @@
 # Parallel feature-waves — execution runbook (next session)
 
 Turnkey runbook for the feature batch. Strategy + per-feature scope live in
-`roadmap/feature-waves-plan.md`; THIS doc is the execution sequence. Structure: **one SERIAL wiring
+`roadmap/coordination/feature-waves-plan.md`; THIS doc is the execution sequence. Structure: **one SERIAL wiring
 wave first, then the parallel lanes fan out** (the lanes fill the mount points the wiring wave stamps,
 so they cannot start until it merges — except the Spelling lane, which is fully independent).
 
@@ -52,7 +52,7 @@ git worktree add "C:/Web App/writing-wave16-spelling"     -b wave-16-spelling
 
 **Per-lane kickoff prompt** (swap wave#/feature; run `npm install` FIRST in each fresh worktree):
 > "You're the **wave-12 Corkboard** lane in a parallel feature batch. Run `npm install` first. Read
-> `roadmap/parallel-feature-waves-coordination.md` (your lane + global rules), `roadmap/feature-waves-plan.md`
+> `roadmap/coordination/parallel-feature-waves-coordination.md` (your lane + global rules), `roadmap/coordination/feature-waves-plan.md`
 > (your scope), and `roadmap/HANDOFF.md`. Plan + execute your wave with the plan cmd in your row. Honor the
 > coordination rules strictly. Report back to the lead to merge."
 

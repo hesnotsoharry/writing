@@ -82,7 +82,7 @@ retained; and a quick-notes footer sits at the binder bottom wired to the existi
 
 ### Files the next agent should read first
 
-1. `roadmap/canon-polish-coordination.md` § "Lane 18 — Binder" + GLOBAL RULES — scope contract + ownership boundary.
+1. `roadmap/coordination/canon-polish-coordination.md` § "Lane 18 — Binder" + GLOBAL RULES — scope contract + ownership boundary.
 2. `design-reference/binder.jsx` — canon target for ProjectSwitch, SceneRow, Chapter, Binder, footer.
 3. `design-reference/menu.jsx` — canon ContextMenu/MenuItems/RenameInput/Toast shapes (already ported).
 4. `src/binder/{Binder,BinderCrud,ProjectSwitcher,BinderDrag,buildTree}.tsx` — current state (owned).

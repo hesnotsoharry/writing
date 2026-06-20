@@ -37,9 +37,12 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
 
 ## Folder Map
 
+- `README.md` — repo front door; `human-overview.md` — plain-English project tour for newcomers.
 - `docs/superpowers/specs/` — approved design specs (one per phase/feature).
 - `docs/superpowers/plans/` — detailed TDD implementation plans.
-- `roadmap/` — pipeline state: `HANDOFF.md`, `decisions/` (durable ADRs), `follow-ups/`, `deferred/`, `bugs/`.
+- `docs/MODEL-BAKEOFF.md` — wave-28 Claude-vs-Codex per-seat model comparison tally.
+- `roadmap/` — pipeline state: `HANDOFF.md`, `decisions/` (durable ADRs), `discovery/`, `follow-ups/`, `deferred/`, `bugs/`, `coordination/` (non-wave GTM/batch coordination docs), `_archived/`.
+- `.claude/baseline-ledger.md` — this repo's conformance to the universal project baseline.
 - `.superpowers/` — visual-brainstorm scratch (gitignored; ignore it).
 - (after Task 1) `src/` — React frontend; `src-tauri/` — Rust shell.
 

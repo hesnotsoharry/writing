@@ -74,4 +74,4 @@ The account page marks these `WN_M4` — not yet wired to real sources:
   buttons are served via LS digital delivery per `launch-infra-checklist.md`.
 - **Subscription status / backup stats** — the sync product is deferred.
 
-_Wave m3 · 2026-06-04. Companions: `CHECKOUT-SETUP.md`, `../roadmap/launch-infra-checklist.md`._
+_Wave m3 · 2026-06-04. Companions: `CHECKOUT-SETUP.md`, `../roadmap/coordination/launch-infra-checklist.md`._

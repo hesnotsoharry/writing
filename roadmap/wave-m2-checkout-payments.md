@@ -64,7 +64,7 @@ After this wave, the marketing funnel hands a buyer off to a **real Lemon Squeez
 2. `marketing/public/checkout.html` — the mock to rewire (`WN_TODO_PAYMENT`, `WN_TODO_COUPONS`, the add-on toggle, the order-summary price).
 3. `marketing/public/site.js` — shared behavior; confirm where handlers belong and the existing patterns.
 4. `marketing/HANDOFF.md` §4 (funnel routing — do NOT collapse it) + §5 (integration table).
-5. `roadmap/go-to-market.md` — founder price ($29–34) + ownership-first positioning (for the copy tone).
+5. `roadmap/coordination/go-to-market.md` — founder price ($29–34) + ownership-first positioning (for the copy tone).
 6. The `## Locked decisions` section of this wave file.
 
 ### Note to the implementer

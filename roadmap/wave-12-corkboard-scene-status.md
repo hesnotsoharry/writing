@@ -57,7 +57,7 @@ After this wave the app has a working Corkboard view: navigating to it (the Titl
 
 ### Files the next agent should read first
 
-1. `roadmap/parallel-feature-waves-coordination.md` — lane rules + the frozen-surfaces list (this lane's hard boundary).
+1. `roadmap/coordination/parallel-feature-waves-coordination.md` — lane rules + the frozen-surfaces list (this lane's hard boundary).
 2. `design-reference/views.jsx` — the Corkboard + CorkCard visual spec being ported (JSX, class names, `STATUS_META` shape, interactions).
 3. `src/db/migrations.ts` — `migration_004_feature_tables` is the style to match; the `runMigrations` runner's no-try/catch crash-recovery contract is why migration 5 must be idempotent.
 4. `src/db/binderStore.ts` + `src/db/sqliteBinderStore.ts` — the `Scene` interface + `BinderStore` methods to extend; `InMemoryBinderStore` needs parity.

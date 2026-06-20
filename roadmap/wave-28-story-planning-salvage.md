@@ -110,7 +110,7 @@ Codex is pinned to **gpt-5.4** for apples-to-apples with Sonnet 4.6 (stock `arch
 The Codex adversarial seat still gates nothing (M-55 constraint — Claude's `sonnet-adversarial-reviewer`
 remains the schema-bearing gate); the bake-off is observational + adjudicated. Adjudication criteria:
 correctness, spec-adherence, completeness, code quality, conciseness, acceptance-test pass (impl).
-**Deliverable:** `MODEL-BAKEOFF.md` at repo root — per-dispatch entries (seat · phase · task · each side's
+**Deliverable:** `docs/MODEL-BAKEOFF.md` — per-dispatch entries (seat · phase · task · each side's
 verdict · winner + why · adjudication mode), a running scorecard, and a final per-seat overall verdict.
 Caveat logged in the tally: the explorer seat is not perfectly apples-to-apples (Sonnet 4.6 full vs
 gpt-5.4-**mini**).

@@ -68,4 +68,4 @@ The displayed `$29` is decorative; LS is the real charge. To return to full pric
 - **Custom data caveat (future):** if you ever pass `checkout[custom][…]`, it arrives in the webhook under
   `meta.custom_data`, not in the order attributes. (m1's webhook doesn't need it.)
 
-_Wave m2 · 2026-06-04. Companion: `../roadmap/wave-m2-checkout-payments.md`, `../roadmap/launch-infra-checklist.md`._
+_Wave m2 · 2026-06-04. Companion: `../roadmap/wave-m2-checkout-payments.md`, `../roadmap/coordination/launch-infra-checklist.md`._

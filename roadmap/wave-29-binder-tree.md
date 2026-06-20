@@ -57,7 +57,7 @@ Walking-skeleton rule: **not applicable** — dnd-kit is already wired in-repo (
 
 ### Files the next agent should read first
 
-1. `roadmap/canon-burndown-coordination.md` — the operational contract (Section 5 → Lane 1 brief; GLOBAL RULES Section 2).
+1. `roadmap/coordination/canon-burndown-coordination.md` — the operational contract (Section 5 → Lane 1 brief; GLOBAL RULES Section 2).
 2. `src/binder/Binder.tsx` — `DraggableChapterSection` holds the chapter open-state (Phase 1 target).
 3. `src/binder/BinderCrud.tsx` — `SceneRow` / `SceneStatusIndicator` (Phase 3 binder target).
 4. `src/binder/ProjectSwitcher.tsx` — the already-built custom dropdown (Phase 2 target).

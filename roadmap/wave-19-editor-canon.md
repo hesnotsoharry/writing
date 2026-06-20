@@ -61,7 +61,7 @@ After this wave the editor surface (`src/editor/*`) matches the canon prototype 
 ### Files the next agent should read first
 
 1. `roadmap/wave-19-editor-canon-research.md` — current TipTap v3 `BubbleMenu` API + the integration-surface contract (names exact); the phase briefs are grounded in it.
-2. `roadmap/canon-polish-coordination.md` § GLOBAL RULES + "Lane 19 — Editor" — the scope + the CONSUME-ONLY / FROZEN boundaries.
+2. `roadmap/coordination/canon-polish-coordination.md` § GLOBAL RULES + "Lane 19 — Editor" — the scope + the CONSUME-ONLY / FROZEN boundaries.
 3. `design-reference/canvas.jsx` (header + `FormatBubble` shape) and `design-reference/shell.jsx:83-148` (page-flip mechanics — `prevSceneRef`, `flipNum` key guard, direction, 1250ms cleanup, `LeafPage`).
 4. `src/editor/Editor.tsx` — the surface being extended (currently `{doc}`-only).
 5. `src/editor/extensions/ProofreadExtension.ts` — `runChecks`, `buildDecorations`, the grammar default read (Phase 5 target).

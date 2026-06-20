@@ -106,7 +106,7 @@ gracefully if the Rust side is unavailable.
    not pass `content`, do not re-enable undo/redo — Yjs owns it).
 4. `src-tauri/src/lib.rs` — the `greet` command + `generate_handler!` registration pattern to extend.
 5. `src-tauri/Cargo.toml` — edition 2021; where the pinned harper-core dep is added.
-6. `roadmap/parallel-feature-waves-coordination.md` — the frozen-surface + soft-coupling rules (this lane
+6. `roadmap/coordination/parallel-feature-waves-coordination.md` — the frozen-surface + soft-coupling rules (this lane
    owns `src/editor/` + `src/lib/` + the Rust grammar files only).
 7. `roadmap/decisions/0007-grammar-harper-core-ipc.md` — the locked strategic choice (harper-core over IPC,
    NOT harper.js renderer) this wave implements.

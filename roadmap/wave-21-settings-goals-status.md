@@ -73,7 +73,7 @@ all four lanes merge, so every human-only behavior is listed for Cole.
 
 ### Files the next agent should read first
 
-1. `roadmap/canon-polish-coordination.md` § "Lane 21" + GLOBAL RULES — the disjoint-dir contract and handoff format.
+1. `roadmap/coordination/canon-polish-coordination.md` § "Lane 21" + GLOBAL RULES — the disjoint-dir contract and handoff format.
 2. `roadmap/wave-17-foundation.md` — the contracts this lane consumes (StatusBar props, `openPath`, `useDailyGoalProgress`, `useEditorStyle`).
 3. `design-reference/chrome.jsx` (StatusBar canon), `design-reference/settings.jsx` (Backup Reveal + Writing Configure), `design-reference/dialogs.jsx` (Goals modal), `design-reference/data.jsx` (STATUS/goal shapes).
 4. `src/shell/StatusBar.tsx` — current placeholder render + the `StatusBarProps`/`GoalProgress` interface (Wave-17 mount points).

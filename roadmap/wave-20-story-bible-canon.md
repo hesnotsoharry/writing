@@ -68,7 +68,7 @@ deviation from the `src/db/` freeze (Cole-authorized 2026-06-04; flagged for the
 ### Files the next agent should read first
 
 1. `roadmap/wave-20-DRAFT.md` `## Locked decisions` (this file) — the authorized freeze deviation and the toast-stub/local-tree decisions.
-2. `roadmap/canon-polish-coordination.md` § GLOBAL RULES + "Lane 20 — Story" row — the owned dirs, freeze rules, and handoff format.
+2. `roadmap/coordination/canon-polish-coordination.md` § GLOBAL RULES + "Lane 20 — Story" row — the owned dirs, freeze rules, and handoff format.
 3. `design-reference/inspector.jsx` and `design-reference/views.jsx` — canon behavior for inspector and corkboard/story-bible (the target shape).
 4. `design-reference/menu.jsx` + `src/components/menu/ContextMenu.tsx` + `src/components/menu/sceneMenu.ts` — the `MenuItem` API and `buildSceneMenu` callbacks.
 5. `src/db/binderStore.ts` + `src/db/sqliteBinderStore.ts` — the store to extend (`renameScene` is the shape to mirror) and the singleton pattern (`new SqliteBinderStore()` is side-effect-free).

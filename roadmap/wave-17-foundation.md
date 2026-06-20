@@ -20,7 +20,7 @@ App-level prop/state wiring — all additive, no component rewrites, **no migrat
 `src/features/goals/goalModel.ts` + `useDailyGoalProgress.ts`, `src/theme/useEditorStyle.ts` (+ mount),
 `open_path` in `src-tauri/src/lib.rs` + `src/lib/ipc.ts`, widen `SceneStatus`/`setSceneStatus` in
 `src/db/binderStore.ts`, App freeze-wiring in `App.content.tsx`/`App.overlays.tsx`/`App.state.ts`.
-Exact contracts: `roadmap/canon-polish-coordination.md` § "WAVE 17 — Foundation".
+Exact contracts: `roadmap/coordination/canon-polish-coordination.md` § "WAVE 17 — Foundation".
 
 **Out of scope:** all component UI (binder/editor/inspector/corkboard/storybible/settings/goals/statusbar
 rows) — that's the lanes. Any migration. Export/Archive features (deferred 22/23).
@@ -41,7 +41,7 @@ rows) — that's the lanes. Any migration. Export/Archive features (deferred 22/
 - [ ] `npm run lint` + `tsc` + touched tests green.
 
 ### Files the next agent should read first
-1. `roadmap/canon-polish-coordination.md` § WAVE 17 (exact contracts).
+1. `roadmap/coordination/canon-polish-coordination.md` § WAVE 17 (exact contracts).
 2. `design-reference/data.jsx` (STATUS_META dot colors), `design-reference/menu.jsx` (menu shape).
 3. `src/components/menu/ContextMenu.tsx` (MenuItem API), `src/db/binderStore.ts`, `src/lib/ipc.ts`, `src-tauri/src/lib.rs`.
 

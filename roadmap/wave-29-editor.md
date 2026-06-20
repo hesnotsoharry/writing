@@ -85,7 +85,7 @@ contract and ratifies the one new dependency on merge.
 3. `design-reference/canvas.jsx` (lines 58–79, 107–121) — header chrome canon.
 4. `design-reference/AUTOLINK-SPEC.md` — "Find mentions" affordance spec.
 5. `src/styles/app.css:326–342` — the (frozen) placeholder CSS the Placeholder extension activates.
-6. `roadmap/canon-burndown-coordination.md` § Section 5 Lane 2 + Section 2 global rules — the lane contract.
+6. `roadmap/coordination/canon-burndown-coordination.md` § Section 5 Lane 2 + Section 2 global rules — the lane contract.
 
 ### Note to the implementer
 

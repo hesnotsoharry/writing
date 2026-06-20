@@ -8,7 +8,7 @@ promoted-during: wave-30-license-activation
 How activation works, end to end.
 
 ## Pick
-the model in `roadmap/launch-infra-checklist.md` § Licensing & activation architecture — one-time LS activate, local flag, never phone home, 3 activations/key, no expiry, no heavy DRM.
+the model in `roadmap/coordination/launch-infra-checklist.md` § Licensing & activation architecture — one-time LS activate, local flag, never phone home, 3 activations/key, no expiry, no heavy DRM.
 
 ## Rationale
 decided pre-wave by Cole + launch research; the brand promise (offline, no account) depends on it.

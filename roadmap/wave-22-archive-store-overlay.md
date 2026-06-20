@@ -58,7 +58,7 @@ After this wave the app has a working archive layer that today is entirely absen
 
 1. `roadmap/wave-22-DRAFT-research.md` — N/A this wave (research grounding skipped; no version-sensitive surface). Skip.
 2. The `## Locked decisions` section of THIS file — the manifest-encoding and no-migration decisions are load-bearing.
-3. `roadmap/batch-2-coordination.md` (LANE 22 section + GLOBAL RULES) — the lane contract: additive-only, own dirs only, no `App.*`, no migration.
+3. `roadmap/coordination/batch-2-coordination.md` (LANE 22 section + GLOBAL RULES) — the lane contract: additive-only, own dirs only, no `App.*`, no migration.
 4. `src/db/binderStore.ts` — the `BinderStore` interface + `InMemoryBinderStore` (the impl pattern to mirror; methods are `async`, ids via `crypto.randomUUID()`, gap ordering `(n+1)*1000`).
 5. `src/db/sqliteBinderStore.ts` — `const db = await getDb()`, `$1` params, `normalizeStatus` at read boundary; mirror `createScene`/`deleteFolder`.
 6. `src/db/sqliteSceneDocStore.ts` + `src/yjs/serialize.ts` — `scene_docs` load/save contract and `encodeDoc`/`applyEncoded`/`extractPlainText`.

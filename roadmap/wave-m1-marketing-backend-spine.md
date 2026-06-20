@@ -64,7 +64,7 @@ After this wave, the `marketing-backend` worktree contains a deployable Cloudfla
 ### Files the next agent should read first
 
 1. `roadmap/wave-m1-marketing-backend-spine-research.md` — **read first**: current Cloudflare Pages Functions, `@supabase/supabase-js` v2.58, Lemon Squeezy webhook, and Supabase migration/RLS API shapes the phase briefs are grounded in. (Renamed from `wave-m1-DRAFT-research.md` on validation pass.)
-2. `roadmap/launch-infra-checklist.md` — the locked stack, the LS-webhook→Supabase architecture spine, the licensing model, and the full secrets list.
+2. `roadmap/coordination/launch-infra-checklist.md` — the locked stack, the LS-webhook→Supabase architecture spine, the licensing model, and the full secrets list.
 3. `marketing/HANDOFF.md` — site conventions and the `WN_TODO_*` integration seams that waves m2–m4 will fill (context for what the spine must support).
 4. The `## Locked decisions` section of this wave file.
 

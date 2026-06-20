@@ -83,7 +83,7 @@ its read contract.
 4. `src/test/useTheme.test.tsx` — existing test patterns (jsdom override, renderHook) + the file to extend.
 5. `src/components/Icon.tsx` — real Icon component (`{name, className?, style?}`) + valid icon names.
 6. `src/inspector/SceneInspector.tsx` — the `writing.*` localStorage namespace precedent (`writing.goalTarget`).
-7. `roadmap/parallel-feature-waves-coordination.md` — frozen-surface + merge-order rules for this batch.
+7. `roadmap/coordination/parallel-feature-waves-coordination.md` — frozen-surface + merge-order rules for this batch.
 
 ### Note to the implementer
 
