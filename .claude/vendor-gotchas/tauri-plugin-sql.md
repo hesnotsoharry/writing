@@ -5,7 +5,7 @@ lastVerified: 2026-06-13
 related:
   - src/db/schema.ts
   - src/db/migrations.ts
-  - roadmap/decisions/0006-sqlite-migration-framework.md
+  - decisions/0006-sqlite-migration-framework.md
 ---
 
 # tauri-plugin-sql (SQLite) — gotchas

@@ -38,7 +38,7 @@ updated: 2026-06-17
 - **CRITICAL:** marketing/ subdirectory has uncommitted changes (Cole's separate marketing work, unrelated to W53 app deliverables — do NOT merge into app shipping).
 
 ## Reference index
-- **W53 durable decisions (candidates for promotion to roadmap/decisions/):**
+- **W53 durable decisions (candidates for promotion to decisions/):**
   - [scene-exclude-storage-placeholder.md](decisions/scene-exclude-storage-placeholder.md) — v1 scope: storage layer only, no UI hardening planned
   - [cross-view-bridge-v1-scoping.md](decisions/cross-view-bridge-v1-scoping.md) — v1: editor + brainstorm wired; other views deferred
 - **Decision archive:** [decisions/](decisions/) (full ADR record from prior waves)

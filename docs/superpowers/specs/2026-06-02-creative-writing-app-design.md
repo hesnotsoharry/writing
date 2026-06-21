@@ -266,7 +266,7 @@ TenTap+Yjs spike first to retire R1.
 
 The following sections of this spec describe a Phase-1 backup and Phase-2 sync design that is
 **superseded** by LS merchant-of-record compliance requirements. Do not implement the superseded
-design. See `roadmap/decisions/0001-local-first-architecture.md` §Amendment for the full record.
+design. See `decisions/0001-local-first-architecture.md` §Amendment for the full record.
 
 **Superseded spec sections (affected text, do not implement):**
 - §5 Architecture table: "Backup (Phase 1) — App-driven snapshot → Cloudflare R2 / Backblaze B2"

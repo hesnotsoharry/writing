@@ -11,7 +11,7 @@ adds brainstorming and editing help when you want it and costs nothing when you 
 ## Stack
 
 Tauri 2 (Rust shell) · React 19 + Vite + TypeScript (frontend) · TipTap + Yjs (collaborative-ready
-editor) · SQLite (local storage). See [`roadmap/decisions/0001-local-first-architecture.md`](roadmap/decisions/0001-local-first-architecture.md)
+editor) · SQLite (local storage). See [`decisions/0001-local-first-architecture.md`](decisions/0001-local-first-architecture.md)
 for the locked architecture rationale.
 
 ## Setup

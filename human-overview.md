@@ -45,4 +45,4 @@ they install a signed release that updates itself automatically.
 ## Where to go next
 - Day-to-day project state and what's next: [`roadmap/HANDOFF.md`](roadmap/HANDOFF.md).
 - The full design and architecture: [`docs/superpowers/specs/`](docs/superpowers/specs/).
-- Locked technical decisions: [`roadmap/decisions/`](roadmap/decisions/).
+- Locked technical decisions: [`decisions/`](decisions/).

@@ -33,7 +33,7 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
 | `roadmap/HANDOFF.md` | **Start here.** Where we are, what's next, how we work. |
 | `docs/superpowers/specs/2026-06-02-creative-writing-app-design.md` | The approved Phase 1 design (requirements, architecture, data model). |
 | `docs/superpowers/plans/2026-06-02-phase-1-walking-skeleton.md` | The first build: thinnest end-to-end slice, TDD, 8 tasks. |
-| `roadmap/decisions/0001-local-first-architecture.md` | Durable ADR: the locked stack (Tauri/TipTap/Yjs/SQLite). |
+| `decisions/0001-local-first-architecture.md` | Durable ADR: the locked stack (Tauri/TipTap/Yjs/SQLite). |
 
 ## Folder Map
 
@@ -41,7 +41,10 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
 - `docs/superpowers/specs/` — approved design specs (one per phase/feature).
 - `docs/superpowers/plans/` — detailed TDD implementation plans.
 - `docs/MODEL-BAKEOFF.md` — wave-28 Claude-vs-Codex per-seat model comparison tally.
-- `roadmap/` — pipeline state: `HANDOFF.md`, `decisions/` (durable ADRs), `discovery/`, `follow-ups/`, `deferred/`, `bugs/`, `coordination/` (non-wave GTM/batch coordination docs), `_archived/`.
+- `decisions/` — durable ADRs (root-level home per M-64 knowledge-permanence; moved from `roadmap/decisions/`). Newest-10 digest in `decisions/RECENT.md`.
+- `knowledge/` — per-category durable knowledge (`platforms.md`, `commands.md`, `environment.md`); entries are write-time freshness-gated (verified `assert` + dated evidence).
+- `research/` — standalone research + market-research memos.
+- `roadmap/` — pipeline state: `HANDOFF.md`, `discovery/` (PRD/discovery; owned by the vision-prd class, stays under `roadmap/`), `follow-ups/`, `deferred/`, `bugs/`, `coordination/` (non-wave GTM/batch coordination docs), `_archived/`.
 - `.claude/baseline-ledger.md` — this repo's conformance to the universal project baseline.
 - `.superpowers/` — visual-brainstorm scratch (gitignored; ignore it).
 - (after Task 1) `src/` — React frontend; `src-tauri/` — Rust shell.
