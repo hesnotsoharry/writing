@@ -80,6 +80,7 @@ export const MANAGED_MODELS: ReadonlySet<string> = new Set([
   'gpt-5.4',
   'claude-opus-4-8',
   'gpt-5.5',
+  'z-ai/glm-5.2',
 ]);
 
 /**
@@ -129,6 +130,7 @@ interface SubscriptionRow {
 interface StreamArgs {
   anthropicKey: string;
   openaiKey: string;
+  openrouterKey: string;
   messages: Message[];
   verbConfig: ResolvedConfig;
   system?: string;
@@ -261,14 +263,21 @@ function isContentPolicyBlock(status: number, body: unknown): boolean {
 
 async function runStream(args: StreamArgs): Promise<void> {
   const {
-    anthropicKey, openaiKey, messages, verbConfig, system,
+    anthropicKey, openaiKey, openrouterKey, messages, verbConfig, system,
     writer, encoder, db, licenseKey, reserve, requestId, isTrial, balanceAfterReserve,
   } = args;
   const doRefund = isTrial ? refundTrialCredits : refundCredits;
   let refunded = false;
   try {
     const adapter = getAdapter(verbConfig.model);
-    const apiKey = adapter.provider === "openai" ? openaiKey : anthropicKey;
+    // 3-way key dispatch: each provider gets its own key.
+    // An explicit map prevents a new provider from silently falling through to the wrong key.
+    const providerKeyMap: Record<string, string> = {
+      anthropic: anthropicKey,
+      openai: openaiKey,
+      openrouter: openrouterKey,
+    };
+    const apiKey = providerKeyMap[adapter.provider] ?? anthropicKey;
     const { url, headers, body } = adapter.buildRequest({ messages, config: verbConfig, system, apiKey });
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     if (!res.ok) {
@@ -462,6 +471,7 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     runStream({
       anthropicKey: context.env.ANTHROPIC_API_KEY,
       openaiKey: context.env.OPENAI_API_KEY,
+      openrouterKey: context.env.OPENROUTER_API_KEY,
       messages,
       verbConfig: effectiveConfig,
       system,

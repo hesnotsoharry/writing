@@ -45,7 +45,7 @@ export interface CanonicalUsage {
 // ── ProviderAdapter ───────────────────────────────────────────────────────────
 
 export interface ProviderAdapter {
-  readonly provider: "anthropic" | "openai";
+  readonly provider: "anthropic" | "openai" | "openrouter";
 
   /**
    * Build the provider-specific HTTP request (URL + headers + body object).

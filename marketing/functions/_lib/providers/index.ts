@@ -13,12 +13,14 @@
 import { RATES } from "../credits";
 import { AnthropicAdapter } from "./anthropic";
 import { OpenAIAdapter } from "./openai";
+import { OpenRouterAdapter } from "./openrouter";
 import type { ProviderAdapter } from "./types";
 
 export function getAdapter(model: string): ProviderAdapter {
   const provider = RATES[model]?.provider;
   if (provider === "openai") return new OpenAIAdapter();
   if (provider === "anthropic") return new AnthropicAdapter();
+  if (provider === "openrouter") return new OpenRouterAdapter();
   throw new Error(`Unknown model: ${model}`);
 }
 
@@ -26,4 +28,5 @@ export function getAdapter(model: string): ProviderAdapter {
 
 export { AnthropicAdapter } from "./anthropic";
 export { OpenAIAdapter } from "./openai";
+export { OpenRouterAdapter } from "./openrouter";
 export type { CanonicalUsage, Message, ProviderAdapter, ResolvedConfig } from "./types";

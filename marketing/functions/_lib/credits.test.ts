@@ -142,3 +142,61 @@ describe("W44 OpenAI rates", () => {
     expect(estimateCredits(4000, 1000, "gpt-5.4")).toBe(1750);
   });
 });
+
+// ── W54 GLM cache-branch guard (billing correctness) ──────────────────────────
+//
+// Defect: estimateCredits called shouldAttachCache without a cacheWrite1h>0 guard.
+// For z-ai/glm-5.2 (cacheWrite1h=0), shouldAttachCache defaults to the 4096-token
+// Haiku floor → returns true for any system >~16k chars → system reserved at $0 →
+// actualCredits charges at rates.input → operator absorbs the shortfall.
+//
+// The fix adds `&& rates.cacheWrite1h > 0` to the branch condition.
+// These tests assert the fix holds and that Anthropic estimates are unchanged.
+
+const GLM = "z-ai/glm-5.2";
+const SONNET = "claude-sonnet-4-6";
+
+describe("W54 GLM large-system estimate does not under-reserve (cacheWrite1h guard)", () => {
+  // systemLength = 20000 chars → systemTokens = 5000 (> 4096 Haiku floor → shouldAttachCache true)
+  // Without guard: inputEst = ceil(5000*0 + 250*0.095) = ceil(23.75) = 24 → WRONG (under-reserve)
+  // With guard: cacheWrite1h = 0 → skip cache branch → ceil((21000/4)*0.095) = ceil(498.75) = 499
+  // outputReserve = ceil(1000 * 0.3) = 300; total = 799
+  const systemLength = 20_000; // chars → 5000 tokens, well above the 4096 default floor
+  const charCount = 21_000;    // total chars (system + messages)
+  const maxTokens = 1_000;
+
+  it("estimate uses input rate for system tokens (not the zero cacheWrite1h rate)", () => {
+    const est = estimateCredits(charCount, maxTokens, GLM, systemLength);
+    // Must equal the plain-input-rate formula, not the zero-rate cache path
+    const expected =
+      Math.ceil((charCount / 4) * RATES[GLM].input) +
+      Math.ceil(maxTokens * RATES[GLM].output);
+    expect(est).toBe(expected); // 499 + 300 = 799
+  });
+
+  it("estimate covers actualCredits for a realistic GLM response (no operator under-bill)", () => {
+    const est = estimateCredits(charCount, maxTokens, GLM, systemLength);
+    // Realistic usage: 5000 input + 500 output → actual = ceil(5000*0.095 + 500*0.3) = ceil(625) = 625
+    const actual = actualCredits(5_000, 500, GLM);
+    expect(actual).toBeLessThanOrEqual(est);
+  });
+});
+
+describe("W54 Anthropic cache estimate is unchanged by the cacheWrite1h guard", () => {
+  // Sonnet cacheWrite1h = 0.6 > 0 → guard passes → same branch as before.
+  // systemLength = 5000 chars → systemTokens = 1250 (>= 1024 Sonnet floor → shouldAttachCache true)
+  // inputEst = ceil(1250*0.6 + 250*0.3) = ceil(750+75) = 825
+  // outputReserve = ceil(500*1.5) = 750; total = 1575
+  it("Sonnet large-system estimate still uses cacheWrite1h rate for system tokens", () => {
+    const systemLength = 5_000;
+    const charCount = 6_000;
+    const maxTokens = 500;
+    const est = estimateCredits(charCount, maxTokens, SONNET, systemLength);
+    const systemTokens = Math.ceil(systemLength / 4); // 1250
+    const messageTokens = Math.ceil((charCount - systemLength) / 4); // 250
+    const expected =
+      Math.ceil(systemTokens * RATES[SONNET].cacheWrite1h + messageTokens * RATES[SONNET].input) +
+      Math.ceil(maxTokens * RATES[SONNET].output);
+    expect(est).toBe(expected); // 825 + 750 = 1575
+  });
+});

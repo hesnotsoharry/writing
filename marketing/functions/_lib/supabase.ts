@@ -18,6 +18,8 @@ export interface Env {
 export interface AiEnv extends Env {
   ANTHROPIC_API_KEY: string;
   OPENAI_API_KEY: string;
+  /** OpenRouter API key — used for GLM-5.2 and any future OpenRouter-routed models (W54). */
+  OPENROUTER_API_KEY: string;
   PROXY_SESSION_SECRET: string;
   /** Kill-switch for the trial AI path. Set to 'true' to enable, any other value disables. */
   TRIAL_AI_ENABLED?: string;

@@ -49,8 +49,8 @@ export const RATE_WINDOW_SECONDS = 60;
 
 /** Per-model credit rates (units/token) */
 export interface ModelRates {
-  /** AI provider ('anthropic' or 'openai') — required for adapter routing (Decision 1) */
-  provider: 'anthropic' | 'openai';
+  /** AI provider ('anthropic', 'openai', or 'openrouter') — required for adapter routing (Decision 1) */
+  provider: 'anthropic' | 'openai' | 'openrouter';
   /** Input tokens (normal) */
   input: number;
   /** Output tokens */
@@ -78,6 +78,10 @@ export const RATES: Record<string, ModelRates> = {
   'gpt-5.4':      { provider: 'openai', input: 0.25,  output: 1.5,  cacheWrite5m: 0.25,  cacheWrite1h: 0.25,  cacheRead: 0.025  },
   'gpt-5.4-mini': { provider: 'openai', input: 0.075, output: 0.45, cacheWrite5m: 0.075, cacheWrite1h: 0.075, cacheRead: 0.0075 },
   'gpt-5.5':      { provider: 'openai', input: 0.5,   output: 3.0,  cacheWrite5m: 0.5,   cacheWrite1h: 0.5,   cacheRead: 0.05   },
+
+  // OpenRouter rates — source: openrouter.ai/models, confirmed 2026-06-23. units/token = $/MTok × 0.1.
+  // GLM does not surface Anthropic-style cache tokens; cacheWrite* and cacheRead = 0.
+  'z-ai/glm-5.2': { provider: 'openrouter', input: 0.095, output: 0.300, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 },
 };
 
 /**
@@ -113,7 +117,14 @@ export function estimateCredits(charCount: number, maxTokens: number, model: str
   let inputEst: number;
   if (systemLength !== undefined && systemLength > 0) {
     const systemTokens = Math.ceil(systemLength / 4);
-    if (shouldAttachCache(systemTokens, model)) {
+    // Guard: only enter the cache-premium branch when the model actually has a non-zero
+    // cache write rate. OpenRouter/GLM has cacheWrite1h = 0 — without this guard,
+    // shouldAttachCache returns true for large systems (defaults to the 4096 Haiku floor)
+    // and the estimate prices system tokens at 0 while actualCredits bills them at
+    // rates.input, producing a systematic under-reserve (operator absorbs the shortfall).
+    // OpenAI is unaffected: cacheWrite1h == input for OpenAI, so both branches produce
+    // the same arithmetic value. Anthropic behavior is unchanged.
+    if (shouldAttachCache(systemTokens, model) && rates.cacheWrite1h > 0) {
       const messageTokens = Math.ceil(Math.max(0, charCount - systemLength) / 4);
       inputEst = Math.ceil(systemTokens * rates.cacheWrite1h + messageTokens * rates.input);
     } else {
