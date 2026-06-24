@@ -26,6 +26,7 @@ export function ModelPop({ model, setModel, setModelPop, onAfterSelect, byokGrou
   </div>)}</div>;
   const standardClaude  = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].provider === "claude"  && AI_MODELS[k].tier === "standard");
   const standardChatGPT = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].provider === "chatgpt" && AI_MODELS[k].tier === "standard");
+  const standardGlm     = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].provider === "glm"     && AI_MODELS[k].tier === "standard");
   const premiumModels   = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].tier === "premium");
   const renderModel = (k: ManagedModel) => (<button key={k} onClick={() => { setModel(k); setModelPop(false); onAfterSelect(); }}>
     <span className="nm">{AI_MODELS[k].label}</span>
@@ -37,6 +38,7 @@ export function ModelPop({ model, setModel, setModelPop, onAfterSelect, byokGrou
       {standardClaude.map(renderModel)}
       <div className="ai-modelpop-provider">ChatGPT</div>
       {standardChatGPT.map(renderModel)}
+      {standardGlm.length > 0 && <><div className="ai-modelpop-provider">GLM</div>{standardGlm.map(renderModel)}</>}
       <button className="ai-modelpop-premium-toggle" onClick={() => setShowPremium((v) => !v)}>
         <Icon name={showPremium ? "chevDown" : "chevRight"} className="ic" />
         Show premium models

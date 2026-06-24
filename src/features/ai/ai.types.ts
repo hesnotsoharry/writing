@@ -11,13 +11,14 @@ export type ManagedModel =
   | "claude-opus-4-8"
   | "gpt-5.4-mini"
   | "gpt-5.4"
-  | "gpt-5.5";
+  | "gpt-5.5"
+  | "z-ai/glm-5.2";
 
 export const DEFAULT_MODEL: ManagedModel = "claude-haiku-4-5-20251001";
 
 export interface ModelDef {
   label: string;
-  provider: "claude" | "chatgpt";
+  provider: "claude" | "chatgpt" | "glm";
   tier: "standard" | "premium";
 }
 
@@ -26,6 +27,7 @@ export const AI_MODELS: Record<ManagedModel, ModelDef> = {
   "claude-sonnet-4-6":         { label: "Sonnet 4.6",   provider: "claude",  tier: "standard" },
   "gpt-5.4-mini":              { label: "GPT-5.4 mini",  provider: "chatgpt", tier: "standard" },
   "gpt-5.4":                   { label: "GPT-5.4",       provider: "chatgpt", tier: "standard" },
+  "z-ai/glm-5.2":              { label: "GLM-5.2",       provider: "glm",     tier: "standard" },
   "claude-opus-4-8":           { label: "Claude Opus",   provider: "claude",  tier: "premium"  },
   "gpt-5.5":                   { label: "GPT-5.5",       provider: "chatgpt", tier: "premium"  },
 };
@@ -34,6 +36,7 @@ export const AI_MODELS: Record<ManagedModel, ModelDef> = {
 export const AI_MODEL_ORDER: readonly ManagedModel[] = [
   "claude-haiku-4-5-20251001", "claude-sonnet-4-6",
   "gpt-5.4-mini", "gpt-5.4",
+  "z-ai/glm-5.2",
   "claude-opus-4-8", "gpt-5.5",
 ];
 
@@ -50,6 +53,7 @@ export const MODEL_RATES: Record<ManagedModel, { input: number; output: number }
   "gpt-5.4-mini":              { input: 0.075, output: 0.45 },
   "gpt-5.4":                   { input: 0.25,  output: 1.5 },
   "gpt-5.5":                   { input: 0.5,   output: 3.0 },
+  "z-ai/glm-5.2":              { input: 0.095, output: 0.300 },
 };
 
 /**
