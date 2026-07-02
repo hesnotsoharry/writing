@@ -45,6 +45,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
    section shrink when the window narrows, keeping the right-side items (actions
    overflow button + window controls) always visible. */
 .tb-left { display: flex; align-items: center; gap: var(--s-3); flex: 1; min-width: 0; }
+/* macOS: reserve space for native traffic lights (Overlay title bar). Tuned on Mac day. */
+.titlebar--mac .tb-left { padding-left: 78px; }
 .titlebar .brand { display: flex; align-items: center; flex: none; }
 .tb-divider { width: 1px; height: 22px; background: var(--parchment-edge); flex: none; }
 /* margin-left: auto removed — .tb-left (flex:1) handles the gap between
@@ -479,12 +481,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .scrim {
   position: absolute; inset: 0; z-index: 40;
   background: rgba(42, 33, 18, 0.34);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
   display: grid; place-items: center;
   animation: fade var(--dur) ease;
 }
 [data-theme="dark"] .scrim { background: rgba(0,0,0,0.55); }
-@keyframes fade { from { background: rgba(42, 33, 18, 0); backdrop-filter: blur(0); } }
+@keyframes fade { from { background: rgba(42, 33, 18, 0); backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); } }
 .sheet {
   background: var(--paper); border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg); border: 1px solid var(--parchment-edge);
@@ -1323,7 +1325,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   position: fixed; z-index: 80; width: 260px;
   background: var(--paper); border: 1px solid var(--parchment-edge);
   border-radius: var(--radius-md, var(--r-md)); box-shadow: var(--shadow-lg);
-  padding: 12px 14px 10px; backdrop-filter: blur(6px);
+  padding: 12px 14px 10px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 .al-peek-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .al-peek-portrait {
@@ -1511,7 +1513,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   flex: none; display: flex; align-items: center; gap: var(--s-2);
   padding: 7px 12px; border-bottom: 1px solid var(--parchment-edge);
   background: color-mix(in srgb, var(--parchment) 80%, var(--paper));
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   font-family: var(--font-ui);
   z-index: 1; /* F1: backdrop-filter creates a stacking context; z-index lifts toolbar above canvas */
 }

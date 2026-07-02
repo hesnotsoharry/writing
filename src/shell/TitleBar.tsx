@@ -7,6 +7,7 @@ import lightLogo from "../assets/lightlogo.png";
 import { Icon } from "../components/Icon";
 import type { MenuDescriptor, MenuItem } from "../components/menu/ContextMenu";
 import { ContextMenu } from "../components/menu/ContextMenu";
+import { isMac } from "./platform";
 import { WindowControls } from "./WindowControls";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -253,8 +254,9 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   const barRef = useRef<HTMLDivElement>(null);
   const collapsed = useTitleBarCollapsed(barRef);
   const ap = makeActionBarProps(props);
+  const mac = isMac();
   return (
-    <div className="titlebar" ref={barRef} data-tauri-drag-region>
+    <div className={"titlebar" + (mac ? " titlebar--mac" : "")} ref={barRef} data-tauri-drag-region>
       <div className="tb-left" data-tauri-drag-region>
         <div className="brand" data-tauri-drag-region>
           {/* Theme-aware logo — replaces the former feather + "Writers Nook" wordmark. */}
@@ -267,7 +269,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
       {docName !== undefined && <div className="doc-name" data-tauri-drag-region>{docName}</div>}
       {collapsed ? <CollapsedActionsBar {...ap} /> : <TitleBarActions {...ap} />}
       <div className="tb-divider" data-tauri-drag-region />
-      <div className="wbtns" data-tauri-drag-region><WindowControls /></div>
+      {!mac && (<div className="wbtns" data-tauri-drag-region><WindowControls /></div>)}
     </div>
   );
 }

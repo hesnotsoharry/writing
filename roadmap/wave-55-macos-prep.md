@@ -18,7 +18,7 @@ per `~/.claude/rules-deferred/glm-dispatch.md` — Cole's standing routing for t
 | Phase | Description | Status | Commit |
 |---|---|---|---|
 | P1 | Platform detection foundation (`tauri-plugin-os` + `isMac()`) | ✅ done | (this commit) |
-| P2 | Title bar: native traffic lights on macOS, unchanged on Windows | pending | — |
+| P2 | Title bar: native traffic lights on macOS, unchanged on Windows | ✅ done | (this commit) |
 | P3 | Manifest contract documented in `publish.ps1` (comment-only) | pending | — |
 | P4 | Author `publish-mac.sh` (fixture-tested in Git Bash) | pending | — |
 | P5 | `bundle.macOS` config + Mac-day runbook + report promotion + CLAUDE.md | pending | — |
