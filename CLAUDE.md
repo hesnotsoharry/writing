@@ -25,6 +25,10 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
   Bump the version in all four files first (`package.json`, `src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}`)
   and tag `vX.Y.Z`. Artifact selection is version-anchored — do not weaken it (a bare glob once
   shipped a stale installer under a new tag and broke updates).
+- `publish-mac.sh` — the macOS half of the same pipeline (Apple Silicon, run on a Mac after
+  `publish.ps1`). The two publishes share ONE `latest.json` per tag: Windows writes the
+  `windows-x86_64` key first, then `publish-mac.sh` upserts `darwin-aarch64` — contract in the
+  `publish.ps1` header comment.
 
 ## Key Files
 
