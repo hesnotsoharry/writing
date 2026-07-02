@@ -22,7 +22,7 @@ per `~/.claude/rules-deferred/glm-dispatch.md` — Cole's standing routing for t
 | P3 | Manifest contract documented in `publish.ps1` (comment-only) | ✅ done | (this commit) |
 | P4 | Author `publish-mac.sh` (fixture-tested in Git Bash) | ✅ done | (this commit) |
 | P5 | `bundle.macOS` config + Mac-day runbook + report promotion + CLAUDE.md | ✅ done | (this commit) |
-| P6 | Wave close (full suite, follow-ups) | pending | — |
+| P6 | Wave close (full suite, follow-ups) | ✅ done | (this commit) |
 
 ## Locked decisions
 
@@ -53,5 +53,29 @@ per `~/.claude/rules-deferred/glm-dispatch.md` — Cole's standing routing for t
 ## Follow-up candidates
 - **Mac updater mid-window UX** (from P4 adversarial review, Angle 6/7): when Windows publishes version N first, Mac clients on N-1 polling `latest.json` during the gap before `publish-mac.sh` runs hit a missing `darwin-aarch64` key, which `tauri-plugin-updater` 2.x surfaces as an update-check ERROR (`TargetsNotFound`), not a silent no-op. | why not in-wave: requires confirming/adjusting the app's updater error-handling UX (or adopting Mac-first/atomic sequencing) — a src/ change beyond this Windows-side prep wave. | present-harm: K3 — zero present harm (no Mac clients exist until the first .dmg ships); becomes real on the SECOND Mac release. Documented in the runbook as tight-sequencing guidance (P5). Auditor may decline as future-only.
 
+- **GitHub Actions release matrix** (`tauri-action`, `macos-latest`) so a macOS build/notarize is CI-driven and the one Mac day never recurs. | why not in-wave: new CI infra + secrets wiring, its own wave. | present-harm: K3 — future-only (no recurring Mac build need until after the first manual Mac day).
+- **Marketing-site Mac download button** + `downloads-config.js` entry. | why not in-wave: blocked until a real signed .dmg exists to link, AND touching `marketing/` deploys the live site on push. | present-harm: K3 — no artifact to link yet.
+- **Universal binary (x86_64 + aarch64)** revisit. | why not in-wave: ship target is aarch64-only (Decision 1); one build-flag change. | present-harm: K3 — conditional on an Intel-Mac user appearing.
+- **WKWebView agent-smoke alternative** — the CDP-9222 harness doesn't exist on macOS, so Mac smoke is manual. Extend the EXISTING follow-up `roadmap/follow-ups/2026-06-15-agent-driven-ui-smoke-harness.md` (do NOT dupe). | present-harm: K3 — manual smoke suffices for the first Mac day.
+
 ## Result
-_(populated at wrap)_
+**W55 macOS-prep COMPLETE — all 6 phases shipped (commits c2baeb2 → P6).** Every Windows-side
+item doable before the one Mac day is done; the Mac day is now pure execution against
+`roadmap/coordination/mac-day-runbook.md`.
+
+Delivered: OS-detection foundation (`tauri-plugin-os` + `isMac()`); macOS native traffic lights
+via auto-merged `tauri.macos.conf.json` (Windows byte-identical, guarded by a new 2-polarity
+inertness test); WKWebView `-webkit-backdrop-filter` compat; the multi-platform updater-manifest
+contract (documented in `publish.ps1`, merge logic in the new fixture-tested `publish-mac.sh`);
+`bundle.macOS` config; the hour-by-hour Mac-day runbook; and the two GLM planning reports promoted
+to `research/`.
+
+Execution: all implementation routed to GLM-5.2 workers (Cole's standing routing); orchestrator
+(Opus) owned gates, adjudication, commits. Two GLM adversarial reviews ran — P4 release pipeline
+(FLAG → build-freshness sentinel + corrected updater-behavior doc, both addressed) and the P1+P2
+wave-end code review (FLAG on test-adequacy → inertness test added, addressed). No BLOCK survived.
+
+Gates at wrap: eslint 0, tsc 0, `cargo check` green, vitest 1835 pass (2 new inertness tests) with
+only the 6 pre-existing W46 eval-harness failures (untouched, not regressions).
+
+Not shipped (physical-Mac-bound, by design): the actual build/sign/notarize/cert — that IS the Mac day.
