@@ -19,8 +19,8 @@ per `~/.claude/rules-deferred/glm-dispatch.md` — Cole's standing routing for t
 |---|---|---|---|
 | P1 | Platform detection foundation (`tauri-plugin-os` + `isMac()`) | ✅ done | (this commit) |
 | P2 | Title bar: native traffic lights on macOS, unchanged on Windows | ✅ done | (this commit) |
-| P3 | Manifest contract documented in `publish.ps1` (comment-only) | pending | — |
-| P4 | Author `publish-mac.sh` (fixture-tested in Git Bash) | pending | — |
+| P3 | Manifest contract documented in `publish.ps1` (comment-only) | ✅ done | (this commit) |
+| P4 | Author `publish-mac.sh` (fixture-tested in Git Bash) | ✅ done | (this commit) |
 | P5 | `bundle.macOS` config + Mac-day runbook + report promotion + CLAUDE.md | pending | — |
 | P6 | Wave close (full suite, follow-ups) | pending | — |
 
@@ -51,7 +51,7 @@ per `~/.claude/rules-deferred/glm-dispatch.md` — Cole's standing routing for t
 **Enforcement:** none (convention) — persistence smoke item added to runbook.
 
 ## Follow-up candidates
-_(populated at P6)_
+- **Mac updater mid-window UX** (from P4 adversarial review, Angle 6/7): when Windows publishes version N first, Mac clients on N-1 polling `latest.json` during the gap before `publish-mac.sh` runs hit a missing `darwin-aarch64` key, which `tauri-plugin-updater` 2.x surfaces as an update-check ERROR (`TargetsNotFound`), not a silent no-op. | why not in-wave: requires confirming/adjusting the app's updater error-handling UX (or adopting Mac-first/atomic sequencing) — a src/ change beyond this Windows-side prep wave. | present-harm: K3 — zero present harm (no Mac clients exist until the first .dmg ships); becomes real on the SECOND Mac release. Documented in the runbook as tight-sequencing guidance (P5). Auditor may decline as future-only.
 
 ## Result
 _(populated at wrap)_
