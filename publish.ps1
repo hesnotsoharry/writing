@@ -13,6 +13,35 @@
 #   3. Generates latest.json (the file the in-app updater polls).
 #   4. Creates a GitHub release tagged v<version> and uploads the installer
 #      + latest.json as release assets.
+#
+# --- Multi-platform updater manifest contract ----------------------------
+# There is ONE latest.json per release tag, written by two publishes in order:
+#
+#   1. WINDOWS (this script) publishes FIRST. `gh release create` makes the
+#      GitHub release for the tag and uploads a latest.json whose `platforms`
+#      holds ONLY the `windows-x86_64` key. The tag-exists guard below (the
+#      `gh release view $Tag` check that throws when the release already
+#      exists) makes a same-tag Windows re-publish FAIL FAST — so this script
+#      never has to merge into an existing manifest; any such merge would be
+#      unreachable dead code.
+#
+#   2. MACOS (publish-mac.sh, run separately on a Mac) publishes SECOND. It
+#      downloads the tag's latest.json, leaves the `windows-x86_64` key
+#      untouched, and UPSERTS the `darwin-aarch64` key (signature + url).
+#      Before writing, it guards that the downloaded manifest's `version`
+#      equals the version being shipped — so a platform key is never pointed
+#      at a mismatched version (which would loop a Mac client onto an old
+#      build) — then re-uploads the merged file with `gh release upload
+#      --clobber`.
+#
+# Mid-window behavior: in the gap between the Windows publish and the macOS
+# publish, a Mac client polling latest.json finds no `darwin-aarch64` key. The
+# Tauri updater (tauri-plugin-updater 2.x) treats a missing platform key for
+# the current target as an update-check ERROR (TargetsNotFound), NOT a silent
+# "no update". This is transient and self-heals the instant publish-mac.sh
+# uploads the merged manifest. On the VERY FIRST Mac release there are no Mac
+# clients yet, so the window is invisible; for subsequent releases keep the two
+# publishes close together to minimize it.
 
 $ErrorActionPreference = 'Stop'
 
