@@ -147,6 +147,7 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_os::init())
         // BYOK cancellation map — keyed by stream_id, holds oneshot senders.
         .manage(byok::ByokCancel::default())
         .setup(|_app| {

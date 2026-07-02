@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "os:default",
     "sql:default",
     "sql:allow-execute",
     "core:window:allow-minimize",
