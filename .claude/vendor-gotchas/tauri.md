@@ -2,14 +2,14 @@
 vendor: "Tauri 2.x"
 sdkVersion: "2"
 firstWritten: 2026-06-03
-lastVerified: 2026-06-15
+lastVerified: 2026-07-02
 relatedPaths:
   - src/shell/WindowControls.tsx
   - src/shell/TitleBar.tsx
   - src-tauri/tauri.conf.json
   - src-tauri/capabilities/default.json
   - src/shell/UpdateModal.tsx
-notes: "Gotchas: Tauri 2 window API, custom frameless, drag region inheritance, dialog permissions, auto-updater config/relaunch. Windows 11 + WebView2 context."
+notes: "Gotchas: Tauri 2 window API, custom frameless, drag region inheritance, dialog permissions, auto-updater config/relaunch, macOS native traffic lights + platform-config merge + bundle config. Windows 11 + WebView2 and macOS contexts."
 ---
 
 # Tauri gotchas
@@ -119,3 +119,33 @@ Source: wave-40, commit e946df6
 **Gotcha:** When consuming a raw HTTP SSE stream via `bytes_stream()` in Rust, each `Bytes` chunk arriving over the network boundary is arbitrary length and may split multi-byte UTF-8 characters. Using `String::from_utf8_lossy()` on each raw chunk independently will corrupt multi-byte sequences split across two packets — the loss is silent and produces mojibake. The parser must buffer raw bytes until a complete line (ending in `\n`) is collected, THEN decode that line as UTF-8.
 **Workaround:** Read raw bytes from the stream, accumulate them in a `Vec<u8>` or a buffered reader, scan for `\n` boundaries, extract complete lines, and decode each line via `String::from_utf8_lossy(&line_bytes)`. If a UTF-8 error occurs on a line boundary, the decoder will correctly report it (or use the lossy variant to skip invalid bytes). Never use `from_utf8_lossy` on arbitrary-length chunks — always collect to a line boundary first.
 **Why:** UTF-8 is variable-length (1–4 bytes per character); a code point like 🎉 (U+1F389) is encoded as 4 bytes. A TCP packet boundary may cut in the middle of a code point, producing invalid bytes on both sides if decoded separately.
+
+## 2026-07-02 — Platform-specific config auto-merges — no `--config` flag (Tauri 2)
+Source: wave-55, commit c2baeb2
+**Gotcha:** A `src-tauri/tauri.<platform>.conf.json` (e.g. `tauri.macos.conf.json`) is auto-discovered by the Tauri 2 CLI and merged over the base `tauri.conf.json` for that target only (RFC 7396 merge-patch). No `--config` flag needed — an adversarial-review claim that it was required was checked against v2.tauri.app/reference/cli and REFUTED. CAVEAT: JSON arrays REPLACE wholesale (not element-wise), so overriding one entry of an array (e.g. `app.windows[0]`) requires restating the ENTIRE object with every base field copied verbatim, or the omitted fields are lost.
+**Workaround:** Put platform-only deltas in `tauri.<platform>.conf.json`; for any array element you override, restate the full object.
+**Why:** RFC 7396 merge-patch replaces arrays atomically; Tauri 2's CLI auto-loads the per-platform file when building that target.
+
+## 2026-07-02 — macOS native traffic lights: `Overlay` + `hiddenTitle` + gate custom buttons off
+Source: wave-55, commit c2baeb2
+**Gotcha:** To get native macOS window controls instead of a custom bar, the window must be configured `decorations: true` + `titleBarStyle: "Overlay"` + `hiddenTitle: true` (in the macOS platform config), AND the app's custom window-control buttons must be gated OFF at render time (via an `isMac()` check) or they double up on the native ones. `data-tauri-drag-region` (same attribute cross-platform — see the 2026-06-03 / 2026-06-09 drag-region entries) is REQUIRED with Overlay style or the bar isn't draggable.
+**Workaround:** Reserve a left inset (~78px, tune on-device) so brand/content clears the traffic lights. Leave `trafficLightPosition` unset (available Tauri ≥ 2.4.0) until you can tune it on a real Mac.
+**Why:** Overlay style overlays content under the native controls (which sit on top); without the inset, content slides under them. The native controls replace any custom ones, so both must not render together.
+
+## 2026-07-02 — Updater: a missing platform key is an ERROR, not a silent no-op
+Source: wave-55, commit c2baeb2
+**Gotcha:** In `tauri-plugin-updater` 2.x, when the current target's key is absent from `latest.json`'s `platforms`, `check()` returns `Err(TargetsNotFound)` (verified in updater.rs:536/597), NOT `Ok(None)`. For staggered multi-platform publishes (Windows writes `windows-x86_64` first, macOS upserts `darwin-aarch64` second), during the gap, clients of the not-yet-published platform get transient update-check ERRORS, not silence.
+**Workaround:** Keep the two publishes tight (same tag, minutes apart). The first release of a brand-new platform is invisible (no clients of that platform exist yet), so the gap only bites on the second platform's existing install base.
+**Why:** The updater resolves the target key before deciding availability; absence is modeled as an error state, not an empty-result state.
+
+## 2026-07-02 — keyring on macOS: `use_native_store(false)` is Linux-only; Keychain always used
+Source: wave-55, commit c2baeb2
+**Gotcha:** On macOS, keyring unconditionally maps to the real Keychain regardless of the `use_native_store(false)` bool (that flag is Linux-only). A Windows-built keyring integration works on macOS as-is — no code change needed.
+**Workaround:** Ship the default `v1` keyring feature on macOS; do NOT set `use_native_store(false)` expecting a non-native store (it is a no-op on macOS).
+**Why:** The native-store fallback flag was added for Linux environments without a secret service; macOS and Windows have first-class platform stores the crate binds to directly.
+
+## 2026-07-02 — bundle config placement (Tauri 2): `category` is top-level, not under `bundle.macOS`
+Source: wave-55, commit c2baeb2
+**Gotcha:** `category` (LSApplicationCategoryType, e.g. `"public.app-category.productivity"`) is a TOP-LEVEL `bundle` field, NOT under `bundle.macOS`. By contrast, `minimumSystemVersion` and `signingIdentity` ARE under `bundle.macOS`.
+**Workaround:** Omit `signingIdentity` to have it read from the `APPLE_SIGNING_IDENTITY` env var at build time. `hardenedRuntime` defaults to true (required for notarization) — leave it set.
+**Why:** The Tauri 2 `bundle` schema splits cross-platform fields (top-level `category`, `icon`) from macOS-specific ones (under `bundle.macOS`).

@@ -1,47 +1,46 @@
 ---
 project: writing
-updated: 2026-06-17
+updated: 2026-07-02
 ---
 
 ## Current state
-- Branch: master  ·  Latest commit: (this push)  ·  v0.12.3 bumped + tagged earlier · v0.12.4 bumped + tagged, NOT yet published (publish whichever is latest)
-- **W53 "Editor scene-header editing + AI context & brainstorm integration" SHIPPED + PUBLISHED (v0.12.1).**
-  All 5 phases (one commit each):
-  - P1 (e14b194): Inline-edit scene Title + Status from editor header
-  - P2 (a49fac1): Block entire scene from AI — migration #19 adds scenes.exclude_from_ai column, placeholder "[this scene was withheld by the author]"
-  - P3 (3f0bcc1): Selection sparkle icon opens ONE fresh conversation context, not the full AI conversation list
-  - P4 (25160a1): AI panel accessible in brainstorm view; right-click card + "Ask AI about this card" opens conversation with card context
-  - P5 (e8a972f): AI reply includes "Add to board" button; clicking creates new brainstorm card (seam test added c15bdeb)
-- **v0.12.2 (c068370) — the two W53 Phase-0 deferrals, now DONE (bumped, awaiting publish):**
-  - Brainstorm AI picker hides the vestigial Scenes section when no active scene (About + Story Bible stay).
-  - "Ask AI about this card" now spans the whole selection — multi-select + right-click concatenates all selected cards' text; single-card behavior unchanged. (gatherMultiCardText helper + useAskAiHandler reading React Flow node.selected; 8 tests.)
-- **v0.12.3 (fd44826) — AI panel now REFLECTS + TOGGLES the active scene's "Hidden from AI" state:**
-  - The exclude-from-AI state (header's "Hidden from AI" toggle, scenes.exclude_from_ai) now surfaces in the assistant panel and is togglable from two surfaces: the scene chip in the "What I can see" strip, and the active-scene row in the "Adjust" picker. Pure derive from activeScene.excludeFromAi (no setState-in-effect); both paths call the same binder setter the header uses.
-  - Refactor: readSceneExcluded + applySceneExclusionToggle moved to ai.helpers.ts (keeps AssistantPanel.tsx under the 300-line ceiling); three ai.helpers test mocks hardened to spread importOriginal. +15 seam tests incl. toggle-polarity assertions (review FLAG closed).
-- **v0.12.4 — context-strip chip polish (same "withheld" treatment reused):**
-  - Hidden scene chip now KEEPS its name (shield icon + withheld colour) instead of showing literal "Hidden from AI" — users can see WHICH scene is off.
-  - Entity chips in the "What I can see" strip are now click-to-toggle (was Adjust-picker-only); toggled-off entities stay visible withheld-styled so you can toggle them back. Mirrors the picker exactly (writes raw aiCtx.offEntityNames; persistent never-share entities excluded). New pure helpers buildEntityChips + applyEntityToggle in ai.helpers.ts; +13 tests (review FLAG closed via extracted/tested toggle helper).
-- Gate results: tsc 0, eslint 0 (src/), full suite green except 6 pre-existing W46 eval-harness failures (eval-runner.test.ts, scorer.test.ts), untouched.
-- Active wave: NONE.
+- Branch: master · Latest commit: 5bd7d99 (W55 P6) · Tag: v0.12.5 (W54 — W55 is not a release)
+- Active wave: none · Status: between waves (W55 COMPLETE)
+- **W55 "macOS-prep (Windows-side)" COMPLETE** — 6 commits on master (c2baeb2 P1 → 5bd7d99 P6).
+  Every macOS-port item NOT needing the physical Mac is done, so the one Mac day is pure execution against roadmap/coordination/mac-day-runbook.md. All changes are INERT on Windows (2-polarity inertness test).
+  - P1: platform detection (tauri-plugin-os + isMac()).
+  - P2: native traffic lights via auto-merged tauri.macos.conf.json (Windows byte-identical) + WKWebView -webkit-backdrop-filter compat.
+  - P3: manifest contract documented in publish.ps1 (comment-only).
+  - P4: new publish-mac.sh (Apple Silicon build+notarize+manifest-merge, fixture-tested on Windows via --manifest-only).
+  - P5: bundle.macOS config + mac-day runbook + 2 GLM research reports → research/.
+  - P6: inertness test + wave close.
+  - Not a release: no version bump. Ships inertly in the NEXT Windows release whenever Cole runs publish.ps1; latest tag stays v0.12.5 (W54).
+  - Impl routed to GLM-5.2 workers (Cole's standing routing); Opus orchestrated gates/adjudication/commits. 2 GLM adversarial reviews (P4 pipeline + P1/P2 code) both FLAG→addressed, no BLOCK.
+- Gates at wrap: eslint 0, tsc 0, cargo check green, vitest 1835 pass — only the 6 pre-existing W46 eval-harness failures (scorer.test.ts, eval-runner.test.ts) remain, untouched, NOT regressions.
 
 ## Next 3 steps
-1. **Cole publishes v0.12.4** (latest; supersedes v0.12.3 if that wasn't published yet): version files bumped to 0.12.4 in all 4 locations + tag v0.12.4 pushed. Run `.\publish.ps1` interactively. Smoke: (a) toggle a scene "Hidden from AI" → its chip in the strip keeps the scene NAME but shows a shield + muted colour; (b) in the "What I can see" strip, click an entity chip → it goes muted/shielded (withheld) and stays visible; click again → back to normal; confirm the same entity's state matches the "Adjust" picker.
-2. **W46 eval-harness continues parallel:** panel-judge scoring pipeline on a separate thread (the 6 failing scorer/eval-runner tests are in-progress W46 rig-v2 work, not regressions).
-3. No queued app wave — next feature work is Cole's call.
+1. **THE MAC DAY** (when Cole has the Mac): execute roadmap/coordination/mac-day-runbook.md end-to-end —
+   toolchain, Developer ID cert, env block, publish.ps1 on Windows FIRST then publish-mac.sh on the Mac, tune trafficLightPosition + the 78px .tb-left reserve, manual smoke (no CDP-9222 on macOS).
+2. Next Windows release: W55 rides along inertly in whatever publish.ps1 run Cole does next (no dedicated release needed).
+3. W46 eval-harness continues on its own thread (6 failing scorer/eval-runner tests are in-progress W46 rig work, not regressions).
 
 ## Active work
-- W53 complete; no wave currently in flight.
-- Open follow-ups: 4 active items (none touched by W53 scope):
-  - Top priority: [assistant-entity-strip-staleness](follow-ups/assistant-entity-strip-staleness.md) (detect stale entity references in About section context)
-  - Also backlog: w39-phase4-smoke (acceptance gate), agent-driven-smoke-harness (smoke config + CDP orchestration), turnstile-captcha (Cloudflare hardening)
-  - All are lower priority, separate from W53 app flow.
-- **CRITICAL:** marketing/ subdirectory has uncommitted changes (Cole's separate marketing work, unrelated to W53 app deliverables — do NOT merge into app shipping).
+- No app wave in flight (W55 complete).
+- W55 follow-up candidates (roadmap/wave-55-macos-prep.md — all future/conditional, none block):
+  - GitHub Actions release matrix (make the Mac build one-time).
+  - Marketing Mac download button (blocked until a real .dmg exists).
+  - Universal binary (only if an Intel-Mac user appears).
+  - Mac updater mid-window UX + WKWebView agent-smoke alternative (extends the existing 2026-06-15 smoke-harness follow-up).
+- Open follow-ups: 4 carried forward (none touched by W55) · [inbox](follow-ups/)
+  - Top priority: assistant-entity-strip-staleness (stale entity refs in About-section AI context).
+  - Backlog: w39-phase4-smoke (acceptance gate), agent-driven-smoke-harness (smoke config + CDP orchestration), turnstile-captcha (Cloudflare hardening).
+- Working tree clean (W55 fully committed). Note: pushing master auto-deploys marketing/public/ to writersnook.app via Cloudflare Pages — W55 touched no marketing files, so its push is a benign no-op rebuild.
 
 ## Reference index
-- **W53 durable decisions (candidates for promotion to decisions/):**
-  - [scene-exclude-storage-placeholder.md](decisions/scene-exclude-storage-placeholder.md) — v1 scope: storage layer only, no UI hardening planned
-  - [cross-view-bridge-v1-scoping.md](decisions/cross-view-bridge-v1-scoping.md) — v1: editor + brainstorm wired; other views deferred
-- **Decision archive:** [decisions/](decisions/) (full ADR record from prior waves)
-- **Project conventions & architecture:** [CLAUDE.md](../CLAUDE.md) — Tauri 2 shell + React 19 + Vite + TipTap + Yjs + SQLite stack
-- **Vendor-gotchas (must-read before next work):** [.claude/vendor-gotchas/](../.claude/vendor-gotchas/) — Tauri (capability gaps, drag-region inheritance), Yjs (one-doc-per-scene, base64 serialization), TipTap (editor override gotchas), Ollama (local LLM edge cases), Anthropic API (moderation input-side, token budgets)
-- **Shared production database (dev + installed):** both read/write %APPDATA%\com.coles.writing\writing.db (contains real user manuscripts + active license row). Smoke oracle: Use CDP port 9222 + tauri-devtools MCP (ProseMirror behavior not testable via jsdom). Hard prohibitions: do NOT run `.\publish.ps1` from agent context (interactive auth, Cole-only); do NOT send live AI requests during smoke (managed subscription budget + real user data).
+- [roadmap/wave-55-macos-prep.md](wave-55-macos-prep.md) — locked decisions (aarch64-only ship target, platform-config auto-merge) + follow-up candidates + Result.
+- [roadmap/coordination/mac-day-runbook.md](coordination/mac-day-runbook.md) — THE Mac-day execution script.
+- [research/2026-07-02-macos-port-audit.md](../research/2026-07-02-macos-port-audit.md) + [-requirements.md](../research/2026-07-02-macos-port-requirements.md) — GLM portability audit + Tauri-2-on-macOS checklist.
+- [.claude/vendor-gotchas/tauri.md](../.claude/vendor-gotchas/tauri.md) — +5 macOS entries (platform-config auto-merge, native traffic lights, updater TargetsNotFound, keyring-on-macOS, bundle.category placement).
+- [CLAUDE.md](../CLAUDE.md) Commands — publish.ps1 + publish-mac.sh manifest contract.
+- [decisions/](decisions/) — durable ADRs; [decisions/RECENT.md](decisions/RECENT.md) — newest-10 digest.
+- Shared DB + smoke oracle: dev + installed both read/write %APPDATA%\com.coles.writing\writing.db (real manuscripts + license). Smoke via CDP port 9222 + tauri-devtools MCP (ProseMirror not jsdom-testable). Do NOT run publish.ps1 from agent context; do NOT send live AI requests during smoke.
