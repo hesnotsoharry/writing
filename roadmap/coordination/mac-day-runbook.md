@@ -195,6 +195,14 @@ Apple and is polling for the verdict. Tauri **blocks** on this — the build com
 until notarization succeeds (or fails). If it fails, `publish-mac.sh` exits non-zero and prints the
 `xcrun notarytool log` command you need (see §7).
 
+> **First submission from a NEW Apple Developer account can take 1+ hours** (observed on the first
+> Mac day; Apple scans new accounts more deeply). Check queue state from a SECOND shell — export the
+> three `APPLE_*` vars there, then `xcrun notarytool history --apple-id "$APPLE_ID" --team-id
+> "$APPLE_TEAM_ID" --password "$APPLE_PASSWORD"`. `In Progress` = genuinely queued, keep waiting.
+> **Because the build blocks for the whole wait, run it inside `tmux`** (`tmux new -s build`, run the
+> build, detach `Ctrl-b d`, reattach `tmux attach -t build`) — a dropped SSH/VNC connection otherwise
+> SIGHUPs the build and sends the notarization back to the end of the queue.
+
 ### ⚠️ Mid-window sequencing (matters from the SECOND Mac release onward)
 
 > From the P4 adversarial review (filed as a Wave 55 follow-up candidate).
