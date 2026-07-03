@@ -66,16 +66,16 @@
       </h1>
       <p class="hero-lede">Everything your story needs and nothing it doesn't. Draft, organize, and keep your whole world straight — in one calm room that stays yours, on your own machine.</p>
       <div class="hero-cta">
-        <a class="m-btn m-btn-ondark m-btn-lg" href="https://downloads.writersnook.app/WritersNook-Setup.exe?utm_source=writersnook&utm_medium=cta&utm_campaign=launch&utm_content=hero">
+        <a class="m-btn m-btn-ondark m-btn-lg" id="hero-dl" href="https://downloads.writersnook.app/WritersNook-Setup.exe?utm_source=writersnook&utm_medium=cta&utm_campaign=launch&utm_content=hero">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
-          Download free trial
+          <span class="dl-label">Download for Windows</span>
         </a>
         <a class="m-btn m-btn-ghost-dark m-btn-lg" href="pricing.html">Buy Writers Nook — $29</a>
       </div>
       <p style="margin:14px 0 0;font-size:14px;color:var(--ink-3)">Free for 14 days. No account, no card — just download and write.</p>
       <div class="hero-meta">
         <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>One-time purchase</span>
-        <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Windows · macOS coming soon</span>
+        <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Windows · macOS</span>
         <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Your files stay yours</span>
         <span style="color:var(--accent-deep)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2A2 2 0 012.8 12V4.8A2 2 0 014.8 2.8H12a2 2 0 011.4.6l7.2 7.2a2 2 0 010 2.8z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor"/></svg>Founder price $29 · reg. $49</span>
       </div>
@@ -121,18 +121,6 @@
     </div>
   </div>
 </header>
-
-<!-- ===================== MAC WAITLIST ===================== -->
-<section style="padding:18px 0;border-bottom:1px solid var(--line-soft)">
-  <div class="wrap" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-    <p style="margin:0;font-size:15px;font-weight:600;color:var(--ink);flex:none">macOS — join the waitlist</p>
-    <form class="waitlist-form" style="display:flex;gap:8px;flex:1;min-width:240px">
-      <input type="email" placeholder="your@email.com" aria-label="Email address for macOS waitlist" required style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper);color:var(--ink);font-size:14px;font-family:var(--font-ui)">
-      <button class="m-btn m-btn-ghost" type="submit" style="white-space:nowrap">Notify me</button>
-    </form>
-    <p class="news-note" style="flex-basis:100%;margin:4px 0 0;font-size:13px;color:var(--ink-3)"></p>
-  </div>
-</section>
 
 <!-- ===================== POSITIONING BAND ===================== -->
 <section class="section-pad-sm">
@@ -313,7 +301,7 @@
       <div class="pt-item lead">
         <span class="pt-tag">The app</span>
         <div class="pt-amt">$29<span>once</span></div>
-        <div class="pt-sub">USD · yours to keep · Windows · macOS coming soon</div>
+        <div class="pt-sub">USD · yours to keep · Windows &amp; macOS</div>
         <div class="founder-note">Founder price · <span class="price-was">reg. $49</span></div>
       </div>
       <div class="pt-plus">+</div>
@@ -330,9 +318,9 @@
       </div>
     </div>
     <div class="io" style="text-align:center;margin-top:32px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
-      <a class="m-btn m-btn-primary m-btn-lg" href="https://downloads.writersnook.app/WritersNook-Setup.exe?utm_source=writersnook&utm_medium=cta&utm_campaign=launch&utm_content=pricing-section">
+      <a class="m-btn m-btn-primary m-btn-lg" id="pricing-dl" href="https://downloads.writersnook.app/WritersNook-Setup.exe?utm_source=writersnook&utm_medium=cta&utm_campaign=launch&utm_content=pricing-section">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
-        Download free trial
+        <span class="dl-label">Download for Windows</span>
       </a>
       <a class="m-btn m-btn-ghost m-btn-lg" href="pricing.html">Buy Writers Nook — $29</a>
     </div>
@@ -377,6 +365,7 @@
   </div>
 </footer>
 
+<script src="downloads-config.js"></script>
 <script src="site.js"></script>
 </body>
 </html>

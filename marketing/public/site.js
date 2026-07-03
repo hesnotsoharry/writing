@@ -1,5 +1,5 @@
 /* Writers Nook marketing — shared behavior (all pages) */
-/* global document, window, localStorage, IntersectionObserver, setTimeout, fetch */
+/* global document, window, navigator, localStorage, IntersectionObserver, setTimeout, fetch */
 (function () {
   // ---- starfields (any [data-stars] element) ----
   document.querySelectorAll('[data-stars]').forEach(function (el) {
@@ -98,7 +98,7 @@
     if (nowT === startT) document.body.classList.add('reveal-all');
   }, 500);
 
-  // ---- email capture forms (newsletter + macOS waitlist) ----
+  // ---- email capture forms (newsletter) ----
   // isValidEmail mirrors the server-side rule; form-utils.js is module-only so
   // we inline a matching guard here for the non-module site.js context.
   function isValidEmail(s) {
@@ -151,5 +151,83 @@
   }
 
   wireEmailForm('.news-form', '/api/newsletter', "You're on the list — thank you. Watch for a quiet hello soon.");
-  wireEmailForm('.waitlist-form', '/api/macos-waitlist', "You're on the macOS waitlist — we'll let you know when it ships.");
+
+  // ---- platform-aware download CTAs (hero, pricing, pricing-page trial link) ----
+  // Progressively enhances the static Windows download links in the HTML: a
+  // macOS visitor gets the .dmg and a "Download for macOS" label on the primary
+  // buttons; everyone else stays on Windows. A small "Also available for …"
+  // link to the other platform is inserted under each primary CTA. With JS off,
+  // the static Windows href stays put, so every button still works. URLs come
+  // from window.WN_DL (downloads-config.js, loaded before site.js).
+  function detectMac() {
+    // Prefer User-Agent Client Hints (Chromium); fall back to the classic sniff.
+    // Ambiguous / undetectable → false → Windows (the static default).
+    try {
+      var uad = window.navigator.userAgentData;
+      if (uad && typeof uad.platform === 'string') return /mac/i.test(uad.platform);
+    } catch (e) { /* userAgentData is Chromium-only — fall through */ }
+    if (typeof navigator.platform === 'string' && /mac/i.test(navigator.platform)) return true;
+    return /mac/i.test(navigator.userAgent || '');
+  }
+  function withDlUtm(url, content) {
+    return url + '?utm_source=writersnook&utm_medium=cta&utm_campaign=launch&utm_content=' + content;
+  }
+  function makeAltDlLink(otherUrl, otherLabel, center) {
+    var p = document.createElement('p');
+    if (center) p.style.textAlign = 'center';
+    p.style.margin = '10px 0 0';
+    var a = document.createElement('a');
+    a.href = otherUrl;
+    a.className = 'dl-alt-link';
+    a.textContent = 'Also available for ' + otherLabel;
+    p.appendChild(a);
+    return p;
+  }
+  // makeMacNote: the macOS build is Apple-silicon-only (M1+). Arch can't be
+  // sniffed reliably from JS (navigator.platform reads 'MacIntel' on every
+  // Mac; Safari lacks UA-CH), so we disclose the requirement in copy beside
+  // the macOS CTA. Mac visitors only — Windows visitors see no note.
+  function makeMacNote(center) {
+    var p = document.createElement('p');
+    p.className = 'platform-note';
+    if (center) p.style.textAlign = 'center';
+    p.textContent = 'macOS version requires Apple silicon (M1 or later).';
+    return p;
+  }
+  (function wirePlatformDl() {
+    var cfg = window.WN_DL || {};
+    var winUrl = cfg.winUrl || '';
+    var macUrl = cfg.macUrl || '';
+    if (!winUrl && !macUrl) return;
+    var isMac = detectMac();
+    var primaryUrl = isMac ? macUrl : winUrl;
+    var primaryLabel = isMac ? 'Download for macOS' : 'Download for Windows';
+    var otherUrl = isMac ? winUrl : macUrl;
+    var otherLabel = isMac ? 'Windows' : 'macOS';
+    // btn: primary button id · content: utm_content · alt: insert "also available" link
+    var ctas = [
+      { btn: 'hero-dl', content: 'hero', alt: true, center: false },
+      { btn: 'pricing-dl', content: 'pricing-section', alt: true, center: true },
+      { btn: 'pricing-trial-link', content: 'pricing-trial-link', alt: false, center: true }
+    ];
+    ctas.forEach(function (c) {
+      var btn = document.getElementById(c.btn);
+      if (!btn) return;
+      if (primaryUrl) btn.href = withDlUtm(primaryUrl, c.content);
+      var label = btn.querySelector('.dl-label');
+      if (label) label.textContent = primaryLabel;
+      var ctaRow = btn.parentNode;
+      if (!ctaRow || !ctaRow.parentNode) return;
+      // "Also available for …" cross-platform link under the CTA.
+      if (c.alt && otherUrl) {
+        ctaRow.parentNode.insertBefore(makeAltDlLink(withDlUtm(otherUrl, c.content), otherLabel, c.center), ctaRow.nextSibling);
+      }
+      // macOS arch disclosure — Apple-silicon-only build. Mac visitors only;
+      // inserted last so it lands directly under the CTA (above the alt link),
+      // and Windows visitors see no note at all.
+      if (isMac) {
+        ctaRow.parentNode.insertBefore(makeMacNote(c.center), ctaRow.nextSibling);
+      }
+    });
+  })();
 })();
