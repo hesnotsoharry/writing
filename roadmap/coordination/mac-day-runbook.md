@@ -224,7 +224,10 @@ What this does (you do NOT run these manually — `publish-mac.sh` orchestrates 
 4. Downloads the tag's `latest.json`, **guards its `.version` equals the version being shipped**
    (so a platform key can never point at a mismatched build), upserts ONLY the `darwin-aarch64`
    key, and re-uploads with `gh release upload --clobber`.
-5. Uploads the `.dmg` to R2 (non-fatal if it fails).
+5. Uploads the `.dmg` to R2 via pinned `wrangler@4 … --remote` (non-fatal if it fails — but
+   `--remote` needs Cloudflare auth on the Mac: `CLOUDFLARE_API_TOKEN` with R2 write, or
+   `npx wrangler login`. No auth → loud warn + manual commands; simplest fallback is uploading
+   from the authed Windows machine, see §7).
 
 ### Notarization wait
 
@@ -329,6 +332,8 @@ Tick each one on the signed + notarized build (not a `taauri dev` build — a re
 | **Updater key rejected** | The `TAURI_SIGNING_PRIVATE_KEY` must be the SAME pair `publish.ps1` uses on Windows (one shared pair, one embedded pubkey in `tauri.conf.json`). If the Mac build's `.sig` doesn't validate against the pubkey, you've used a different key — copy the Windows key over and rebuild. |
 | **`error running bundle_dmg.sh`** (right after "Stapling app…") | Headless/SSH session — the DMG-styling AppleScript needs a GUI Finder (see §4 Step 2). Re-run the whole script with `CI=true bash publish-mac.sh` inside tmux, after re-exporting the §3 env block. The Rust compile is cached, so the rebuild is minutes; it DOES re-sign + re-notarize (the script has no resume), but repeat notarization on an already-vetted account is the normal 5–15 min, not the first-submission hours. |
 | **`failed to decode secret key: … Invalid symbol 46, offset N`** (after "Finished 2 bundles") | The updater-signature step. `TAURI_SIGNING_PRIVATE_KEY` doesn't hold valid key material — usually a key-file PATH that doesn't exist on this machine (Tauri only reads a file if `Path::exists`; otherwise it base64-decodes the string itself, and symbol 46 is the `.` in the filename). Check: `[ -f "$TAURI_SIGNING_PRIVATE_KEY" ] && echo path-ok \|\| echo "NOT a file"`. Fix per §3: `export TAURI_SIGNING_PRIVATE_KEY="$(cat /absolute/path/to/writing.key)"`, then re-run `CI=true bash publish-mac.sh`. |
+| **R2 upload prints `Resource location: local` and "succeeds" without auth** | It uploaded to a local simulated bucket on the Mac, NOT to Cloudflare (wrangler 4's local-by-default R2 trap — bit the first Mac day). `publish-mac.sh` now pins `wrangler@4 … --remote`, which instead fails loudly when the Mac has no Cloudflare auth. Fallback (no token on the Mac): from the **Windows** machine, `gh release download vX.Y.Z --repo hesnotsoharry/writing --pattern '*.dmg'`, then from `marketing/`: `npx wrangler r2 object put writersnook-downloads/WritersNook.dmg --file <dmg>` + the same for the versioned name (Windows wrangler ^3 is remote-by-default and OAuth is cached there). |
+| **downloads.writersnook.app 404s AFTER a confirmed upload** | Edge-cached 404 (`max-age=14400` = 4h): any request made before the object existed poisons the URL. Confirm the object is really there with a cache-buster (`curl -sI ".../WritersNook.dmg?v=1"` → 200), then purge the clean URL: dashboard → writersnook.app zone → Caching → Purge Cache → Purge by URL. Don't probe download URLs before uploading. |
 
 ---
 

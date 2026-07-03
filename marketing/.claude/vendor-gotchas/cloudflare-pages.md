@@ -26,6 +26,31 @@ agent sessions. Don't burn cycles on it — push to master instead (see above). 
 ever genuinely needed, Cole runs it interactively (`! cd marketing && npm run deploy`) or sets
 `CLOUDFLARE_API_TOKEN` (Pages:Edit scope).
 
+> **Partial correction (2026-07-03):** the "no cached OAuth" claim is stale for R2 at least —
+> `npx wrangler whoami` and `wrangler r2 object put` both ran authenticated (cached OAuth,
+> colestacey@icloud.com) from an agent session on Windows. Pages deploy may still refuse
+> non-interactive OAuth; R2 object writes demonstrably work. Push-to-master remains the canonical
+> Pages deploy path regardless.
+
+## wrangler 4 defaults `r2 object put` to a LOCAL simulated bucket — silent no-op "success"
+
+Observed 2026-07-03 (first Mac day): `npx wrangler r2 object put …` on a machine without
+`marketing/node_modules` fetched wrangler@4.107, which prints `Resource location: local`, needs
+**no auth**, reports "Upload complete" — and writes to a local `.wrangler/state` directory, not
+Cloudflare. The real bucket 404'd. wrangler **3** (the `^3` pin in `marketing/package.json`) is
+remote-by-default and has no `--remote` flag; wrangler **4** inverted the default. Both publish
+scripts are hardened: `publish-mac.sh` pins `npx wrangler@4 … --remote`; `publish.ps1` carries a
+version-trap comment against bumping the `^3` pin without adding `--remote`. The tell to watch for
+in any wrangler output: `Resource location: local`.
+
+## downloads.writersnook.app caches 404s for 4 hours (negative caching)
+
+A GET for a missing R2 object gets its 404 edge-cached with `Cache-Control: max-age=14400`
+(observed 2026-07-03, `Cf-Cache-Status: HIT`, on the R2 custom domain). Consequence: checking a
+download URL *before* uploading poisons it for up to 4h after the upload lands. Verify with a
+cache-buster (`?v=1` → should be 200/MISS); fix the clean URL via dashboard → writersnook.app
+zone → Caching → Purge Cache → Purge by URL. Release-day discipline: upload first, THEN check.
+
 ## Web Analytics: one-click enable, custom-domain CORS trap
 
 - Preferred setup (verified against CF docs 2026-06-10): dashboard → Pages project → **Metrics** →

@@ -504,17 +504,26 @@ gh release upload "$tag" \
 # Same posture as publish.ps1: warn + print the manual command, do NOT exit
 # non-zero. The GitHub release + in-app updater are already published.
 echo "Uploading DMG to R2 (downloads.writersnook.app)..."
+# wrangler@4 is PINNED and --remote is EXPLICIT, both load-bearing: wrangler 4 defaults
+# `r2 object put` to a LOCAL simulated bucket and reports "Upload complete" with no auth at all
+# (observed first Mac day, 2026-07-03: both puts "succeeded" into .wrangler/state on the build
+# Mac while the real bucket 404'd). A bare `npx wrangler` resolves to whatever happens to be
+# installed, so the version — and with it the local/remote default — would be nondeterministic.
+# --remote requires Cloudflare auth on THIS machine (CLOUDFLARE_API_TOKEN with R2 write, or a
+# prior `wrangler login`); without it the put now fails LOUDLY into the non-fatal warn path
+# below. Fallback: upload from the authed Windows machine (mac-day-runbook §7).
 if (
     cd "$MARKETING_DIR" \
-        && npx wrangler r2 object put "${R2_BUCKET}/WritersNook.dmg" --file "$dmg" \
-        && npx wrangler r2 object put "${R2_BUCKET}/$(basename "$dmg")" --file "$dmg"
+        && npx --yes wrangler@4 r2 object put "${R2_BUCKET}/WritersNook.dmg" --file "$dmg" --remote \
+        && npx --yes wrangler@4 r2 object put "${R2_BUCKET}/$(basename "$dmg")" --file "$dmg" --remote
 ); then
     echo "R2 upload complete — stable + $(basename "$dmg")"
 else
     echo "WARN: R2 upload failed (non-fatal). The GitHub release + updater are unaffected." >&2
-    echo "      Manual upload (run from marketing/ after 'npx wrangler login'):" >&2
-    echo "        npx wrangler r2 object put ${R2_BUCKET}/WritersNook.dmg --file \"$dmg\"" >&2
-    echo "        npx wrangler r2 object put \"${R2_BUCKET}/$(basename "$dmg")\" --file \"$dmg\"" >&2
+    echo "      Manual upload (from marketing/, with CLOUDFLARE_API_TOKEN set or after 'npx wrangler login';" >&2
+    echo "      can also be run from the Windows machine after 'gh release download ${tag} --pattern \"*.dmg\"'):" >&2
+    echo "        npx --yes wrangler@4 r2 object put ${R2_BUCKET}/WritersNook.dmg --file \"$dmg\" --remote" >&2
+    echo "        npx --yes wrangler@4 r2 object put \"${R2_BUCKET}/$(basename "$dmg")\" --file \"$dmg\" --remote" >&2
 fi
 
 # NOTE: secrets were exported by the operator, not created here, so they are

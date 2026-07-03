@@ -180,6 +180,11 @@ if ($LASTEXITCODE -ne 0) { throw 'gh release create failed.' }
 #   - Versioned → e.g. WritersNook_0_2_6_x64-setup.exe  (archive copy)
 # Wrangler is a devDep in marketing/ so we run it from there.
 # Non-fatal: if wrangler isn't authed or fails, print the manual command and continue.
+# VERSION TRAP: marketing/ pins wrangler ^3, where r2 commands are REMOTE by default and no
+# --remote flag exists. wrangler 4 flipped the default to a LOCAL simulated bucket — it prints
+# "Upload complete" with NO auth while the real bucket gets nothing (observed on the first Mac
+# day, 2026-07-03). If the wrangler pin is ever bumped to v4, add --remote to BOTH puts below
+# (publish-mac.sh already pins `npx wrangler@4 … --remote` for exactly this reason).
 Write-Host 'Uploading installer to R2 (downloads.writersnook.app)...' -ForegroundColor Cyan
 $marketingDir = Join-Path $ProjectRoot 'marketing'
 $r2Bucket = 'writersnook-downloads'
