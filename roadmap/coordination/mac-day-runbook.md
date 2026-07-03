@@ -146,6 +146,28 @@ read -rs TAURI_SIGNING_PRIVATE_KEY_PASSWORD   # type/paste the key password, pre
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 ```
 
+### 5-second key pre-flight (do this BEFORE the build)
+
+The updater-signature step runs LAST in the build — after compile + notarization — so a bad key or
+password wastes the whole cycle before it surfaces. `tauri signer sign` reads the SAME two env vars
+(`TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, verified in tauri-cli
+`signer/sign.rs` clap `env=` attributes), so it exercises exactly the path the build will:
+
+```bash
+cd /path/to/writing                        # npm run needs the repo root
+echo test > /tmp/keycheck.txt
+npm run tauri -- signer sign /tmp/keycheck.txt
+```
+
+Success prints a signature block (and writes `/tmp/keycheck.txt.sig`) — the build's signing step
+will succeed. Failure here = fix the key/password NOW, before `publish-mac.sh`.
+
+If the key file was moved by copy-paste (not scp), also sanity-check the transfer: the file must be
+a single line of pure base64 starting `dW50`. Compare `printf %s "$(cat writing.key)" | wc -c` and
+`… | shasum -a 256` against the same values computed from the Windows original — any mismatch means
+the paste mangled it (TextEdit rich-text mode, a truncated selection, and inserted line-wraps are
+the usual culprits; `pbpaste > writing.key` or a heredoc `cat > writing.key` paste avoids them).
+
 ### Two config facts that explain why `tauri.conf.json` looks minimal here
 
 - **`signingIdentity` is deliberately unset in `tauri.conf.json`.** When `bundle.macOS.signingIdentity`
