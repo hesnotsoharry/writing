@@ -172,8 +172,16 @@ gh release view vX.Y.Z --repo hesnotsoharry/writing
 
 ```bash
 cd /path/to/writing      # the repo root (where publish-mac.sh lives)
-bash publish-mac.sh
+CI=true bash publish-mac.sh
 ```
+
+> **`CI=true` is REQUIRED over SSH / headless** (observed on the first Mac day). Tauri's DMG step
+> runs `bundle_dmg.sh`, which drives **Finder via AppleScript** to style the DMG window (icon
+> positions, background). With no GUI session that AppleScript fails and the build dies with
+> `error running bundle_dmg.sh` — *after* notarization already succeeded, wasting the wait.
+> `CI=true` makes the bundler pass `--skip-jenkins` (confirmed in tauri-bundler
+> `bundle/macos/dmg/mod.rs`), which skips the Finder styling. The DMG is functionally identical
+> (drag-to-Applications symlink still created) — only the Finder-window cosmetics are default.
 
 What this does (you do NOT run these manually — `publish-mac.sh` orchestrates them):
 1. Preflight: toolchain + all six env vars present + version agrees across `package.json`,
@@ -289,6 +297,7 @@ Tick each one on the signed + notarized build (not a `taauri dev` build — a re
 | **`gh release download latest.json` fails** | Windows (`publish.ps1`) hasn't published this tag yet. Publish Windows first (§4 Step 1), then re-run. The error message in `publish-mac.sh` calls this out explicitly. |
 | **Manifest version guard fails** | `publish-mac.sh` refuses to upsert `darwin-aarch64` if the downloaded `latest.json`'s `.version` ≠ the version you're shipping. Re-run after Windows publishes the SAME version. |
 | **Updater key rejected** | The `TAURI_SIGNING_PRIVATE_KEY` must be the SAME pair `publish.ps1` uses on Windows (one shared pair, one embedded pubkey in `tauri.conf.json`). If the Mac build's `.sig` doesn't validate against the pubkey, you've used a different key — copy the Windows key over and rebuild. |
+| **`error running bundle_dmg.sh`** (right after "Stapling app…") | Headless/SSH session — the DMG-styling AppleScript needs a GUI Finder (see §4 Step 2). Re-run the whole script with `CI=true bash publish-mac.sh` inside tmux, after re-exporting the §3 env block. The Rust compile is cached, so the rebuild is minutes; it DOES re-sign + re-notarize (the script has no resume), but repeat notarization on an already-vetted account is the normal 5–15 min, not the first-submission hours. |
 
 ---
 

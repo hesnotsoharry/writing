@@ -144,6 +144,12 @@ Source: wave-55, commit c2baeb2
 **Workaround:** Ship the default `v1` keyring feature on macOS; do NOT set `use_native_store(false)` expecting a non-native store (it is a no-op on macOS).
 **Why:** The native-store fallback flag was added for Linux environments without a secret service; macOS and Windows have first-class platform stores the crate binds to directly.
 
+## 2026-07-03 — DMG bundling fails over SSH/headless: `bundle_dmg.sh` drives Finder; set `CI=true`
+Source: first Mac day, v0.12.6 release attempt
+**Gotcha:** `tauri build` on macOS dies at the very last step with `error running bundle_dmg.sh` when run in a headless/SSH session — AFTER signing, notarization (Accepted), and stapling all succeeded. Tauri's `bundle_dmg.sh` styles the DMG window (icon positions, background) by scripting **Finder via AppleScript**, which requires a logged-in GUI session; over bare SSH the AppleScript fails and the exit code kills the whole build.
+**Workaround:** Run the build with `CI=true` (e.g. `CI=true bash publish-mac.sh`). Confirmed in tauri-bundler source (`bundle/macos/dmg/mod.rs`): `CI=true` → passes `--skip-jenkins` to `bundle_dmg.sh`, skipping the Finder/AppleScript styling. The resulting DMG is functionally identical (the /Applications drag-link symlink is created by shell, not AppleScript) — only Finder-window cosmetics revert to defaults. Re-running re-signs + re-notarizes (no resume in the pipeline), but the Rust compile is cached and repeat notarization is minutes.
+**Why:** The styling step exists for the pretty drag-to-install window; create-dmg's `--skip-jenkins` flag was built exactly for GUI-less CI runners, and Tauri wires it to the conventional `CI` env var.
+
 ## 2026-07-02 — bundle config placement (Tauri 2): `category` is top-level, not under `bundle.macOS`
 Source: wave-55, commit c2baeb2
 **Gotcha:** `category` (LSApplicationCategoryType, e.g. `"public.app-category.productivity"`) is a TOP-LEVEL `bundle` field, NOT under `bundle.macOS`. By contrast, `minimumSystemVersion` and `signingIdentity` ARE under `bundle.macOS`.
