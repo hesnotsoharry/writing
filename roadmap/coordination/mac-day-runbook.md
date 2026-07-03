@@ -128,7 +128,15 @@ export APPLE_TEAM_ID="TEAMXXXX"               # from §2c
 # one key pair so both the .exe.sig and the .app.tar.gz.sig verify against the single `pubkey`
 # embedded in src-tauri/tauri.conf.json (plugins.updater.pubkey). Get the private key file from the
 # Windows machine (it lives at %USERPROFILE%\.tauri\writing.key) — copy it onto the Mac securely.
-export TAURI_SIGNING_PRIVATE_KEY="/Users/cole/.tauri/writing.key"
+#
+# VERIFY the path with ls FIRST, then load the file CONTENTS into the var (not the path).
+# Why: Tauri only treats the var as a path if that exact path EXISTS (Path::exists in
+# tauri-cli bundle.rs). A wrong path (e.g. the wrong /Users/<name> on a rental Mac) silently
+# falls through and gets base64-decoded AS the key — failing much later, AFTER the build and
+# notarization, with `failed to decode secret key: … Invalid symbol 46` (46 = the '.' in the
+# filename). The $(cat …) form fails loudly at export time instead.
+ls -l "$HOME/.tauri/writing.key"                              # must list the file — adjust path to where you copied it
+export TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.tauri/writing.key")"
 
 # Updater-key password — set it via silent read, NOT an inline export. If the password contains
 # a double quote (or a paste smart-quotes the string), an inline export leaves zsh hanging at a
@@ -298,6 +306,7 @@ Tick each one on the signed + notarized build (not a `taauri dev` build — a re
 | **Manifest version guard fails** | `publish-mac.sh` refuses to upsert `darwin-aarch64` if the downloaded `latest.json`'s `.version` ≠ the version you're shipping. Re-run after Windows publishes the SAME version. |
 | **Updater key rejected** | The `TAURI_SIGNING_PRIVATE_KEY` must be the SAME pair `publish.ps1` uses on Windows (one shared pair, one embedded pubkey in `tauri.conf.json`). If the Mac build's `.sig` doesn't validate against the pubkey, you've used a different key — copy the Windows key over and rebuild. |
 | **`error running bundle_dmg.sh`** (right after "Stapling app…") | Headless/SSH session — the DMG-styling AppleScript needs a GUI Finder (see §4 Step 2). Re-run the whole script with `CI=true bash publish-mac.sh` inside tmux, after re-exporting the §3 env block. The Rust compile is cached, so the rebuild is minutes; it DOES re-sign + re-notarize (the script has no resume), but repeat notarization on an already-vetted account is the normal 5–15 min, not the first-submission hours. |
+| **`failed to decode secret key: … Invalid symbol 46, offset N`** (after "Finished 2 bundles") | The updater-signature step. `TAURI_SIGNING_PRIVATE_KEY` doesn't hold valid key material — usually a key-file PATH that doesn't exist on this machine (Tauri only reads a file if `Path::exists`; otherwise it base64-decodes the string itself, and symbol 46 is the `.` in the filename). Check: `[ -f "$TAURI_SIGNING_PRIVATE_KEY" ] && echo path-ok \|\| echo "NOT a file"`. Fix per §3: `export TAURI_SIGNING_PRIVATE_KEY="$(cat /absolute/path/to/writing.key)"`, then re-run `CI=true bash publish-mac.sh`. |
 
 ---
 
