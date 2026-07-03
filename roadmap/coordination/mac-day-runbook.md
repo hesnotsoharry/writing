@@ -86,7 +86,11 @@ you specifically need "Developer ID Application".**
    [developer.apple.com → Certificates, Identifiers & Profiles → Certificates → +](https://developer.apple.com/account/resources/certificates/add).
    Choose **Developer ID Application** as the type. Upload the CSR. Download the resulting `.cer`.
 3. **Install the cert** by double-clicking the `.cer` — it lands in the **login** keychain. Verify
-   its full CN; you'll need it verbatim in §3:
+   its full CN; you'll need it verbatim in §3.
+   > **Rental-Mac warning:** the CSR step created the cert's PRIVATE KEY in this Mac's keychain —
+   > it exists nowhere else. Export it per **§8 before the rental expires**, or the cert dies with
+   > the rental. (Once the §8 .p12 exists, future Mac days skip 2a and restore via `security
+   > import` instead.)
    ```bash
    security find-identity -v -p codesigning | grep "Developer ID Application"
    # → "Developer ID Application: Cole Stacey (TEAMXXXX)"   ← copy this whole string
@@ -336,6 +340,54 @@ Tick each one on the signed + notarized build (not a `taauri dev` build — a re
 | **downloads.writersnook.app 404s AFTER a confirmed upload** | Edge-cached 404 (`max-age=14400` = 4h): any request made before the object existed poisons the URL. Confirm the object is really there with a cache-buster (`curl -sI ".../WritersNook.dmg?v=1"` → 200), then purge the clean URL: dashboard → writersnook.app zone → Caching → Purge Cache → Purge by URL. Don't probe download URLs before uploading. |
 
 ---
+
+## 8. Before the rental expires — export the signing identity (DO NOT SKIP)
+
+The Developer ID Application **private key** was generated on this Mac (§2a CSR) and lives ONLY in
+its login keychain. The `.cer` from Apple is the public half — without the exported key the cert
+is dead and the next Mac day repeats all of §2a on a fresh cert (Apple caps Developer ID
+Application certs at 5 per team; already-notarized releases stay valid either way).
+
+**Export (GUI via VNC — most reliable):** Keychain Access → login keychain → *My Certificates* →
+right-click **Developer ID Application: Cole Stacey (…)** → *Export…* → format **.p12** → set a
+strong password (goes in the password manager next to the updater-key password).
+
+**Export (SSH fallback):**
+```bash
+security unlock-keychain ~/Library/Keychains/login.keychain-db
+security export -k ~/Library/Keychains/login.keychain-db -t identities -f pkcs12 \
+    -P 'STRONG_PASSWORD_HERE' -o ~/writersnook-devid.p12
+```
+If the SSH export errors with an interaction-not-allowed / ACL denial, the key's access control
+requires the GUI path — use VNC.
+
+**Get it off the Mac (binary file — do NOT copy-paste raw):**
+```bash
+base64 -i ~/writersnook-devid.p12          # copy this text output
+shasum -a 256 ~/writersnook-devid.p12      # note the hash
+```
+On Windows, paste the base64 into a file and decode + verify:
+```powershell
+[IO.File]::WriteAllBytes("$env:USERPROFILE\.tauri\writersnook-devid.p12",
+  [Convert]::FromBase64String((Get-Content "$env:USERPROFILE\devid.b64" -Raw)))
+Get-FileHash "$env:USERPROFILE\.tauri\writersnook-devid.p12" -Algorithm SHA256   # must match the Mac's
+```
+Store the .p12 next to the updater key (`%USERPROFILE%\.tauri\`) — it is now the canonical copy.
+
+**Restore on the NEXT rental Mac (replaces §2a entirely):**
+```bash
+# copy the .p12 over (reverse of the base64 dance), then:
+security import ~/writersnook-devid.p12 -k ~/Library/Keychains/login.keychain-db \
+    -P 'THE_P12_PASSWORD' -T /usr/bin/codesign -T /usr/bin/security
+# allow codesign to use the key without a GUI prompt (required for SSH builds):
+security set-key-partition-list -S apple-tool:,apple: -s -k '<mac login password>' \
+    ~/Library/Keychains/login.keychain-db
+security find-identity -v -p codesigning   # must list "Developer ID Application: Cole Stacey"
+```
+
+Also confirm before handing the rental back: the **app-specific password** (§2b) is in the
+password manager — it's shown once by Apple; if it wasn't saved, revoke it and mint a new one
+(free, 2 min) rather than hunting for it.
 
 ## Appendix — what this day does NOT cover
 
