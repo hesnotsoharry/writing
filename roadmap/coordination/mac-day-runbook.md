@@ -112,7 +112,13 @@ export APPLE_TEAM_ID="TEAMXXXX"               # from §2c
 # embedded in src-tauri/tauri.conf.json (plugins.updater.pubkey). Get the private key file from the
 # Windows machine (it lives at %USERPROFILE%\.tauri\writing.key) — copy it onto the Mac securely.
 export TAURI_SIGNING_PRIVATE_KEY="/Users/cole/.tauri/writing.key"
-export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="…"   # the password you set when you generated that key
+
+# Updater-key password — set it via silent read, NOT an inline export. If the password contains
+# a double quote (or a paste smart-quotes the string), an inline export leaves zsh hanging at a
+# `dquote>` continuation prompt. `read -rs` takes the password literally (no quoting hazards) and
+# keeps it out of shell history. Ctrl+C escapes a stuck dquote> prompt.
+read -rs TAURI_SIGNING_PRIVATE_KEY_PASSWORD   # type/paste the key password, press Enter (no echo)
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 ```
 
 ### Two config facts that explain why `tauri.conf.json` looks minimal here
