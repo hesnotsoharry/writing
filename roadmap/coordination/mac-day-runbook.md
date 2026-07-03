@@ -41,13 +41,30 @@ rustup target list --installed | grep '^aarch64-apple-darwin$'
 gh auth login
 gh auth status   # verify
 
-# jq — PREFERRED JSON backend for the manifest merge. OPTIONAL: node (already required for the
-# frontend build) is the automatic fallback, so `brew install jq` is a nicety, not a gate.
+# Node 20+ — REQUIRED (frontend build + the manifest-merge fallback). A fresh Mac/rental does NOT
+# have it. Homebrew path:
+brew install node
+# No-Homebrew fallback (official Apple-Silicon tarball, no sudo — PATH export is session-bound):
+#   cd ~ && curl -fsSLO "https://nodejs.org/dist/latest-v22.x/$(curl -fsSL https://nodejs.org/dist/latest-v22.x/ | grep -o 'node-v22[.0-9]*-darwin-arm64\.tar\.gz' | head -1)"
+#   tar -xzf node-v22*-darwin-arm64.tar.gz && export PATH="$HOME/$(ls -d node-v22*-darwin-arm64 | head -1)/bin:$PATH"
+node --version && npx --version   # verify: 20+
+
+# Project dependencies — fresh clone has no node_modules; the Vite build fails without this.
+cd /path/to/writing && npm ci
+
+# jq — PREFERRED JSON backend for the manifest merge. OPTIONAL: node is the automatic fallback,
+# so `brew install jq` is a nicety, not a gate.
 brew install jq    # skip if you don't have Homebrew handy; node will cover it
 ```
 
-Node is already required for `npm run tauri` and is therefore always present; `jq` only makes the
-manifest merge slightly more idiomatic. `publish-mac.sh` auto-detects which is on PATH.
+`jq` only makes the manifest merge slightly more idiomatic; `publish-mac.sh` auto-detects which is
+on PATH.
+
+> **SSH vs VNC sessions (learned the hard way on the first Mac day):** environment is per-shell —
+> exports, PATH additions, and nvm/brew activation done in the VNC terminal do NOT exist in an SSH
+> session (and vice versa). Prefer SSH for the build (immune to GUI freezes; add
+> `caffeinate -i` and consider `CARGO_BUILD_JOBS=4` on a weak rental), but note codesign then needs
+> the keychain unlocked first: `security unlock-keychain ~/Library/Keychains/login.keychain-db`.
 
 ---
 
