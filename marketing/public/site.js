@@ -1,6 +1,19 @@
 /* Writers Nook marketing — shared behavior (all pages) */
 /* global document, window, navigator, localStorage, IntersectionObserver, setTimeout, fetch */
 (function () {
+  // ---- Fathom event tracking ----
+  // window.fathom may not be defined yet at click time (script loads with
+  // `defer`) — every call site guards through this wrapper instead of
+  // touching window.fathom directly. Exposed on window so checkout.js,
+  // account.js, and purchase-success.js can call it too (they all load
+  // after site.js has run — see those files' load order in each HTML page).
+  function wnTrack(name, opts) {
+    if (window.fathom && typeof window.fathom.trackEvent === 'function') {
+      window.fathom.trackEvent(name, opts);
+    }
+  }
+  window.wnTrack = wnTrack;
+
   // ---- starfields (any [data-stars] element) ----
   document.querySelectorAll('[data-stars]').forEach(function (el) {
     var n = parseInt(el.getAttribute('data-stars'), 10) || 50;
@@ -116,7 +129,9 @@
 
   // wireEmailForm: attaches submit handling to all matching forms.
   // Reads feedback from/writes to the nearest sibling `.news-note` element.
-  function wireEmailForm(selector, endpoint, successMsg) {
+  // eventName (optional): Fathom event fired only on a successful submit —
+  // callers that don't pass one (none currently) stay silent.
+  function wireEmailForm(selector, endpoint, successMsg, eventName) {
     document.querySelectorAll(selector).forEach(function (form) {
       form.addEventListener('submit', async function (e) {
         e.preventDefault();
@@ -138,6 +153,7 @@
           if (res.ok) {
             if (note) { note.textContent = successMsg; note.style.color = ''; }
             form.reset();
+            if (eventName) wnTrack(eventName);
           } else {
             if (note) { note.textContent = 'Something went wrong. Please try again.'; note.style.color = 'var(--error,#c0392b)'; }
           }
@@ -150,7 +166,29 @@
     });
   }
 
-  wireEmailForm('.news-form', '/api/newsletter', "You're on the list — thank you. Watch for a quiet hello soon.");
+  wireEmailForm('.news-form', '/api/newsletter', "You're on the list — thank you. Watch for a quiet hello soon.", 'newsletter-signup');
+
+  // ---- buy-intent click tracking (nav CTA, page-bottom CTA bands, pricing→checkout links) ----
+  // Delegated on document so it covers CTAs present on page load; fires on
+  // the capture phase so it still records the click even if a later handler
+  // (e.g. checkout.js's data-ls-checkout overlay) calls preventDefault().
+  document.addEventListener('click', function (e) {
+    var a = e.target && typeof e.target.closest === 'function' ? e.target.closest('a') : null;
+    if (!a) return;
+    if (a.classList.contains('nav-cta')) {
+      wnTrack('buy-click-nav');
+      return;
+    }
+    var href = a.getAttribute('href') || '';
+    if (href.indexOf('checkout.html') !== -1) {
+      if (href.indexOf('utm_content=pricing-buy') !== -1) wnTrack('buy-click-pricing-card');
+      else if (href.indexOf('utm_content=pricing-cta') !== -1) wnTrack('buy-click-pricing-bottom');
+      return;
+    }
+    if (href.indexOf('pricing.html') !== -1 && a.classList.contains('m-btn')) {
+      wnTrack('buy-click-page-cta');
+    }
+  }, true);
 
   // ---- platform-aware download CTAs (hero, pricing, pricing-page trial link) ----
   // Progressively enhances the static Windows download links in the HTML: a
@@ -205,22 +243,33 @@
     var otherUrl = isMac ? winUrl : macUrl;
     var otherLabel = isMac ? 'Windows' : 'macOS';
     // btn: primary button id · content: utm_content · alt: insert "also available" link
+    // placement: the {placement} slot in the download-{os}-{placement} Fathom event name
     var ctas = [
-      { btn: 'hero-dl', content: 'hero', alt: true, center: false },
-      { btn: 'pricing-dl', content: 'pricing-section', alt: true, center: true },
-      { btn: 'pricing-trial-link', content: 'pricing-trial-link', alt: false, center: true }
+      { btn: 'hero-dl', content: 'hero', alt: true, center: false, placement: 'hero' },
+      { btn: 'pricing-dl', content: 'pricing-section', alt: true, center: true, placement: 'pricing' },
+      { btn: 'pricing-trial-link', content: 'pricing-trial-link', alt: false, center: true, placement: 'trial' }
     ];
+    var primaryOs = isMac ? 'macos' : 'windows';
+    var otherOs = isMac ? 'windows' : 'macos';
     ctas.forEach(function (c) {
       var btn = document.getElementById(c.btn);
       if (!btn) return;
       if (primaryUrl) btn.href = withDlUtm(primaryUrl, c.content);
       var label = btn.querySelector('.dl-label');
       if (label) label.textContent = primaryLabel;
+      btn.addEventListener('click', function () {
+        wnTrack('download-' + primaryOs + '-' + c.placement);
+      });
       var ctaRow = btn.parentNode;
       if (!ctaRow || !ctaRow.parentNode) return;
       // "Also available for …" cross-platform link under the CTA.
       if (c.alt && otherUrl) {
-        ctaRow.parentNode.insertBefore(makeAltDlLink(withDlUtm(otherUrl, c.content), otherLabel, c.center), ctaRow.nextSibling);
+        var altLinkP = makeAltDlLink(withDlUtm(otherUrl, c.content), otherLabel, c.center);
+        var altLinkA = altLinkP.querySelector('a');
+        if (altLinkA) altLinkA.addEventListener('click', function () {
+          wnTrack('download-' + otherOs + '-alt');
+        });
+        ctaRow.parentNode.insertBefore(altLinkP, ctaRow.nextSibling);
       }
       // macOS arch disclosure — Apple-silicon-only build. Mac visitors only;
       // inserted last so it lands directly under the CTA (above the alt link),

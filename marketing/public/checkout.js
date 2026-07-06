@@ -83,6 +83,12 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
             receiptUrl: (d.urls || {}).receipt || null,
           }));
         } catch { /* sessionStorage unavailable — page falls back to generic */ }
+        // _value uses the actual order total LS already reports (already read
+        // above as totalCents) so it's correct for both the one-time app
+        // purchase and the AI-subscription checkout without guessing by product.
+        if (window.wnTrack) {
+          window.wnTrack("purchase", { _value: (d.total != null) ? d.total : 2900 });
+        }
         window.location.href = "purchase-success.html";
       }
     },
@@ -104,6 +110,7 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
       }
       el.addEventListener("click", function (e) {
         e.preventDefault();
+        if (window.wnTrack) window.wnTrack("subscribe-ai-click");
         window.LemonSqueezy.Url.Open(
           buildCheckoutUrl({ store: cfg.store, variant: variant, embed: true })
         );
@@ -128,6 +135,7 @@ if (typeof document !== "undefined") document.addEventListener("DOMContentLoaded
         embed: true,
       });
 
+      if (window.wnTrack) window.wnTrack("checkout-pay");
       window.LemonSqueezy.Url.Open(url);
     });
   }

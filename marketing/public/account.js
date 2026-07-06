@@ -96,6 +96,12 @@ function wireDownloadButtons() {
   const win = document.getElementById("dl-win");
   if (mac && cfg.macUrl) mac.href = cfg.macUrl;
   if (win && cfg.winUrl) win.href = cfg.winUrl;
+  if (mac) mac.addEventListener("click", function () {
+    if (window.wnTrack) window.wnTrack("download-macos-account");
+  });
+  if (win) win.addEventListener("click", function () {
+    if (window.wnTrack) window.wnTrack("download-windows-account");
+  });
 }
 
 // --------------------------------------------------------------------------

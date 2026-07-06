@@ -73,6 +73,12 @@ function wireDownloadButtons() {
   var winEl = document.getElementById("succ-dl-win");
   if (macEl && cfg.macUrl) macEl.href = cfg.macUrl;
   if (winEl && cfg.winUrl) winEl.href = cfg.winUrl;
+  if (macEl) macEl.addEventListener("click", function () {
+    if (window.wnTrack) window.wnTrack("download-macos-success");
+  });
+  if (winEl) winEl.addEventListener("click", function () {
+    if (window.wnTrack) window.wnTrack("download-windows-success");
+  });
 }
 
 // --------------------------------------------------------------------------
