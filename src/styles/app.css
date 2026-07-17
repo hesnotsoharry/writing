@@ -136,6 +136,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .btn-ghost:hover { background: var(--parchment-deep); color: var(--ink); }
 .btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-xs); }
 .btn-primary:hover { background: var(--accent-deep); }
+.btn-danger { background: var(--danger); color: #fff; box-shadow: var(--shadow-xs); }
+.btn-danger:hover { background: color-mix(in srgb, var(--danger) 85%, var(--ink)); }
 .btn-soft { background: var(--accent-tint); color: var(--accent-deep); }
 .btn-soft:hover { background: var(--accent-wash); }
 

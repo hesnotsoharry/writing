@@ -15,7 +15,7 @@ interface ProjectSwitcherProps {
   projects: Project[];
   activeProjectId: string | null;
   onSwitchProject: (projectId: string) => void;
-  onCreateProject: () => void;
+  onCreateProject: (title: string) => void;
   activeWords?: number;
 }
 
@@ -96,18 +96,61 @@ function ProjMenu({ projects, activeProjectId, activeWords, onSwitch, onNew, onC
   );
 }
 
-export function ProjectSwitcher({
-  projects,
-  activeProjectId,
-  onSwitchProject,
-  onCreateProject,
-  activeWords,
-}: ProjectSwitcherProps) {
-  const [open, setOpen] = useState(false);
+interface CreateProjectDialogProps {
+  title: string;
+  onTitleChange: (title: string) => void;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  onClose: () => void;
+}
+
+function CreateProjectDialog({ title, onTitleChange, onSubmit, onClose }: CreateProjectDialogProps) {
+  return (
+    <div className="scrim" role="presentation" style={{ position: "fixed", zIndex: 100 }} onMouseDown={onClose}>
+      <form className="sheet" role="dialog" aria-modal="true" aria-labelledby="new-manuscript-title"
+        onSubmit={onSubmit} onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}>
+        <div className="sheet-head">
+          <div>
+            <div className="sheet-title" id="new-manuscript-title">New manuscript</div>
+            <div className="sheet-sub">Give your manuscript a title to get started.</div>
+          </div>
+        </div>
+        <div className="sheet-body">
+          <label className="field-label" htmlFor="new-manuscript-name">Title</label>
+          <div className="fr-field">
+            <input id="new-manuscript-name" autoFocus value={title}
+              onChange={(e) => onTitleChange(e.target.value)} placeholder="Untitled manuscript" />
+          </div>
+        </div>
+        <div className="sheet-foot">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={!title.trim()}>Create manuscript</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+interface ProjectSwitcherSurfaceProps extends ProjectSwitcherProps {
+  open: boolean;
+  createOpen: boolean;
+  createTitle: string;
+  active: Project | undefined;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setCreateTitle: React.Dispatch<React.SetStateAction<string>>;
+}
+
+function ProjectSwitcherSurface({ projects, activeProjectId, onSwitchProject, onCreateProject,
+  activeWords, open, createOpen, createTitle, active, setOpen, setCreateOpen, setCreateTitle }: ProjectSwitcherSurfaceProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const active = projects.find((p) => p.id === activeProjectId) ?? projects[0];
   function handleTriggerKeyDown(e: React.KeyboardEvent): void {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setOpen(true); }
+  }
+  function openCreateProject(): void { setCreateTitle(""); setCreateOpen(true); }
+  function submitCreateProject(e: React.FormEvent<HTMLFormElement>): void {
+    e.preventDefault(); const title = createTitle.trim();
+    if (!title) return; onCreateProject(title); setCreateOpen(false);
   }
   return (
     <div className="project-switch" style={{ position: "relative" }}>
@@ -126,11 +169,22 @@ export function ProjectSwitcher({
           activeProjectId={activeProjectId}
           activeWords={activeWords}
           onSwitch={onSwitchProject}
-          onNew={onCreateProject}
+          onNew={openCreateProject}
           onClose={() => setOpen(false)}
           onFocusTrigger={() => triggerRef.current?.focus()}
         />
       )}
+      {createOpen && <CreateProjectDialog title={createTitle} onTitleChange={setCreateTitle}
+        onSubmit={submitCreateProject} onClose={() => setCreateOpen(false)} />}
     </div>
   );
+}
+
+export function ProjectSwitcher(props: ProjectSwitcherProps) {
+  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const active = props.projects.find((p) => p.id === props.activeProjectId) ?? props.projects[0];
+  return <ProjectSwitcherSurface {...props} open={open} createOpen={createOpen} createTitle={createTitle}
+    active={active} setOpen={setOpen} setCreateOpen={setCreateOpen} setCreateTitle={setCreateTitle} />;
 }

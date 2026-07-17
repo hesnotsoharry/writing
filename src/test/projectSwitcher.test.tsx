@@ -54,11 +54,42 @@ describe("ProjectSwitcher", () => {
     expect(onSwitchProject).toHaveBeenCalledWith("p2");
   });
 
-  it("calls onCreateProject when 'New manuscript…' is clicked", () => {
+  it("opens the title entry when 'New manuscript…' is clicked", () => {
     const { container, onCreateProject } = renderSwitcher();
     fireEvent.click(container.querySelector(".proj-btn")!);
     fireEvent.click(screen.getByText(/New manuscript/));
+    expect(screen.getByRole("dialog")).not.toBeNull();
+    expect(onCreateProject).not.toHaveBeenCalled();
+  });
+
+  it("submits a trimmed manuscript title through the creation callback", () => {
+    const { container, onCreateProject } = renderSwitcher();
+    fireEvent.click(container.querySelector(".proj-btn")!);
+    fireEvent.click(screen.getByText(/New manuscript/));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "  The Long Road  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Create manuscript" }));
     expect(onCreateProject).toHaveBeenCalledOnce();
+    expect(onCreateProject).toHaveBeenCalledWith("The Long Road");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does not write for blank submission or cancellation", () => {
+    const { container, onCreateProject } = renderSwitcher();
+    fireEvent.click(container.querySelector(".proj-btn")!);
+    fireEvent.click(screen.getByText(/New manuscript/));
+    fireEvent.click(screen.getByRole("button", { name: "Create manuscript" }));
+    expect(onCreateProject).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCreateProject).not.toHaveBeenCalled();
+  });
+
+  it("closes title entry on Escape without creating", () => {
+    const { container, onCreateProject } = renderSwitcher();
+    fireEvent.click(container.querySelector(".proj-btn")!);
+    fireEvent.click(screen.getByText(/New manuscript/));
+    fireEvent.keyDown(screen.getByLabelText("Title"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onCreateProject).not.toHaveBeenCalled();
   });
 
   it("shows word count in active subtitle when activeWords is passed", () => {

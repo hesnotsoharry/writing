@@ -2,9 +2,9 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { BinderCallbacks } from "../binder/BinderCrud";
-import { ChapterHeader, SceneRow } from "../binder/BinderCrud";
+import { type BinderCallbacks, ChapterHeader, SceneRow } from "../binder/BinderCrud";
 import { BinderToastProvider } from "../binder/binderToast";
+import { BoardRowItem } from "../binder/BrainstormSection";
 import type { BinderTree } from "../binder/buildTree";
 import type { Scene } from "../db/binderStore";
 
@@ -138,6 +138,25 @@ describe("ChapterHeader — no always-visible mutate buttons", () => {
 // ── Context menu — scene ──────────────────────────────────────────────────
 
 describe("SceneRow — context menu", () => {
+  it("confirms scene deletion and preserves the scene title", () => {
+    const callbacks = makeCallbacks();
+    const { container } = renderScene(makeScene(), callbacks);
+    fireEvent.contextMenu(container.querySelector("li.scene-row") as HTMLElement);
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Test Scene");
+    fireEvent.click(screen.getByRole("button", { name: "Delete scene" }));
+    expect(callbacks.onDeleteScene).toHaveBeenCalledWith("s1");
+  });
+
+  it("cancels scene deletion on Escape without writing", () => {
+    const callbacks = makeCallbacks();
+    const { container } = renderScene(makeScene(), callbacks);
+    fireEvent.contextMenu(container.querySelector("li.scene-row") as HTMLElement);
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(callbacks.onDeleteScene).not.toHaveBeenCalled();
+  });
   it("shows .cm menu with Rename and Delete items on right-click", () => {
     const { container } = renderScene(makeScene(), makeCallbacks());
     const li = container.querySelector("li.scene-row") as HTMLElement;
@@ -218,6 +237,25 @@ describe("SceneRow — double-click rename", () => {
 // ── Chapter header ────────────────────────────────────────────────────────
 
 describe("ChapterHeader", () => {
+  it("confirms chapter deletion and shows the scene relocation warning", () => {
+    const callbacks = makeCallbacks();
+    const { container } = renderChapter(makeChapter(), callbacks);
+    fireEvent.contextMenu(container.querySelector(".chapter-row") as HTMLElement);
+    fireEvent.click(screen.getByText("Delete chapter"));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Its scenes will move to Short pieces.");
+    fireEvent.click(screen.getByRole("button", { name: "Delete chapter" }));
+    expect(callbacks.onDeleteChapter).toHaveBeenCalledWith("f1");
+  });
+
+  it("cancels chapter deletion via backdrop", () => {
+    const callbacks = makeCallbacks();
+    const { container } = renderChapter(makeChapter(), callbacks);
+    fireEvent.contextMenu(container.querySelector(".chapter-row") as HTMLElement);
+    fireEvent.click(screen.getByText("Delete chapter"));
+    fireEvent.mouseDown(screen.getByRole("presentation"));
+    expect(callbacks.onDeleteChapter).not.toHaveBeenCalled();
+  });
+
   it("renders .ch-count equal to scenes.length", () => {
     const scenes = [makeScene(), makeScene({ id: "s2", title: "Scene 2" })];
     const { container } = renderChapter(makeChapter(scenes), makeCallbacks());
@@ -242,6 +280,28 @@ describe("ChapterHeader", () => {
     expect(labels.some((l) => l?.includes("Export"))).toBe(true);
     expect(labels.some((l) => l?.includes("Archive"))).toBe(true);
     expect(labels.some((l) => l?.includes("Delete"))).toBe(true);
+  });
+});
+
+describe("BoardRowItem — delete confirmation", () => {
+  const board = { id: "b1", project_id: "p1", title: "Idea Board", sort: 0 };
+
+  it("confirms board deletion", () => {
+    const onDelete = vi.fn();
+    render(<BoardRowItem board={board} onOpen={vi.fn()} onRename={vi.fn()} onDelete={onDelete} />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Idea Board" }));
+    fireEvent.click(screen.getByText("Delete board"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete board" }));
+    expect(onDelete).toHaveBeenCalledOnce();
+  });
+
+  it("cancels board deletion on Escape", () => {
+    const onDelete = vi.fn();
+    render(<BoardRowItem board={board} onOpen={vi.fn()} onRename={vi.fn()} onDelete={onDelete} />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Idea Board" }));
+    fireEvent.click(screen.getByText("Delete board"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });
 

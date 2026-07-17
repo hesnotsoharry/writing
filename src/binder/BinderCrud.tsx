@@ -5,7 +5,7 @@
  * inline buttons). Double-click enters inline rename. Status changes are
  * threaded end-to-end via onSetSceneStatus.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "../components/Icon";
 import type { MenuDescriptor } from "../components/menu/ContextMenu";
@@ -106,17 +106,30 @@ export function InlineRename({ current, onCommit, onCancel }: InlineRenameProps)
 
 // ── Shared delete confirmations ───────────────────────────────────────────
 
-export function confirmDeleteScene(scene: Scene, onDeleteScene: (id: string) => void) {
-  if (window.confirm(`Delete scene "${scene.title}"?`)) onDeleteScene(scene.id);
-}
+interface DeleteConfirmProps { itemType: string; itemTitle: string; warning?: string; onConfirm: () => void; onCancel: () => void; }
 
-export function confirmDeleteChapter(
-  folder: BinderTree["chapters"][0]["folder"],
-  onDeleteChapter: (id: string) => void
-) {
-  if (window.confirm(`Delete chapter "${folder.title}"? Its scenes will move to Short pieces.`)) {
-    onDeleteChapter(folder.id);
-  }
+export function DeleteConfirm({ itemType, itemTitle, warning, onConfirm, onCancel }: DeleteConfirmProps) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); onCancel(); } };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+  return (
+    <div className="scrim" role="presentation" style={{ position: "fixed", zIndex: 100 }} onMouseDown={onCancel}>
+      <div className="sheet" role="alertdialog" aria-modal="true" aria-labelledby="delete-confirm-title"
+        onMouseDown={(e) => e.stopPropagation()}>
+        <div className="sheet-head"><div>
+          <div className="sheet-title" id="delete-confirm-title">Delete {itemType}?</div>
+          <div className="sheet-sub">“{itemTitle}” will be deleted.</div>
+        </div></div>
+        {warning && <div className="sheet-body"><p>{warning}</p></div>}
+        <div className="sheet-foot">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn btn-danger" onClick={onConfirm}>Delete {itemType}</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── SceneStatusIndicator ──────────────────────────────────────────────────
@@ -150,6 +163,7 @@ function useSceneMenu(
   scene: Scene,
   callbacks: BinderCallbacks,
   onRename: () => void,
+  onDelete: () => void,
 ) {
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
   const showToast = useBinderToast();
@@ -168,7 +182,7 @@ function useSceneMenu(
           ? () => callbacks.onExport!("scene", scene.id)
           : () => showToast("Export — coming in a later wave"),
         onArchive: () => callbacks.onArchiveScene(scene.id),
-        onDelete: () => confirmDeleteScene(scene, callbacks.onDeleteScene),
+        onDelete,
         onAddGoal: callbacks.onAddGoal
           ? () => callbacks.onAddGoal!("scene", scene.id)
           : undefined,
@@ -188,7 +202,8 @@ function useSceneMenu(
 /** One scene row: status indicator + title + word count. Mutations via context menu. */
 export function SceneRow({ scene, isSelected, onSelect, callbacks }: SceneRowProps) {
   const [editing, setEditing] = useState(false);
-  const { menu, setMenu, openMenu } = useSceneMenu(scene, callbacks, () => setEditing(true));
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const { menu, setMenu, openMenu } = useSceneMenu(scene, callbacks, () => setEditing(true), () => setDeleteOpen(true));
 
   function handleStatusClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -219,6 +234,8 @@ export function SceneRow({ scene, isSelected, onSelect, callbacks }: SceneRowPro
         <span className="scene-words">{wordCount}</span>
       </li>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      {deleteOpen && <DeleteConfirm itemType="scene" itemTitle={scene.title}
+        onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); callbacks.onDeleteScene(scene.id); }} />}
     </>
   );
 }
@@ -231,7 +248,7 @@ function useChapterMenu(
   folder: ChapterFolder,
   chapter: BinderTree["chapters"][0],
   callbacks: BinderCallbacks,
-  onRename: () => void,
+  actions: { onRename: () => void; onDelete: () => void },
 ) {
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
   const showToast = useBinderToast();
@@ -242,13 +259,13 @@ function useChapterMenu(
     setMenu({
       x: e.clientX, y: e.clientY,
       items: buildChapterMenu({
-        onRename,
+        onRename: actions.onRename,
         onNewScene: () => callbacks.onCreateScene(folder.id),
         onExport: callbacks.onExport
           ? () => callbacks.onExport!("chapter", folder.id)
           : () => showToast("Export — coming in a later wave"),
         onArchive: () => callbacks.onArchiveChapter(folder.id),
-        onDelete: () => confirmDeleteChapter(folder, callbacks.onDeleteChapter),
+        onDelete: actions.onDelete,
         onAddGoal: callbacks.onAddGoal
           ? () => callbacks.onAddGoal!("chapter", folder.id)
           : undefined,
@@ -269,8 +286,9 @@ interface ChapterHeaderProps {
 /** Chapter heading row: collapse toggle + title. Mutations via context menu. */
 export function ChapterHeader({ chapter, callbacks, open = true, onToggle = () => {} }: ChapterHeaderProps) {
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { menu, setMenu, openMenu, sceneCount } = useChapterMenu(
-    chapter.folder, chapter, callbacks, () => setEditing(true),
+    chapter.folder, chapter, callbacks, { onRename: () => setEditing(true), onDelete: () => setDeleteOpen(true) },
   );
 
   const titleEl = editing
@@ -289,6 +307,9 @@ export function ChapterHeader({ chapter, callbacks, open = true, onToggle = () =
         <span className="ch-count">{sceneCount}</span>
       </div>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      {deleteOpen && <DeleteConfirm itemType="chapter" itemTitle={chapter.folder.title}
+        warning="Its scenes will move to Short pieces."
+        onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); callbacks.onDeleteChapter(chapter.folder.id); }} />}
     </>
   );
 }

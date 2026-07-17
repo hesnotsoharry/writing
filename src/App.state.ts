@@ -71,10 +71,10 @@ export function useProjectActions({
     if (first) void handleSelectScene(first.id);
   }
 
-  async function createProject() {
-    const title = window.prompt("Project title:", "New Project");
-    if (!title?.trim()) return;
-    const newId = await binderStore.createProject({ title: title.trim(), type: "novel" });
+  async function createProject(title?: string) {
+    const trimmedTitle = title?.trim();
+    if (!trimmedTitle) return;
+    const newId = await binderStore.createProject({ title: trimmedTitle, type: "novel" });
     const refreshed = await binderStore.listProjects();
     setProjects(refreshed);
     await switchProject(newId);
@@ -82,9 +82,10 @@ export function useProjectActions({
 
   return {
     onSwitchProject: (id: string) => { switchProject(id).catch(logCrudError("switchProject")); },
-    onCreateProject: () => { createProject().catch(logCrudError("createProject")); },
+    onCreateProject: (title: string) => { createProject(title).catch(logCrudError("createProject")); },
   };
 }
+
 
 function useModalFlags() {
   const [showQuickCapture, setShowQuickCapture] = useState(false);
@@ -209,4 +210,3 @@ export function useAppState() {
     ...entryNav,
   };
 }
-

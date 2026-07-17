@@ -1,0 +1,121 @@
+name: Publish macOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Windows release tag to add the macOS artifact to (for example, v0.12.7)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Sign, notarize, and publish Apple Silicon build
+    runs-on: macos-latest
+    env:
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      RELEASE_TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: Check out the requested release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify Apple Silicon runner and release prerequisite
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]
+          [[ "$(uname -m)" == "arm64" ]]
+          [[ "$(git describe --exact-match --tags HEAD)" == "$RELEASE_TAG" ]]
+
+          version="${RELEASE_TAG#v}"
+          [[ "$(node -p "require('./package.json').version")" == "$version" ]]
+          [[ "$(node -p "require('./src-tauri/tauri.conf.json').version")" == "$version" ]]
+
+          mkdir -p release-manifest
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern latest.json --dir release-manifest
+          RELEASE_TAG="$RELEASE_TAG" node <<'NODE'
+          const fs = require("node:fs");
+
+          const tag = process.env.RELEASE_TAG;
+          const manifest = JSON.parse(fs.readFileSync("release-manifest/latest.json", "utf8"));
+          const windows = manifest.platforms?.["windows-x86_64"];
+          if (manifest.version !== tag.slice(1)) {
+            throw new Error(`latest.json version ${manifest.version} does not match ${tag}`);
+          }
+          if (!windows?.url || !windows?.signature) {
+            throw new Error("latest.json must contain a signed windows-x86_64 entry before macOS publishing");
+          }
+          NODE
+
+      - name: Set up Rust target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Import Developer ID certificate into an ephemeral keychain
+        shell: bash
+        env:
+          CERTIFICATE_PATH: ${{ runner.temp }}/writersnook-developer-id.p12
+          KEYCHAIN_PATH: ${{ runner.temp }}/writersnook-build.keychain-db
+        run: |
+          set -euo pipefail
+          umask 077
+          keychain_password="$(openssl rand -base64 32)"
+          printf '%s' "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$keychain_password" "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$keychain_password" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$keychain_password" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          identity="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | sed -nE 's/.*"([^"]+)".*/\1/p' \
+            | grep '^Developer ID Application:')"
+          [[ "$(printf '%s\n' "$identity" | sed '/^$/d' | wc -l | tr -d ' ')" == "1" ]]
+          printf 'APPLE_SIGNING_IDENTITY=%s\n' "$identity" >> "$GITHUB_ENV"
+
+      - name: Build, sign, notarize, and upsert macOS release assets
+        shell: bash
+        run: CI=true bash publish-mac.sh
+
+      - name: Remove ephemeral signing material
+        if: always()
+        shell: bash
+        env:
+          CERTIFICATE_PATH: ${{ runner.temp }}/writersnook-developer-id.p12
+          KEYCHAIN_PATH: ${{ runner.temp }}/writersnook-build.keychain-db
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          rm -f "$CERTIFICATE_PATH"

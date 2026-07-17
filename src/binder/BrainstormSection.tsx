@@ -10,7 +10,7 @@ import { Icon } from "../components/Icon";
 import type { MenuDescriptor } from "../components/menu/ContextMenu";
 import { ContextMenu } from "../components/menu/ContextMenu";
 import { SqliteBoardsStore } from "../db/sqliteBoardsStore";
-import { InlineRename } from "./BinderCrud";
+import { DeleteConfirm, InlineRename } from "./BinderCrud";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -84,8 +84,9 @@ interface BoardRowItemProps {
  * One board row: click to open, double-click or right-click context menu to
  * rename/delete. Matches binder's SceneRow interaction pattern.
  */
-function BoardRowItem({ board, onOpen, onRename, onDelete, isActive }: BoardRowItemProps) {
+export function BoardRowItem({ board, onOpen, onRename, onDelete, isActive }: BoardRowItemProps) {
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [menu, setMenu] = useState<MenuDescriptor | null>(null);
 
   function openMenu(e: React.MouseEvent) {
@@ -93,7 +94,7 @@ function BoardRowItem({ board, onOpen, onRename, onDelete, isActive }: BoardRowI
     setMenu({ x: e.clientX, y: e.clientY, items: [
       { label: "Rename", icon: "edit", onClick: () => setEditing(true) },
       { type: "sep" },
-      { label: "Delete board", icon: "trash", danger: true, onClick: onDelete },
+      { label: "Delete board", icon: "trash", danger: true, onClick: () => setDeleteOpen(true) },
     ]});
   }
 
@@ -116,6 +117,8 @@ function BoardRowItem({ board, onOpen, onRename, onDelete, isActive }: BoardRowI
         <span className="board-row-title">{board.title}</span>
       </button>
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+      {deleteOpen && <DeleteConfirm itemType="board" itemTitle={board.title}
+        onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); onDelete(); }} />}
     </>
   );
 }
@@ -132,10 +135,6 @@ export interface BrainstormSectionProps {
 export function BrainstormSection({ activeProjectId, onOpenBoard, activeBoardId }: BrainstormSectionProps) {
   const { boards, createBoard, renameBoard, deleteBoard } = useBoardsList(activeProjectId);
 
-  function handleDelete(board: BoardRow) {
-    if (window.confirm(`Delete board "${board.title}"?`)) deleteBoard(board.id);
-  }
-
   return (
     <section className="brainstorm-section">
       <div className="bsection-head" style={{ marginTop: 14 }}>
@@ -150,7 +149,7 @@ export function BrainstormSection({ activeProjectId, onOpenBoard, activeBoardId 
         <BoardRowItem key={board.id} board={board}
           onOpen={() => onOpenBoard(board.id)}
           onRename={(title) => renameBoard(board.id, title)}
-          onDelete={() => handleDelete(board)}
+          onDelete={() => deleteBoard(board.id)}
           isActive={activeBoardId === board.id} />
       ))}
     </section>

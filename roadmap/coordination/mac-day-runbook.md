@@ -10,6 +10,23 @@
 > window overlay), and the multi-platform manifest contract documented in the header of
 > [`publish.ps1`](../../publish.ps1). Source research: `research/2026-07-02-macos-port-{audit,requirements}.md`.
 
+## Normal release path (GitHub Actions)
+
+The manual sequence below is now a contingency path. Normal releases run
+[`.github/workflows/publish-macos.yml`](../../.github/workflows/publish-macos.yml): publish Windows
+first with `publish.ps1`, then manually dispatch **Publish macOS release** with that exact `vX.Y.Z`
+tag. The workflow rejects a non-tag checkout, a version mismatch, or a missing signed
+`windows-x86_64` manifest entry before building.
+
+It imports the Developer ID certificate into a temporary runner keychain, calls
+`CI=true bash publish-mac.sh`, then removes both keychain and certificate. `publish-mac.sh` remains
+the sole owner of signing, notarization, updater-manifest upsert, GitHub upload, and explicit
+`wrangler@4 ... --remote` R2 behavior. The workflow is serialized per tag; do not start concurrent
+runs for the same version. The imported certificate must contain exactly one Developer ID Application
+identity; the workflow derives its signing-identity metadata from that certificate. `CLOUDFLARE_API_TOKEN`
+is optional: without it, the existing publisher warns after the GitHub release/updater upload and leaves
+the R2 copy for the documented manual recovery path.
+
 ## 0. Why this day exists
 
 Wave 55 did every macOS-port item that does NOT require a physical Mac. What remains is pure

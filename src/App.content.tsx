@@ -91,7 +91,7 @@ export interface AppContentProps {
   tree: BinderTree; selectedSceneId: string | null; doc: Y.Doc | null;
   onSelectScene: (sceneId: string) => void; callbacks: BinderCallbacks;
   projects: Project[]; activeProjectId: string | null;
-  onSwitchProject: (projectId: string) => void; onCreateProject: () => void;
+  onSwitchProject: (projectId: string) => void; onCreateProject: (title: string) => void;
   dragCallbacks: DragCallbacks; view: AppView; onViewChange: (view: AppView) => void;
   linksVersion: number; onEntitiesChanged: () => void; overlays: OverlayFlags;
   storyBibleStore: SqliteStoryBibleStore; reloadTree: () => void; archivedVersion: number;
@@ -183,7 +183,7 @@ interface SideSlotsProps {
   tree: BinderTree; selectedSceneId: string | null; onSelectScene: (id: string) => void;
   callbacks: AppContentProps["callbacks"]; projects: AppContentProps["projects"];
   activeProjectId: string | null; onSwitchProject: (id: string) => void;
-  onCreateProject: () => void; dragCallbacks: DragCallbacks;
+  onCreateProject: (title: string) => void; dragCallbacks: DragCallbacks;
   quickCount: number; archivedCount: number; manuscriptTotal: number; overlays: OverlayFlags;
   storyBibleStore: AppContentProps["storyBibleStore"]; activeScene: Scene | null;
   linksVersion: number; liveWordCount: number; chapterId: string | null; chapterTotal: number | null;

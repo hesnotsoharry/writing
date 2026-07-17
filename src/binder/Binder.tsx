@@ -31,7 +31,7 @@ interface BinderContentProps {
 /** Full props for the exported Binder, which includes the project switcher. */
 interface BinderProps extends BinderContentProps {
   projects: Project[]; activeProjectId: string | null;
-  onSwitchProject: (projectId: string) => void; onCreateProject: () => void; dragCallbacks: DragCallbacks;
+  onSwitchProject: (projectId: string) => void; onCreateProject: (title: string) => void; dragCallbacks: DragCallbacks;
   // Footer props — wave 17 stamps; lane 18 consumes.
   quickCount?: number;
   archivedCount?: number;

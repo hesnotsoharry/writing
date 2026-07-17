@@ -1,6 +1,6 @@
 [package]
 name = "writing"
-version = "0.12.6"
+version = "0.12.7"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -47,4 +47,3 @@ tauri-plugin-updater = "2"
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = ["Win32_Graphics_Dwm", "Win32_Foundation"] }
 raw-window-handle = "0.6"
-

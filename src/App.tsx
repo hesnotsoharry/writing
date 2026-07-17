@@ -183,7 +183,7 @@ function useSceneLoader(opts: SceneLoaderOptions) {
 }
 interface AppWiring {
   callbacks: BinderCallbacks; dragCallbacks: ReturnType<typeof useDragHandlers>;
-  onSwitchProject: (id: string) => void; onCreateProject: () => void;
+  onSwitchProject: (id: string) => void; onCreateProject: (title: string) => void;
   onEntitiesChanged: () => void; handleSelectScene: (sceneId: string) => void;
   reloadTree: () => void;
 }
