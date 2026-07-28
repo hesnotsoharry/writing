@@ -1,25 +1,26 @@
 # writing — Claude Code Instructions
 
-A local-first creative-writing desktop app (Windows now; mobile later) for a single user. Calm,
+A local-first creative-writing desktop app (Windows + macOS; mobile later) for a single user. Calm,
 modern writing space with a Scrivener-style binder, owned local storage, and automatic off-machine
 backup. **Opt-in AI assistant** (consent-gated, subscription-funded brainstorming; AI is never
 required for core writing and costs zero when unused).
 
-> Status (2026-06-09): **shipped and in use** (v0.2.6 — branded as WritersNook). Phase 1 desktop app
-> is built, released via a signed GitHub-release auto-update pipeline, and installed on real users'
-> machines (Cole + writing partner). Read `roadmap/HANDOFF.md` first for current state.
+> Status: **shipped and in use**, branded as WritersNook. v0.12.6 is released on both Windows and
+> macOS via a signed GitHub-release auto-update pipeline and installed on real users' machines
+> (Cole + writing partner); working version is 0.12.7. Read `roadmap/HANDOFF.md` for current state.
 
 ## Commands
 
-The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical commands:
+Stack: Tauri 2 + React 19 + Vite + TypeScript (frontend), Rust (shell), SQLite (storage).
 
 - `npm run tauri dev` — run the desktop app (Rust shell + Vite frontend) in development.
 - `npm run tauri build` — production build.
 - `npm run test` — Vitest unit/seam tests (`vitest run`).
 - `npm run test -- <name>` — run a single test file by name fragment.
-- `npm run lint` / `npm run lint:fix` — ESLint via the strict flat config `eslint.config.mjs`, which
-  mirrors the meta-framework spec (40-line functions, complexity 10, `simple-import-sort`,
-  `no-explicit-any: error`). Lint is a phase gate alongside `tsc` and `vitest`.
+- `npm run lint` / `npm run lint:fix` — ESLint via the strict flat config `eslint.config.mjs`
+  (40-line functions, complexity 10, max-depth 3, `simple-import-sort`, `no-explicit-any: error`).
+  Run lint + `npx tsc --noEmit` + the touched tests before calling a change done. Never weaken a
+  shared config to make a check pass — fix the code.
 - `.\publish.ps1` — release pipeline (build signed NSIS bundle → `latest.json` updater manifest →
   GitHub release). Interactive (prompts for the updater key password) — Cole runs it, agents don't.
   Bump the version in all four files first (`package.json`, `src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}`)
@@ -34,24 +35,31 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
 
 | Path | Role |
 |---|---|
-| `roadmap/HANDOFF.md` | **Start here.** Where we are, what's next, how we work. |
+| `roadmap/HANDOFF.md` | **Start here.** Where we are and what's next. |
 | `docs/superpowers/specs/2026-06-02-creative-writing-app-design.md` | The approved Phase 1 design (requirements, architecture, data model). |
-| `docs/superpowers/plans/2026-06-02-phase-1-walking-skeleton.md` | The first build: thinnest end-to-end slice, TDD, 8 tasks. |
 | `decisions/0001-local-first-architecture.md` | Durable ADR: the locked stack (Tauri/TipTap/Yjs/SQLite). |
+| `.claude/known-issues.md` | Verified fixes for non-obvious recurring problems, keyed by slug. |
+| `.claude/vendor-gotchas/` | Per-library traps (tauri, tiptap, yjs, keyring, dnd-kit, …). |
 
 ## Folder Map
 
-- `README.md` — repo front door; `human-overview.md` — plain-English project tour for newcomers.
-- `docs/superpowers/specs/` — approved design specs (one per phase/feature).
-- `docs/superpowers/plans/` — detailed TDD implementation plans.
-- `docs/MODEL-BAKEOFF.md` — wave-28 Claude-vs-Codex per-seat model comparison tally.
-- `decisions/` — durable ADRs (root-level home per M-64 knowledge-permanence; moved from `roadmap/decisions/`). Newest-10 digest in `decisions/RECENT.md`.
-- `knowledge/` — per-category durable knowledge (`platforms.md`, `commands.md`, `environment.md`); entries are write-time freshness-gated (verified `assert` + dated evidence).
+- `src/` — React frontend; `src-tauri/` — Rust shell.
+- `marketing/` — the writersnook.app Cloudflare Pages site plus `functions/` (the managed-AI proxy
+  worker, checkout, accounts). Has its own `.claude/vendor-gotchas/`.
+- `eval/` — model writing-quality eval harness (in-progress rig, separate from the app's test suite).
+- `README.md` — repo front door; `human-overview.md` — plain-English project tour; `AGENTS.md` —
+  the same conventions for Codex dispatches.
+- `docs/superpowers/specs/` — approved design specs; `docs/superpowers/plans/` — the Phase 1 build plan.
+- `docs/MODEL-BAKEOFF.md` — Claude-vs-Codex per-seat model comparison tally.
+- `decisions/` — durable ADRs (`RECENT.md` is a newest-10 digest).
+- `knowledge/` — durable per-category facts (`platforms.md`, `commands.md`, `environment.md`).
 - `research/` — standalone research + market-research memos.
-- `roadmap/` — pipeline state: `HANDOFF.md`, `discovery/` (PRD/discovery; owned by the vision-prd class, stays under `roadmap/`), `follow-ups/`, `deferred/`, `bugs/`, `coordination/` (non-wave GTM/batch coordination docs), `_archived/`.
-- `.claude/baseline-ledger.md` — this repo's conformance to the universal project baseline.
+- `design-reference/` — the approved design canon (per-feature `*-SPEC.md`).
+- `roadmap/` — `HANDOFF.md` (session state) plus history: `wave-*.md` implementation plans,
+  `discovery/`, `coordination/` (e.g. the Mac-day runbook), `market-research/`, `_archived/`. The
+  wave files are a record of what was built and why — read them for context, don't treat them as a
+  process to follow.
 - `.superpowers/` — visual-brainstorm scratch (gitignored; ignore it).
-- (after Task 1) `src/` — React frontend; `src-tauri/` — Rust shell.
 
 ## Gotchas / Environment Quirks
 
@@ -66,14 +74,32 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
   brings its own undo manager). Enabling both corrupts undo state.
 - **One Yjs doc per scene** (not per manuscript) — load-bearing for performance and future sync. Do
   not collapse scenes into a single document.
-- **More Tauri-specific traps** (drag-region inheritance, capability permission gaps, updater config)
-  live in `.claude/vendor-gotchas/tauri.md` — check it before touching the title bar, capabilities,
-  or the updater.
+- **The editor core (`src/editor/`) is additive-only.** New features layer *around* it (overlays,
+  decorations, header affordances) rather than changing editor-core behavior. See
+  `decisions/0008-editor-frozen-additive-only-ruling.md`.
+- **Green tests ≠ working app.** jsdom cannot validate ProseMirror/TipTap behavior, and ProseMirror
+  reverts external DOM mutations — editor effects must be PM decorations/plugins inside a TipTap
+  extension. The runtime oracle is a CDP smoke against `npm run tauri dev` (WebView2 debug port
+  9222, driven via the `tauri-devtools` MCP; Windows only — macOS verification stays manual). Full
+  detail, including CDP synthetic-input traps, in `.claude/known-issues.md`.
+- **Dev and installed builds share one DB:** `%APPDATA%\com.coles.writing\writing.db`. Use a
+  swapped-in test DB for smoke work; never edit the live one.
+- **More Tauri-specific traps** (drag-region inheritance, capability permission gaps, updater config,
+  platform config-file merge) live in `.claude/vendor-gotchas/tauri.md` — check it before touching
+  the title bar, capabilities, or the updater.
 - **Pushing master deploys the live marketing site.** Cloudflare Pages is git-connected to this
   repo: every push to master auto-deploys `marketing/public/` to writersnook.app. `npm run deploy`
   (direct wrangler) fails in agent sessions (interactive auth) — push IS the deploy pipeline.
   Marketing-vendor traps (Lemon Squeezy, Resend, Cloudflare Pages) live in
   `marketing/.claude/vendor-gotchas/`.
+- **Adding a DB migration can break prior migration tests** (hardcoded LATEST version + partial seed
+  fixtures). Run the full migration suite after appending one, not just the new test.
+
+## Managed AI Economics (load-bearing for meter/pricing work)
+
+- **Price ≠ allowance.** The subscription is PRICED $15/mo but GRANTS $10 of API usage (1,000,000 units; $5 spread is margin). Trial grants $1.50 total (150,000 units). The client hardcodes only `TRIAL_ALLOWANCE_UNITS` (`ai.types.ts`) — any meter/warning work must derive the denominator from the user's actual plan, and verify the units↔dollars↔tokens mapping in `MODEL_RATES` first. The context-modal meter is NOT wired to the live `/balance` allowance. (Cole-confirmed 2026-06-15/23.)
+- **Prompt caching favors a Haiku→Sonnet upgrade more than headline prices suggest.** `cache_control` attaches only to the system prompt and only above the per-model floor — Haiku 4096 tokens (needs a big About/Story Bible), Sonnet/Opus 1024 (`marketing/functions/_lib/prompt-cache.ts`). On Sonnet, caching engages near-universally (cache reads at 0.1× input rate), partially offsetting the ~3-4× per-token price. Upgrade is a quality call, not a fix — Haiku 4.5 plus the existing context scaffolding already produces strong grounded output. SSE `done` reports uncached input only; observe caching via `creditsCost` across write-vs-read turns. (Verified by CDP smoke 2026-06-13.)
+- **Trial abuse is bounded by a global $25/day spend cap** (`GLOBAL_DAILY_TRIAL_SPEND_CAP`, `marketing/functions/_lib/credits.ts`) plus a per-IP daily grant cap and the `TRIAL_AI_ENABLED` kill-switch. There is no CAPTCHA on `/api/ai/trial-session` — see `roadmap/HANDOFF.md`.
 
 ## Known Tech Debt / Deferred
 
@@ -82,21 +108,8 @@ The app is scaffolded (Tauri 2 + React 19 + Vite + TypeScript). Canonical comman
   avoided.
 - **Phase-2 risk to retire later:** TenTap (RN editor) + Yjs binding needs a 1–2 day spike at the
   start of Phase 2. Logged in the spec §10 (R1).
-
-## How We Work (process)
-
-This project follows the standard development pipeline (`~/.claude/rules/development-pipeline.md`):
-Lane A (build) for features, Lane B (fix) for bugs, with `roadmap/HANDOFF.md` as the session entry
-point. Phase 1 is sequenced as a series of plans (see HANDOFF "Roadmap"); the walking skeleton is
-first and gates everything else.
-
-**Implementation plans are authored with `/wave-plan` (or `/wave-plan-lite` for smaller slices) — the
-canonical Stage-3 tool — never `superpowers:writing-plans`, even when the brainstorming skill suggests
-writing-plans as its terminal step.** Canon: specs live in `docs/superpowers/specs/`; plans are wave
-files at `roadmap/wave-N-slug.md`. (Plan 1's plan predates this convention and lives under
-`docs/superpowers/plans/`; new plans follow the wave-file path.)
+- Current open items live under "What's next" in `roadmap/HANDOFF.md`.
 
 ## What CLAUDE.md Does Not Cover
 
-Architecture rationale and the full data model live in the spec; step-by-step build instructions live
-in the plan. This file orients; those files specify.
+Architecture rationale and the full data model live in the spec. This file orients; the spec specifies.
