@@ -50,6 +50,7 @@ import {
   actualCredits,
   estimateCredits,
 } from "../../_lib/credits";
+import { resolveMaxTokens } from "../../_lib/effort";
 import { getAdapter } from "../../_lib/providers/index";
 import type { Message, ResolvedConfig } from "../../_lib/providers/types";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
@@ -98,6 +99,19 @@ export const MANAGED_MODELS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Apply the model's reasoning headroom to the verb's output budget.
+ *
+ * Every exit from resolveModelConfig goes through here so ONE number reaches both the
+ * adapter (max_completion_tokens / max_tokens) and the credit reserve in the handler.
+ * Sizing them separately would break the refund-only invariant that reserve ≥ actual.
+ */
+function withResolvedMaxTokens(config: ResolvedConfig): ResolvedConfig {
+  const maxTokens = resolveMaxTokens(config.model, config.maxTokens);
+  if (maxTokens === config.maxTokens) return config;
+  return { ...config, maxTokens } as ResolvedConfig;
+}
+
+/**
  * Resolve the effective per-request config from the verb default and an optional
  * client-supplied model override.
  *
@@ -105,9 +119,13 @@ export const MANAGED_MODELS: ReadonlySet<string> = new Set([
  *   - proofread: ALWAYS uses its cheap verb-default (mechanical, un-bypassable).
  *   - absent client model: verb default.
  *   - present client model in MANAGED_MODELS: override just the model; preserve
- *     verb temperature / maxTokens / thinking policy.
+ *     verb temperature / thinking policy.
  *   - present client model NOT in MANAGED_MODELS, or not a string: { ok: false }
  *     → handler returns 400.
+ *
+ * maxTokens is the one field the resolver may raise: an OpenAI model carrying a reasoning
+ * effort draws its reasoning tokens from the same budget as the visible reply, so the verb
+ * cap gets reasoning headroom added (_lib/effort.ts). Every other verb policy is preserved.
  */
 export function resolveModelConfig(
   verbKey: VerbKey | undefined,
@@ -115,13 +133,15 @@ export function resolveModelConfig(
   clientModel: unknown,
 ): { ok: true; config: ResolvedConfig } | { ok: false } {
   // proofread always uses its cheap verb-default — client model ignored (Q2, mechanical).
-  if (verbKey === 'proofread') return { ok: true, config: verbConfig };
+  if (verbKey === 'proofread') return { ok: true, config: withResolvedMaxTokens(verbConfig) };
   // absent client model → verb default.
-  if (clientModel === undefined || clientModel === null) return { ok: true, config: verbConfig };
+  if (clientModel === undefined || clientModel === null) {
+    return { ok: true, config: withResolvedMaxTokens(verbConfig) };
+  }
   // present client model: must be a string AND in the allowlist, else 400.
   if (typeof clientModel !== 'string' || !MANAGED_MODELS.has(clientModel)) return { ok: false };
-  // override the model, preserve verb's temperature/maxTokens/thinking policy.
-  return { ok: true, config: { ...verbConfig, model: clientModel } as ResolvedConfig };
+  // override the model, preserve verb's temperature/thinking policy.
+  return { ok: true, config: withResolvedMaxTokens({ ...verbConfig, model: clientModel } as ResolvedConfig) };
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────

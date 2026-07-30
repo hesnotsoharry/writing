@@ -5,6 +5,7 @@
  * Verbatim lift of callAnthropic / processAnthropicLine / pumpAnthropicToClient.
  * Existing chat.test.ts Anthropic cases guard behavioral parity.
  */
+import { getModelEffort } from "../effort";
 import { shouldAttachCache } from "../prompt-cache";
 import type { CanonicalUsage, Message, ProviderAdapter, ResolvedConfig } from "./types";
 
@@ -14,32 +15,8 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 const EXTENDED_CACHE_TTL_BETA = "extended-cache-ttl-2025-04-11";
 
-/**
- * Per-model effort policy, sent as `output_config: { effort }`.
- *
- * Effort governs how many tokens Claude spends on a response — thinking included — and
- * those tokens bill as output. The Claude API DEFAULTS TO `high` when the field is absent,
- * so omitting it is not a neutral choice: it is the most expensive one.
- *
- * `medium` on the Claude 5 pair is Cole's call (2026-07-30). Anthropic's own guidance is
- * that Sonnet 5 at medium is comparable to Sonnet 4.6 at high, so this holds quality against
- * what we shipped before while cutting output spend against the subscriber allowance.
- *
- * Two constraints this table must respect:
- *   - Effort is NOT supported on Haiku 4.5. Sending output_config to a model that does not
- *     accept it risks a 400 — hence an explicit allowlist, never a blanket default.
- *   - Effort must stay CONSTANT per model. Varying it between requests invalidates the
- *     prompt cache (it reshapes the rendered prompt), which would quietly undo the
- *     cache-read savings that make the bigger models affordable.
- *
- * Legacy models (Sonnet 4.6, Opus 4.8) are intentionally absent: they keep the implicit
- * `high` behaviour they have always run with in production. Adding them here would be a
- * live behaviour change to models users already have selected.
- */
-const MODEL_EFFORT: Record<string, "low" | "medium" | "high" | "xhigh" | "max"> = {
-  "claude-sonnet-5": "medium",
-  "claude-opus-5": "medium",
-};
+// Effort policy lives in _lib/effort.ts — shared with OpenAIAdapter and with the credit
+// reserve in chat.ts, so the wire request and the reserve can never disagree.
 
 // ── AnthropicAdapter ──────────────────────────────────────────────────────────
 
@@ -77,7 +54,7 @@ export class AnthropicAdapter implements ProviderAdapter {
       requestBody["temperature"] = config.temperature;
     }
     // Effort is independent of the thinking/temperature split above — it applies either way.
-    const effort = MODEL_EFFORT[config.model];
+    const effort = getModelEffort(config.model);
     if (effort !== undefined) {
       requestBody["output_config"] = { effort };
     }

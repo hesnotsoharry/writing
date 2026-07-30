@@ -10,6 +10,7 @@
  *   - NO cache_control (OpenAI caches automatically ≥1024 tokens; no write premium).
  *   - #1 billing gate: inputTokens = prompt_tokens − cached_tokens (Decision 3).
  */
+import { getModelEffort } from "../effort";
 import type { CanonicalUsage, Message, ProviderAdapter, ResolvedConfig } from "./types";
 
 // ── State shape (internal) ────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ export class OpenAIAdapter implements ProviderAdapter {
 
     // Param mapping (Decision 5): mirror the Anthropic thinking/temperature guard.
     // GPT-5 reasoning models reject temperature while reasoning is active (400).
+    const modelEffort = getModelEffort(config.model);
     if (config.thinking) {
       if (config.thinking.type === "adaptive") {
         body["reasoning_effort"] = config.thinking.effort;
@@ -57,6 +59,13 @@ export class OpenAIAdapter implements ProviderAdapter {
         body["reasoning_effort"] = "high";
       }
       // temperature intentionally omitted — would cause 400 alongside reasoning
+    } else if (modelEffort !== undefined) {
+      // Per-model effort policy (_lib/effort.ts). Takes precedence over the verb's
+      // temperature: OpenAI rejects any non-default temperature once reasoning is active,
+      // so the two cannot both be sent. The verbs that reach a GPT model use temperature
+      // 1.0 (brainstorm, critique) — already the default — or 0.7 (ask, betaread), which
+      // loses its damping here. proofread is Haiku-locked and never takes this path.
+      body["reasoning_effort"] = modelEffort;
     } else if (config.temperature !== undefined) {
       // Standard verb: temperature accepted when reasoning_effort:'none'
       body["reasoning_effort"] = "none";
