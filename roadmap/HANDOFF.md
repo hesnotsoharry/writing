@@ -4,7 +4,8 @@ updated: 2026-07-28
 ---
 
 ## Current state
-- Branch: master · Latest commit: 5e5097b (mac webview dialog fix) · Last tag: v0.12.6 · working version 0.12.7
+- Branch: master · Last SHIPPED tag: **v0.12.7** (released 2026-07-17, both platforms — .exe, .dmg, .app.tar.gz+.sig, latest.json; tag points at 5e5097b) · working version **0.12.8**
+- Version lives in FOUR files (`package.json`, `src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}`); bump Cargo.lock via `cargo update -p writing`, never by hand. `publish.ps1` refuses to run if the release tag already exists — that guard is what caught the stale 0.12.7 assumption.
 - **v0.12.6 shipped on BOTH platforms.** Windows released via publish.ps1. macOS = FIRST Mac release ever: signed + notarized + stapled, on GitHub release v0.12.6 with merged latest.json (windows-x86_64 + darwin-aarch64 keys), .dmg on R2 (downloads.writersnook.app, stable + versioned keys). Cole field-verified download + install on a real Mac.
 - Marketing site LIVE with the Mac launch (commit fed1514): platform-aware download CTAs (detectMac/wirePlatformDl), Apple-silicon disclosure on all 4 download surfaces, Windows flow regression-clean. Fathom click-event tracking added since (6aff66e).
 - First Mac day executed via roadmap/coordination/mac-day-runbook.md on a RENTAL Mac. Four traps permanently absorbed into runbook + scripts:
