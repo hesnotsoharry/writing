@@ -28,8 +28,11 @@ export function ModelPop({ model, setModel, setModelPop, onAfterSelect, byokGrou
   const standardChatGPT = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].provider === "chatgpt" && AI_MODELS[k].tier === "standard");
   const standardGlm     = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].provider === "glm"     && AI_MODELS[k].tier === "standard");
   const premiumModels   = AI_MODEL_ORDER.filter((k) => AI_MODELS[k].tier === "premium");
+  // AI_MODEL_ORDER already places legacy models at the bottom of each group; the marker
+  // tells the user why they're down there rather than relying on position alone.
   const renderModel = (k: ManagedModel) => (<button key={k} onClick={() => { setModel(k); setModelPop(false); onAfterSelect(); }}>
     <span className="nm">{AI_MODELS[k].label}</span>
+    {AI_MODELS[k].legacy && <span className="ai-modelpop-cost">legacy</span>}
     {k === model && <span className="tick"><Icon name="check" className="ic" /></span>}
   </button>);
   return (

@@ -7,9 +7,16 @@ describe("estimateRepliesLeft", () => {
   describe("trial balance (150,000 units)", () => {
     it.each<[ManagedModel, number]>([
       ["claude-haiku-4-5-20251001", 150],
+      ["claude-sonnet-5", 50],
+      ["claude-opus-5", 30],
+      ["gpt-5.4-mini", 185],
+      ["gpt-5.6-luna", 138],
+      ["gpt-5.6-terra", 55],
+      ["gpt-5.6-sol", 27],
+      ["z-ai/glm-5.2", 182],
+      // Legacy models stay priced identically to their successors.
       ["claude-sonnet-4-6", 50],
       ["claude-opus-4-8", 30],
-      ["gpt-5.4-mini", 185],
       ["gpt-5.4", 55],
       ["gpt-5.5", 27],
     ])("returns %s replies for %s", (model, expected) => {
@@ -20,9 +27,16 @@ describe("estimateRepliesLeft", () => {
   describe("monthly balance (1,000,000 units)", () => {
     it.each<[ManagedModel, number]>([
       ["claude-haiku-4-5-20251001", 1000],
+      ["claude-sonnet-5", 333],
+      ["claude-opus-5", 200],
+      ["gpt-5.4-mini", 1234],
+      ["gpt-5.6-luna", 925],
+      ["gpt-5.6-terra", 370],
+      ["gpt-5.6-sol", 185],
+      ["z-ai/glm-5.2", 1215],
+      // Legacy models stay priced identically to their successors.
       ["claude-sonnet-4-6", 333],
       ["claude-opus-4-8", 200],
-      ["gpt-5.4-mini", 1234],
       ["gpt-5.4", 370],
       ["gpt-5.5", 185],
     ])("returns %s replies for %s", (model, expected) => {

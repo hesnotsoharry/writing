@@ -70,17 +70,31 @@ export { INPUT_UNITS_PER_TOKEN, OUTPUT_UNITS_PER_TOKEN };
  * MUST be a subset of Object.keys(RATES) — a model here but missing from RATES
  * would silently bill at the Haiku fallback (the acceptance test guards this invariant).
  *
- * Standard tier:  Haiku / Sonnet / GPT-5.4-mini / GPT-5.4
- * Premium tier:   Opus / GPT-5.5  (~3× cost; no paywall — all subscribers may pick these)
+ * Standard tier:  Haiku 4.5 / Sonnet 5 / GPT-5.4-mini / GPT-5.6 Luna / GPT-5.6 Terra / GLM-5.2
+ * Premium tier:   Opus 5 / GPT-5.6 Sol  (~3× cost; no paywall — all subscribers may pick these)
+ * Legacy:         Sonnet 4.6 / Opus 4.8 / GPT-5.4 / GPT-5.5 — superseded but still served, and
+ *                 still allowlisted so a persisted client model preference never 400s.
+ *
+ * Claude Fable 5 is deliberately NOT offered: at $10/$50 per MTok it would consume a
+ * subscriber's whole monthly allowance in a handful of long replies.
  */
 export const MANAGED_MODELS: ReadonlySet<string> = new Set([
+  // Anthropic — current
   'claude-haiku-4-5-20251001',
-  'claude-sonnet-4-6',
+  'claude-sonnet-5',
+  'claude-opus-5',
+  // OpenAI — current
   'gpt-5.4-mini',
-  'gpt-5.4',
-  'claude-opus-4-8',
-  'gpt-5.5',
+  'gpt-5.6-luna',
+  'gpt-5.6-terra',
+  'gpt-5.6-sol',
+  // OpenRouter — current
   'z-ai/glm-5.2',
+  // Legacy — superseded, still selectable
+  'claude-sonnet-4-6',
+  'claude-opus-4-8',
+  'gpt-5.4',
+  'gpt-5.5',
 ]);
 
 /**

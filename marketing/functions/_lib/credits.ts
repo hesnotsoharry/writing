@@ -64,24 +64,42 @@ export interface ModelRates {
 }
 
 /**
- * Credit rate table keyed by model ID (Anthropic + OpenAI).
+ * Credit rate table keyed by model ID (Anthropic + OpenAI + OpenRouter).
  * Units/token = $/MTok × 0.1
  *   (formula: price_per_MTok / 1e6 / CREDIT_UNIT_USD = price_per_MTok × 0.1)
  * Unknown models fall back to Haiku rates (safe, conservative).
+ *
+ * Legacy models (Sonnet 4.6, Opus 4.8, GPT-5.4, GPT-5.5) stay listed and priced:
+ * they remain offered at the bottom of their picker group, and keeping them in the
+ * allowlist means a persisted model preference can never 400 after a roster refresh.
  */
 export const RATES: Record<string, ModelRates> = {
+  // Anthropic rates — source: platform.claude.com/docs/en/about-claude/pricing, confirmed 2026-07-30.
+  // Cache multipliers: 5m write = 1.25× input, 1h write = 2× input, read = 0.1× input.
   'claude-haiku-4-5-20251001': { provider: 'anthropic', input: 0.1,  output: 0.5,  cacheWrite5m: 0.125, cacheWrite1h: 0.2, cacheRead: 0.01 },
+  // Sonnet 5 is on introductory pricing ($2/$10 per MTok) through 2026-08-31, reverting to
+  // $3/$15 after. We bill the STANDARD $3/$15 rate: it needs no dated flip, and the intro
+  // spread accrues as margin rather than as an under-bill we would have to eat on Sept 1.
+  'claude-sonnet-5':           { provider: 'anthropic', input: 0.3,  output: 1.5,  cacheWrite5m: 0.375, cacheWrite1h: 0.6, cacheRead: 0.03 },
+  'claude-opus-5':             { provider: 'anthropic', input: 0.5,  output: 2.5,  cacheWrite5m: 0.625, cacheWrite1h: 1.0, cacheRead: 0.05 },
+  // Anthropic legacy generation — same list price as their Claude 5 successors.
   'claude-sonnet-4-6':         { provider: 'anthropic', input: 0.3,  output: 1.5,  cacheWrite5m: 0.375, cacheWrite1h: 0.6, cacheRead: 0.03 },
   'claude-opus-4-8':           { provider: 'anthropic', input: 0.5,  output: 2.5,  cacheWrite5m: 0.625, cacheWrite1h: 1.0, cacheRead: 0.05 },
 
-  // OpenAI rates — source: developers.openai.com/api/docs/pricing, confirmed 2026-06-14. units/token = $/MTok × 0.1. No cache-write premium (cacheWrite* = input).
-  'gpt-5.4':      { provider: 'openai', input: 0.25,  output: 1.5,  cacheWrite5m: 0.25,  cacheWrite1h: 0.25,  cacheRead: 0.025  },
-  'gpt-5.4-mini': { provider: 'openai', input: 0.075, output: 0.45, cacheWrite5m: 0.075, cacheWrite1h: 0.075, cacheRead: 0.0075 },
-  'gpt-5.5':      { provider: 'openai', input: 0.5,   output: 3.0,  cacheWrite5m: 0.5,   cacheWrite1h: 0.5,   cacheRead: 0.05   },
+  // OpenAI rates — source: developers.openai.com/api/docs/pricing, confirmed 2026-07-30. units/token = $/MTok × 0.1. No cache-write premium (cacheWrite* = input).
+  'gpt-5.4-mini':  { provider: 'openai', input: 0.075, output: 0.45, cacheWrite5m: 0.075, cacheWrite1h: 0.075, cacheRead: 0.0075 },
+  'gpt-5.6-luna':  { provider: 'openai', input: 0.1,   output: 0.6,  cacheWrite5m: 0.1,   cacheWrite1h: 0.1,   cacheRead: 0.01   },
+  'gpt-5.6-terra': { provider: 'openai', input: 0.25,  output: 1.5,  cacheWrite5m: 0.25,  cacheWrite1h: 0.25,  cacheRead: 0.025  },
+  'gpt-5.6-sol':   { provider: 'openai', input: 0.5,   output: 3.0,  cacheWrite5m: 0.5,   cacheWrite1h: 0.5,   cacheRead: 0.05   },
+  // OpenAI legacy generation — GPT-5.4 is price-identical to 5.6 Terra, GPT-5.5 to 5.6 Sol.
+  'gpt-5.4':       { provider: 'openai', input: 0.25,  output: 1.5,  cacheWrite5m: 0.25,  cacheWrite1h: 0.25,  cacheRead: 0.025  },
+  'gpt-5.5':       { provider: 'openai', input: 0.5,   output: 3.0,  cacheWrite5m: 0.5,   cacheWrite1h: 0.5,   cacheRead: 0.05   },
 
-  // OpenRouter rates — source: openrouter.ai/models, confirmed 2026-06-23. units/token = $/MTok × 0.1.
-  // GLM does not surface Anthropic-style cache tokens; cacheWrite* and cacheRead = 0.
-  'z-ai/glm-5.2': { provider: 'openrouter', input: 0.095, output: 0.300, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 },
+  // OpenRouter rates — source: openrouter.ai/api/v1/models (authoritative; the model web page
+  // quotes a different, lower figure — trust the API), confirmed 2026-07-30.
+  // $0.966 / $3.036 per MTok. GLM does not surface Anthropic-style cache tokens; cacheWrite*
+  // and cacheRead = 0 (OpenRouterAdapter.pump always reports 0 for both).
+  'z-ai/glm-5.2': { provider: 'openrouter', input: 0.0966, output: 0.3036, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0 },
 };
 
 /**

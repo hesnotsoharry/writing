@@ -17,6 +17,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { RATES } from '../../_lib/credits';
+import { MIN_CACHEABLE_TOKENS } from '../../_lib/prompt-cache';
 import { getAdapter } from '../../_lib/providers';
 import { VERB_CONFIG } from '../../_lib/verb-config';
 import { MANAGED_MODELS, resolveModelConfig } from './chat';
@@ -45,13 +46,46 @@ describe('W44 MANAGED_MODELS ↔ RATES sync guard (silent-under-bill defense)', 
     expect(() => getAdapter('claude-9-hyper')).toThrow('Unknown model: claude-9-hyper');
   });
 
-  it('offers the full Q1 lineup: Haiku, Sonnet, gpt-5.4-mini, gpt-5.4 (standard) + Opus, gpt-5.5 (premium)', () => {
+  it('offers the current lineup: Haiku 4.5, Sonnet 5, Opus 5, gpt-5.4-mini, GPT-5.6 Luna/Terra/Sol, GLM-5.2', () => {
     expect(MANAGED_MODELS.has('claude-haiku-4-5-20251001')).toBe(true);
-    expect(MANAGED_MODELS.has('claude-sonnet-4-6')).toBe(true);
+    expect(MANAGED_MODELS.has('claude-sonnet-5')).toBe(true);
+    expect(MANAGED_MODELS.has('claude-opus-5')).toBe(true);
     expect(MANAGED_MODELS.has('gpt-5.4-mini')).toBe(true);
-    expect(MANAGED_MODELS.has('gpt-5.4')).toBe(true);
+    expect(MANAGED_MODELS.has('gpt-5.6-luna')).toBe(true);
+    expect(MANAGED_MODELS.has('gpt-5.6-terra')).toBe(true);
+    expect(MANAGED_MODELS.has('gpt-5.6-sol')).toBe(true);
+    expect(MANAGED_MODELS.has('z-ai/glm-5.2')).toBe(true);
+  });
+
+  // The roster refresh keeps superseded models allowlisted. A client that persisted
+  // 'claude-sonnet-4-6' before the refresh must keep working — dropping the ID would
+  // 400 that user's next request with no migration path.
+  it('keeps the legacy lineup allowlisted so persisted client model preferences never 400', () => {
+    expect(MANAGED_MODELS.has('claude-sonnet-4-6')).toBe(true);
     expect(MANAGED_MODELS.has('claude-opus-4-8')).toBe(true);
+    expect(MANAGED_MODELS.has('gpt-5.4')).toBe(true);
     expect(MANAGED_MODELS.has('gpt-5.5')).toBe(true);
+  });
+
+  // Claude Fable 5 ($10/$50 per MTok) would burn a monthly allowance in a few long
+  // replies. It is deliberately excluded — this pins that decision.
+  it('does not offer Claude Fable 5 (allowance-destroying price point)', () => {
+    expect(MANAGED_MODELS.has('claude-fable-5')).toBe(false);
+    const r = resolveModelConfig('brainstorm', VERB_CONFIG.brainstorm, 'claude-fable-5');
+    expect(r.ok).toBe(false);
+  });
+
+  // A missing MIN_CACHEABLE_TOKENS entry is silent: shouldAttachCache falls back to
+  // 4096 (Haiku's floor), so a 1024-floor model with a 2k system prompt simply stops
+  // caching — no error, just a quietly larger bill on every turn.
+  it('every allowlisted Anthropic model has an explicit prompt-cache floor', () => {
+    for (const model of MANAGED_MODELS) {
+      if (RATES[model].provider !== 'anthropic') continue;
+      expect(
+        Object.prototype.hasOwnProperty.call(MIN_CACHEABLE_TOKENS, model),
+        `Missing MIN_CACHEABLE_TOKENS entry for '${model}' — caching would silently fall back to the 4096 Haiku floor`,
+      ).toBe(true);
+    }
   });
 });
 

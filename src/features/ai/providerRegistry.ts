@@ -79,15 +79,28 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
     provider: "anthropic",
     label: "Claude",
     models: [
-      // Rates sourced from marketing/functions/_lib/credits.ts RATES (2026-06-14):
+      // Rates sourced from marketing/functions/_lib/credits.ts RATES (2026-07-30):
       //   units/token × 10 = $/MTok  (CREDIT_UNIT_USD = $0.00001; 1 unit/token = $10/MTok)
+      // Current generation first; legacy models sit at the bottom of the group.
       {
         id: "claude-haiku-4-5-20251001", displayName: "Haiku 4.5", provider: "anthropic",
         rateUsd: { input: 1.0, cached: 0.10, output: 5.0 },
       },
       {
-        id: "claude-sonnet-4-6", displayName: "Sonnet 4.6", provider: "anthropic",
+        id: "claude-sonnet-5", displayName: "Sonnet 5", provider: "anthropic",
         rateUsd: { input: 3.0, cached: 0.30, output: 15.0 },
+      },
+      {
+        id: "claude-opus-5", displayName: "Opus 5", provider: "anthropic",
+        rateUsd: { input: 5.0, cached: 0.50, output: 25.0 },
+      },
+      {
+        id: "claude-sonnet-4-6", displayName: "Sonnet 4.6 (legacy)", provider: "anthropic",
+        rateUsd: { input: 3.0, cached: 0.30, output: 15.0 },
+      },
+      {
+        id: "claude-opus-4-8", displayName: "Opus 4.8 (legacy)", provider: "anthropic",
+        rateUsd: { input: 5.0, cached: 0.50, output: 25.0 },
       },
     ],
   },
@@ -95,13 +108,9 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
     provider: "openai",
     label: "ChatGPT",
     models: [
-      // Rates sourced from marketing/functions/_lib/credits.ts RATES (2026-06-14) and
-      // confirmed against research sidecar §4 (openai.com/pricing, 2026-06-14).
-      {
-        id: "gpt-5.4", displayName: "GPT-5.4", provider: "openai",
-        costHint: "$2.50 / $15 per MTok",
-        rateUsd: { input: 2.50, cached: 0.25, output: 15.0 },
-      },
+      // Rates sourced from marketing/functions/_lib/credits.ts RATES and confirmed against
+      // developers.openai.com/api/docs/pricing (2026-07-30).
+      // Current generation first; legacy models sit at the bottom of the group.
       {
         id: "gpt-5.4-mini", displayName: "GPT-5.4 mini", provider: "openai",
         costHint: "$0.75 / $4.50 per MTok",
@@ -109,7 +118,27 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
         rateUsd: { input: 0.75, cached: 0.075, output: 4.50 },
       },
       {
-        id: "gpt-5.5", displayName: "GPT-5.5", provider: "openai",
+        id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna", provider: "openai",
+        costHint: "$1 / $6 per MTok",
+        rateUsd: { input: 1.00, cached: 0.10, output: 6.0 },
+      },
+      {
+        id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra", provider: "openai",
+        costHint: "$2.50 / $15 per MTok",
+        rateUsd: { input: 2.50, cached: 0.25, output: 15.0 },
+      },
+      {
+        id: "gpt-5.6-sol", displayName: "GPT-5.6 Sol", provider: "openai",
+        costHint: "$5 / $30 per MTok",
+        rateUsd: { input: 5.00, cached: 0.50, output: 30.0 },
+      },
+      {
+        id: "gpt-5.4", displayName: "GPT-5.4 (legacy)", provider: "openai",
+        costHint: "$2.50 / $15 per MTok",
+        rateUsd: { input: 2.50, cached: 0.25, output: 15.0 },
+      },
+      {
+        id: "gpt-5.5", displayName: "GPT-5.5 (legacy)", provider: "openai",
         costHint: "$5 / $30 per MTok",
         rateUsd: { input: 5.00, cached: 0.50, output: 30.0 },
       },

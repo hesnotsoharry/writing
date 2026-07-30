@@ -10,13 +10,20 @@
  * exceed the model's threshold. Unknown models default to 4096 (Haiku's floor)
  * — the most conservative value — so caching only attaches when it can pay off.
  *
- * Reference: roadmap/wave-37-ai-harness-optimization-research.md §2
- *   Haiku 4.5 min: 4096 | Sonnet 4.6 min: 1024 | Opus 4.8 min: 1024
+ * Reference: roadmap/wave-37-ai-harness-optimization-research.md §2, refreshed against
+ * platform.claude.com/docs/en/build-with-claude/prompt-caching on 2026-07-30.
+ *
+ * A MISSING entry is not neutral: it falls back to 4096 (Haiku's floor), which silently
+ * suppresses caching for any 1024–4096-token system prompt on a 1024-floor model. Every
+ * Anthropic model in MANAGED_MODELS must be listed here.
  */
 
-/** Minimum cacheable prefix tokens per Anthropic model (as of June 2026). */
+/** Minimum cacheable prefix tokens per Anthropic model (confirmed 2026-07-30). */
 export const MIN_CACHEABLE_TOKENS: Record<string, number> = {
   'claude-haiku-4-5-20251001': 4096,
+  'claude-sonnet-5': 1024,
+  // Opus 5 caches from 512 tokens — a lower floor than any other model we offer.
+  'claude-opus-5': 512,
   'claude-sonnet-4-6': 1024,
   'claude-opus-4-8': 1024,
 };
