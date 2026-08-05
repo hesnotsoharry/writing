@@ -7,6 +7,9 @@
 import { normalizeStatus } from "../lib/status";
 import type { ArchivedItem, Folder, Scene } from "./binderStore";
 import { getDb } from "./schema";
+import { SqliteSceneDocStore } from "./sqliteSceneDocStore";
+
+const sceneDocStore = new SqliteSceneDocStore();
 
 /** SceneManifestEntry — what the chapter manifest embeds per child scene. */
 export interface SceneManifestEntry {
@@ -66,11 +69,7 @@ export async function buildSceneManifestEntries(
 
 /** Insert a scene_docs row (upsert) when a doc is present. */
 async function insertSceneDoc(sceneId: string, doc: string): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    "INSERT INTO scene_docs (scene_id, state_base64) VALUES ($1, $2) ON CONFLICT(scene_id) DO UPDATE SET state_base64 = excluded.state_base64",
-    [sceneId, doc]
-  );
+  await sceneDocStore.save(sceneId, doc, null);
 }
 
 /**
@@ -161,7 +160,7 @@ export async function sqliteArchiveScene(sceneId: string, projectId: string): Pr
     "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     [crypto.randomUUID(), projectId, "scene", sceneId, scene.title, sub, manifest, Date.now()]
   );
-  await db.execute("DELETE FROM scene_docs WHERE scene_id=$1", [sceneId]);
+  await sceneDocStore.delete(sceneId);
   await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
 }
 
@@ -184,7 +183,7 @@ export async function sqliteArchiveChapter(folderId: string, projectId: string):
     [crypto.randomUUID(), projectId, "chapter", folderId, folder.title, `${childScenes.length} scenes`, manifest, Date.now()]
   );
   for (const scene of childScenes) {
-    await db.execute("DELETE FROM scene_docs WHERE scene_id=$1", [scene.id]);
+    await sceneDocStore.delete(scene.id);
   }
   await db.execute("DELETE FROM scenes WHERE folder_id=$1", [folderId]);
   await db.execute("DELETE FROM folders WHERE id=$1", [folderId]);

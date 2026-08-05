@@ -16,6 +16,9 @@ import * as Y from "yjs";
 import { applyEncoded, encodeDoc, extractPlainText, xmlTextToPlain } from "../yjs/serialize";
 import { getDb } from "./schema";
 import type { SnapshotStore } from "./snapshotStore";
+import { SqliteSceneDocStore } from "./sqliteSceneDocStore";
+
+const sceneDocStore = new SqliteSceneDocStore();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -146,14 +149,7 @@ async function persistDoc(
   plaintext: string,
 ): Promise<void> {
   const wordCount = plaintext.trim() ? plaintext.trim().split(/\s+/).filter(Boolean).length : 0;
-  await db.execute(
-    `INSERT INTO scene_docs (scene_id, state_base64, plaintext_projection)
-     VALUES ($1, $2, $3)
-     ON CONFLICT(scene_id) DO UPDATE SET
-       state_base64 = excluded.state_base64,
-       plaintext_projection = excluded.plaintext_projection`,
-    [sceneId, encodeDoc(doc), plaintext],
-  );
+  await sceneDocStore.save(sceneId, encodeDoc(doc), plaintext);
   await db.execute("UPDATE scenes SET word_count = $1 WHERE id = $2", [wordCount, sceneId]);
 }
 
