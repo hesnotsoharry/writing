@@ -78,7 +78,7 @@ async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
   applyEncoded(d, stored ?? "");
   const unbind = bindPersistence(d, sceneId, sceneDocStore, {
     debounceMs: 500,
-    onSaved: (id, wordCount) => { ctx.onSavedRef.current?.(id, wordCount); },
+    onSaved: (id, wordCount, meta) => { if (meta.hadLocalEdits) ctx.onSavedRef.current?.(id, wordCount); },
   });
 
   if (myToken !== loadTokenRef.current || !mountedRef.current) { unbind(); return; }

@@ -3,6 +3,12 @@ import * as Y from "yjs";
 import type { SceneDocStore } from "../db/sceneDocStore";
 import { encodeDoc, extractPlainText } from "./serialize";
 
+export const SYNC_ORIGIN = "sync-remote";
+
+export interface SaveMeta {
+  hadLocalEdits: boolean;
+}
+
 export interface BindPersistenceOpts {
   debounceMs?: number;
   /**
@@ -10,7 +16,7 @@ export interface BindPersistenceOpts {
    * `wordCount` is the word count computed from the saved plaintext
    * (split on whitespace; 0 for an empty doc).
    */
-  onSaved?: (sceneId: string, wordCount: number) => void;
+  onSaved?: (sceneId: string, wordCount: number, meta: SaveMeta) => void;
 }
 
 /**
@@ -26,12 +32,16 @@ export function bindPersistence(
 ): () => void {
   const { debounceMs = 500, onSaved } = opts;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  // The eager initial save preserves today's scene-open cascade.
+  let hadLocalEdits = true;
 
   const saveNow = () => {
+    const savedHadLocalEdits = hadLocalEdits;
+    hadLocalEdits = false;
     const text = extractPlainText(doc);
     const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
     void store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null)
-      .then(() => { onSaved?.(sceneId, wordCount); });
+      .then(() => { onSaved?.(sceneId, wordCount, { hadLocalEdits: savedHadLocalEdits }); });
   };
 
   const scheduleSave = () => {
@@ -42,7 +52,10 @@ export function bindPersistence(
     }, debounceMs);
   };
 
-  const onUpdate = () => scheduleSave();
+  const onUpdate = (_update: Uint8Array, origin: unknown) => {
+    if (origin !== SYNC_ORIGIN) hadLocalEdits = true;
+    scheduleSave();
+  };
 
   // Schedule an initial save so that content built before binding is persisted.
   // Any real update that fires will cancel and reschedule this timer.
