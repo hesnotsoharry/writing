@@ -1,10 +1,10 @@
 /**
  * Pure free-function helpers for the SqliteStoryBibleStore Wave-24 Full Entry surface.
- * Each function takes a DbHandle as its first argument — the class methods become
+ * Each function takes a DbClient as its first argument — the class methods become
  * thin one-line delegators.
  */
 
-import type { DbHandle } from "./schema";
+import type { DbClient } from "./dbClient";
 import type {
   EntityField,
   EntityLink,
@@ -24,7 +24,7 @@ type EntityRow = {
 };
 
 export async function sqliteGetEntity(
-  db: DbHandle,
+  db: DbClient,
   type: EntityType,
   id: string
 ): Promise<EntityWithPortrait | null> {
@@ -50,7 +50,7 @@ export async function sqliteGetEntity(
 }
 
 export async function sqliteGetEntityFields(
-  db: DbHandle,
+  db: DbClient,
   entityId: string
 ): Promise<EntityField[]> {
   const rows = await db.select<
@@ -70,7 +70,7 @@ export async function sqliteGetEntityFields(
 }
 
 export async function sqliteSetEntityField(
-  db: DbHandle,
+  db: DbClient,
   fk: FieldKey,
   value: string
 ): Promise<void> {
@@ -93,7 +93,7 @@ export async function sqliteSetEntityField(
 }
 
 export async function sqliteAddEntityField(
-  db: DbHandle,
+  db: DbClient,
   entityId: string,
   kind: FieldKind,
   key: string
@@ -121,12 +121,12 @@ export async function sqliteAddEntityField(
   return { id: r.id, entityId: r.entity_id, kind: r.kind as FieldKind, key: r.field_key, value: r.field_value, sort: r.sort };
 }
 
-export async function sqliteDeleteEntityField(db: DbHandle, fieldId: string): Promise<void> {
+export async function sqliteDeleteEntityField(db: DbClient, fieldId: string): Promise<void> {
   await db.execute("DELETE FROM entity_fields WHERE id = $1", [fieldId]);
 }
 
 export async function sqliteReorderEntityFields(
-  db: DbHandle,
+  db: DbClient,
   updates: { id: string; sort: number }[]
 ): Promise<void> {
   for (const { id, sort } of updates) {
@@ -135,7 +135,7 @@ export async function sqliteReorderEntityFields(
 }
 
 export async function sqliteListLinksFor(
-  db: DbHandle,
+  db: DbClient,
   entityId: string
 ): Promise<EntityLink[]> {
   const rows = await db.select<
@@ -149,7 +149,7 @@ export async function sqliteListLinksFor(
 
 /** Reverse-direction query: links where to_id = toId (e.g. characters linked to a location). */
 export async function sqliteListLinksTo(
-  db: DbHandle,
+  db: DbClient,
   toId: string
 ): Promise<EntityLink[]> {
   const rows = await db.select<
@@ -163,7 +163,7 @@ export async function sqliteListLinksTo(
 
 /** In-place key rename: UPDATE field_key WHERE id = fieldId. No migration needed. */
 export async function sqliteUpdateEntityFieldKey(
-  db: DbHandle,
+  db: DbClient,
   fieldId: string,
   newKey: string
 ): Promise<void> {
@@ -171,7 +171,7 @@ export async function sqliteUpdateEntityFieldKey(
 }
 
 export async function sqliteAddLink(
-  db: DbHandle,
+  db: DbClient,
   fromId: string,
   toId: string,
   relation: string
@@ -193,12 +193,12 @@ export async function sqliteAddLink(
   return { id: r.id, fromId: r.from_id, toId: r.to_id, relation: r.relation };
 }
 
-export async function sqliteRemoveLink(db: DbHandle, linkId: string): Promise<void> {
+export async function sqliteRemoveLink(db: DbClient, linkId: string): Promise<void> {
   await db.execute("DELETE FROM entity_links WHERE id = $1", [linkId]);
 }
 
 export async function sqliteUpdateLinkRelation(
-  db: DbHandle,
+  db: DbClient,
   linkId: string,
   relation: string
 ): Promise<void> {
@@ -206,7 +206,7 @@ export async function sqliteUpdateLinkRelation(
 }
 
 export async function sqliteSetPortrait(
-  db: DbHandle,
+  db: DbClient,
   type: EntityType,
   id: string,
   path: string
@@ -218,7 +218,7 @@ export async function sqliteSetPortrait(
 }
 
 export async function sqliteClearPortrait(
-  db: DbHandle,
+  db: DbClient,
   type: EntityType,
   id: string
 ): Promise<void> {
@@ -229,7 +229,7 @@ export async function sqliteClearPortrait(
 }
 
 /** Purge entity_fields, entity_links, and entity_relations rows for a deleted entity. */
-export async function sqlitePurgeEntityDetail(db: DbHandle, id: string): Promise<void> {
+export async function sqlitePurgeEntityDetail(db: DbClient, id: string): Promise<void> {
   await db.execute("DELETE FROM entity_fields WHERE entity_id = $1", [id]);
   await db.execute("DELETE FROM entity_links WHERE from_id = $1 OR to_id = $1", [id]);
   await db.execute("DELETE FROM entity_relations WHERE from_entity = $1 OR to_entity = $1", [id]);
@@ -239,11 +239,11 @@ export async function sqlitePurgeEntityDetail(db: DbHandle, id: string): Promise
  * Persist the "never share with AI" flag for an entity.
  * Routes to characters / locations / entities based on type — same three-table
  * discriminator used by renameEntity / updateEntityNotes / deleteEntity.
- * Extracted as a free function so tests can call it with an injected DbHandle
+ * Extracted as a free function so tests can call it with an injected DbClient
  * without needing the Tauri runtime.
  */
 export async function sqliteSetEntityExclusion(
-  db: DbHandle,
+  db: DbClient,
   type: EntityType,
   id: string,
   exclude: boolean

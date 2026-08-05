@@ -1,3 +1,4 @@
+import type { DbClient } from "./dbClient";
 import {
   migration_009_scene_snapshots,
   migration_010_labels,
@@ -12,13 +13,12 @@ import {
   migration_019_scene_exclusion,
   migration_020_doc_updated_at,
 } from "./migrations2";
-import type { DbHandle } from "./schema";
 import { ensureColumn } from "./schema";
 
 export interface Migration {
   version: number;
   name: string;
-  up: (db: DbHandle) => Promise<void>;
+  up: (db: DbClient) => Promise<void>;
 }
 
 /**
@@ -42,7 +42,7 @@ export function assertSafeVersion(v: number): void {
  * call — batching with semicolons is not supported.
  */
 async function runStatements(
-  db: DbHandle,
+  db: DbClient,
   statements: string[]
 ): Promise<void> {
   for (const sql of statements) {
@@ -63,12 +63,12 @@ async function runStatements(
  *   table rebuild, which runs on ALL databases (old and new). Adding
  *   UNIQUE here for fresh DBs only would create schema divergence.
  */
-async function migration_001_baseline(db: DbHandle): Promise<void> {
+async function migration_001_baseline(db: DbClient): Promise<void> {
   await m001_coreEntities(db);
   await m001_sceneLinkEntities(db);
 }
 
-async function m001_coreEntities(db: DbHandle): Promise<void> {
+async function m001_coreEntities(db: DbClient): Promise<void> {
   await runStatements(db, [
     `CREATE TABLE IF NOT EXISTS scene_docs (
       scene_id TEXT PRIMARY KEY,
@@ -101,7 +101,7 @@ async function m001_coreEntities(db: DbHandle): Promise<void> {
   ]);
 }
 
-async function m001_sceneLinkEntities(db: DbHandle): Promise<void> {
+async function m001_sceneLinkEntities(db: DbClient): Promise<void> {
   await runStatements(db, [
     `CREATE TABLE IF NOT EXISTS characters (
       id TEXT PRIMARY KEY,
@@ -132,7 +132,7 @@ async function m001_sceneLinkEntities(db: DbHandle): Promise<void> {
  * baseline DDL; existing dev DBs already gained it via pre-framework ensureColumn.
  * This migration exists to record the column's introduction and advance user_version to 2.
  */
-async function migration_002_plaintext_projection(db: DbHandle): Promise<void> {
+async function migration_002_plaintext_projection(db: DbClient): Promise<void> {
   await ensureColumn(db, "scene_docs", "plaintext_projection", "TEXT");
 }
 
@@ -157,7 +157,7 @@ async function migration_002_plaintext_projection(db: DbHandle): Promise<void> {
  *      happened in a prior partial run), RENAME to scene_links.
  *   4. CREATE INDEX IF NOT EXISTS on scene_links(scene_id).
  */
-async function migration_003_scene_links_unique(db: DbHandle): Promise<void> {
+async function migration_003_scene_links_unique(db: DbClient): Promise<void> {
   // Step 1 — create the replacement table with the UNIQUE constraint.
   // IF NOT EXISTS makes this a no-op when a prior crash already created it.
   await db.execute(
@@ -234,7 +234,7 @@ async function migration_003_scene_links_unique(db: DbHandle): Promise<void> {
  * state_base64 on archive is TEXT, never BLOB — tauri-plugin-sql does not
  * reliably round-trip binary columns (project gotcha).
  */
-async function migration_004_feature_tables(db: DbHandle): Promise<void> {
+async function migration_004_feature_tables(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS quick_notes (
       id TEXT PRIMARY KEY,
@@ -276,7 +276,7 @@ async function migration_004_feature_tables(db: DbHandle): Promise<void> {
  * re-runnable (SQLite has no `ADD COLUMN IF NOT EXISTS`), and the runner has no
  * try/catch — a crash after a partial run re-enters this function on next launch.
  */
-async function migration_005_scene_status(db: DbHandle): Promise<void> {
+async function migration_005_scene_status(db: DbClient): Promise<void> {
   const cols = await db.select<{ name: string }[]>(
     "PRAGMA table_info(scenes)"
   );
@@ -298,7 +298,7 @@ async function migration_005_scene_status(db: DbHandle): Promise<void> {
  * field_key / field_value column names are used (not key / value) to avoid any
  * reserved-word ambiguity; the store layer maps them to the domain key/value names.
  */
-async function migration_006_entity_fields(db: DbHandle): Promise<void> {
+async function migration_006_entity_fields(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS entity_fields (id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, kind TEXT NOT NULL, field_key TEXT NOT NULL, field_value TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 0, UNIQUE(entity_id, kind, field_key))`
   );
@@ -314,7 +314,7 @@ async function migration_006_entity_fields(db: DbHandle): Promise<void> {
  * this constraint to deduplicate on the logical pair. Without it, OR IGNORE on the UUID
  * primary key would never suppress a duplicate (every UUID is fresh).
  */
-async function migration_007_entity_links(db: DbHandle): Promise<void> {
+async function migration_007_entity_links(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS entity_links (id TEXT PRIMARY KEY, from_id TEXT NOT NULL, to_id TEXT NOT NULL, relation TEXT NOT NULL DEFAULT '', UNIQUE(from_id, to_id))`
   );
@@ -339,7 +339,7 @@ async function migration_007_entity_links(db: DbHandle): Promise<void> {
  * On real production DBs, migration 1's baseline always creates both tables before
  * this migration runs, so the guard is a no-op in the field.
  */
-async function migration_008_entity_portrait(db: DbHandle): Promise<void> {
+async function migration_008_entity_portrait(db: DbClient): Promise<void> {
   const charExists = await db.select<{ name: string }[]>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='characters'"
   );
@@ -396,7 +396,7 @@ export const MIGRATIONS: Migration[] = [
  * NO try/catch in the migration loop — a throw must leave user_version
  * un-bumped so the migration re-runs on next launch (crash-recovery contract).
  */
-export async function runMigrations(db: DbHandle): Promise<void> {
+export async function runMigrations(db: DbClient): Promise<void> {
   const rows = await db.select<{ user_version: number }[]>(
     "PRAGMA user_version"
   );

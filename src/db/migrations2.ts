@@ -4,7 +4,7 @@
  * FROZEN entries (009–012) — do not edit. New migrations go here or in
  * a further migrations3.ts as the file grows.
  */
-import type { DbHandle } from "./schema";
+import type { DbClient } from "./dbClient";
 import { ensureColumn } from "./schema";
 
 /**
@@ -15,7 +15,7 @@ import { ensureColumn } from "./schema";
  * kind is 'manual' | 'auto'. label is NULL for auto-saves.
  * word_count and created_at are non-null integers (Unix ms epoch).
  */
-export async function migration_009_scene_snapshots(db: DbHandle): Promise<void> {
+export async function migration_009_scene_snapshots(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS scene_snapshots (
       id TEXT PRIMARY KEY,
@@ -36,7 +36,7 @@ export async function migration_009_scene_snapshots(db: DbHandle): Promise<void>
  * Create the labels table for color-label management.
  * color stores the token name ('clay', 'sea', etc.) — never a hex value.
  */
-export async function migration_010_labels(db: DbHandle): Promise<void> {
+export async function migration_010_labels(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS labels (
       id TEXT PRIMARY KEY,
@@ -55,7 +55,7 @@ export async function migration_010_labels(db: DbHandle): Promise<void> {
  * Create the scene_labels join table for many-to-many scene↔label assignment.
  * PRIMARY KEY (scene_id, label_id) is the natural deduplication key.
  */
-export async function migration_011_scene_labels(db: DbHandle): Promise<void> {
+export async function migration_011_scene_labels(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS scene_labels (
       scene_id TEXT NOT NULL,
@@ -71,7 +71,7 @@ export async function migration_011_scene_labels(db: DbHandle): Promise<void> {
  * Create the entity_relations table for typed directed relationship edges.
  * UNIQUE(project_id, from_entity, to_entity) deduplicate via INSERT OR IGNORE.
  */
-export async function migration_012_entity_relations(db: DbHandle): Promise<void> {
+export async function migration_012_entity_relations(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS entity_relations (
       id TEXT PRIMARY KEY,
@@ -96,7 +96,7 @@ export async function migration_012_entity_relations(db: DbHandle): Promise<void
  * and for custom-type entity instances.
  * `entity_types_custom` — one row per user-defined entity type.
  */
-export async function migration_013_entity_types(db: DbHandle): Promise<void> {
+export async function migration_013_entity_types(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS entities (
       id TEXT PRIMARY KEY,
@@ -130,7 +130,7 @@ export async function migration_013_entity_types(db: DbHandle): Promise<void> {
  * Primary use: the license activation record stored under key 'license'.
  * Uses TEXT PRIMARY KEY so upserts can use INSERT OR REPLACE.
  */
-export async function migration_014_app_meta(db: DbHandle): Promise<void> {
+export async function migration_014_app_meta(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
   );
@@ -143,7 +143,7 @@ export async function migration_014_app_meta(db: DbHandle): Promise<void> {
  * board_docs — one row per board; state_base64 is TEXT (never BLOB) per the
  * tauri-plugin-sql round-trip gotcha (project CLAUDE.md).
  */
-export async function migration_015_boards(db: DbHandle): Promise<void> {
+export async function migration_015_boards(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS boards (
       id TEXT PRIMARY KEY,
@@ -175,7 +175,7 @@ export async function migration_015_boards(db: DbHandle): Promise<void> {
  * ON DELETE CASCADE on ai_messages is declared but the app explicitly deletes
  * child rows rather than relying on PRAGMA foreign_keys (Decision 4).
  */
-export async function migration_016_ai_assistant(db: DbHandle): Promise<void> {
+export async function migration_016_ai_assistant(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS ai_conversations (
       id TEXT PRIMARY KEY,
@@ -211,7 +211,7 @@ export async function migration_016_ai_assistant(db: DbHandle): Promise<void> {
  * Separate from the projects row to keep AI-scoped data cohesive and droppable
  * without touching the hot projects table (Decision 1).
  */
-export async function migration_017_manuscript_about(db: DbHandle): Promise<void> {
+export async function migration_017_manuscript_about(db: DbClient): Promise<void> {
   await db.execute(
     `CREATE TABLE IF NOT EXISTS manuscript_about (
       project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
@@ -235,7 +235,7 @@ export async function migration_017_manuscript_about(db: DbHandle): Promise<void
  * environments where the baseline schema may not have been applied yet —
  * ensureColumn calls ALTER TABLE, which errors if the table doesn't exist.
  */
-export async function migration_018_entity_exclusion(db: DbHandle): Promise<void> {
+export async function migration_018_entity_exclusion(db: DbClient): Promise<void> {
   const charInfo = await db.select<{ name: string }[]>("PRAGMA table_info(characters)");
   if (charInfo.length > 0) {
     await ensureColumn(db, "characters", "exclude_from_ai", "INTEGER NOT NULL DEFAULT 0");
@@ -253,7 +253,7 @@ export async function migration_018_entity_exclusion(db: DbHandle): Promise<void
  * so re-running on crash is safe. Mirrors migration_018_entity_exclusion exactly.
  * The existence check via PRAGMA table_info protects partial-seed test environments.
  */
-export async function migration_019_scene_exclusion(db: DbHandle): Promise<void> {
+export async function migration_019_scene_exclusion(db: DbClient): Promise<void> {
   const sceneInfo = await db.select<{ name: string }[]>("PRAGMA table_info(scenes)");
   if (sceneInfo.length > 0) {
     await ensureColumn(db, "scenes", "exclude_from_ai", "INTEGER NOT NULL DEFAULT 0");
@@ -261,7 +261,7 @@ export async function migration_019_scene_exclusion(db: DbHandle): Promise<void>
 }
 
 /** Add nullable sync timestamps to persisted Yjs document rows. */
-export async function migration_020_doc_updated_at(db: DbHandle): Promise<void> {
+export async function migration_020_doc_updated_at(db: DbClient): Promise<void> {
   const sceneDocInfo = await db.select<{ name: string }[]>(
     "PRAGMA table_info(scene_docs)"
   );

@@ -3,15 +3,15 @@ import { createRequire } from "node:module";
 import type { BindParams } from "sql.js";
 import initSqlJs from "sql.js";
 
-import type { DbHandle } from "../../db/schema";
+import type { DbClient } from "../../db/dbClient";
 
 /**
- * A real in-process sql.js engine wrapped as DbHandle.
+ * A real in-process sql.js engine wrapped as DbClient.
  * `executeCalls` records every SQL string passed to `execute()` so tests
  * can assert on idempotency (no migration SQL fired on the second run).
  * `close()` frees the WASM memory.
  */
-export type SqlJsTestDb = DbHandle & {
+export type SqlJsTestDb = DbClient & {
   executeCalls: string[];
   close(): void;
 };
@@ -62,7 +62,7 @@ function runSelect<T>(
 }
 
 /**
- * Build a sql.js-backed DbHandle for use in Vitest (Node environment).
+ * Build a sql.js-backed DbClient for use in Vitest (Node environment).
  *
  * The WASM binary is loaded once per `makeSqlJsDb()` call. Tests should call
  * `db.close()` in a `finally` block to release the WASM heap.
@@ -80,12 +80,12 @@ export async function makeSqlJsDb(): Promise<SqlJsTestDb> {
       return Promise.resolve(runSelect<T>(inner, query, bindValues));
     },
 
-    execute(query: string, bindValues?: unknown[]): Promise<unknown> {
+    execute(query: string, bindValues?: unknown[]): Promise<{ rowsAffected: number }> {
       executeCalls.push(query);
       // db.run() throws synchronously on SQL errors (constraint violations,
       // syntax errors). We surface the throw so migration tests see real errors.
       inner.run(query, bindValues as BindParams | undefined);
-      return Promise.resolve();
+      return Promise.resolve({ rowsAffected: inner.getRowsModified() });
     },
 
     close(): void {

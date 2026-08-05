@@ -5,6 +5,7 @@
  * in the app_meta KV table (migration v14). Low-level functions take a db
  * handle for testability; thin app-facing wrappers bind to getDb().
  */
+import type { DbClient } from "../../db/dbClient";
 import { getDb } from "../../db/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -14,17 +15,6 @@ export interface ActivationRecord {
   instanceId: string;
   activatedAt: string;
 }
-
-/**
- * Minimal db interface for the license store.
- * Uses a concrete (non-generic) select signature so vi.fn() test doubles
- * satisfy it without requiring a cast at the call site — DbHandle's generic
- * select<T> is not directly assignable from Mock<Procedure | Constructable>.
- */
-type LicenseStoreDb = {
-  select(query: string, bindValues?: unknown[]): Promise<unknown[]>;
-  execute(query: string, bindValues?: unknown[]): Promise<unknown>;
-};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -37,7 +27,7 @@ const LICENSE_KEY = "license";
  * INSERT OR REPLACE handles both first write and any future re-activation.
  */
 export async function writeActivationRecord(
-  db: LicenseStoreDb,
+  db: DbClient,
   record: ActivationRecord,
 ): Promise<void> {
   await db.execute(
@@ -53,12 +43,12 @@ export async function writeActivationRecord(
  *   - the parsed JSON is missing any required field
  */
 export async function readActivationRecord(
-  db: LicenseStoreDb,
+  db: DbClient,
 ): Promise<ActivationRecord | null> {
-  const rows = (await db.select(
+  const rows = await db.select<{ value: string }[]>(
     `SELECT value FROM app_meta WHERE key = ?`,
     [LICENSE_KEY],
-  )) as { value: string }[];
+  );
   if (rows.length === 0) return null;
   try {
     const parsed: unknown = JSON.parse(rows[0].value);

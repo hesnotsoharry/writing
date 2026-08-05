@@ -1,4 +1,5 @@
-import { type DbHandle,getDb } from "../../db/schema";
+import type { DbClient } from "../../db/dbClient";
+import { getDb } from "../../db/schema";
 
 export interface QuickNote {
   id: string;
@@ -9,7 +10,7 @@ export interface QuickNote {
 }
 
 export class SqliteQuickNoteStore {
-  constructor(private dbProvider: () => Promise<DbHandle> = getDb) {}
+  constructor(private dbProvider: () => Promise<DbClient> = getDb) {}
 
   async create(projectId: string, body: string): Promise<string> {
     const db = await this.dbProvider();

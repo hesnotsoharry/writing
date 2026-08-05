@@ -7,11 +7,11 @@ import * as Y from "yjs";
 import type { ManuscriptAbout } from "../features/ai/ai.types";
 import { EMPTY_ABOUT } from "../features/ai/ai.types";
 import { applyEncoded, extractAiSafeText } from "../yjs/serialize";
-import type { DbHandle } from "./schema";
+import type { DbClient } from "./dbClient";
 
 /** Read the manuscript_about row; return EMPTY_ABOUT when absent. */
 export async function sqliteGetManuscriptAbout(
-  db: DbHandle,
+  db: DbClient,
   projectId: string,
 ): Promise<ManuscriptAbout> {
   type Row = { synopsis: string | null; genre: string | null; tone: string | null; pov: string | null; notes: string | null };
@@ -26,7 +26,7 @@ export async function sqliteGetManuscriptAbout(
 
 /** Upsert the manuscript_about row; creates or overwrites all fields. */
 export async function sqliteSetManuscriptAbout(
-  db: DbHandle,
+  db: DbClient,
   projectId: string,
   about: ManuscriptAbout,
 ): Promise<void> {
@@ -42,7 +42,7 @@ export async function sqliteSetManuscriptAbout(
 
 /** Return whether a scene's exclude_from_ai flag is set (false when absent). */
 export async function sqliteGetSceneExcludedFromAi(
-  db: DbHandle,
+  db: DbClient,
   sceneId: string,
 ): Promise<boolean> {
   const rows = await db.select<{ exclude_from_ai: number }[]>(
@@ -55,7 +55,7 @@ export async function sqliteGetSceneExcludedFromAi(
 
 /** Load a scene's title and decoded plain-text from scene_docs. */
 export async function sqliteGetSceneText(
-  db: DbHandle,
+  db: DbClient,
   sceneId: string,
 ): Promise<{ title: string; text: string } | null> {
   const sceneRows = await db.select<{ title: string }[]>(

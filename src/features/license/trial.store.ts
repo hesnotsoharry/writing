@@ -9,6 +9,7 @@
  * Stub: signatures declared by the orchestrator; Phase 1 implements
  * against the oracle acceptance test.
  */
+import type { DbClient } from "../../db/dbClient";
 import { getDb } from "../../db/schema";
 import type { TrialRecord } from "./trial";
 
@@ -16,20 +17,11 @@ import type { TrialRecord } from "./trial";
 
 const TRIAL_KEY = "trial";
 
-/**
- * Minimal db interface for the trial store (mirrors LicenseStoreDb —
- * concrete select signature so vi.fn() doubles satisfy it without casts).
- */
-type TrialStoreDb = {
-  select(query: string, bindValues?: unknown[]): Promise<unknown[]>;
-  execute(query: string, bindValues?: unknown[]): Promise<unknown>;
-};
-
 // ─── Low-level record accessors (db-handle-first, testable) ──────────────────
 
 /** Upsert the trial record as JSON under key 'trial' in app_meta. */
 export async function writeTrialRecord(
-  db: TrialStoreDb,
+  db: DbClient,
   record: TrialRecord,
 ): Promise<void> {
   await db.execute(
@@ -43,12 +35,12 @@ export async function writeTrialRecord(
  * exists, the value is not valid JSON, or required fields are missing.
  */
 export async function readTrialRecord(
-  db: TrialStoreDb,
+  db: DbClient,
 ): Promise<TrialRecord | null> {
-  const rows = (await db.select(
+  const rows = await db.select<{ value: string }[]>(
     `SELECT value FROM app_meta WHERE key = ?`,
     [TRIAL_KEY],
-  )) as { value: string }[];
+  );
   if (rows.length === 0) return null;
   try {
     const parsed: unknown = JSON.parse(rows[0].value);

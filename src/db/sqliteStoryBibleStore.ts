@@ -1,5 +1,5 @@
 import type { ManuscriptAbout } from "../features/ai/ai.types";
-import { type DbHandle,getDb } from "./schema";
+import { type DbClient, getDb } from "./schema";
 import { sqliteGetManuscriptAbout, sqliteGetSceneExcludedFromAi, sqliteGetSceneText, sqliteSetManuscriptAbout } from "./sqliteAiContextStore";
 import {
   sqliteAddEntityField,
@@ -53,13 +53,12 @@ import type {
 // ── Row mappers for Entity hydration ────────────────────────────────────────
 type EntityRow = { id: string; project_id: string; name: string; notes: string | null; aliases: string | null; exclude_from_ai: number };
 const rowToEntity = (r: EntityRow, type: string): Entity => ({ id: r.id, projectId: r.project_id, type, name: r.name, notes: r.notes, aliases: r.aliases, exclude_from_ai: r.exclude_from_ai !== 0 });
-
 /**
- * Free-function form of `listEntities` — takes a `DbHandle` so it works with
+ * Free-function form of `listEntities` — takes a `DbClient` so it works with
  * the sql.js test harness. The class method delegates here. Exercises `rowToEntity`
  * (including the `exclude_from_ai !== 0` boolean conversion) on all three entity tables.
  */
-export async function sqliteListEntities(db: DbHandle, projectId: string): Promise<Entity[]> {
+export async function sqliteListEntities(db: DbClient, projectId: string): Promise<Entity[]> {
   const charRows = await db.select<EntityRow[]>(
     "SELECT id, project_id, name, notes, aliases, exclude_from_ai FROM characters WHERE project_id = $1",
     [projectId]

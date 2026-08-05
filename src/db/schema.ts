@@ -1,17 +1,11 @@
 import Database from "@tauri-apps/plugin-sql";
 
+import type { DbClient } from "./dbClient";
 import { runMigrations } from "./migrations";
 
-let dbPromise: Promise<Database> | null = null;
+export type { DbClient, DbClient as DbHandle } from "./dbClient";
 
-/**
- * Minimal interface covering the tauri-plugin-sql methods used in schema.ts.
- * Extracted so ensureColumn can accept a test double without importing the plugin.
- */
-export interface DbHandle {
-  select<T>(query: string, bindValues?: unknown[]): Promise<T>;
-  execute(query: string, bindValues?: unknown[]): Promise<unknown>;
-}
+let dbPromise: Promise<DbClient> | null = null;
 
 /**
  * Idempotent column migration: adds `column` (of type `ddlType`) to `table`
@@ -22,7 +16,7 @@ export interface DbHandle {
  *   cid INTEGER, name TEXT, type TEXT, notnull INTEGER, dflt_value, pk INTEGER
  */
 export async function ensureColumn(
-  db: DbHandle,
+  db: DbClient,
   table: string,
   column: string,
   ddlType: string
@@ -39,7 +33,7 @@ export async function ensureColumn(
 }
 
 /** Open (once) the app's SQLite database and ensure the schema exists. */
-export function getDb(): Promise<Database> {
+export function getDb(): Promise<DbClient> {
   if (!dbPromise) {
     dbPromise = (async () => {
       const db = await Database.load("sqlite:writing.db");

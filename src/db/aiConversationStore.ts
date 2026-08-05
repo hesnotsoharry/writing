@@ -6,7 +6,7 @@
  * for production (wraps the singleton getDb() handle).
  */
 import type { VerbKey } from "../features/ai/ai.types";
-import type { DbHandle } from "./schema";
+import type { DbClient } from "./dbClient";
 import { getDb } from "./schema";
 
 // ── Public row types (camelCase) ───────────────────────────────────────────────
@@ -121,7 +121,7 @@ class AiConversationStoreImpl implements AiConversationStore {
     return now;
   }
 
-  constructor(private readonly db: DbHandle) {}
+  constructor(private readonly db: DbClient) {}
 
   async createConversation(
     projectId: string,
@@ -184,8 +184,8 @@ class AiConversationStoreImpl implements AiConversationStore {
 
 // ── Public factories ───────────────────────────────────────────────────────────
 
-/** Factory for tests: pass any DbHandle (e.g. sql.js). */
-export function makeAiConversationStore(db: DbHandle): AiConversationStore {
+/** Factory for tests: pass any DbClient (e.g. sql.js). */
+export function makeAiConversationStore(db: DbClient): AiConversationStore {
   return new AiConversationStoreImpl(db);
 }
 
@@ -194,11 +194,11 @@ export function makeAiConversationStore(db: DbHandle): AiConversationStore {
  * singleton DB lifecycle (mirrors the pattern used by SqliteStoryBibleStore).
  */
 export function makeProductionAiConversationStore(): AiConversationStore {
-  const proxyDb: DbHandle = {
+  const proxyDb: DbClient = {
     select<T>(query: string, bindValues?: unknown[]): Promise<T> {
       return getDb().then((db) => db.select<T>(query, bindValues));
     },
-    execute(query: string, bindValues?: unknown[]): Promise<unknown> {
+    execute(query: string, bindValues?: unknown[]): Promise<{ rowsAffected: number }> {
       return getDb().then((db) => db.execute(query, bindValues));
     },
   };
