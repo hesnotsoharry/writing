@@ -10,6 +10,7 @@ import {
   migration_017_manuscript_about,
   migration_018_entity_exclusion,
   migration_019_scene_exclusion,
+  migration_020_doc_updated_at,
 } from "./migrations2";
 import type { DbHandle } from "./schema";
 import { ensureColumn } from "./schema";
@@ -382,6 +383,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 17, name: "manuscript-about", up: migration_017_manuscript_about },
   { version: 18, name: "entity-exclusion", up: migration_018_entity_exclusion },
   { version: 19, name: "scene-exclusion", up: migration_019_scene_exclusion },
+  { version: 20, name: "doc-updated-at", up: migration_020_doc_updated_at },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

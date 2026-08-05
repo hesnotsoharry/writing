@@ -13,9 +13,14 @@ export class SqliteBoardDocStore implements BoardDocStore {
 
   async save(boardId: string, base64: string): Promise<void> {
     const db = await getDb();
+    const updatedAt = new Date().toISOString();
     await db.execute(
-      "INSERT INTO board_docs (board_id, state_base64) VALUES ($1, $2) ON CONFLICT(board_id) DO UPDATE SET state_base64 = excluded.state_base64",
-      [boardId, base64]
+      `INSERT INTO board_docs (board_id, state_base64, updated_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT(board_id) DO UPDATE SET
+         state_base64 = excluded.state_base64,
+         updated_at = excluded.updated_at`,
+      [boardId, base64, updatedAt]
     );
   }
 }

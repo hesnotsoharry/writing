@@ -17,24 +17,27 @@ export class SqliteSceneDocStore implements SceneDocStore {
     plaintext: string | null
   ): Promise<void> {
     const db = await getDb();
+    const updatedAt = new Date().toISOString();
     if (plaintext !== null && plaintext.length > 0) {
       // Upsert both columns when a projection is available.
       await db.execute(
-        `INSERT INTO scene_docs (scene_id, state_base64, plaintext_projection)
-         VALUES ($1, $2, $3)
+        `INSERT INTO scene_docs (scene_id, state_base64, plaintext_projection, updated_at)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT(scene_id) DO UPDATE SET
            state_base64 = excluded.state_base64,
-           plaintext_projection = excluded.plaintext_projection`,
-        [sceneId, base64, plaintext]
+           plaintext_projection = excluded.plaintext_projection,
+           updated_at = excluded.updated_at`,
+        [sceneId, base64, plaintext, updatedAt]
       );
     } else {
       // Update state only; leave existing plaintext_projection untouched.
       await db.execute(
-        `INSERT INTO scene_docs (scene_id, state_base64)
-         VALUES ($1, $2)
+        `INSERT INTO scene_docs (scene_id, state_base64, updated_at)
+         VALUES ($1, $2, $3)
          ON CONFLICT(scene_id) DO UPDATE SET
-           state_base64 = excluded.state_base64`,
-        [sceneId, base64]
+           state_base64 = excluded.state_base64,
+           updated_at = excluded.updated_at`,
+        [sceneId, base64, updatedAt]
       );
     }
   }

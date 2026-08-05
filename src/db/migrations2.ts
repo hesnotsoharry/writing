@@ -260,5 +260,21 @@ export async function migration_019_scene_exclusion(db: DbHandle): Promise<void>
   }
 }
 
+/** Add nullable sync timestamps to persisted Yjs document rows. */
+export async function migration_020_doc_updated_at(db: DbHandle): Promise<void> {
+  const sceneDocInfo = await db.select<{ name: string }[]>(
+    "PRAGMA table_info(scene_docs)"
+  );
+  if (sceneDocInfo.length > 0) {
+    await ensureColumn(db, "scene_docs", "updated_at", "TEXT");
+  }
+  const boardDocInfo = await db.select<{ name: string }[]>(
+    "PRAGMA table_info(board_docs)"
+  );
+  if (boardDocInfo.length > 0) {
+    await ensureColumn(db, "board_docs", "updated_at", "TEXT");
+  }
+}
+
 // ensureColumn is re-exported so callers that import from migrations2 can use it.
 export { ensureColumn };

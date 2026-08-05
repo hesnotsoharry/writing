@@ -87,9 +87,9 @@ describe("BoardDocStore", () => {
       // Assert: Verify execute was called with an UPSERT that stores the base64.
       expect(mockDb.execute).toHaveBeenCalledWith(
         expect.stringMatching(
-          /INSERT INTO board_docs.*board_id.*state_base64.*ON CONFLICT/i
+          /INSERT INTO board_docs.*board_id.*state_base64.*updated_at.*ON CONFLICT/is
         ),
-        ["board-789", base64]
+        ["board-789", base64, expect.any(String)]
       );
     });
 
@@ -126,6 +126,24 @@ describe("BoardDocStore", () => {
       // Assert: The second argument (the value) is a string, not a Uint8Array.
       const [, args] = mockDb.execute.mock.calls[0];
       expect(typeof args[1]).toBe("string");
+    });
+
+    it("stamps updated_at in the same upsert", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-05T15:30:00.000Z"));
+      try {
+        await store.save("board-timestamp", "base64-state");
+
+        const [sql, args] = mockDb.execute.mock.calls[0];
+        expect(sql).toMatch(/updated_at = excluded\.updated_at/i);
+        expect(args).toEqual([
+          "board-timestamp",
+          "base64-state",
+          "2026-08-05T15:30:00.000Z",
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
