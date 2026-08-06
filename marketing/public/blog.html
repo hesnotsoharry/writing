@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script>(function(){try{var t=localStorage.getItem("wn-theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
 <title>The Nook — writing craft, tools &amp; the writing life | Writers Nook</title>
 <meta name="description" content="Essays and guides on novel structure, story bibles, writing habits, and keeping your manuscript safe — from the team behind Writers Nook.">
 <link rel="canonical" href="https://writersnook.app/blog.html">
@@ -24,161 +23,200 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="site.css">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+  html, body { height:auto; min-height:0; overflow-x:clip; }
+  body { margin:0; background:#f4eee2; color:#2a251d; font-family:"Hanken Grotesk",system-ui,sans-serif; font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  *, *::before, *::after { box-sizing:border-box; }
+  a { color:inherit; text-decoration:none; }
+  a:hover { color:#99492b; }
+  ::selection { background:rgba(178,90,56,.16); }
+</style>
+<script src="site-motion.js"></script>
 <!-- Fathom - beautiful, simple website analytics -->
 <script src="https://cdn.usefathom.com/script.js" data-site="LMMYXJTT" defer></script>
 <!-- / Fathom -->
 </head>
 <body>
+<div id="b-root" style="position:relative;background:#f4eee2;overflow-x:clip">
 
-<nav class="nav" id="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img id="brand-logo" src="assets/logo-dark.png" alt="Writers Nook">Writers Nook</a>
-    <button class="nav-toggle" id="navToggle" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div class="nav-links" id="navLinks">
-      <a href="features.html">Features</a>
-      <a href="pricing.html">Pricing</a>
-      <a href="about.html">About</a>
-      <a href="blog.html" class="active">Blog</a>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark theme" title="Toggle theme"><svg class="ic moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><svg class="ic sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-      <a class="m-btn m-btn-primary nav-cta" href="pricing.html">Buy — $29</a>
-    </div>
-  </div>
-</nav>
-
-<header class="blog-hero">
-  <div class="wrap io">
-    <span class="eyebrow">The Nook · Journal</span>
-    <h1 class="display" style="font-size:clamp(36px,5vw,56px);margin-top:16px">Notes on writing,<br>and on writing well.</h1>
-    <p class="lede" style="margin-top:18px;max-width:600px">Guides and short essays on craft, structure, and the quiet habits behind a finished book — plus the occasional word about the app.</p>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:26px">
-      <span class="chip-on">All</span>
-      <span class="chip">Craft</span>
-      <span class="chip">Structure</span>
-      <span class="chip">Habits</span>
-      <span class="chip">Tools &amp; backup</span>
-      <span class="chip">Behind the app</span>
-    </div>
-  </div>
-</header>
-
-<section class="section-pad-sm" style="padding-top:36px">
-  <div class="wrap">
-    <!-- featured -->
-    <a href="blog-organize-a-novel.html" class="bcard feature-post io" style="text-decoration:none">
-      <div class="bcover cv-1">
-        <div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:64px;height:64px"><path d="M3 6h18M3 12h18M3 18h12"/><rect x="2" y="3" width="20" height="18" rx="2"/></svg></div>
+  <nav style="position:fixed;top:0;left:0;right:0;z-index:60;background:rgba(252,250,245,.8);backdrop-filter:blur(18px);border-bottom:1px solid #e6ddcd">
+    <div style="width:100%;max-width:1320px;margin:0 auto;padding:0 40px;height:60px;display:flex;align-items:center;gap:26px">
+      <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:17px;letter-spacing:-0.01em;color:#2a251d">
+        <img src="assets/logo-dark.png" alt="Writers Nook" style="width:24px;height:24px;display:block">Writers Nook
+      </a>
+      <div style="display:flex;align-items:center;gap:2px;margin-left:auto">
+        <a href="features.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Features</a>
+        <a href="pricing.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Pricing</a>
+        <a href="about.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">About</a>
+        <a href="blog.html" style="font-size:14px;font-weight:600;color:#99492b;padding:8px 13px">Blog</a>
+        <a class="nav-cta" href="checkout.html" style="display:inline-flex;align-items:center;font-weight:600;font-size:14px;padding:10px 19px;border-radius:999px;background:#b25a38;color:#fff;margin-left:10px">Buy — $29</a>
       </div>
-      <div class="bbody">
-        <span class="bcat">Structure · Featured</span>
-        <h3>How to organize a novel without losing the magic</h3>
-        <p>Outlines, binders, corkboards, story bibles — a practical guide to giving your book a structure that supports the writing instead of strangling it.</p>
-        <div class="bmeta"><span>June 1, 2026</span><span>·</span><span>9 min read</span></div>
-      </div>
-    </a>
+    </div>
+  </nav>
 
-    <!-- grid -->
-    <div class="blog-grid io" style="margin-top:28px">
-      <a href="blog-organize-a-novel.html" class="bcard">
-        <div class="bcover cv-2"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg></div></div>
-        <div class="bbody">
-          <span class="bcat">Craft</span>
-          <h3>What is a story bible, and do you actually need one?</h3>
-          <p>The case for keeping a living reference of your characters and world — and how to start one without it becoming a second job.</p>
-          <div class="bmeta"><span>May 24, 2026</span><span>·</span><span>6 min</span></div>
+  <header style="position:relative;padding:150px 0 0">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:40px 72px;align-items:end">
+        <div>
+          <span class="b-in" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#99492b">The Nook · a journal</span>
+          <h1 class="b-in" style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;margin:26px 0 0;line-height:.96;letter-spacing:-0.04em;font-size:clamp(44px,6.6vw,92px);max-width:15ch">Notes on writing,<br><span style="font-style:italic;font-weight:500">and writing well.</span></h1>
         </div>
-      </a>
-      <a href="blog-organize-a-novel.html" class="bcard">
-        <div class="bcover cv-4"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></div></div>
-        <div class="bbody">
-          <span class="bcat">Tools &amp; backup</span>
-          <h3>Local-first writing: why your manuscript belongs on your machine</h3>
-          <p>What "local-first" really means, why it matters for writers, and how to get the safety of the cloud without giving up control.</p>
-          <div class="bmeta"><span>May 16, 2026</span><span>·</span><span>7 min</span></div>
+        <p class="b-in" style="font-family:Literata,Georgia,serif;font-size:18px;line-height:1.8;color:#5c5446;margin:0;max-width:44ch">Short essays on craft, structure, and the quiet habits behind a finished book. Occasionally a word about the app. Never a listicle.</p>
+      </div>
+      <div class="b-in" style="display:flex;flex-wrap:wrap;gap:26px;margin-top:48px;padding-bottom:18px;border-bottom:1px solid #ddd0b8;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase">
+        <span  style="color:#2a251d;border-bottom:1px solid #b25a38;padding-bottom:6px">All</span>
+        <span  style="color:#8a8071">Craft</span>
+        <span  style="color:#8a8071">Structure</span>
+        <span  style="color:#8a8071">Habits</span>
+        <span  style="color:#8a8071">Tools &amp; backup</span>
+        <span  style="color:#8a8071">Behind the app</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== lead essay ===== -->
+  <section style="position:relative;padding:64px 0 0">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <a class="b-lead b-rise" href="blog-organize-a-novel.html" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:48px 72px;align-items:start;padding-bottom:56px;border-bottom:1px solid #ddd0b8">
+        <div>
+          <div style="display:flex;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#99492b"><span>Structure</span><span style="width:16px;height:1px;background:#cbb9a0;display:block"></span><span style="color:#8a8071">The long read</span></div>
+          <h2 style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;font-size:clamp(30px,4vw,54px);line-height:1.04;letter-spacing:-0.03em;margin:18px 0 0">How to organize a novel without losing the magic</h2>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#8a8071;margin-top:20px">June 1, 2026 · 9 min</div>
         </div>
-      </a>
-      <a href="blog-organize-a-novel.html" class="bcard">
-        <div class="bcover cv-3"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg></div></div>
-        <div class="bbody">
-          <span class="bcat">Habits</span>
-          <h3>Building a writing streak that survives real life</h3>
-          <p>Streaks can motivate or shame. Here's how to set a daily goal that keeps you at the desk without turning writing into a guilt machine.</p>
-          <div class="bmeta"><span>May 9, 2026</span><span>·</span><span>5 min</span></div>
-        </div>
-      </a>
-      <a href="blog-organize-a-novel.html" class="bcard">
-        <div class="bcover cv-5"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div></div>
-        <div class="bbody">
-          <span class="bcat">Craft</span>
-          <h3>Outlining vs. discovery writing: finding your method</h3>
-          <p>Plotter, pantser, or somewhere in between — a look at both camps and how a flexible tool lets you change your mind mid-book.</p>
-          <div class="bmeta"><span>May 2, 2026</span><span>·</span><span>8 min</span></div>
-        </div>
-      </a>
-      <a href="blog-organize-a-novel.html" class="bcard">
-        <div class="bcover cv-2"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px"><path d="M20 16.5A4.5 4.5 0 0017 8h-1.26A7 7 0 104 15"/><path d="M12 12v8m0-8l-3 3m3-3l3 3"/></svg></div></div>
-        <div class="bbody">
-          <span class="bcat">Tools &amp; backup</span>
-          <h3>How to back up your novel so you never lose a word</h3>
-          <p>The 3-2-1 rule for writers, what version history saves you from, and how to set it up in five minutes.</p>
-          <div class="bmeta"><span>Apr 25, 2026</span><span>·</span><span>6 min</span></div>
-        </div>
-      </a>
-      <a href="blog-organize-a-novel.html" class="bcard">
-        <div class="bcover cv-1"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:52px;height:52px"><path d="M12 3a9 9 0 109 9c-2 1-5 1-7-1s-3-5-2-8z"/></svg></div></div>
-        <div class="bbody">
-          <span class="bcat">Behind the app</span>
-          <h3>Designing "Quiet Study": the look and feel of Writers Nook</h3>
-          <p>Why we chose warm paper over stark white, a reading typeface over a UI font, and a door you can close over endless menus.</p>
-          <div class="bmeta"><span>Apr 18, 2026</span><span>·</span><span>5 min</span></div>
+        <div>
+          <p style="font-family:Literata,Georgia,serif;font-size:19px;line-height:1.8;color:#5c5446;margin:0;text-wrap:pretty"><span style="float:left;font-family:Literata,Georgia,serif;font-size:64px;line-height:.8;font-weight:600;color:#b25a38;margin:6px 12px 0 0">O</span>utlines, binders, corkboards, story bibles. Structure is supposed to hold a book up, not squeeze the life out of it — and the difference between the two is mostly a matter of when you reach for it. Here's a practical way to give a novel a spine that supports the writing instead of strangling it.</p>
+          <span style="display:inline-block;margin-top:22px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#99492b;border-bottom:1px solid #cbb9a0;padding-bottom:5px">Read the essay →</span>
         </div>
       </a>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- newsletter -->
-<section class="section-pad-sm">
-  <div class="wrap">
-    <div class="news io">
-      <div data-stars="30" class="stars"></div>
-      <div style="position:relative">
-        <h2 class="section-title">Letters from the Nook</h2>
-        <p>New essays land here a few times a month. Get them in your inbox — slow, thoughtful, no spam.</p>
-        <form class="news-form">
-          <input type="email" placeholder="you@example.com" aria-label="Email" required>
-          <button class="m-btn m-btn-primary" type="submit">Subscribe</button>
+  <!-- ===== the index of essays ===== -->
+  <section style="position:relative;padding:0 0 110px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <a class="b-row" href="blog-organize-a-novel.html" style="display:grid;grid-template-columns:64px 1fr 1.1fr 130px;gap:28px;align-items:baseline;padding:30px 12px;border-bottom:1px solid #e6ddcd;transition:background .3s ease">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892">01</span>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#99492b;margin-bottom:9px">Structure</div>
+          <div style="font-family:Literata,serif;font-size:23px;font-weight:600;color:#2a251d;line-height:1.2;letter-spacing:-0.015em">How to organize a novel without losing the magic</div>
+        </div>
+        <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:#5c5446;margin:0">A practical way to give a novel a spine that supports the writing instead of strangling it.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#8a8071;text-align:right;line-height:1.9">June 1<br>9 min</div>
+      </a>
+      <div class="b-row"  style="display:grid;grid-template-columns:64px 1fr 1.1fr 130px;gap:28px;align-items:baseline;padding:30px 12px;border-bottom:1px solid #e6ddcd;transition:background .3s ease">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892">02</span>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#4e7c6b;margin-bottom:9px">Tools &amp; backup</div>
+          <div style="font-family:Literata,serif;font-size:23px;font-weight:600;color:#2a251d;line-height:1.2;letter-spacing:-0.015em">Local-first writing: why your manuscript belongs on your machine</div>
+        </div>
+        <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:#5c5446;margin:0">What "local-first" really means, why it matters for writers, and how to get the safety of the cloud without giving up control.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#8a8071;text-align:right;line-height:1.9">May 16<br>7 min</div>
+      </div>
+      <div class="b-row"  style="display:grid;grid-template-columns:64px 1fr 1.1fr 130px;gap:28px;align-items:baseline;padding:30px 12px;border-bottom:1px solid #e6ddcd;transition:background .3s ease">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892">03</span>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#9a7b3f;margin-bottom:9px">Habits</div>
+          <div style="font-family:Literata,serif;font-size:23px;font-weight:600;color:#2a251d;line-height:1.2;letter-spacing:-0.015em">Building a writing streak that survives real life</div>
+        </div>
+        <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:#5c5446;margin:0">Streaks can motivate or shame. How to set a daily goal that keeps you at the desk without turning writing into a guilt machine.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#8a8071;text-align:right;line-height:1.9">May 9<br>5 min</div>
+      </div>
+      <div class="b-row"  style="display:grid;grid-template-columns:64px 1fr 1.1fr 130px;gap:28px;align-items:baseline;padding:30px 12px;border-bottom:1px solid #e6ddcd;transition:background .3s ease">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892">04</span>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#99492b;margin-bottom:9px">Craft</div>
+          <div style="font-family:Literata,serif;font-size:23px;font-weight:600;color:#2a251d;line-height:1.2;letter-spacing:-0.015em">Outlining vs. discovery writing: finding your method</div>
+        </div>
+        <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:#5c5446;margin:0">Plotter, pantser, or somewhere in between — a look at both camps, and how a flexible tool lets you change your mind mid-book.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#8a8071;text-align:right;line-height:1.9">May 2<br>8 min</div>
+      </div>
+      <div class="b-row"  style="display:grid;grid-template-columns:64px 1fr 1.1fr 130px;gap:28px;align-items:baseline;padding:30px 12px;border-bottom:1px solid #e6ddcd;transition:background .3s ease">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892">05</span>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#4e7c6b;margin-bottom:9px">Tools &amp; backup</div>
+          <div style="font-family:Literata,serif;font-size:23px;font-weight:600;color:#2a251d;line-height:1.2;letter-spacing:-0.015em">Three backups, one novel: a routine that takes five minutes</div>
+        </div>
+        <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:#5c5446;margin:0">The unglamorous habit that will one day save your book, set up once and then forgotten about.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#8a8071;text-align:right;line-height:1.9">Apr 25<br>4 min</div>
+      </div>
+      <div class="b-row"  style="display:grid;grid-template-columns:64px 1fr 1.1fr 130px;gap:28px;align-items:baseline;padding:30px 12px;border-bottom:1px solid #e6ddcd;transition:background .3s ease">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892">06</span>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a8071;margin-bottom:9px">Behind the app</div>
+          <div style="font-family:Literata,serif;font-size:23px;font-weight:600;color:#2a251d;line-height:1.2;letter-spacing:-0.015em">Why the toolbar disappears</div>
+        </div>
+        <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:#5c5446;margin:0">A small design decision, argued at length, and the three features it cost us.</p>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:#8a8071;text-align:right;line-height:1.9">Apr 18<br>5 min</div>
+      </div>
+
+      <div style="margin-top:52px;display:flex;justify-content:center">
+        <span  style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#99492b;border-bottom:1px solid #cbb9a0;padding-bottom:6px">Earlier essays →</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="position:relative;padding:0 0 130px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="border-top:1px solid #ddd0b8;padding-top:60px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:40px 72px;align-items:end">
+        <div>
+          <h2 style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;font-size:clamp(28px,3.6vw,44px);line-height:1.04;letter-spacing:-0.03em;margin:0">Letters from the Nook</h2>
+          <p style="font-family:Literata,serif;font-size:17px;line-height:1.75;color:#5c5446;margin:16px 0 0;max-width:40ch">A few thoughtful notes a month on craft and the app. No funnels, no drip sequence, one click to leave.</p>
+        </div>
+        <form class="news-form" style="display:flex;gap:10px;max-width:440px">
+          <input type="email" placeholder="you@example.com" aria-label="Email" style="flex:1;font-family:'Hanken Grotesk',sans-serif;font-size:16px;padding:14px 16px;border-radius:6px;border:1px solid #ddd0b8;background:#fcfaf5;color:#2a251d;outline:none">
+          <button type="submit" style="font-family:'Hanken Grotesk',sans-serif;font-weight:600;font-size:16px;padding:14px 24px;border-radius:6px;border:none;background:#b25a38;color:#fff;cursor:pointer;white-space:nowrap">Subscribe</button>
         </form>
-        <p class="news-note">Unsubscribe in one click. We'll never sell your address.</p>
+        <p class="news-note" style="font-size:13px;color:#8a8071;margin:10px 0 0;grid-column:2">Unsubscribe in one click. We'll never sell your address.</p>
       </div>
     </div>
-  </div>
-</section>
+  </section>
+</div>
 
-<footer class="foot">
-  <div class="wrap">
-    <div class="foot-top">
-      <div>
-        <a class="brand" href="index.html"><img src="assets/logo-light.png" alt="" style="width:30px;height:30px">Writers Nook</a>
-        <p class="foot-blurb">A calm, paper-warm desktop writing app for novelists. Made with care in Canada.</p>
+
+  <footer style="position:relative;background:#2a251d;color:rgba(247,242,232,.6);padding:76px 0 34px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:1.5fr repeat(3,minmax(140px,1fr));gap:44px">
+        <div>
+          <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:18px;color:#f7f2e8"><img src="assets/logo-light.png" alt="" style="width:26px;height:26px;display:block">Writers Nook</a>
+          <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:rgba(247,242,232,.5);margin:16px 0 0;max-width:30ch">A quiet desk for the whole novel. Made in Canada, for people who would rather be writing.</p>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Product</div>
+          <a href="features.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Features</a><a href="pricing.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Pricing</a><a href="account.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Download</a><a href="whats-new.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">What's new</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Company</div>
+          <a href="about.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">About</a><a href="blog.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Blog</a><a href="press.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Press</a><a href="contact.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Contact</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Support &amp; legal</div>
+          <a href="support.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Support</a><a href="privacy.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Privacy</a><a href="terms.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Terms</a><a href="refunds.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Refunds</a>
+        </div>
       </div>
-      <div class="foot-col"><h5>Product</h5><a href="features.html">Features</a><a href="pricing.html">Pricing</a><a href="account.html">Download</a><a href="whats-new.html">What's new</a></div>
-      <div class="foot-col"><h5>Company</h5><a href="about.html">About</a><a href="blog.html">Blog</a><a href="press.html">Press</a><a href="contact.html">Contact</a><a href="signin.html">Sign in</a></div>
-      <div class="foot-col"><h5>Support &amp; legal</h5><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refunds.html">Refunds</a></div>
+      <div style="margin-top:56px;padding-top:24px;border-top:1px solid rgba(247,242,232,.14);display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(247,242,232,.38)">
+        <span>© 2026 Writers Nook · writersnook.app</span>
+        <span>Built for one writer, shared with all of them</span>
+      </div>
     </div>
-    <div class="foot-bottom">
-      <span>© 2026 Writers Nook · writersnook.app</span>
-      <span class="made"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.3-8.2C.9 9.8 2.2 6 5.5 6c1.9 0 3.3 1.1 4.1 2.4C10.4 7.1 11.8 6 13.7 6 17 6 18.3 9.8 16.6 12.8 14.7 16.7 12 21 12 21z"/></svg>Built for one writer, shared with all of them</span>
-    </div>
-  </div>
-</footer>
-
-<style>
-.chip, .chip-on { font-size: 13.5px; font-weight: 500; padding: 7px 15px; border-radius: var(--r-pill); border: 1px solid var(--parchment-edge); color: var(--ink-2); cursor: pointer; transition: all var(--dur-fast); }
-.chip:hover { background: var(--parchment); color: var(--ink); }
-.chip-on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-</style>
+  </footer>
 <script src="site.js"></script>
+<script>
+WNMotion.ready(function () {
+  var gsap = window.gsap;
+  var rows = Array.from(document.querySelectorAll('.b-row'));
+  var m = WNMotion.create();
+
+  gsap.fromTo('.b-in', { y: 26 }, { y: 0, duration: 1, stagger: .12, ease: 'power3.out' });
+  m.reveal(document.querySelectorAll('.b-rise'), { y: 32, opacity: 0 }, { y: 0, opacity: 1, duration: .95, ease: 'power3.out' });
+  m.reveal(rows, { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: .7, ease: 'power3.out' }, .08);
+  m.kick();
+
+  rows.forEach(function (row) {
+    row.addEventListener('mouseenter', function () { gsap.to(row, { backgroundColor: '#fcfaf5', x: 6, duration: .32, ease: 'power2.out' }); });
+    row.addEventListener('mouseleave', function () { gsap.to(row, { backgroundColor: 'rgba(252,250,245,0)', x: 0, duration: .32, ease: 'power2.out' }); });
+  });
+});
+</script>
 </body>
 </html>

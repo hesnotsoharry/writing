@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script>(function(){try{var t=localStorage.getItem("wn-theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
 <title>About — Writers Nook</title>
 <meta name="description" content="Writers Nook began as a gift — one clean, quiet place for one writer to work. The story behind a small, calm desktop writing app made in Canada.">
 <link rel="canonical" href="https://writersnook.app/about.html">
@@ -24,144 +23,173 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="site.css">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+  html, body { height:auto; min-height:0; overflow-x:clip; }
+  body { margin:0; background:#f4eee2; color:#2a251d; font-family:"Hanken Grotesk",system-ui,sans-serif; font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  *, *::before, *::after { box-sizing:border-box; }
+  a { color:inherit; text-decoration:none; }
+  a:hover { color:#99492b; }
+  ::selection { background:rgba(178,90,56,.16); }
+  .dl-alt-link, .platform-note { display:block; font-size:13px; color:#8a8071; margin-top:10px; }
+</style>
+<script src="site-motion.js"></script>
 <!-- Fathom - beautiful, simple website analytics -->
 <script src="https://cdn.usefathom.com/script.js" data-site="LMMYXJTT" defer></script>
 <!-- / Fathom -->
 </head>
 <body>
+<div id="c-root" style="position:relative;background:#f4eee2;overflow-x:clip">
 
-<nav class="nav" id="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img id="brand-logo" src="assets/logo-dark.png" alt="Writers Nook">Writers Nook</a>
-    <button class="nav-toggle" id="navToggle" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div class="nav-links" id="navLinks">
-      <a href="features.html">Features</a>
-      <a href="pricing.html">Pricing</a>
-      <a href="about.html" class="active">About</a>
-      <a href="blog.html">Blog</a>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark theme" title="Toggle theme"><svg class="ic moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><svg class="ic sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-      <a class="m-btn m-btn-primary nav-cta" href="pricing.html">Buy — $29</a>
-    </div>
-  </div>
-</nav>
-
-<header class="about-hero">
-  <div class="wrap wrap-narrow io">
-    <span class="eyebrow center">Our story</span>
-    <h1 class="display" style="font-size:clamp(38px,5.4vw,60px)">It started as a gift,<br>not a startup.</h1>
-    <p class="lede" style="margin:22px auto 0;max-width:600px">Writers Nook was built for one person first — a writer who deserved a calm, modern place to work. Everything since has just been keeping that promise for more of them.</p>
-  </div>
-</header>
-
-<!-- dedication band -->
-<section class="section-pad-sm">
-  <div class="wrap">
-    <div class="io" style="max-width:960px;margin:0 auto;background:radial-gradient(120% 130% at 50% 0%, #2c2a23 0%, #1b1b18 72%);color:#f4eee2;border-radius:var(--r-xl);padding:64px 48px;text-align:center;position:relative;overflow:hidden">
-      <div data-stars="26" class="stars"></div>
-      <div style="position:relative">
-        <img src="assets/logo-light.png" alt="" style="width:64px;height:64px;margin:0 auto 22px">
-        <p style="font-family:var(--font-prose);font-size:clamp(22px,3vw,30px);line-height:1.4;font-weight:500;letter-spacing:-0.01em;max-width:640px;margin:0 auto;color:#f4eee2">
-          "I just wanted her to have one clean, quiet room to write in — somewhere everything stayed organized, and nothing got in the way of the story."
-        </p>
-        <p style="margin-top:24px;color:rgba(236,229,214,.6);font-size:14px;font-family:var(--font-mono);letter-spacing:.06em">— the dedication, version 1.0</p>
+  <nav style="position:fixed;top:0;left:0;right:0;z-index:60;background:rgba(252,250,245,.8);backdrop-filter:blur(18px);border-bottom:1px solid #e6ddcd">
+    <div style="width:100%;max-width:1320px;margin:0 auto;padding:0 40px;height:60px;display:flex;align-items:center;gap:26px">
+      <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:17px;letter-spacing:-0.01em;color:#2a251d">
+        <img src="assets/logo-dark.png" alt="Writers Nook" style="width:24px;height:24px;display:block">Writers Nook
+      </a>
+      <div style="display:flex;align-items:center;gap:2px;margin-left:auto">
+        <a href="features.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Features</a>
+        <a href="pricing.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Pricing</a>
+        <a href="about.html" style="font-size:14px;font-weight:600;color:#99492b;padding:8px 13px">About</a>
+        <a href="blog.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Blog</a>
+        <a class="nav-cta" href="checkout.html" style="display:inline-flex;align-items:center;font-weight:600;font-size:14px;padding:10px 19px;border-radius:999px;background:#b25a38;color:#fff;margin-left:10px">Buy — $29</a>
       </div>
     </div>
-  </div>
-</section>
+  </nav>
 
-<!-- the story (prose) -->
-<section class="article" style="padding-top:24px">
-  <div class="wrap wrap-narrow io">
-    <div class="prose">
-      <p>Writers Nook didn't begin with a market or a business plan. It began with someone I love trying to write — and fighting her tools the whole way.</p>
-      <p>Her novel was scattered across a word processor that kept reformatting itself, a folder of half-named documents, sticky notes for character details, and a spreadsheet that tracked which scene came next. The writing was the easy part. <em>Finding</em> the writing, and keeping the world straight, is what wore her down.</p>
-      <p>So I built the thing I wished existed for her: one clean, modern space where the manuscript, the notes, and the characters all lived together — calm, organized, and out of the way. A door you could close. A desk that was always tidy when you sat down at it.</p>
-      <h2>What we believe</h2>
-      <p>The longer we worked on it, the clearer the values got. They're simple, and we hold them tightly:</p>
-      <p>A writing app should feel like a <strong>place</strong>, not a dashboard. It should make the blank page less lonely and the finished page more reachable. And it should never, ever hold your words hostage — they're yours, on your machine, in a format you can always open.</p>
-      <p>We're a tiny operation working out of Canada, shipping slowly and carefully. We'd rather do a few things beautifully than a hundred things adequately. If that sounds like the kind of tool you've been wanting, we made it for you too.</p>
-      <blockquote>The goal was never to help people write more. It was to make the writing they already wanted to do feel a little less like a fight.</blockquote>
-      <p style="margin-top:36px;font-family:var(--font-ui);font-size:15px;color:var(--ink-3)">— Still made for one writer. Now shared with all of them.</p>
+  <header style="position:relative;padding:150px 0 0">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <span class="c-in" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#99492b">About</span>
+      <h1 class="c-in" style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;margin:26px 0 0;line-height:.96;letter-spacing:-0.04em;font-size:clamp(48px,7.6vw,108px);max-width:15ch">It started with<br><span style="font-style:italic;font-weight:500">one stuck novel.</span></h1>
     </div>
-  </div>
-</section>
+  </header>
 
-<!-- values grid -->
-<section class="section-pad tint">
-  <div class="wrap">
-    <div class="section-head center io">
-      <span class="eyebrow center">How we build</span>
-      <h2 class="section-title">A few things we won't compromise on</h2>
-    </div>
-    <div class="value-grid io" style="margin-top:48px">
-      <div class="vcard">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
-        <h3>Calm over clever</h3>
-        <p>Every feature has to earn its place by making the room quieter, not busier. If it adds noise, it doesn't ship.</p>
-      </div>
-      <div class="vcard">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
-        <h3>Your words are yours</h3>
-        <p>Local-first, open files, no lock-in. Backup is a convenience you choose — never a leash, and never a requirement to write.</p>
-      </div>
-      <div class="vcard">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><circle cx="11" cy="11" r="2"/></svg>
-        <h3>Built by people who write</h3>
-        <p>We use Writers Nook for our own pages every day. The roadmap is shaped at the desk, not in a boardroom.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- small stats / honesty -->
-<section class="section-pad-sm">
-  <div class="wrap io">
-    <div class="stats">
-      <div class="stat"><div class="num">1</div><div class="lbl">writer it was made for</div></div>
-      <div class="stat"><div class="num">$29</div><div class="lbl">founder price, one-time USD <span class="price-was" style="font-size:.5em">reg. $49</span></div></div>
-      <div class="stat"><div class="num">0</div><div class="lbl">ads, trackers, or upsells in the editor</div></div>
-      <div class="stat"><div class="num">∞</div><div class="lbl">words that stay on your disk</div></div>
-    </div>
-  </div>
-</section>
-
-<!-- CTA -->
-<section class="section-pad-sm">
-  <div class="wrap">
-    <div class="news io">
-      <div data-stars="30" class="stars"></div>
-      <div style="position:relative">
-        <h2 class="section-title">Come write somewhere quiet</h2>
-        <p>One calm room for your whole book. Buy it once, keep it forever — on Windows &amp; macOS.</p>
-        <div class="hero-cta" style="justify-content:center;margin-top:28px">
-          <a class="m-btn m-btn-primary m-btn-lg" href="pricing.html">Buy Writers Nook — $29</a>
-          <a class="m-btn m-btn-ghost m-btn-lg" href="features.html">See the features</a>
+  <!-- ===== the story, set as a book page ===== -->
+  <section style="position:relative;padding:80px 0 110px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:56px 80px;align-items:start;max-width:1060px">
+        <div class="c-rise" style="font-family:Literata,Georgia,serif;font-size:19px;line-height:1.8;color:#5c5446">
+          <p style="margin:0;text-wrap:pretty"><span style="float:left;font-family:Literata,Georgia,serif;font-size:82px;line-height:.76;font-weight:600;color:#b25a38;margin:8px 14px 0 0">T</span>he first draft lived in eleven places at once. Chapters in one folder and scenes in another, a character sheet in a spreadsheet, a map in a note-taking app, timeline fixes on the back of an envelope, and the actual sentences in whichever editor had been opened last. Every morning began with twenty minutes of assembling the workspace before a single word got written.</p>
+          <p style="margin:22px 0 0;text-wrap:pretty">The tools weren't bad. They were built for teams, or for notes, or for everything — and a novel is none of those. What was missing was somewhere the whole book could sit at once: the draft, the outline, the people, the places, and the quiet.</p>
+          <p style="margin:22px 0 0;text-wrap:pretty">So it got built. Not as a startup with a category to win, but as a room for one writer to finish one book in. Then other writers asked for a copy.</p>
+        </div>
+        <div class="c-rise" style="font-family:Literata,Georgia,serif;font-size:19px;line-height:1.8;color:#5c5446">
+          <p style="margin:0;text-wrap:pretty">Everything in Writers Nook exists because that draft needed it. The story bible came from forgetting a character's eye colour between books. The corkboard came from an act that read wrong until the scenes were physically moved. The word goal came from needing a nudge that never became a scold.</p>
+          <p style="margin:22px 0 0;text-wrap:pretty">Nothing in it exists because a competitor had it, or because a growth chart wanted it. There are no ads, no trackers, no upsells in the editor, and no engagement metrics to chase. The app you buy is the app — it doesn't want your attention, it wants you to finish.</p>
+          <p style="margin:22px 0 0;text-wrap:pretty">It's a small, deliberate thing, made in Canada, and it will stay that way.</p>
         </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<footer class="foot">
-  <div class="wrap">
-    <div class="foot-top">
-      <div>
-        <a class="brand" href="index.html"><img src="assets/logo-light.png" alt="" style="width:30px;height:30px">Writers Nook</a>
-        <p class="foot-blurb">A calm, paper-warm desktop writing app for novelists. Made with care in Canada.</p>
+  <!-- ===== what we hold to — as clauses, not icon cards ===== -->
+  <section style="position:relative;padding:100px 0 110px;background:#fcfaf5;border-top:1px solid #e6ddcd;border-bottom:1px solid #e6ddcd">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:56px 80px;align-items:start">
+        <div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#99492b">What we hold to</span>
+          <h2 class="c-rise" style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;font-size:clamp(30px,3.8vw,48px);line-height:1.04;letter-spacing:-0.03em;margin:16px 0 0">Four promises,<br>plainly stated.</h2>
+          <p class="c-rise" style="font-family:Literata,serif;font-size:17px;line-height:1.75;color:#5c5446;margin:20px 0 0;max-width:32ch">Each of these has cost us a feature we'd otherwise have shipped. That's what makes them promises.</p>
+        </div>
+        <div class="c-rise" style="max-width:700px">
+          <div class="c-clause" style="display:grid;grid-template-columns:38px 1fr;gap:20px;padding:26px 0;border-bottom:1px solid #e6ddcd">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892;padding-top:7px">i</span>
+            <div><div style="font-family:Literata,serif;font-size:21px;font-weight:600;color:#2a251d">Your words stay yours</div><p style="font-family:Literata,serif;font-size:16.5px;line-height:1.75;color:#5c5446;margin:8px 0 0">Real files, open format, your own disk. No lock-in, no export ransom, and nothing of your manuscript on our servers — not today, and not when sync ships.</p></div>
+          </div>
+          <div class="c-clause" style="display:grid;grid-template-columns:38px 1fr;gap:20px;padding:26px 0;border-bottom:1px solid #e6ddcd">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892;padding-top:7px">ii</span>
+            <div><div style="font-family:Literata,serif;font-size:21px;font-weight:600;color:#2a251d">Calm over clever</div><p style="font-family:Literata,serif;font-size:16.5px;line-height:1.75;color:#5c5446;margin:8px 0 0">Every addition has to earn its place on the screen. When a feature and the quiet are in conflict, the quiet wins — which is why the toolbar hides and the streak never nags.</p></div>
+          </div>
+          <div class="c-clause" style="display:grid;grid-template-columns:38px 1fr;gap:20px;padding:26px 0;border-bottom:1px solid #e6ddcd">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892;padding-top:7px">iii</span>
+            <div><div style="font-family:Literata,serif;font-size:21px;font-weight:600;color:#2a251d">Priced like a tool, not a tenancy</div><p style="font-family:Literata,serif;font-size:16.5px;line-height:1.75;color:#5c5446;margin:8px 0 0">You buy it once. A novel takes years and shouldn't accrue rent while you write it. The optional extras are optional in the real sense — the app is whole without them.</p></div>
+          </div>
+          <div class="c-clause" style="display:grid;grid-template-columns:38px 1fr;gap:20px;padding:26px 0">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#b3a892;padding-top:7px">iv</span>
+            <div><div style="font-family:Literata,serif;font-size:21px;font-weight:600;color:#2a251d">Built at the desk</div><p style="font-family:Literata,serif;font-size:16.5px;line-height:1.75;color:#5c5446;margin:8px 0 0">We write in it daily, and the roadmap comes from what got in the way that morning. Requests from writers outrank ideas from anyone else, including us.</p></div>
+          </div>
+        </div>
       </div>
-      <div class="foot-col"><h5>Product</h5><a href="features.html">Features</a><a href="pricing.html">Pricing</a><a href="account.html">Download</a><a href="whats-new.html">What's new</a></div>
-      <div class="foot-col"><h5>Company</h5><a href="about.html">About</a><a href="blog.html">Blog</a><a href="press.html">Press</a><a href="contact.html">Contact</a><a href="signin.html">Sign in</a></div>
-      <div class="foot-col"><h5>Support &amp; legal</h5><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refunds.html">Refunds</a></div>
     </div>
-    <div class="foot-bottom">
-      <span>© 2026 Writers Nook · writersnook.app</span>
-      <span class="made"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.3-8.2C.9 9.8 2.2 6 5.5 6c1.9 0 3.3 1.1 4.1 2.4C10.4 7.1 11.8 6 13.7 6 17 6 18.3 9.8 16.6 12.8 14.7 16.7 12 21 12 21z"/></svg>Built for one writer, shared with all of them</span>
-    </div>
-  </div>
-</footer>
+  </section>
 
+  <!-- ===== colophon ===== -->
+  <section style="position:relative;padding:110px 0 40px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:56px 80px;align-items:start">
+        <div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#99492b">Colophon</span>
+          <h2 class="c-rise" style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;font-size:clamp(30px,3.8vw,48px);line-height:1.04;letter-spacing:-0.03em;margin:16px 0 0">How the thing<br>is actually made.</h2>
+        </div>
+        <div class="c-rise" style="max-width:620px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:.04em;color:#5c5446">
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Made in</span><span style="color:#2a251d">Canada</span></div>
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Team size</span><span style="color:#2a251d">Small, on purpose</span></div>
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Funding</span><span style="color:#2a251d">Purchases only · no investors</span></div>
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Platforms</span><span style="color:#2a251d">Windows · macOS</span></div>
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Manuscript format</span><span style="color:#2a251d">Plain files, open, on your disk</span></div>
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Prose typeface</span><span style="color:#2a251d">Literata</span></div>
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Trackers in the editor</span><span style="color:#2a251d">None</span></div>
+          <div style="display:flex;justify-content:space-between;gap:24px;padding:14px 0"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Written for</span><span style="color:#2a251d">One writer, then everyone</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="position:relative;padding:80px 0 130px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="border-top:1px solid #ddd0b8;padding-top:60px;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px 48px;align-items:end">
+        <h2 style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;font-size:clamp(32px,4.6vw,58px);line-height:1.02;letter-spacing:-0.035em;margin:0">Come and write<br><span style="font-style:italic">somewhere quiet.</span></h2>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <a id="hero-dl" class="c-mag" href="https://downloads.writersnook.app/WritersNook-Setup.exe" style="display:inline-flex;align-items:center;gap:10px;font-weight:600;font-size:16.5px;padding:16px 28px;border-radius:10px;background:#b25a38;color:#fff;box-shadow:0 14px 36px rgba(178,90,56,.22)">
+            <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0l-4-4m4 4l4-4M5 21h14"></path></svg>
+            <span class="dl-label">Download for Windows</span>
+          </a>
+          <a class="c-mag" href="checkout.html" style="display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:16.5px;padding:16px 26px;border-radius:10px;background:transparent;color:#2a251d;border:1px solid #ddd0b8">Buy once — $29</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+
+  <footer style="position:relative;background:#2a251d;color:rgba(247,242,232,.6);padding:76px 0 34px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:1.5fr repeat(3,minmax(140px,1fr));gap:44px">
+        <div>
+          <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:18px;color:#f7f2e8"><img src="assets/logo-light.png" alt="" style="width:26px;height:26px;display:block">Writers Nook</a>
+          <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:rgba(247,242,232,.5);margin:16px 0 0;max-width:30ch">A quiet desk for the whole novel. Made in Canada, for people who would rather be writing.</p>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Product</div>
+          <a href="features.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Features</a><a href="pricing.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Pricing</a><a href="account.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Download</a><a href="whats-new.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">What's new</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Company</div>
+          <a href="about.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">About</a><a href="blog.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Blog</a><a href="press.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Press</a><a href="contact.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Contact</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Support &amp; legal</div>
+          <a href="support.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Support</a><a href="privacy.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Privacy</a><a href="terms.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Terms</a><a href="refunds.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Refunds</a>
+        </div>
+      </div>
+      <div style="margin-top:56px;padding-top:24px;border-top:1px solid rgba(247,242,232,.14);display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(247,242,232,.38)">
+        <span>© 2026 Writers Nook · writersnook.app</span>
+        <span>Built for one writer, shared with all of them</span>
+      </div>
+    </div>
+  </footer>
+<script src="downloads-config.js"></script>
 <script src="site.js"></script>
+<script>
+WNMotion.ready(function () {
+  var gsap = window.gsap;
+  var m = WNMotion.create();
+
+  gsap.fromTo('.c-in', { y: 26 }, { y: 0, duration: 1, stagger: .12, ease: 'power3.out' });
+  m.reveal(document.querySelectorAll('.c-rise'), { y: 32, opacity: 0 }, { y: 0, opacity: 1, duration: .95, ease: 'power3.out' }, .12);
+  m.reveal(document.querySelectorAll('.c-clause'), { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: .7, ease: 'power3.out' }, .1);
+  m.kick();
+  WNMotion.magnetize(document.querySelectorAll('.c-mag'));
+});
+</script>
 </body>
 </html>

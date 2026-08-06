@@ -60,6 +60,9 @@ function applyViewToDom(view) {
   if (noPurchaseNote) {
     noPurchaseNote.style.display = view.hasPurchase ? "none" : "block";
   }
+
+  const copyKey = document.getElementById("copyKey");
+  if (copyKey) copyKey.disabled = !view.licenseKey;
 }
 
 // --------------------------------------------------------------------------
@@ -110,6 +113,7 @@ function wireDownloadButtons() {
 // #signin-prompt — the sign-in call-to-action (unauthenticated state)
 // --------------------------------------------------------------------------
 function showAccountPanel() {
+  hideTransientStates();
   const panel = document.getElementById("acct-panel");
   const prompt = document.getElementById("signin-prompt");
   if (panel) panel.style.display = "";
@@ -117,10 +121,31 @@ function showAccountPanel() {
 }
 
 function showSigninPrompt() {
+  hideTransientStates();
   const panel = document.getElementById("acct-panel");
   const prompt = document.getElementById("signin-prompt");
   if (panel) panel.style.display = "none";
   if (prompt) prompt.style.display = "";
+}
+
+function hideTransientStates() {
+  const loading = document.getElementById("account-loading");
+  const error = document.getElementById("account-error");
+  if (loading) loading.style.display = "none";
+  if (error) error.style.display = "none";
+}
+
+function showAccountError(message) {
+  const loading = document.getElementById("account-loading");
+  const panel = document.getElementById("acct-panel");
+  const prompt = document.getElementById("signin-prompt");
+  const error = document.getElementById("account-error");
+  const errorMessage = document.getElementById("account-error-message");
+  if (loading) loading.style.display = "none";
+  if (panel) panel.style.display = "none";
+  if (prompt) prompt.style.display = "none";
+  if (errorMessage) errorMessage.textContent = message;
+  if (error) error.style.display = "";
 }
 
 // --------------------------------------------------------------------------
@@ -145,42 +170,39 @@ if (typeof document !== "undefined") {
 
     if (isUnconfigured()) {
       // Developer hasn't configured Supabase yet — show a friendly note.
-      const panel = document.getElementById("acct-panel");
-      if (panel) {
-        panel.style.display = "";
-        const note = document.createElement("p");
-        note.style.cssText =
-          "font-size:14px;color:var(--error,#c0392b);margin:16px 0;padding:12px;background:var(--surface-2,#fafafa);border-radius:8px";
-        note.textContent =
-          "Account sign-in is not yet configured. Replace the placeholders in " +
-          "supabase-config.js with your Supabase project URL and anon key.";
-        panel.prepend(note);
-      }
-      const prompt = document.getElementById("signin-prompt");
-      if (prompt) prompt.style.display = "none";
+      showAccountError(
+        "Account sign-in is not yet configured. Replace the placeholders in " +
+          "supabase-config.js with your Supabase project URL and anon key.",
+      );
       return;
     }
 
-    const { data } = await supabase.auth.getSession();
+    try {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
 
-    if (data.session) {
-      const email = data.session.user.email;
+      if (data.session) {
+        const email = data.session.user.email;
 
-      // RLS scopes this query to the signed-in user's own rows automatically.
-      const { data: rows } = await supabase
-        .from("purchases")
-        .select("*")
-        .limit(1);
+        // RLS scopes this query to the signed-in user's own rows automatically.
+        const { data: rows, error: purchaseError } = await supabase
+          .from("purchases")
+          .select("*")
+          .limit(1);
+        if (purchaseError) throw purchaseError;
 
-      const view = renderAccount(rows?.[0] ?? null, email);
-      showAccountPanel();
-      applyViewToDom(view);
-      wireDownloadButtons();
-      if (view.licenseKey) {
-        fetchAndShowActivations(view.licenseKey);
+        const view = renderAccount(rows?.[0] ?? null, email);
+        showAccountPanel();
+        applyViewToDom(view);
+        wireDownloadButtons();
+        if (view.licenseKey) {
+          fetchAndShowActivations(view.licenseKey);
+        }
+      } else {
+        showSigninPrompt();
       }
-    } else {
-      showSigninPrompt();
+    } catch {
+      showAccountError("We couldn't load the account just now. Please try again.");
     }
   });
 }

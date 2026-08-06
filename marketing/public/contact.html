@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script>(function(){try{var t=localStorage.getItem("wn-theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
 <title>Contact — Writers Nook</title>
 <meta name="description" content="Get in touch with the Writers Nook team. A real person will reply.">
 <link rel="canonical" href="https://writersnook.app/contact.html">
@@ -24,117 +23,212 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="site.css">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script src="site-motion.js"></script>
+<style>
+  html, body { height:auto; min-height:0; overflow-x:clip; }
+  body { margin:0; background:#f4eee2; color:#2a251d; font-family:"Hanken Grotesk",system-ui,sans-serif; font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  *, *::before, *::after { box-sizing:border-box; }
+  a { color:inherit; text-decoration:none; }
+  a:hover { color:#99492b; }
+  ::selection { background:rgba(178,90,56,.16); }
+  input, textarea { font-family:"Hanken Grotesk",system-ui,sans-serif; }
+  input:focus, textarea:focus { outline:none; border-color:#b25a38; }
+  .k-err, .k-err:focus { border-color:#c2603c; box-shadow:0 0 0 3px rgba(194,96,60,.14); }
+</style>
 <!-- Fathom - beautiful, simple website analytics -->
 <script src="https://cdn.usefathom.com/script.js" data-site="LMMYXJTT" defer></script>
 <!-- / Fathom -->
 </head>
 <body>
-<nav class="nav" id="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img id="brand-logo" src="assets/logo-dark.png" alt="Writers Nook">Writers Nook</a>
-    <button class="nav-toggle" id="navToggle" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div class="nav-links" id="navLinks">
-      <a href="features.html">Features</a>
-      <a href="pricing.html">Pricing</a>
-      <a href="about.html">About</a>
-      <a href="blog.html">Blog</a>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark theme" title="Toggle theme"><svg class="ic moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><svg class="ic sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-      <a class="m-btn m-btn-primary nav-cta" href="pricing.html">Buy — $29</a>
-    </div>
-  </div>
-</nav>
+<div id="ct-root" style="position:relative;background:#f4eee2;overflow-x:clip">
 
-<header class="about-hero" style="padding:78px 0 16px">
-  <div class="wrap wrap-narrow io" style="text-align:center">
-    <span class="eyebrow center">Get in touch</span>
-    <h1 class="display" style="font-size:clamp(34px,4.8vw,52px);margin-top:14px">Talk to a human</h1>
-    <p class="lede" style="margin:18px auto 0;max-width:580px">No ticket-bots or phone trees. Send a note and a real person — often the person who built the app — will write back.</p>
-  </div>
-</header>
-<section class="section-pad-sm" style="padding-top:34px">
-  <div class="wrap" style="max-width:880px">
-    <div class="acct-grid io">
-      <div class="acct-card">
-        <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>Email us</div>
-        <h3>support@writersnook.app</h3>
-        <p style="color:var(--ink-2);font-size:15px;margin:8px 0 0">For anything — bugs, billing, feature ideas, or just to say a kind word. We usually reply within one business day.</p>
-        <div class="kv" style="margin-top:18px"><span class="k">Support hours</span><span class="v">Mon–Fri, Atlantic Time</span></div>
-        <div class="kv"><span class="k">Press &amp; partnerships</span><span class="v">hello@writersnook.app</span></div>
-        <div class="kv"><span class="k">Help center</span><span class="v"><a href="support.html" style="color:var(--accent-deep);font-weight:600">Browse articles</a></span></div>
-      </div>
-      <div class="acct-card">
-        <div class="acct-eyebrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Send a message</div>
-        <form id="contactForm" style="display:grid;gap:12px;margin-top:4px">
-          <input type="text" placeholder="Your name" required style="font-family:var(--font-ui);font-size:15px;padding:12px 14px;border-radius:var(--r-md);border:1px solid var(--parchment-edge);background:var(--paper);color:var(--ink);outline:none">
-          <input type="email" placeholder="you@example.com" required style="font-family:var(--font-ui);font-size:15px;padding:12px 14px;border-radius:var(--r-md);border:1px solid var(--parchment-edge);background:var(--paper);color:var(--ink);outline:none">
-          <textarea placeholder="How can we help?" rows="4" required style="font-family:var(--font-ui);font-size:15px;padding:12px 14px;border-radius:var(--r-md);border:1px solid var(--parchment-edge);background:var(--paper);color:var(--ink);outline:none;resize:vertical"></textarea>
-          <button class="m-btn m-btn-primary m-btn-block" type="submit">Send message</button>
-        </form>
-        <p class="news-note" style="font-size:13px;color:var(--ink-3);margin:12px 0 0;text-align:center">We'll only use your email to reply.</p>
+  <nav style="position:fixed;top:0;left:0;right:0;z-index:60;background:rgba(252,250,245,.8);backdrop-filter:blur(18px);border-bottom:1px solid #e6ddcd">
+    <div style="width:100%;max-width:1320px;margin:0 auto;padding:0 40px;height:60px;display:flex;align-items:center;gap:26px">
+      <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:17px;letter-spacing:-0.01em;color:#2a251d">
+        <img src="assets/logo-dark.png" alt="Writers Nook" style="width:24px;height:24px;display:block">Writers Nook
+      </a>
+      <div style="display:flex;align-items:center;gap:2px;margin-left:auto">
+        <a href="features.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Features</a>
+        <a href="pricing.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Pricing</a>
+        <a href="about.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">About</a>
+        <a href="blog.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Blog</a>
+        <a class="nav-cta" href="checkout.html" style="display:inline-flex;align-items:center;font-weight:600;font-size:14px;padding:10px 19px;border-radius:999px;background:#b25a38;color:#fff;margin-left:10px">Buy — $29</a>
       </div>
     </div>
-  </div>
-</section>
+  </nav>
+
+  <header style="position:relative;padding:150px 0 0">
+    <div style="width:100%;max-width:1080px;margin:0 auto;padding:0 48px">
+      <span class="ct-in" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#99492b">Contact</span>
+      <h1 class="ct-in" style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;margin:26px 0 0;line-height:.96;letter-spacing:-0.04em;font-size:clamp(44px,6.4vw,90px);max-width:15ch">Write to us.<br><span style="font-style:italic;font-weight:500">We write back.</span></h1>
+      <p class="ct-in" style="font-family:Literata,Georgia,serif;font-size:19px;line-height:1.8;color:#5c5446;margin:32px 0 0;max-width:54ch;text-wrap:pretty">No ticket number, no chatbot, no phone tree. Your note goes to a small inbox that a person reads — usually the person who wrote the code you're asking about.</p>
+    </div>
+  </header>
+
+  <section style="position:relative;padding:60px 0 110px">
+    <div style="width:100%;max-width:1080px;margin:0 auto;padding:0 48px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:56px 72px;align-items:start">
+
+      <div class="ct-rise">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#8a8071;padding-bottom:16px;border-bottom:1px solid #ddd0b8">Send a note</div>
+        <form id="ct-form" style="display:grid;gap:18px;margin-top:26px">
+          <div>
+            <label for="ct-name" style="display:block;font-family:Literata,serif;font-size:17px;font-weight:600;color:#2a251d">Your name</label>
+            <input id="ct-name" type="text" placeholder="Maren Vale" autocomplete="name" style="width:100%;margin-top:10px;font-size:16.5px;padding:14px 16px;border-radius:4px;border:1px solid #ddd0b8;background:#fcfaf5;color:#2a251d;transition:border-color .25s ease">
+          </div>
+          <div>
+            <label for="ct-email" style="display:block;font-family:Literata,serif;font-size:17px;font-weight:600;color:#2a251d">Your email</label>
+            <input id="ct-email" type="email" placeholder="you@example.com" autocomplete="email" style="width:100%;margin-top:10px;font-size:16.5px;padding:14px 16px;border-radius:4px;border:1px solid #ddd0b8;background:#fcfaf5;color:#2a251d;transition:border-color .25s ease">
+          </div>
+          <div>
+            <label for="ct-msg" style="display:block;font-family:Literata,serif;font-size:17px;font-weight:600;color:#2a251d">What's on your mind</label>
+            <textarea id="ct-msg" rows="6" placeholder="Bugs, billing, a feature you wish existed, or a kind word." style="width:100%;margin-top:10px;font-size:16.5px;line-height:1.65;padding:14px 16px;border-radius:4px;border:1px solid #ddd0b8;background:#fcfaf5;color:#2a251d;resize:vertical;transition:border-color .25s ease"></textarea>
+          </div>
+          <button id="ct-send" type="submit" style="display:inline-flex;align-items:center;justify-content:center;gap:10px;font-family:'Hanken Grotesk',sans-serif;font-weight:600;font-size:16.5px;padding:16px 28px;border-radius:8px;border:none;background:#b25a38;color:#fff;cursor:pointer;box-shadow:0 12px 30px rgba(178,90,56,.2)">Send it</button>
+          <p id="ct-note" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;color:#8a8071;margin:0;line-height:1.9;min-height:20px">Your email is used to reply, and for nothing else.</p>
+        </form>
+
+        <div id="ct-sent" style="display:none;padding:34px;background:#fcfaf5;border:1px solid #e6ddcd;border-radius:4px;margin-top:26px">
+          <div style="font-family:Literata,serif;font-size:23px;font-weight:600;color:#2a251d">It's on its way.</div>
+          <p style="font-family:Literata,serif;font-size:17px;line-height:1.75;color:#5c5446;margin:12px 0 0">Sent to us from <strong id="ct-from" style="color:#2a251d">you@example.com</strong>. You'll hear back from a person, usually the same working day.</p>
+        </div>
+      </div>
+
+      <div class="ct-rise">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#8a8071;padding-bottom:16px;border-bottom:1px solid #ddd0b8">Or reach us directly</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#5c5446;margin-top:8px">
+          <div style="display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Support</span><span style="color:#2a251d">support@writersnook.app</span></div>
+          <div style="display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Press</span><span style="color:#2a251d">hello@writersnook.app</span></div>
+          <div style="display:flex;justify-content:space-between;gap:20px;padding:16px 0;border-bottom:1px solid #e6ddcd"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Hours</span><span style="color:#2a251d">Mon–Fri, Atlantic Time</span></div>
+          <div style="display:flex;justify-content:space-between;gap:20px;padding:16px 0"><span style="color:#8a8071;text-transform:uppercase;letter-spacing:.14em;font-size:10.5px">Usual reply</span><span style="color:#2a251d">Within one business day</span></div>
+        </div>
+
+        <div style="margin-top:34px;padding:26px 28px;background:#fcfaf5;border:1px solid #e6ddcd;border-radius:4px">
+          <div style="font-family:Literata,serif;font-size:19px;font-weight:600;color:#2a251d">Before you write</div>
+          <p style="font-family:Literata,serif;font-size:16.5px;line-height:1.75;color:#5c5446;margin:10px 0 0">Licence keys, activations, backup, and refunds are all answered on the <a href="support.html" style="color:#99492b;border-bottom:1px solid #cbb9a0">support page</a> — often faster than waiting on us. If it isn't there, it belongs in the form.</p>
+        </div>
+
+        <div style="margin-top:26px;padding-top:22px;border-top:1px solid #e6ddcd">
+          <p style="font-family:Literata,serif;font-size:16.5px;line-height:1.8;color:#5c5446;margin:0;font-style:italic">If you've found a bug, tell us what you were doing and what happened instead. Screenshots help more than apologies.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="position:relative;background:#2a251d;color:rgba(247,242,232,.6);padding:76px 0 34px">
+    <div style="width:100%;max-width:1080px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:1.5fr repeat(3,minmax(140px,1fr));gap:44px">
+        <div>
+          <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:18px;color:#f7f2e8"><img src="assets/logo-light.png" alt="" style="width:26px;height:26px;display:block">Writers Nook</a>
+          <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:rgba(247,242,232,.5);margin:16px 0 0;max-width:30ch">A quiet desk for the whole novel. Made in Canada, for people who would rather be writing.</p>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Product</div>
+          <a href="features.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Features</a><a href="pricing.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Pricing</a><a href="account.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Download</a><a href="whats-new.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">What's new</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Company</div>
+          <a href="about.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">About</a><a href="blog.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Blog</a><a href="press.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Press</a><a href="contact.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Contact</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Support &amp; legal</div>
+          <a href="support.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Support</a><a href="privacy.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Privacy</a><a href="terms.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Terms</a><a href="refunds.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Refunds</a>
+        </div>
+      </div>
+      <div style="margin-top:56px;padding-top:24px;border-top:1px solid rgba(247,242,232,.14);display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(247,242,232,.38)">
+        <span>© 2026 Writers Nook · writersnook.app</span>
+        <span>A person answers, usually the same day</span>
+      </div>
+    </div>
+  </footer>
+</div>
+<script src="site.js"></script>
 <script type="module">
 import { isValidEmail } from './form-utils.js';
-var form = document.getElementById('contactForm');
-var btn  = form.querySelector('button[type="submit"]');
-var note = form.closest('.acct-card').querySelector('.news-note');
-form.addEventListener('submit', async function (e) {
-  e.preventDefault();
-  var inputs = form.querySelectorAll('input, textarea');
-  var name    = inputs[0].value.trim();
-  var email   = inputs[1].value.trim();
-  var message = inputs[2].value.trim();
-  if (!name || !isValidEmail(email) || !message) {
-    note.textContent = 'Please fill in all fields with a valid email.';
-    note.style.color = 'var(--error, #c0392b)';
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = 'Sending…';
-  try {
-    var res = await fetch('/api/contact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, email: email, message: message }),
+
+WNMotion.ready(function () {
+  var gsap = window.gsap;
+  var m = WNMotion.create();
+  var form = document.getElementById('ct-form');
+  var name = document.getElementById('ct-name');
+  var email = document.getElementById('ct-email');
+  var message = document.getElementById('ct-msg');
+  var note = document.getElementById('ct-note');
+  var send = document.getElementById('ct-send');
+
+  m.reveal(document.querySelectorAll('.ct-in'), { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: .95, ease: 'power3.out' }, .11);
+  m.reveal(document.querySelectorAll('.ct-rise'), { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: .9, ease: 'power3.out' }, .12);
+  m.kick();
+
+  [name, email, message].forEach(function (field) {
+    field.addEventListener('input', function () {
+      if (!field.classList.contains('k-err')) return;
+      var valid = field === email ? isValidEmail(field.value.trim()) : field.value.trim().length > 0;
+      if (valid) field.classList.remove('k-err');
     });
-    if (res.ok) {
-      note.textContent = 'Thanks — your message is on its way. We will be in touch soon.';
-      note.style.color = '';
-      form.reset();
-    } else {
-      note.textContent = 'Something went wrong. Please email support@writersnook.app directly.';
-      note.style.color = 'var(--error, #c0392b)';
-    }
-  } catch (_) {
-    note.textContent = 'Could not reach the server. Please try again shortly.';
-    note.style.color = 'var(--error, #c0392b)';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Send message';
+  });
+
+  function showFailure(text) {
+    note.textContent = text;
+    note.style.color = '#99492b';
+    send.disabled = false;
+    send.textContent = 'Send it';
+    gsap.to(send, { backgroundColor: '#b25a38', duration: .3 });
   }
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var failures = [];
+    if (!name.value.trim()) failures.push([name, 'a name']);
+    if (!isValidEmail(email.value.trim())) failures.push([email, 'a working email']);
+    if (!message.value.trim()) failures.push([message, 'a message']);
+    [name, email, message].forEach(function (field) { field.classList.remove('k-err'); });
+
+    if (failures.length) {
+      failures.forEach(function (failure) { failure[0].classList.add('k-err'); });
+      note.textContent = 'We still need ' + failures.map(function (failure) { return failure[1]; }).join(', ') + '.';
+      note.style.color = '#99492b';
+      gsap.fromTo(failures[0][0], { x: -6 }, { x: 0, duration: .45, ease: 'elastic.out(1.2, 0.4)' });
+      failures[0][0].focus();
+      return;
+    }
+
+    send.disabled = true;
+    send.textContent = 'Sending…';
+    note.textContent = 'Sending your note…';
+    note.style.color = '#8a8071';
+    gsap.to(send, { backgroundColor: '#8f4429', duration: .3 });
+
+    try {
+      var response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.value.trim(),
+          email: email.value.trim(),
+          message: message.value.trim(),
+        }),
+      });
+      if (!response.ok) {
+        showFailure('Something went wrong. Please email support@writersnook.app directly.');
+        return;
+      }
+      document.getElementById('ct-from').textContent = email.value.trim();
+      gsap.to(form, {
+        opacity: 0, y: -10, duration: .4, ease: 'power2.in',
+        onComplete: function () {
+          form.style.display = 'none';
+          var sent = document.getElementById('ct-sent');
+          sent.style.display = 'block';
+          gsap.fromTo(sent, { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: .6, ease: 'power3.out' });
+        },
+      });
+    } catch (_) {
+      showFailure('Could not reach the server. Please try again shortly or email support@writersnook.app.');
+    }
+  });
 });
 </script>
-<footer class="foot">
-  <div class="wrap">
-    <div class="foot-top">
-      <div>
-        <a class="brand" href="index.html"><img src="assets/logo-light.png" alt="" style="width:30px;height:30px">Writers Nook</a>
-        <p class="foot-blurb">A calm, paper-warm desktop writing app for novelists. Made with care in Canada.</p>
-      </div>
-      <div class="foot-col"><h5>Product</h5><a href="features.html">Features</a><a href="pricing.html">Pricing</a><a href="account.html">Download</a><a href="whats-new.html">What's new</a></div>
-      <div class="foot-col"><h5>Company</h5><a href="about.html">About</a><a href="blog.html">Blog</a><a href="press.html">Press</a><a href="contact.html">Contact</a><a href="signin.html">Sign in</a></div>
-      <div class="foot-col"><h5>Support &amp; legal</h5><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refunds.html">Refunds</a></div>
-    </div>
-    <div class="foot-bottom">
-      <span>© 2026 Writers Nook · writersnook.app</span>
-      <span class="made"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.3-8.2C.9 9.8 2.2 6 5.5 6c1.9 0 3.3 1.1 4.1 2.4C10.4 7.1 11.8 6 13.7 6 17 6 18.3 9.8 16.6 12.8 14.7 16.7 12 21 12 21z"/></svg>Built for one writer, shared with all of them</span>
-    </div>
-  </div>
-</footer>
-<script src="site.js"></script>
 </body>
 </html>
