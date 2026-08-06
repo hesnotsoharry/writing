@@ -12,6 +12,7 @@ import {
   migration_018_entity_exclusion,
   migration_019_scene_exclusion,
   migration_020_doc_updated_at,
+  migration_021_project_meta_docs,
 } from "./migrations2";
 import { ensureColumn } from "./schema";
 
@@ -384,6 +385,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 18, name: "entity-exclusion", up: migration_018_entity_exclusion },
   { version: 19, name: "scene-exclusion", up: migration_019_scene_exclusion },
   { version: 20, name: "doc-updated-at", up: migration_020_doc_updated_at },
+  { version: 21, name: "project-meta-docs", up: migration_021_project_meta_docs },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

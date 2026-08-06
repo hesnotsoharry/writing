@@ -67,3 +67,35 @@ watchdog that force-closes and reschedules a socket that neither opens nor close
 - No structure sync (binder rows) — scene + board docs only.
 - Sweep cadence: on connect + every 60 s while connected + after local saves; no
   store-write push hooks yet.
+
+## v1.1 additions (S3)
+
+**Meta channel.** One additional channel per project: `meta:<projectId>` — a Y.Doc that
+is the sync substrate for structure. Top-level maps (all keyed by SQL row id):
+`folders` (Y.Map per row: title, sortKey, projectId), `scenes` (Y.Map per row: title,
+folderId|null, sortKey, status, synopsis, projectId), `labels` + `sceneLabels`,
+`docEpochs` (see below), and `tombstones` (Y.Map: rowId → {kind, at} for
+archive/delete propagation). Ordering uses fractional-index strings (`sortKey`), NOT
+renormalized integers — concurrent reorders merge without collision. SQLite remains
+what the UI reads; the meta doc is written by the same store methods that write SQL
+(bridge at the store layer), and applied back to SQL on remote merge.
+
+**Meta docs sync exactly like scene docs** — same hello/diff/live messages, same
+storage shape (a `project_meta_docs` table mirroring `scene_docs`). No new message
+types for structure.
+
+**Epochs.** `docEpochs` maps docId → integer epoch, bumped by any whole-doc
+replacement (snapshot restore, snap-undo, Find&Replace-All rebuild). Rule: a device
+whose local epoch for a doc is LOWER than the meta doc's epoch must discard its local
+doc state and accept the epoch-owner's full state wholesale (taking a local
+auto-snapshot first). Sweeps compare epochs before state vectors; `diff`/`live`
+frames for a doc are ignored by receivers while their local epoch is behind (until
+the full-state `diff` for the new epoch arrives, identified by an `e` field added to
+`diff` messages on epoch'd docs). Restore-wins semantics; the loser's divergence
+stays recoverable in their snapshot history.
+
+**First-sync handshake.** A device with zero local projects clones everything on
+first hello (meta + docs arrive as normal diffs). A device with existing local
+projects keeps them local-only: projects sync only if their `projectId` exists in the
+peer's meta channels. v1.1 has no merge-two-existing-projects flow; the UI badges
+projects as "synced" vs "this device only".

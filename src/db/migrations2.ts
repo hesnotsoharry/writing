@@ -276,5 +276,16 @@ export async function migration_020_doc_updated_at(db: DbClient): Promise<void> 
   }
 }
 
+/** Persist one base64-TEXT Yjs structure document per project. */
+export async function migration_021_project_meta_docs(db: DbClient): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS project_meta_docs (
+      project_id TEXT PRIMARY KEY,
+      state_base64 TEXT NOT NULL,
+      updated_at TEXT
+    )`
+  );
+}
+
 // ensureColumn is re-exported so callers that import from migrations2 can use it.
 export { ensureColumn };
