@@ -33,9 +33,18 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 
 import App from "./App";
+import { getTweak } from "./features/settings/settings.store";
 import { installContextMenuGuard } from "./lib/nativeContextMenu";
+import { syncEngine } from "./sync/engine";
+import { hasSyncMasterKey } from "./sync/keyStorage";
 
 if (!import.meta.env.DEV) installContextMenuGuard();
+
+if (getTweak("syncExperimental", "off") === "on") {
+  void hasSyncMasterKey()
+    .then((hasKey) => { if (hasKey) return syncEngine.start(); })
+    .catch((error: unknown) => console.error("[sync] startup failed", error));
+}
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

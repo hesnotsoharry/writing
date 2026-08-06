@@ -44,6 +44,7 @@ const boardsStore = new SqliteBoardsStore();
 
 function makePersistenceAdapter(boardId: string): SceneDocStore {
   return {
+    listAll: () => boardDocStore.listAll(),
     load: () => boardDocStore.load(boardId),
     save: (_id: string, base64: string) => boardDocStore.save(boardId, base64),
     loadProjection: () => Promise.resolve(null),

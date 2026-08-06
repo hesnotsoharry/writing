@@ -1,5 +1,7 @@
 /** Abstraction over where a scene's serialized Yjs doc lives. */
 export interface SceneDocStore {
+  /** List every stored scene doc for background state-vector sweeps. */
+  listAll(): Promise<Array<{ id: string; stateBase64: string; updatedAt: string | null }>>;
   /** Return the base64-encoded doc for a scene, or null if none stored. */
   load(sceneId: string): Promise<string | null>;
   /**
@@ -19,6 +21,10 @@ export class InMemorySceneDocStore implements SceneDocStore {
   private docs = new Map<string, string>();
   private projections = new Map<string, string>();
   saveCount = 0;
+
+  async listAll(): Promise<Array<{ id: string; stateBase64: string; updatedAt: string | null }>> {
+    return Array.from(this.docs, ([id, stateBase64]) => ({ id, stateBase64, updatedAt: null }));
+  }
 
   async load(sceneId: string): Promise<string | null> {
     return this.docs.get(sceneId) ?? null;

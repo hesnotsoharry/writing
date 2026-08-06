@@ -75,6 +75,8 @@ export interface Tweaks {
   // ── Custom endpoints (Wave 45) ─────────────────────────────────────────────
   /** Saved local/custom OpenAI-compatible endpoint list + default selection. */
   customEndpoints: CustomEndpointStore;
+  /** Hidden S2 gate; S2e adds the user-facing settings control. */
+  syncExperimental: "on" | "off";
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -104,6 +106,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   aiSelMenu: false,
   aiModel: "claude-haiku-4-5-20251001",
   customEndpoints: { endpoints: [], defaultId: null },
+  syncExperimental: "off",
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────

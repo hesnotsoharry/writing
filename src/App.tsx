@@ -22,6 +22,7 @@ import { fetchAndStoreHouseStyleConfig } from "./features/ai/ai.house-style";
 import { ActivationGate } from "./features/license/ActivationGate";
 import { useLicenseGate } from "./features/license/license.gate";
 import { useStartupUpdateCheck } from "./lib/updater";
+import { syncEngine } from "./sync/engine";
 import { useTheme } from "./theme/useTheme";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded, extractPlainText } from "./yjs/serialize";
@@ -35,10 +36,8 @@ interface LoadSceneCtx {
   onSavedRef: MutableRefObject<((sceneId: string, wordCount: number) => void) | undefined>;
 }
 
-const sceneDocStore = new SqliteSceneDocStore();
-const binderStore = new SqliteBinderStore();
-const storyBibleStore = new SqliteStoryBibleStore();
-const labelStore = new SqliteLabelStore();
+const sceneDocStore = new SqliteSceneDocStore(); const binderStore = new SqliteBinderStore();
+const storyBibleStore = new SqliteStoryBibleStore(); const labelStore = new SqliteLabelStore();
 /**
  * Startup backfill: for every scene with word_count=0, load its stored
  * plaintext_projection and persist the real word count. Idempotent — only
@@ -69,7 +68,7 @@ async function backfillWordCounts(projectId: string): Promise<number> {
 async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
   const { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId } = ctx;
   const myToken = ++loadTokenRef.current;
-  unbindRef.current?.();
+  syncEngine.detachLiveDoc(); unbindRef.current?.();
   unbindRef.current = null;
   setDoc(null);
   const d = new Y.Doc();
@@ -78,13 +77,14 @@ async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
   applyEncoded(d, stored ?? "");
   const unbind = bindPersistence(d, sceneId, sceneDocStore, {
     debounceMs: 500,
-    onSaved: (id, wordCount, meta) => { if (meta.hadLocalEdits) ctx.onSavedRef.current?.(id, wordCount); },
+    onSaved: (id, wordCount, meta) => { if (meta.hadLocalEdits) {
+      ctx.onSavedRef.current?.(id, wordCount); syncEngine.notifyLocalSave(id);
+    } },
   });
 
   if (myToken !== loadTokenRef.current || !mountedRef.current) { unbind(); return; }
-  unbindRef.current = unbind;
-  setSelectedSceneId(sceneId);
-  setDoc(d);
+  unbindRef.current = unbind; syncEngine.attachLiveDoc(sceneId, d);
+  setSelectedSceneId(sceneId); setDoc(d);
 }
 
 interface InitProjectTreeOpts {
@@ -167,13 +167,13 @@ function useSceneLoader(opts: SceneLoaderOptions) {
     return () => {
       cancelled.value = true;
       mountedRef.current = false;
-      unbindRef.current?.();
+      syncEngine.detachLiveDoc(); unbindRef.current?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   function clearScene() {
     loadTokenRef.current += 1;
-    unbindRef.current?.();
+    syncEngine.detachLiveDoc(); unbindRef.current?.();
     unbindRef.current = null;
     setDoc(null);
     setSelectedSceneId(null);

@@ -2,6 +2,18 @@ import type { BoardDocStore } from "./boardDocStore";
 import { getDb } from "./schema";
 
 export class SqliteBoardDocStore implements BoardDocStore {
+  async listAll(): Promise<Array<{ id: string; stateBase64: string; updatedAt: string | null }>> {
+    const db = await getDb();
+    const rows = await db.select<Array<{
+      board_id: string; state_base64: string; updated_at: string | null;
+    }>>(
+      "SELECT board_id, state_base64, updated_at FROM board_docs"
+    );
+    return rows.map((row) => ({
+      id: row.board_id, stateBase64: row.state_base64, updatedAt: row.updated_at,
+    }));
+  }
+
   async load(boardId: string): Promise<string | null> {
     const db = await getDb();
     const rows = await db.select<{ state_base64: string }[]>(

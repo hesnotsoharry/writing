@@ -2,6 +2,18 @@ import type { SceneDocStore } from "./sceneDocStore";
 import { getDb } from "./schema";
 
 export class SqliteSceneDocStore implements SceneDocStore {
+  async listAll(): Promise<Array<{ id: string; stateBase64: string; updatedAt: string | null }>> {
+    const db = await getDb();
+    const rows = await db.select<Array<{
+      scene_id: string; state_base64: string; updated_at: string | null;
+    }>>(
+      "SELECT scene_id, state_base64, updated_at FROM scene_docs"
+    );
+    return rows.map((row) => ({
+      id: row.scene_id, stateBase64: row.state_base64, updatedAt: row.updated_at,
+    }));
+  }
+
   async load(sceneId: string): Promise<string | null> {
     const db = await getDb();
     const rows = await db.select<{ state_base64: string }[]>(

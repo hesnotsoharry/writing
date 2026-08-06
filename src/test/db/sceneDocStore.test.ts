@@ -39,4 +39,17 @@ describe("SqliteSceneDocStore", () => {
       vi.useRealTimers();
     }
   });
+
+  it("lists all stored docs with sync metadata", async () => {
+    mockDb.select.mockResolvedValueOnce([
+      { scene_id: "scene-1", state_base64: "state", updated_at: "2026-08-06T10:00:00Z" },
+    ]);
+
+    await expect(store.listAll()).resolves.toEqual([
+      { id: "scene-1", stateBase64: "state", updatedAt: "2026-08-06T10:00:00Z" },
+    ]);
+    expect(mockDb.select).toHaveBeenCalledWith(
+      "SELECT scene_id, state_base64, updated_at FROM scene_docs",
+    );
+  });
 });

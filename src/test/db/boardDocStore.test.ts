@@ -53,6 +53,19 @@ describe("BoardDocStore", () => {
       );
     });
 
+    it("lists all stored docs with sync metadata", async () => {
+      mockDb.select.mockResolvedValueOnce([
+        { board_id: "board-1", state_base64: "state", updated_at: null },
+      ]);
+
+      await expect(store.listAll()).resolves.toEqual([
+        { id: "board-1", stateBase64: "state", updatedAt: null },
+      ]);
+      expect(mockDb.select).toHaveBeenCalledWith(
+        "SELECT board_id, state_base64, updated_at FROM board_docs",
+      );
+    });
+
     it("loads and returns the stored base64 string when a board doc exists", async () => {
       // Arrange: Create a simple Y.Doc and encode it.
       const doc = new Y.Doc();

@@ -8,6 +8,7 @@ import * as Y from "yjs";
 import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
 import { getTweak, TWEAK_DEFAULTS } from "./features/settings/settings.store";
+import { syncEngine } from "./sync/engine";
 import { applyEncoded, encodeDoc, extractPlainText } from "./yjs/serialize";
 
 export const snapshotStore = new SqliteSnapshotStore();
@@ -137,6 +138,7 @@ export function snapRename(snapshotId: string, label: string, sceneId: string | 
 
 export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Promise<void> {
   const { targetSceneId, isActive, activeDoc, set, load, save, reloadScene } = opts;
+  syncEngine.pause();
   try {
     const record = await snapshotStore.getSnapshot(snapshotId);
     if (!record) return;
@@ -158,6 +160,8 @@ export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Pr
     reloadSnapshotList(targetSceneId, set);
   } catch (e: unknown) {
     console.error("[snapshots] restore failed", e);
+  } finally {
+    syncEngine.resume();
   }
 }
 
@@ -171,7 +175,8 @@ export function snapUndoReplace(
   getDoc: (sceneId: string) => Y.Doc | null = () => null,
   reloadScene?: (sceneId: string) => void,
 ): void {
-  for (const sid of sceneIds) {
+  syncEngine.pause();
+  const restores = sceneIds.map((sid) =>
     snapshotStore.listSnapshots(sid)
       .then((list) => list.find((s) => s.kind === "auto") ?? null)
       .then((snap) => snap ? snapshotStore.getSnapshot(snap.id) : null)
@@ -183,8 +188,10 @@ export function snapUndoReplace(
           if (doc) applyEncoded(doc, record.stateBase64);
         });
       })
-      .catch((e: unknown) => console.error("[undo-replace] restore failed", e));
-  }
+      .catch((e: unknown) => console.error("[undo-replace] restore failed", e)),
+  );
+  void Promise.all(restores)
+    .finally(() => syncEngine.resume());
 }
 
 /**

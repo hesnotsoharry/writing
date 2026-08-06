@@ -13,6 +13,7 @@
  */
 import * as Y from "yjs";
 
+import { syncEngine } from "../sync/engine";
 import { applyEncoded, encodeDoc, extractPlainText, xmlTextToPlain } from "../yjs/serialize";
 import { getDb } from "./schema";
 import type { SnapshotStore } from "./snapshotStore";
@@ -148,9 +149,14 @@ async function persistDoc(
   doc: Y.Doc,
   plaintext: string,
 ): Promise<void> {
-  const wordCount = plaintext.trim() ? plaintext.trim().split(/\s+/).filter(Boolean).length : 0;
-  await sceneDocStore.save(sceneId, encodeDoc(doc), plaintext);
-  await db.execute("UPDATE scenes SET word_count = $1 WHERE id = $2", [wordCount, sceneId]);
+  syncEngine.pause();
+  try {
+    const wordCount = plaintext.trim() ? plaintext.trim().split(/\s+/).filter(Boolean).length : 0;
+    await sceneDocStore.save(sceneId, encodeDoc(doc), plaintext);
+    await db.execute("UPDATE scenes SET word_count = $1 WHERE id = $2", [wordCount, sceneId]);
+  } finally {
+    syncEngine.resume();
+  }
 }
 
 // ── Exported functions ────────────────────────────────────────────────────────
