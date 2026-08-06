@@ -491,8 +491,45 @@ WNMotion.ready(function () {
 
     // rail
     const fill = q('#f-railfill');
-    ScrollTrigger.create({ start: 0, end: 'max', onUpdate: (s) => { if (fill) fill.style.height = (s.progress * 64).toFixed(2) + '%'; } });
+    const rail = q('#f-rail');
     const ticks = qa('.f-tick');
+    // The fill tip must cross tick k at the same moment chapter k crosses the middle
+    // of the viewport (when the tick lights up). Chapters differ in height while the
+    // ticks are an even grid, so the mapping is piecewise: one scroll stop per chapter
+    // midpoint, anchored to that tick's actual y in the (fixed) rail.
+    const chapters = ['#f-1', '#f-2', '#f-3', '#f-4', '#f-5', '#f-6', '#f-7'].map(q);
+    let stops = [];
+    const placeFill = () => {
+      if (!fill || !rail || !stops.length) return;
+      const y = window.scrollY;
+      let a = stops[0], b = stops[stops.length - 1];
+      for (let i = 0; i < stops.length - 1; i++) {
+        if (y >= stops[i][0] && y <= stops[i + 1][0]) { a = stops[i]; b = stops[i + 1]; break; }
+      }
+      const t = b[0] === a[0] ? 1 : Math.min(1, Math.max(0, (y - a[0]) / (b[0] - a[0])));
+      const tip = a[1] + (b[1] - a[1]) * t;
+      fill.style.height = Math.max(0, (tip / rail.getBoundingClientRect().height) * 100 - 18).toFixed(2) + '%';
+    };
+    const measureRail = () => {
+      if (!rail) return;
+      const railH = rail.getBoundingClientRect().height;
+      const sy = window.scrollY;
+      const max = document.documentElement.scrollHeight - innerHeight;
+      stops = [[0, railH * .18]];
+      chapters.forEach((el, i) => {
+        if (!el || !ticks[i]) return;
+        const r = el.getBoundingClientRect();
+        const mid = Math.min(max, Math.max(0, sy + r.top + r.height / 2 - innerHeight / 2));
+        const tr = ticks[i].getBoundingClientRect();
+        stops.push([mid, tr.top + tr.height / 2]);
+      });
+      stops.push([max, railH * .82]);
+      stops.sort((a, b) => a[0] - b[0]);
+      placeFill();
+    };
+    ScrollTrigger.create({ start: 0, end: 'max', onUpdate: placeFill, onRefresh: measureRail });
+    window.addEventListener('resize', measureRail);
+    measureRail();
     const setTick = (i) => ticks.forEach((t, k) => {
       gsap.to(t, { opacity: k === i ? 1 : .4, duration: .3 });
       gsap.to(t.children[0], { width: k === i ? 18 : 10, backgroundColor: k === i ? '#b25a38' : '#b3a892', duration: .3 });
