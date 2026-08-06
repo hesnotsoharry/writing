@@ -42,7 +42,9 @@ if (!import.meta.env.DEV) installContextMenuGuard();
 
 if (getTweak("syncExperimental", "off") === "on") {
   void hasSyncMasterKey()
-    .then((hasKey) => { if (hasKey) return syncEngine.start(); })
+    .then((hasKey) => {
+      if (hasKey) return syncEngine.start(getTweak("syncRelayUrl", ""));
+    })
     .catch((error: unknown) => console.error("[sync] startup failed", error));
 }
 

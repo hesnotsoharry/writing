@@ -77,6 +77,8 @@ export interface Tweaks {
   customEndpoints: CustomEndpointStore;
   /** Hidden S2 gate; S2e adds the user-facing settings control. */
   syncExperimental: "on" | "off";
+  /** Relay URL override for local/dev testing; empty = the production default. */
+  syncRelayUrl: string;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -107,6 +109,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   aiModel: "claude-haiku-4-5-20251001",
   customEndpoints: { endpoints: [], defaultId: null },
   syncExperimental: "off",
+  syncRelayUrl: "",
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────

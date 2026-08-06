@@ -78,7 +78,9 @@ export class SyncEngine {
     this.options = options;
   }
 
-  async start(): Promise<void> {
+  /** `relayUrlOverride` lets callers honor the `syncRelayUrl` tweak without
+   *  rebuilding the engine (the default URL is fixed at construction). */
+  async start(relayUrlOverride?: string): Promise<void> {
     if (this.provider) return;
     const masterKey = await this.options.readMasterKey();
     if (!masterKey) { this.setStatus({ state: "off" }); return; }
@@ -87,7 +89,8 @@ export class SyncEngine {
     ]);
     this.encKey = encKey;
     this.deviceId = deviceId;
-    const provider = this.options.providerFactory(this.options.relayUrl, roomId, deviceId);
+    const relayUrl = relayUrlOverride?.trim() ? relayUrlOverride.trim() : this.options.relayUrl;
+    const provider = this.options.providerFactory(relayUrl, roomId, deviceId);
     this.provider = provider;
     provider.subscribeConnection((state) => this.onConnection(state));
     provider.subscribeFrames((blob) => { void this.onBlob(blob).catch(() => undefined); });
