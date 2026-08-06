@@ -475,7 +475,7 @@ WNMotion.ready(function () {
       if (this.act === i) return;
       const prev = this.act; this.act = i;
       caps.forEach((c, k) => gsap.to(c, { opacity: k === i - 1 ? 1 : 0, y: k === i - 1 ? 0 : 8, duration: .5, ease: 'power2.out' }));
-      gsap.to('#st-open', { opacity: i === 0 ? 1 : 0, duration: .5 });
+      // #st-open opacity is scrub-driven in onUpdate — a time-based tween here would fight it
 
       if (i === 0) { setView('write'); setFocus(false); setTheme(false); }
       if (i === 1) { setView('write'); setFocus(false); setTheme(false); if (prev < 1) this.runCounters(gsap); }
@@ -505,7 +505,10 @@ WNMotion.ready(function () {
           scale: gsap.utils.interpolate(.82, 1, rise) - bye * .08,
           rotationX: gsap.utils.interpolate(12, 0, rise) + bye * 6
         });
-        gsap.set('#st-open', { yPercent: rise * -16, scale: 1 - rise * .06 });
+        // hero copy clears while the window is still rising: fully faded by p≈.08,
+        // just before the window locks into place at p=.13 — no lingering overlap
+        const heroFade = gsap.utils.clamp(0, 1, (p - .02) / .06);
+        gsap.set('#st-open', { opacity: 1 - heroFade, yPercent: rise * -24, scale: 1 - rise * .06 });
         gsap.set('#st-caps', { y: (1 - gsap.utils.clamp(0, 1, (p - .13) / .1)) * 14 });
 
         // prose types itself against the scroll during act 1→2
