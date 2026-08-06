@@ -5,6 +5,7 @@ mod byok_openai;
 mod grammar;
 mod license;
 pub mod local_endpoint;
+mod sync_key;
 
 use tauri::Manager;
 
@@ -184,6 +185,10 @@ pub fn run() {
             byok_openai::byok_openai_stop,
             byok_local::byok_local_chat,
             byok_local::byok_local_stop,
+            sync_key::sync_set_master_key,
+            sync_key::sync_get_master_key,
+            sync_key::sync_has_master_key,
+            sync_key::sync_clear_master_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
