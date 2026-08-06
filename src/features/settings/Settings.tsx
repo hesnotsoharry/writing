@@ -12,6 +12,7 @@ import {
   AppearanceSection,
   BackupSection,
   EditorSection,
+  SyncSection,
   WritingSection,
 } from "./Settings.sections";
 import type { Tweaks } from "./settings.store";
@@ -30,12 +31,12 @@ export interface SettingsProps {
 
 // ── Nav definition ────────────────────────────────────────────────────────────
 
-type SectionId = "appearance" | "editor" | "writing" | "ai" | "backup" | "about";
+type SectionId = "appearance" | "editor" | "writing" | "ai" | "sync" | "backup" | "about";
 
 interface NavItem {
   id: SectionId;
   label: string;
-  icon: "palette" | "type" | "feather" | "sparkle" | "archive" | "info";
+  icon: "palette" | "type" | "feather" | "sparkle" | "cloud" | "archive" | "info";
 }
 
 const SET_NAV: NavItem[] = [
@@ -43,6 +44,7 @@ const SET_NAV: NavItem[] = [
   { id: "editor",     label: "Editor",        icon: "type"     },
   { id: "writing",    label: "Writing",       icon: "feather"  },
   { id: "ai",         label: "AI assistant",  icon: "sparkle"  },
+  { id: "sync",       label: "Sync",          icon: "cloud"    },
   { id: "backup",     label: "Backup & data", icon: "archive"  },
   { id: "about",      label: "About",         icon: "info"     },
 ];
@@ -159,6 +161,7 @@ function SectionRouter({ sec, tweaks, setTweak, theme, accent, onThemeChange, on
   if (sec === "editor")     return <EditorSection tweaks={tweaks} setTweak={setTweak} />;
   if (sec === "writing")    return <WritingSection tweaks={tweaks} setTweak={setTweak} onOpenGoals={onOpenGoals} />;
   if (sec === "ai")         return <AiSection tweaks={tweaks} setTweak={setTweak} />;
+  if (sec === "sync")       return <SyncSection tweaks={tweaks} setTweak={setTweak} />;
   if (sec === "backup")     return <BackupSection showToast={showToast} />;
   return (
     <>

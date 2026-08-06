@@ -276,6 +276,7 @@ export function BackupSection({ showToast }: BackupSectionProps) {
 // ── Section: AI assistant (Wave 35 — extracted to Settings.ai.tsx) ───────────
 
 export { AiSection } from './Settings.ai';
+export { SyncSection } from './Settings.sync';
 
 // ── Section: About ────────────────────────────────────────────────────────────
 

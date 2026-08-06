@@ -2283,6 +2283,29 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .set-input:focus { border-color: var(--accent-ring); box-shadow: 0 0 0 2px var(--accent-wash); }
 .set-input:disabled { opacity: 0.55; background: var(--parchment); color: var(--ink-3); }
 
+/* -- Settings ▸ device sync ----------------------------------------------- */
+.sync-section { padding: var(--s-3) 0 var(--s-2); border-bottom: 1px solid var(--line-soft); }
+.sync-heading { margin: 0 0 var(--s-3); color: var(--ink); font-family: var(--font-prose);
+  font-size: var(--text-lg); font-weight: var(--w-semi); }
+.sync-explainer { margin: 0 0 var(--s-4); max-width: 55ch; color: var(--ink-2);
+  font-size: var(--text-sm); line-height: 1.55; }
+.sync-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.sync-status { margin-bottom: var(--s-3); color: var(--ink-2); font-size: var(--text-sm);
+  font-weight: var(--w-medium); }
+.sync-status[data-state="connected"] { color: var(--accent-deep); }
+.sync-pairing, .sync-join { margin-top: var(--s-3); padding: var(--s-3);
+  background: var(--parchment); border: 1px solid var(--line); border-radius: var(--r-md); }
+.sync-pairing-guide { margin-bottom: var(--s-2); color: var(--ink-3); font-size: var(--text-xs); }
+.sync-pairing-code { display: flex; align-items: center; gap: var(--s-2); }
+.sync-pairing-code code { min-width: 0; overflow-wrap: anywhere; color: var(--ink);
+  font-family: var(--font-mono); font-size: var(--text-xs); }
+.sync-pairing-input { margin-bottom: var(--s-2); font-family: var(--font-mono); }
+.sync-error { margin: 0 0 var(--s-2); color: var(--danger); font-size: var(--text-xs); }
+.sync-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2);
+  margin-top: var(--s-3); color: var(--ink-2); font-size: var(--text-xs); }
+.sync-confirm span { flex-basis: 100%; }
+.sync-relay-input { width: 250px; }
+
 /* -- BYOK shared primitives ------------------------------------------------ */
 
 /* Column stack: input(s) → button → error */
