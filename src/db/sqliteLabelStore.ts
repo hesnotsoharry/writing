@@ -4,6 +4,12 @@
  * Mirrors SqliteSnapshotStore's pattern: getDb(), $1-style params.
  * color is stored as the palette token name, never a hex value.
  */
+import {
+  bridgeDeletedLabel,
+  bridgeLabel,
+  bridgeLabelOrder,
+  bridgeSceneLabel,
+} from "../sync/meta/localBridge";
 import type { Label, LabelColor, LabelStore } from "./labelStore";
 import { getDb } from "./schema";
 
@@ -26,6 +32,54 @@ function mapRow(row: LabelRow): Label {
   };
 }
 
+function reportLookup(operation: string, task: Promise<void>): void {
+  void task.catch((error: unknown) => console.error(`[sync-meta] ${operation}`, error));
+}
+
+async function loadLabel(id: string): Promise<Label | undefined> {
+  const db = await getDb();
+  const rows = await db.select<LabelRow[]>(
+    "SELECT id, project_id, name, color, sort FROM labels WHERE id=$1", [id]
+  );
+  return rows[0] ? mapRow(rows[0]) : undefined;
+}
+
+async function bridgeUpdatedLabel(id: string, fresh: boolean): Promise<void> {
+  const label = await loadLabel(id);
+  if (!label) return;
+  let orderedIds: string[] | undefined;
+  if (fresh) {
+    const db = await getDb();
+    const rows = await db.select<Array<{ id: string }>>(
+      "SELECT id FROM labels WHERE project_id=$1 ORDER BY sort ASC", [label.projectId]
+    );
+    orderedIds = rows.map((row) => row.id);
+  }
+  bridgeLabel(label, orderedIds);
+}
+
+async function bridgeAssignment(sceneId: string, labelId: string, assigned: boolean): Promise<void> {
+  const label = await loadLabel(labelId);
+  if (label) bridgeSceneLabel(label.projectId, sceneId, labelId, assigned);
+}
+
+async function captureLabelDelete(id: string): Promise<{
+  label: Label; sceneIds: string[];
+} | undefined> {
+  try {
+    const db = await getDb();
+    const label = await loadLabel(id);
+    if (!label) return undefined;
+    const rows = await db.select<Array<{ scene_id: string }>>(
+      "SELECT scene_id FROM scene_labels WHERE label_id=$1", [id]
+    );
+    return { label, sceneIds: rows.map((row) => row.scene_id) };
+  } catch (error) {
+    console.error("[sync-meta] label delete capture", error);
+    return undefined;
+  }
+}
+
 export class SqliteLabelStore implements LabelStore {
   async createLabel(
     projectId: string,
@@ -39,15 +93,16 @@ export class SqliteLabelStore implements LabelStore {
     );
     if ((countRows[0]?.cnt ?? 0) >= 8) throw new Error("Label cap reached (8)");
     const id = crypto.randomUUID();
-    const rows = await db.select<{ maxSort: number | null }[]>(
-      `SELECT MAX(sort) as maxSort FROM labels WHERE project_id = $1`,
+    const rows = await db.select<Array<{ id: string; sort: number }>>(
+      `SELECT id, sort FROM labels WHERE project_id = $1 ORDER BY sort ASC`,
       [projectId]
     );
-    const sort = (rows[0]?.maxSort ?? -1) + 1;
+    const sort = Math.max(-1, ...rows.map((row) => row.sort)) + 1;
     await db.execute(
       `INSERT INTO labels (id, project_id, name, color, sort) VALUES ($1, $2, $3, $4, $5)`,
       [id, projectId, name, color, sort]
     );
+    bridgeLabel({ id, projectId, name, color }, [...rows.map((row) => row.id), id]);
     return { id, projectId, name, color, sort };
   }
 
@@ -72,12 +127,15 @@ export class SqliteLabelStore implements LabelStore {
       `UPDATE labels SET name = COALESCE($1, name), color = COALESCE($2, color), sort = COALESCE($3, sort) WHERE id = $4`,
       [patch.name ?? null, patch.color ?? null, patch.sort ?? null, id]
     );
+    reportLookup("label update", bridgeUpdatedLabel(id, patch.sort !== undefined));
   }
 
   async deleteLabel(id: string): Promise<void> {
     const db = await getDb();
+    const captured = await captureLabelDelete(id);
     await db.execute(`DELETE FROM scene_labels WHERE label_id = $1`, [id]);
     await db.execute(`DELETE FROM labels WHERE id = $1`, [id]);
+    if (captured) bridgeDeletedLabel(captured.label.projectId, id, captured.sceneIds);
   }
 
   async assignLabel(sceneId: string, labelId: string): Promise<void> {
@@ -87,6 +145,7 @@ export class SqliteLabelStore implements LabelStore {
       `INSERT OR IGNORE INTO scene_labels (scene_id, label_id) VALUES ($1, $2)`,
       [sceneId, labelId]
     );
+    reportLookup("scene-label assign", bridgeAssignment(sceneId, labelId, true));
   }
 
   async unassignLabel(sceneId: string, labelId: string): Promise<void> {
@@ -95,6 +154,7 @@ export class SqliteLabelStore implements LabelStore {
       `DELETE FROM scene_labels WHERE scene_id = $1 AND label_id = $2`,
       [sceneId, labelId]
     );
+    reportLookup("scene-label unassign", bridgeAssignment(sceneId, labelId, false));
   }
 
   async getSceneLabels(sceneId: string): Promise<Label[]> {
@@ -115,6 +175,13 @@ export class SqliteLabelStore implements LabelStore {
     for (let idx = 0; idx < ids.length; idx++) {
       await db.execute(`UPDATE labels SET sort = $1 WHERE id = $2`, [idx, ids[idx]]);
     }
+    const first = ids[0];
+    if (first) reportLookup("label reorder", (async () => {
+      const label = await loadLabel(first);
+      if (!label) return;
+      const rows = await this.listLabels(label.projectId);
+      bridgeLabelOrder(label.projectId, rows);
+    })());
   }
 
   async getAllSceneLabels(): Promise<Record<string, Label[]>> {
