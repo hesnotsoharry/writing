@@ -9,6 +9,7 @@ import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
 import { getTweak, TWEAK_DEFAULTS } from "./features/settings/settings.store";
 import { syncEngine } from "./sync/engine";
+import { bumpProjectSceneEpoch } from "./sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText } from "./yjs/serialize";
 
 export const snapshotStore = new SqliteSnapshotStore();
@@ -33,6 +34,7 @@ export interface SnapTargetOpts {
 
 /** Extended opts for snapRestore — also needs to persist bytes + optionally reload the live editor. */
 export interface SnapRestoreOpts extends SnapTargetOpts {
+  projectId?: string;
   save: (sceneId: string, base64: string, plaintext: string | null) => Promise<void>;
   reloadScene: (sceneId: string) => void;
 }
@@ -153,6 +155,7 @@ export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Pr
     // The scene reload reads from storage, so saving after the reload would silently no-op.
     // This is the same save-then-reloadScene idiom used by snapUndoReplace (App.snapshots.ts:75–76).
     await save(targetSceneId, record.stateBase64, null);
+    if (opts.projectId) await bumpProjectSceneEpoch(opts.projectId, targetSceneId);
     // Reload the live editor only when target === active scene.
     // Yjs is append-only — applyEncoded cannot rewind a live doc; a full scene reload is required.
     // For non-active target: bytes are now in storage; the next open picks them up automatically.
@@ -173,8 +176,12 @@ export function snapUndoReplace(
   sceneIds: string[],
   save: (sceneId: string, base64: string, plaintext: string | null) => Promise<void>,
   getDoc: (sceneId: string) => Y.Doc | null = () => null,
-  reloadScene?: (sceneId: string) => void,
+  reload?: ((sceneId: string) => void) | {
+    reloadScene?: (sceneId: string) => void; projectId?: string;
+  },
 ): void {
+  const reloadScene = typeof reload === "function" ? reload : reload?.reloadScene;
+  const projectId = typeof reload === "function" ? undefined : reload?.projectId;
   syncEngine.pause();
   const restores = sceneIds.map((sid) =>
     snapshotStore.listSnapshots(sid)
@@ -182,7 +189,8 @@ export function snapUndoReplace(
       .then((snap) => snap ? snapshotStore.getSnapshot(snap.id) : null)
       .then((record) => {
         if (!record) return;
-        return save(sid, record.stateBase64, null).then(() => {
+        return save(sid, record.stateBase64, null).then(async () => {
+          if (projectId) await bumpProjectSceneEpoch(projectId, sid);
           if (reloadScene) { reloadScene(sid); return; }
           const doc = getDoc(sid);
           if (doc) applyEncoded(doc, record.stateBase64);

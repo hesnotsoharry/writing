@@ -8,6 +8,7 @@ import { useDetectionWiring } from "./App.detection";
 import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
 import { backfillSnapshotWordCounts, fetchSnapshotText, snapCapture, type SnapCtx, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace, useActiveSceneSnapshots } from "./App.snapshots";
 import { useAppState, useProjectActions } from "./App.state";
+import { useSyncCallbacks } from "./App.sync";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import { type BinderTree,buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
@@ -192,9 +193,6 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   const { setTree, setSelectedSceneId, setDoc, setLoading, setProjects,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
     setLinksVersion, selectedSceneId, doc } = state;
-  // Fix 3: stable callback identity — wrapping in useCallback ensures the
-  // detection-wiring effect does not re-run on every render because
-  // onWordCountPersisted was a new inline arrow each time.
   const onWordCountPersisted = useCallback(() => {
     const id = activeProjectIdRef.current;
     if (!id) return;
@@ -243,8 +241,6 @@ function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, sho
     }).catch((e: unknown) => console.error("[snapshots] listSnapshots failed", e));
     return () => { alive = false; };
   }, [historySceneId, showHistory]);
-  // Derive baseline text inline. Only use the in-memory doc when it's for the overlay scene.
-  // For cross-scene overlay (context-menu on a different scene), show empty — better than wrong.
   const historyCurrentText = historySceneId === selectedSceneId
     ? (doc && selectedSceneId ? extractPlainText(doc) : "")
     : "";
@@ -253,13 +249,11 @@ function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, sho
 }
 
 function useAppCore() {
-  const state = useAppState();
-  useStartupUpdateCheck((u) => state.setPendingUpdate(u));
+  const state = useAppState(); useStartupUpdateCheck((u) => state.setPendingUpdate(u));
   const { setTheme, setAccent } = useTheme();
-  const wiring = useAppWiring(state);
+  const wiring = useAppWiring(state); useSyncCallbacks(state.selectedSceneId, wiring.reloadTree, wiring.handleSelectScene);
   const { doc, selectedSceneId, showHistory, historySceneId } = state;
   const snap = useSnapshotState(doc, selectedSceneId, showHistory, historySceneId);
-  // Rail snapshots: always track the active scene, independent of the overlay.
   const [railRefreshKey, setRailRefreshKey] = useState(0); const bumpRailKey = useCallback(() => setRailRefreshKey((k) => k + 1), []);
   const railSnapshots = useActiveSceneSnapshots(snapshotStore, selectedSceneId, railRefreshKey);
   return { state, wiring, snap, railSnapshots, bumpRailKey, setTheme, setAccent };
@@ -295,13 +289,13 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     historySnapshots, historyCurrentText, historyCurrentWords,
     onHistoryCapture: () => historySceneId ? snapCapture({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then((id) => { bumpRailKey(); return id; }) : Promise.resolve(null),
     onHistoryRename: (id: string, label: string) => { void snapRename(id, label, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
-    onHistoryRestore: (id: string) => historySceneId ? snapRestore({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.handleSelectScene }, id).then(() => bumpRailKey()) : Promise.resolve(),
+    onHistoryRestore: (id: string) => historySceneId ? snapRestore({ projectId: activeProjectId ?? undefined, targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.handleSelectScene }, id).then(() => bumpRailKey()) : Promise.resolve(),
     onHistoryDelete: (id: string) => { void snapDelete(id, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
     onHistoryGetText: fetchSnapshotText,
     showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed,
     findReplaceProjectId: activeProjectId, findReplaceSnapshotStore: snapshotStore,
     onFindReplaceJump: wiring.handleSelectScene,
-    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null), (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }),
+    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null), { reloadScene: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }, projectId: activeProjectId ?? undefined }),
     onAfterReplace: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }, pendingUpdate, setPendingUpdate, appInstallError, setAppInstallError,
   };
 }

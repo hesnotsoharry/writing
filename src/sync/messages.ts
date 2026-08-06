@@ -14,18 +14,21 @@ export interface DiffMessage {
   t: "diff";
   c: string;
   u: string;
+  e?: number;
 }
 
 export interface LiveMessage {
   t: "live";
   c: string;
   u: string;
+  e?: number;
 }
 
 export type InnerMessage = HelloMessage | DiffMessage | LiveMessage;
 export type Channel =
   | { kind: "scene"; id: string }
-  | { kind: "board"; id: string };
+  | { kind: "board"; id: string }
+  | { kind: "meta"; id: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -50,7 +53,8 @@ function isUpdateMessage(value: unknown, type: "diff" | "live"): boolean {
   return isRecord(value)
     && value.t === type
     && typeof value.c === "string"
-    && typeof value.u === "string";
+    && typeof value.u === "string"
+    && (value.e === undefined || (typeof value.e === "number" && Number.isInteger(value.e)));
 }
 
 export function isDiffMessage(value: unknown): value is DiffMessage {
@@ -73,10 +77,14 @@ export function boardChannel(id: string): string {
   return `board:${id}`;
 }
 
+export function metaChannel(id: string): string {
+  return `meta:${id}`;
+}
+
 export function parseChannel(channel: string): Channel | null {
   const separator = channel.indexOf(":");
   const kind = channel.slice(0, separator);
   const id = channel.slice(separator + 1);
-  if (!id || (kind !== "scene" && kind !== "board")) return null;
+  if (!id || (kind !== "scene" && kind !== "board" && kind !== "meta")) return null;
   return { kind, id };
 }

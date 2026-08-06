@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   boardChannel,
   isInnerMessage,
+  metaChannel,
   parseChannel,
   sceneChannel,
 } from "../../sync/messages";
@@ -29,12 +30,14 @@ describe("sync channels", () => {
   it("creates and parses scene and board channels", () => {
     expect(sceneChannel("scene-id")).toBe("scene:scene-id");
     expect(boardChannel("board-id")).toBe("board:board-id");
+    expect(metaChannel("project-id")).toBe("meta:project-id");
     expect(parseChannel("scene:scene-id")).toEqual({ kind: "scene", id: "scene-id" });
     expect(parseChannel("board:board-id")).toEqual({ kind: "board", id: "board-id" });
+    expect(parseChannel("meta:project-id")).toEqual({ kind: "meta", id: "project-id" });
   });
 
   it("rejects unsupported or empty channels", () => {
-    expect(parseChannel("meta:project-id")).toBeNull();
+    expect(parseChannel("other:project-id")).toBeNull();
     expect(parseChannel("scene:")).toBeNull();
     expect(parseChannel("scene")).toBeNull();
   });

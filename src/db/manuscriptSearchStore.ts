@@ -14,6 +14,7 @@
 import * as Y from "yjs";
 
 import { syncEngine } from "../sync/engine";
+import { bumpProjectSceneEpoch } from "../sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText, xmlTextToPlain } from "../yjs/serialize";
 import { getDb } from "./schema";
 import type { SnapshotStore } from "./snapshotStore";
@@ -145,15 +146,15 @@ function replaceInDoc(doc: Y.Doc, find: string, replace: string, opts?: FindOpts
 
 async function persistDoc(
   db: Awaited<ReturnType<typeof getDb>>,
-  sceneId: string,
-  doc: Y.Doc,
-  plaintext: string,
+  input: { sceneId: string; projectId?: string; doc: Y.Doc; plaintext: string },
 ): Promise<void> {
+  const { sceneId, projectId, doc, plaintext } = input;
   syncEngine.pause();
   try {
     const wordCount = plaintext.trim() ? plaintext.trim().split(/\s+/).filter(Boolean).length : 0;
     await sceneDocStore.save(sceneId, encodeDoc(doc), plaintext);
     await db.execute("UPDATE scenes SET word_count = $1 WHERE id = $2", [wordCount, sceneId]);
+    if (projectId) await bumpProjectSceneEpoch(projectId, sceneId);
   } finally {
     syncEngine.resume();
   }
@@ -232,6 +233,12 @@ export async function replaceInScene(
   await snapshotStore.takeSnapshot({
     sceneId, label: null, stateBase64: existingBase64 ?? "", wordCount: currentWords, kind: "auto",
   });
-  await persistDoc(db, sceneId, currentDoc, extractPlainText(currentDoc));
+  const projectRows = await db.select<Array<{ project_id: string }>>(
+    "SELECT project_id FROM scenes WHERE id = $1", [sceneId]
+  );
+  const projectId = projectRows[0]?.project_id;
+  await persistDoc(db, {
+    sceneId, projectId, doc: currentDoc, plaintext: extractPlainText(currentDoc),
+  });
   return { replacedCount: count };
 }

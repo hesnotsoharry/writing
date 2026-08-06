@@ -5,10 +5,18 @@ import { getDb } from "../../db/schema";
 import { SqliteProjectMetaDocStore } from "../../db/sqliteProjectMetaDocStore";
 import { normalizeStatus } from "../../lib/status";
 import { applyEncoded, encodeDoc } from "../../yjs/serialize";
-import { buildFromSql, type SqlMetaRows } from "./metaDoc";
+import { buildFromSql, bumpEpoch, getDocEpochs, type SqlMetaRows } from "./metaDoc";
 
 const store = new SqliteProjectMetaDocStore();
 const projectTails = new Map<string, Promise<void>>();
+const saveListeners = new Set<(projectId: string, epochs: Record<string, number>) => void>();
+
+export function subscribeProjectMetaSaves(
+  listener: (projectId: string, epochs: Record<string, number>) => void
+): () => void {
+  saveListeners.add(listener);
+  return () => saveListeners.delete(listener);
+}
 
 function runExclusive(projectId: string, operation: () => Promise<void>): Promise<void> {
   const prior = projectTails.get(projectId) ?? Promise.resolve();
@@ -33,7 +41,13 @@ export function withProjectMeta(
     applyEncoded(doc, encoded);
     doc.transact(() => mutate(doc));
     await store.save(projectId, encodeDoc(doc));
+    const epochs = getDocEpochs(doc);
+    saveListeners.forEach((listener) => listener(projectId, epochs));
   });
+}
+
+export function bumpProjectSceneEpoch(projectId: string, sceneId: string): Promise<void> {
+  return withProjectMeta(projectId, (doc) => { bumpEpoch(doc, sceneId); });
 }
 
 async function loadSqlRows(projectId: string): Promise<SqlMetaRows> {
@@ -79,6 +93,10 @@ export function bootstrapProjectMeta(projectId: string): Promise<void> {
 /** Bootstrap meta docs for every local project. Reserved for sync-engine startup. */
 export async function ensureAllProjectMetas(): Promise<void> {
   const db = await getDb();
-  const projects = await db.select<Array<{ id: string }>>("SELECT id FROM projects");
-  await Promise.all(projects.map(({ id }) => bootstrapProjectMeta(id)));
+  const [projects, existing] = await Promise.all([
+    db.select<Array<{ id: string }>>("SELECT id FROM projects"), store.listAll(),
+  ]);
+  const existingIds = new Set(existing.map(({ id }) => id));
+  await Promise.all(projects.filter(({ id }) => !existingIds.has(id))
+    .map(({ id }) => bootstrapProjectMeta(id)));
 }
