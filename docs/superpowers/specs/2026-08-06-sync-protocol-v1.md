@@ -99,3 +99,8 @@ first hello (meta + docs arrive as normal diffs). A device with existing local
 projects keeps them local-only: projects sync only if their `projectId` exists in the
 peer's meta channels. v1.1 has no merge-two-existing-projects flow; the UI badges
 projects as "synced" vs "this device only".
+
+Each meta doc carries a top-level `project` map (`id`, `title`, `type`) so a joining
+device can create the parent `projects` row before applying folders, scenes, and labels.
+The generating device persists `app_meta['sync_role'] = 'origin'`; a device entering a
+pairing string persists `joined` and never bootstraps meta docs for its existing projects.

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "../components/Icon";
 import type { Project } from "../db/binderStore";
+import { hasProjectMeta } from "../sync/meta/bridge";
 
 /** Returns next index clamped to [0, count-1]. Exported for unit tests. */
 export function clampIndex(next: number, count: number): number {
@@ -17,6 +18,7 @@ interface ProjectSwitcherProps {
   onSwitchProject: (projectId: string) => void;
   onCreateProject: (title: string) => void;
   activeWords?: number;
+  hasProjectMeta?: (projectId: string) => Promise<boolean>;
 }
 
 function typeLabel(p: Project): string {
@@ -57,9 +59,11 @@ interface ProjMenuProps {
   onNew: () => void;
   onClose: () => void;
   onFocusTrigger: () => void;
+  syncState: Record<string, boolean>;
 }
 
-function ProjMenu({ projects, activeProjectId, activeWords, onSwitch, onNew, onClose, onFocusTrigger }: ProjMenuProps) {
+function ProjMenu({ projects, activeProjectId, activeWords, onSwitch, onNew, onClose,
+  onFocusTrigger, syncState }: ProjMenuProps) {
   const itemCount = projects.length + 1;
   const initialIndex = Math.max(0, projects.findIndex((p) => p.id === activeProjectId));
   const [activeIndex, setActiveIndex] = useState(initialIndex);
@@ -81,6 +85,9 @@ function ProjMenu({ projects, activeProjectId, activeWords, onSwitch, onNew, onC
               <div className="pm">
                 <div className="pt">{p.title}</div>
                 <div className="ps">{subtitle(p, activeProjectId, activeWords)}</div>
+                {p.id in syncState && <div className="project-sync-badge">
+                  {syncState[p.id] ? "synced" : "this device only"}
+                </div>}
               </div>
               {isActive && <Icon name="check" className="tick" style={{ width: 16, height: 16 }} />}
             </button>
@@ -139,10 +146,12 @@ interface ProjectSwitcherSurfaceProps extends ProjectSwitcherProps {
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setCreateTitle: React.Dispatch<React.SetStateAction<string>>;
+  syncState: Record<string, boolean>;
 }
 
 function ProjectSwitcherSurface({ projects, activeProjectId, onSwitchProject, onCreateProject,
-  activeWords, open, createOpen, createTitle, active, setOpen, setCreateOpen, setCreateTitle }: ProjectSwitcherSurfaceProps) {
+  activeWords, open, createOpen, createTitle, active, setOpen, setCreateOpen, setCreateTitle,
+  syncState }: ProjectSwitcherSurfaceProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   function handleTriggerKeyDown(e: React.KeyboardEvent): void {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); setOpen(true); }
@@ -172,6 +181,7 @@ function ProjectSwitcherSurface({ projects, activeProjectId, onSwitchProject, on
           onNew={openCreateProject}
           onClose={() => setOpen(false)}
           onFocusTrigger={() => triggerRef.current?.focus()}
+          syncState={syncState}
         />
       )}
       {createOpen && <CreateProjectDialog title={createTitle} onTitleChange={setCreateTitle}
@@ -184,7 +194,21 @@ export function ProjectSwitcher(props: ProjectSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
+  const [syncState, setSyncState] = useState<Record<string, boolean>>({});
+  const resolveProjectMeta = props.hasProjectMeta ?? hasProjectMeta;
+  useEffect(() => {
+    let active = true;
+    void Promise.all(props.projects.map(async ({ id }) => [
+      id, await resolveProjectMeta(id),
+    ] as const)).then((entries) => {
+      if (active) setSyncState(Object.fromEntries(entries));
+    }).catch(() => {
+      if (active) setSyncState(Object.fromEntries(props.projects.map(({ id }) => [id, false])));
+    });
+    return () => { active = false; };
+  }, [props.projects, resolveProjectMeta]);
   const active = props.projects.find((p) => p.id === props.activeProjectId) ?? props.projects[0];
   return <ProjectSwitcherSurface {...props} open={open} createOpen={createOpen} createTitle={createTitle}
-    active={active} setOpen={setOpen} setCreateOpen={setCreateOpen} setCreateTitle={setCreateTitle} />;
+    active={active} setOpen={setOpen} setCreateOpen={setCreateOpen} setCreateTitle={setCreateTitle}
+    syncState={syncState} />;
 }

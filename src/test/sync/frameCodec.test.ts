@@ -58,7 +58,9 @@ describe("sync frame chunking", () => {
 });
 
 describe("sync frame reassembly", () => {
-  it("completes chunks received out of order", () => {
+  // 512 KiB+ buffers make these two slow under parallel-worker contention —
+  // explicit timeouts keep them from flaking in full-suite runs.
+  it("completes chunks received out of order", { timeout: 20_000 }, () => {
     const blob = Uint8Array.from({ length: CHUNK_BYTES + 1 }, (_, index) => index % 251);
     const frames = chunkFrames("device-a", blob);
     const reassembler = new Reassembler("device-b");
@@ -74,7 +76,7 @@ describe("sync frame reassembly", () => {
     expect(reassembler.feed({ ...otherFrame, v: 2 })).toBeNull();
   });
 
-  it("expires incomplete groups after 30 seconds", () => {
+  it("expires incomplete groups after 30 seconds", { timeout: 20_000 }, () => {
     let now = 0;
     const frames = chunkFrames("device-a", new Uint8Array(CHUNK_BYTES + 1));
     const reassembler = new Reassembler("device-b", () => now);

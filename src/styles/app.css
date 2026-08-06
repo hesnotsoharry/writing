@@ -1021,6 +1021,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .proj-item .pm { flex: 1; min-width: 0; }
 .proj-item .pt { font-size: var(--text-sm); font-weight: var(--w-semi); color: var(--ink); }
 .proj-item .ps { font-size: var(--text-2xs); color: var(--ink-3); }
+.project-sync-badge { font-size: var(--text-2xs); color: var(--ink-3); margin-top: 1px; }
 .proj-item .tick { color: var(--accent); flex: none; }
 .proj-new { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px;
   border-radius: var(--r-sm); color: var(--ink-2); font-size: var(--text-sm); font-weight: var(--w-medium); }

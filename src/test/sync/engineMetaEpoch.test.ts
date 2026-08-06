@@ -13,7 +13,7 @@ import { deriveKeys } from "../../sync/keys";
 import type { InnerMessage } from "../../sync/messages";
 import type { MetaApplyTarget } from "../../sync/meta/applyExec";
 import type { SqlFolderRow, SqlProjectionSnapshot, SqlSceneRow } from "../../sync/meta/applyPlan";
-import { buildFromSql, bumpEpoch, setFolder } from "../../sync/meta/metaDoc";
+import { buildFromSql, bumpEpoch, type MetaProject, setFolder } from "../../sync/meta/metaDoc";
 import type { ConnectionState } from "../../sync/provider";
 import { applyEncoded, encodeDoc, extractPlainText } from "../../yjs/serialize";
 
@@ -62,6 +62,8 @@ class MemoryEpochStore implements AppliedEpochStore {
 
 class MemoryMetaTarget implements MetaApplyTarget {
   readonly snapshot: SqlProjectionSnapshot = { folders: [], scenes: [], labels: [], sceneLabels: [] };
+  project: MetaProject | null = null;
+  async ensureProject(project: MetaProject): Promise<void> { this.project = project; }
   async load(): Promise<SqlProjectionSnapshot> { return this.snapshot; }
   async upsertFolder(row: SqlFolderRow): Promise<void> { this.snapshot.folders.push(row); }
   async upsertScene(row: SqlSceneRow): Promise<void> { this.snapshot.scenes.push(row); }
@@ -77,7 +79,10 @@ function textDoc(text: string): Y.Doc {
 }
 
 function metaDoc(epoch = 0): Y.Doc {
-  const doc = buildFromSql({ folders: [], scenes: [], labels: [], sceneLabels: [] });
+  const doc = buildFromSql({
+    project: { id: "project-1", title: "Remote Project", type: "novel" },
+    folders: [], scenes: [], labels: [], sceneLabels: [],
+  });
   setFolder(doc, { id: "folder-1", projectId: "project-1", title: "Remote", sortKey: "a0" });
   if (epoch > 0) bumpEpoch(doc, "scene-1");
   return doc;
@@ -117,6 +122,7 @@ describe("SyncEngine meta and epoch enforcement", () => {
       t: "diff", c: "meta:project-1", u: fromUint8Array(Y.encodeStateAsUpdate(metaDoc())),
     });
     await vi.waitFor(() => expect(ctx.target.snapshot.folders[0]?.title).toBe("Remote"));
+    expect(ctx.target.project?.title).toBe("Remote Project");
     expect(changed).toHaveBeenCalledOnce(); ctx.engine.stop();
   });
 
@@ -134,6 +140,10 @@ describe("SyncEngine meta and epoch enforcement", () => {
     await deliver(ctx.provider, {
       t: "live", c: "scene:scene-1", e: 0,
       u: fromUint8Array(Y.encodeStateAsUpdate(textDoc("stale"))),
+    });
+    await deliver(ctx.provider, {
+      t: "diff", c: "scene:scene-1",
+      u: fromUint8Array(Y.encodeStateAsUpdate(textDoc("epoch-less stale"))),
     });
     expect(ctx.sceneStore.saveCount).toBe(saves); ctx.engine.stop();
   });

@@ -40,6 +40,7 @@ export class EpochManager {
 
   accepts(sceneId: string, epoch: number | undefined): boolean {
     const known = this.epoch(sceneId);
+    if (known > 0 && epoch !== known) return false;
     if (epoch !== undefined && epoch < known) return false;
     return !this.isBehind(sceneId) || epoch === known;
   }

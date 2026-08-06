@@ -5,8 +5,12 @@ import { runMigrations } from "../../../db/migrations";
 import { getDb } from "../../../db/schema";
 import { SqliteBinderStore } from "../../../db/sqliteBinderStore";
 import { SqliteLabelStore } from "../../../db/sqliteLabelStore";
+import { SqliteMetaApplyTarget } from "../../../db/sqliteMetaApplyTarget";
 import { SqliteProjectMetaDocStore } from "../../../db/sqliteProjectMetaDocStore";
-import { bootstrapProjectMeta, withProjectMeta } from "../../../sync/meta/bridge";
+import { applyMetaDoc } from "../../../sync/meta/applyExec";
+import {
+  bootstrapProjectMeta, ensureAllProjectMetas, withProjectMeta,
+} from "../../../sync/meta/bridge";
 import {
   buildFromSql,
   getFolders,
@@ -68,6 +72,39 @@ async function createBootstrappedProject(): Promise<{
 }
 
 describe("project meta local bridge", () => {
+  it("creates a remote project row before applying its structure", async () => {
+    const doc = buildFromSql({
+      project: { id: "remote-project", title: "Remote Novel", type: "novel" },
+      folders: [{
+        id: "remote-folder", project_id: "remote-project", title: "Act One", sort_order: 1000,
+      }],
+      scenes: [], labels: [], sceneLabels: [],
+    });
+    await applyMetaDoc("remote-project", doc, new SqliteMetaApplyTarget());
+    const projects = await db.select<Array<{ title: string }>>(
+      "SELECT title FROM projects WHERE id = 'remote-project'"
+    );
+    const folders = await db.select<Array<{ project_id: string }>>(
+      "SELECT project_id FROM folders WHERE id = 'remote-folder'"
+    );
+    expect(projects).toEqual([{ title: "Remote Novel" }]);
+    expect(folders).toEqual([{ project_id: "remote-project" }]);
+  });
+
+  it("does not bootstrap existing projects on a joined device", async () => {
+    const projectId = await binder.createProject({ title: "Local", type: "novel" });
+    await db.execute("INSERT INTO app_meta (key, value) VALUES ('sync_role', 'joined')");
+    await ensureAllProjectMetas();
+    expect(await new SqliteProjectMetaDocStore().load(projectId)).toBeNull();
+  });
+
+  it("bootstraps every existing project on an origin device", async () => {
+    const projectId = await binder.createProject({ title: "Origin", type: "novel" });
+    await db.execute("INSERT INTO app_meta (key, value) VALUES ('sync_role', 'origin')");
+    await ensureAllProjectMetas();
+    expect(await new SqliteProjectMetaDocStore().load(projectId)).not.toBeNull();
+  });
+
   it("is inert until a project meta row has been bootstrapped", async () => {
     const projectId = await binder.createProject({ title: "Local", type: "novel" });
     await binder.createFolder({ projectId, title: "Chapter" });

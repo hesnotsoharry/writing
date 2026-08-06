@@ -3,6 +3,7 @@ import type { MetaApplyTarget } from "../sync/meta/applyExec";
 import type {
   DeleteOp, LabelOp, SortOrderRewrite, SqlProjectionSnapshot,
 } from "../sync/meta/applyPlan";
+import type { MetaProject } from "../sync/meta/metaDoc";
 import type { DbClient } from "./dbClient";
 import type { LabelColor } from "./labelStore";
 import { getDb } from "./schema";
@@ -44,6 +45,20 @@ async function applyDelete(db: DbClient, op: DeleteOp): Promise<void> {
 }
 
 export class SqliteMetaApplyTarget implements MetaApplyTarget {
+  async ensureProject(project: MetaProject): Promise<void> {
+    const db = await getDb();
+    const now = new Date().toISOString();
+    const rows = await db.select<Array<{ sort_order: number }>>(
+      "SELECT COALESCE(MAX(sort_order), 0) + 1000 AS sort_order FROM projects"
+    );
+    await db.execute(
+      `INSERT INTO projects (id, title, type, sort_order, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $5)
+       ON CONFLICT(id) DO UPDATE SET title=excluded.title, type=excluded.type,
+       updated_at=excluded.updated_at`,
+      [project.id, project.title, project.type, rows[0]?.sort_order ?? 1000, now]
+    );
+  }
   async load(projectId: string): Promise<SqlProjectionSnapshot> {
     return loadProjection(await getDb(), projectId);
   }

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectSwitcher } from "../binder/ProjectSwitcher";
@@ -122,5 +122,14 @@ describe("ProjectSwitcher", () => {
     const items = container.querySelectorAll(".proj-item");
     expect(items[0].classList.contains("on")).toBe(true);
     expect(items[1].classList.contains("on")).toBe(false);
+  });
+
+  it("labels synced and device-only projects", async () => {
+    const lookup = vi.fn(async (id: string) => id === "p1");
+    const { container } = renderSwitcher({ hasProjectMeta: lookup });
+    fireEvent.click(container.querySelector(".proj-btn")!);
+    await waitFor(() => expect(container.querySelectorAll(".project-sync-badge")).toHaveLength(2));
+    expect(screen.getByText("synced")).toBeTruthy();
+    expect(screen.getByText("this device only")).toBeTruthy();
   });
 });

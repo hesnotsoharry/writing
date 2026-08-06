@@ -5,6 +5,7 @@ import { getDb } from "../../db/schema";
 import { SqliteProjectMetaDocStore } from "../../db/sqliteProjectMetaDocStore";
 import { normalizeStatus } from "../../lib/status";
 import { applyEncoded, encodeDoc } from "../../yjs/serialize";
+import { getSyncRole } from "../syncRole";
 import { buildFromSql, bumpEpoch, getDocEpochs, type SqlMetaRows } from "./metaDoc";
 
 const store = new SqliteProjectMetaDocStore();
@@ -52,6 +53,9 @@ export function bumpProjectSceneEpoch(projectId: string, sceneId: string): Promi
 
 async function loadSqlRows(projectId: string): Promise<SqlMetaRows> {
   const db = await getDb();
+  const projects = await db.select<Array<{ id: string; title: string; type: string }>>(
+    "SELECT id, title, type FROM projects WHERE id = $1", [projectId]
+  );
   const folders = await db.select<SqlMetaRows["folders"]>(
     "SELECT id, project_id, title, sort_order FROM folders WHERE project_id = $1",
     [projectId]
@@ -75,6 +79,7 @@ async function loadSqlRows(projectId: string): Promise<SqlMetaRows> {
     [projectId]
   );
   return {
+    project: projects[0],
     folders,
     scenes: rawScenes.map((row) => ({ ...row, status: normalizeStatus(row.status) })),
     labels: rawLabels.map((row) => ({ ...row, color: row.color as LabelColor })),
@@ -92,6 +97,7 @@ export function bootstrapProjectMeta(projectId: string): Promise<void> {
 
 /** Bootstrap meta docs for every local project. Reserved for sync-engine startup. */
 export async function ensureAllProjectMetas(): Promise<void> {
+  if (await getSyncRole() === "joined") return;
   const db = await getDb();
   const [projects, existing] = await Promise.all([
     db.select<Array<{ id: string }>>("SELECT id FROM projects"), store.listAll(),
@@ -99,4 +105,9 @@ export async function ensureAllProjectMetas(): Promise<void> {
   const existingIds = new Set(existing.map(({ id }) => id));
   await Promise.all(projects.filter(({ id }) => !existingIds.has(id))
     .map(({ id }) => bootstrapProjectMeta(id)));
+}
+
+/** Cheap existence lookup used by project sync badges. */
+export async function hasProjectMeta(projectId: string): Promise<boolean> {
+  return (await store.load(projectId)) !== null;
 }

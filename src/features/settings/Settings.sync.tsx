@@ -7,6 +7,7 @@ import {
   getSyncMasterKey,
   setSyncMasterKey,
 } from "../../sync/keyStorage";
+import { clearSyncRole, setSyncRole, type SyncRole } from "../../sync/syncRole";
 import { SetRow } from "./Settings.primitives";
 import { getTweak, type Tweaks } from "./settings.store";
 
@@ -79,6 +80,8 @@ function JoinFlow({ onJoined, onCancel }: JoinFlowProps) {
   }
   return (
     <div className="sync-join">
+      <p className="sync-explainer">Projects on this device stay local-only; your other device&apos;s
+        projects will appear here.</p>
       <input className="set-input sync-pairing-input" value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder="Paste pairing string" aria-label="Pairing string" />
@@ -185,9 +188,10 @@ interface ActionSetters {
 
 function useSyncActions(setTweak: SyncSectionProps["setTweak"], setters: ActionSetters) {
   const [busy, setBusy] = useState(false);
-  async function activate(key: Uint8Array): Promise<void> {
+  async function activate(key: Uint8Array, role: SyncRole): Promise<void> {
     setBusy(true);
     await setSyncMasterKey(key);
+    await setSyncRole(role);
     setTweak("syncExperimental", "on");
     await startSync();
     setters.setPairingString(encodeMasterKey(key));
@@ -202,6 +206,7 @@ function useSyncActions(setTweak: SyncSectionProps["setTweak"], setters: ActionS
   async function turnOff(): Promise<void> {
     syncEngine.stop();
     await clearSyncMasterKey();
+    await clearSyncRole();
     setTweak("syncExperimental", "off");
     setters.setPairingString(null);
     setters.setConfirmingOff(false);
@@ -225,8 +230,8 @@ export function SyncSection({ tweaks, setTweak }: SyncSectionProps) {
       onShowPairing={() => { void actions.showPairing(); }} onRequestOff={() => setConfirmingOff(true)}
       onCancelOff={() => setConfirmingOff(false)} onTurnOff={() => { void actions.turnOff(); }} />
     : <MissingKey joinOpen={joinOpen} busy={actions.busy}
-      onEnable={() => { void actions.activate(generateMasterKey()); }}
-      onJoin={(value) => actions.activate(decodeMasterKey(value))} setJoinOpen={setJoinOpen} />;
+      onEnable={() => { void actions.activate(generateMasterKey(), "origin"); }}
+      onJoin={(value) => actions.activate(decodeMasterKey(value), "joined")} setJoinOpen={setJoinOpen} />;
 
   return (
     <>

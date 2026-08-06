@@ -6,6 +6,7 @@ import { initialKeysFor } from "./sortKey";
 
 export type TombstoneKind = "folder" | "scene" | "label" | "sceneLabel";
 
+export interface MetaProject { id: string; title: string; type: string }
 export interface MetaFolder {
   id: string; projectId: string; title: string; sortKey: string;
 }
@@ -20,6 +21,7 @@ export interface MetaSceneLabel { id: string; sceneId: string; labelId: string }
 export interface MetaTombstone { kind: TombstoneKind; at: number }
 
 export interface SqlMetaRows {
+  project?: { id: string; title: string; type: string };
   folders: Array<{ id: string; project_id: string; title: string; sort_order: number }>;
   scenes: Array<{
     id: string; project_id: string; folder_id: string | null; title: string;
@@ -33,6 +35,7 @@ export interface SqlMetaRows {
 }
 
 export interface MetaState {
+  project: MetaProject | null;
   folders: MetaFolder[]; scenes: MetaScene[]; labels: MetaLabel[];
   sceneLabels: MetaSceneLabel[]; docEpochs: Record<string, number>;
   tombstones: Record<string, MetaTombstone>;
@@ -84,6 +87,14 @@ export function getTombstones(doc: Y.Doc): Record<string, MetaTombstone> {
   return doc.getMap<MetaTombstone>("tombstones").toJSON();
 }
 
+export function getProject(doc: Y.Doc): MetaProject | null {
+  const value = doc.getMap<unknown>("project").toJSON();
+  return typeof value.id === "string" && typeof value.title === "string"
+    && typeof value.type === "string"
+    ? { id: value.id, title: value.title, type: value.type }
+    : null;
+}
+
 export function removeWithTombstone(
   doc: Y.Doc, kind: TombstoneKind, id: string, at = Date.now()
 ): void {
@@ -109,6 +120,7 @@ export function getEpoch(doc: Y.Doc, docId: string): number {
 
 export function readMetaDoc(doc: Y.Doc): MetaState {
   return {
+    project: getProject(doc),
     folders: getFolders(doc), scenes: getScenes(doc), labels: getLabels(doc),
     sceneLabels: getSceneLabels(doc),
     docEpochs: getDocEpochs(doc), tombstones: getTombstones(doc),
@@ -145,6 +157,12 @@ export function buildFromSql(rows: SqlMetaRows): Y.Doc {
   const labelKeys = orderedKeys(rows.labels, (row) => row.sort);
   const scenes = sceneKeys(rows.scenes);
   doc.transact(() => {
+    if (rows.project) {
+      const project = doc.getMap<unknown>("project");
+      project.set("id", rows.project.id);
+      project.set("title", rows.project.title);
+      project.set("type", rows.project.type);
+    }
     for (const row of rows.folders) setFolder(doc, {
       id: row.id, projectId: row.project_id, title: row.title, sortKey: folderKeys.get(row.id)!,
     });

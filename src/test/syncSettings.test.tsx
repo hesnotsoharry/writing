@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   clearKey: vi.fn<() => Promise<void>>(),
   getKey: vi.fn<() => Promise<Uint8Array | null>>(),
   setKey: vi.fn<(key: Uint8Array) => Promise<void>>(),
+  setRole: vi.fn<(role: "origin" | "joined") => Promise<void>>(),
+  clearRole: vi.fn<() => Promise<void>>(),
   start: vi.fn<(relayUrl?: string) => Promise<void>>(),
   stop: vi.fn<() => void>(),
   status: {
@@ -32,8 +34,14 @@ vi.mock("../sync/engine", () => ({
   },
 }));
 
+vi.mock("../sync/syncRole", () => ({
+  clearSyncRole: mocks.clearRole,
+  setSyncRole: mocks.setRole,
+}));
+
 import { TWEAK_DEFAULTS } from "../features/settings/settings.store";
 import { SyncSection } from "../features/settings/Settings.sync";
+import { encodeMasterKey } from "../sync/keys";
 
 const MASTER_KEY = new Uint8Array(32).fill(7);
 
@@ -47,6 +55,8 @@ beforeEach(() => {
   mocks.clearKey.mockResolvedValue(undefined);
   mocks.setKey.mockResolvedValue(undefined);
   mocks.start.mockResolvedValue(undefined);
+  mocks.setRole.mockResolvedValue(undefined);
+  mocks.clearRole.mockResolvedValue(undefined);
   mocks.status.state = "disconnected";
   mocks.status.peerSeen = false;
   mocks.status.lastSyncAt = null;
@@ -99,8 +109,20 @@ describe("SyncSection", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Enable sync on this device" }));
     await waitFor(() => expect(mocks.setKey).toHaveBeenCalled());
     expect(mocks.setKey.mock.calls[0][0]).toHaveLength(32);
+    expect(mocks.setRole).toHaveBeenCalledWith("origin");
     expect(setTweak).toHaveBeenCalledWith("syncExperimental", "on");
     expect(mocks.start).toHaveBeenCalledWith("");
     expect(await screen.findByText("Enter this on your other device.")).toBeTruthy();
+  });
+
+  it("marks a pairing-string device as joined and explains local-only projects", async () => {
+    mocks.getKey.mockResolvedValue(null);
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "I have a pairing string" }));
+    expect(screen.getByText(/Projects on this device stay local-only/i)).toBeTruthy();
+    const pairingString = encodeMasterKey(MASTER_KEY);
+    fireEvent.change(screen.getByLabelText("Pairing string"), { target: { value: pairingString } });
+    fireEvent.click(screen.getByRole("button", { name: "Connect this device" }));
+    await waitFor(() => expect(mocks.setRole).toHaveBeenCalledWith("joined"));
   });
 });
