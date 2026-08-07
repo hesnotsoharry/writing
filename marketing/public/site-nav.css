@@ -1,0 +1,74 @@
+/* Writers Nook marketing — shared responsive nav layer (2026-08).
+ *
+ * The redesigned pages carry their nav styling inline, and inline styles lose only
+ * to !important — hence every override here is !important. This file is the single
+ * mobile tuning point for all pages; the desktop nav stays exactly as authored.
+ *
+ * Markup contract (13 pages): nav > div (bar) > a (brand) + #navToggle + #navLinks.
+ * site.js wires #navToggle to toggle .open on #navLinks — same contract as the old
+ * site. checkout.html and signin.html have no links row and need none of this.
+ */
+@media (max-width: 760px) {
+  nav > div { padding: 0 16px !important; gap: 12px !important; }
+
+  /* brand: one row, never wraps; logo reads properly at phone size */
+  nav > div > a:first-child { white-space: nowrap !important; flex-shrink: 0 !important; }
+  nav > div > a:first-child img { width: 30px !important; height: 30px !important; }
+
+  /* hamburger replaces the inline links row */
+  #navToggle { display: block !important; }
+  #navLinks { display: none !important; }
+  #navLinks.open {
+    display: flex !important;
+    position: absolute !important;
+    top: 60px; left: 0; right: 0;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 8px 20px 18px;
+    background: rgba(252, 250, 245, .97);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid #e6ddcd;
+    box-shadow: 0 18px 40px rgba(42, 33, 18, .10);
+  }
+  #navLinks.open > a {
+    display: block !important;
+    padding: 13px 4px !important;
+    font-size: 16px !important;
+    border-top: 1px solid #efe8db;
+  }
+  #navLinks.open > a:first-child { border-top: 0; }
+  /* the CTA (Buy / Download) renders as a full-width button at the menu foot */
+  #navLinks.open > a.nav-cta,
+  #navLinks.open > a#hero-dl {
+    display: inline-flex !important;
+    justify-content: center !important;
+    margin: 14px 0 0 !important;
+    padding: 13px 19px !important;
+    border-top: 0;
+  }
+  /* account page: sign-out button joins the menu list */
+  #navLinks.open > button {
+    text-align: left;
+    padding: 13px 4px !important;
+    border-top: 1px solid #efe8db;
+  }
+
+  /* platform chips injected into the Home nav have no sane anchor on phones */
+  #st-nav p:has(.dl-alt-link),
+  #st-nav .platform-note { display: none !important; }
+
+  /* features page: the margin rail is desktop chrome — hide it and drop the
+     118px indent every features section (and the contents header) carries for it */
+  #f-rail { display: none !important; }
+  #f-root section, #f-root header { padding-left: 0 !important; }
+
+  /* phone-width content flow, all pages. The redesign is inline-styled, so these
+     match the inline patterns themselves:
+     - 48px gutters shrink to 20px
+     - grids whose column minimum (280-340px) exceeds a phone column go single-column */
+  [style*="padding:0 48px"] { padding-left: 20px !important; padding-right: 20px !important; }
+  [style*="minmax(280px"], [style*="minmax(300px"], [style*="minmax(320px"],
+  [style*="minmax(330px"], [style*="minmax(340px"] { grid-template-columns: 1fr !important; }
+}
