@@ -7,31 +7,6 @@ export type { DbClient, DbClient as DbHandle } from "./dbClient";
 
 let dbPromise: Promise<DbClient> | null = null;
 
-/**
- * Idempotent column migration: adds `column` (of type `ddlType`) to `table`
- * only if it is absent. Uses PRAGMA table_info to check — not a try/catch on
- * a duplicate-column error — so it is safe to call on every startup.
- *
- * SQLite PRAGMA table_info returns one row per column with fields:
- *   cid INTEGER, name TEXT, type TEXT, notnull INTEGER, dflt_value, pk INTEGER
- */
-export async function ensureColumn(
-  db: DbClient,
-  table: string,
-  column: string,
-  ddlType: string
-): Promise<void> {
-  const rows = await db.select<{ name: string }[]>(
-    `PRAGMA table_info(${table})`
-  );
-  const exists = rows.some((r) => r.name === column);
-  if (!exists) {
-    await db.execute(
-      `ALTER TABLE ${table} ADD COLUMN ${column} ${ddlType}`
-    );
-  }
-}
-
 /** Open (once) the app's SQLite database and ensure the schema exists. */
 export function getDb(): Promise<DbClient> {
   if (!dbPromise) {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { ensureColumn } from "../db/ensureColumn";
 import type { DbHandle } from "../db/schema";
-import { ensureColumn } from "../db/schema";
 
 /**
  * Unit tests for the ensureColumn idempotent column-migration helper.

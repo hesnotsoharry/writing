@@ -3,6 +3,10 @@ const ROOM_INFO = new TextEncoder().encode("room");
 const ENC_INFO = new TextEncoder().encode("enc");
 const MASTER_KEY_BYTES = 32;
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return Uint8Array.from(bytes).buffer;
+}
+
 export interface DerivedKeys {
   roomId: string;
   encKey: CryptoKey;
@@ -23,7 +27,12 @@ function fromBase64Url(value: string): Uint8Array {
 
 async function deriveBytes(key: CryptoKey, info: Uint8Array): Promise<Uint8Array> {
   const bits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt: HKDF_SALT, info },
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: toArrayBuffer(HKDF_SALT),
+      info: toArrayBuffer(info),
+    },
     key,
     256,
   );
@@ -52,12 +61,14 @@ export function decodeMasterKey(pairingString: string): Uint8Array {
 
 export async function deriveKeys(masterKey: Uint8Array): Promise<DerivedKeys> {
   if (masterKey.length !== MASTER_KEY_BYTES) throw new Error("Master key must be 32 bytes");
-  const sourceKey = await crypto.subtle.importKey("raw", masterKey, "HKDF", false, ["deriveBits"]);
+  const sourceKey = await crypto.subtle.importKey(
+    "raw", toArrayBuffer(masterKey), "HKDF", false, ["deriveBits"]
+  );
   const [roomBytes, encBytes] = await Promise.all([
     deriveBytes(sourceKey, ROOM_INFO),
     deriveBytes(sourceKey, ENC_INFO),
   ]);
-  const encKey = await crypto.subtle.importKey("raw", encBytes, "AES-GCM", false, [
+  const encKey = await crypto.subtle.importKey("raw", toArrayBuffer(encBytes), "AES-GCM", false, [
     "encrypt",
     "decrypt",
   ]);

@@ -35,7 +35,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { getTweak } from "./features/settings/settings.store";
 import { installContextMenuGuard } from "./lib/nativeContextMenu";
-import { syncEngine } from "./sync/engine";
+import { syncEngine } from "./sync/desktopEngine";
 import { hasSyncMasterKey } from "./sync/keyStorage";
 
 if (!import.meta.env.DEV) installContextMenuGuard();

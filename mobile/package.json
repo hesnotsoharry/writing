@@ -1,0 +1,29 @@
+{
+  "name": "writersnook-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "~57.0.11",
+    "expo-asset": "~57.0.9",
+    "expo-build-properties": "~57.0.9",
+    "expo-dev-client": "~57.0.10",
+    "expo-secure-store": "~57.0.1",
+    "expo-sqlite": "~57.0.1",
+    "js-base64": "3.7.8",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-quick-crypto": "1.1.6",
+    "react-native-webview": "13.16.1",
+    "yjs": "13.6.31"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}

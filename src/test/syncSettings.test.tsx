@@ -23,7 +23,7 @@ vi.mock("../sync/keyStorage", () => ({
   setSyncMasterKey: mocks.setKey,
 }));
 
-vi.mock("../sync/engine", () => ({
+vi.mock("../sync/desktopEngine", () => ({
   syncEngine: {
     start: mocks.start,
     stop: mocks.stop,

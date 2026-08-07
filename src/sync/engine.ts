@@ -8,7 +8,6 @@ import type { SnapshotStore } from "../db/snapshotStore";
 import type { AppliedEpochStore } from "../db/syncEpochStore";
 import { SYNC_ORIGIN } from "../yjs/bindPersistence";
 import { extractPlainText } from "../yjs/serialize";
-import { defaultEngineOptions } from "./engineDefaults";
 import { EpochManager } from "./epochManager";
 import { openMessage, sealMessage } from "./frameCodec";
 import { deriveKeys } from "./keys";
@@ -70,7 +69,7 @@ export class SyncEngine {
   private structureChanged: (() => void) | null = null;
   private docReplaced: ((sceneId: string) => void) | null = null;
 
-  constructor(options: EngineOptions = defaultEngineOptions()) {
+  constructor(options: EngineOptions) {
     this.options = options;
     this.epochs = new EpochManager(options);
   }
@@ -336,5 +335,3 @@ export class SyncEngine {
     this.listeners.forEach((listener) => listener({ ...this.status }));
   }
 }
-
-export const syncEngine = new SyncEngine();

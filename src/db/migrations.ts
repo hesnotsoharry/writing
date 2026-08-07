@@ -1,4 +1,5 @@
 import type { DbClient } from "./dbClient";
+import { ensureColumn } from "./ensureColumn";
 import {
   migration_009_scene_snapshots,
   migration_010_labels,
@@ -14,7 +15,6 @@ import {
   migration_020_doc_updated_at,
   migration_021_project_meta_docs,
 } from "./migrations2";
-import { ensureColumn } from "./schema";
 
 export interface Migration {
   version: number;

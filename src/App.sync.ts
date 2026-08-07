@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { syncEngine } from "./sync/engine";
+import { syncEngine } from "./sync/desktopEngine";
 
 export function useSyncCallbacks(
   selectedSceneId: string | null,

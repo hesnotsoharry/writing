@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { syncEngine, type SyncStatus } from "../../sync/engine";
+import { syncEngine } from "../../sync/desktopEngine";
+import type { SyncStatus } from "../../sync/engine";
 import { decodeMasterKey, encodeMasterKey, generateMasterKey } from "../../sync/keys";
 import {
   clearSyncMasterKey,

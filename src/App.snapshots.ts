@@ -8,7 +8,7 @@ import * as Y from "yjs";
 import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
 import { getTweak, TWEAK_DEFAULTS } from "./features/settings/settings.store";
-import { syncEngine } from "./sync/engine";
+import { syncEngine } from "./sync/desktopEngine";
 import { bumpProjectSceneEpoch } from "./sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText } from "./yjs/serialize";
 

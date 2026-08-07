@@ -13,7 +13,7 @@
  */
 import * as Y from "yjs";
 
-import { syncEngine } from "../sync/engine";
+import { syncEngine } from "../sync/desktopEngine";
 import { bumpProjectSceneEpoch } from "../sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText, xmlTextToPlain } from "../yjs/serialize";
 import { getDb } from "./schema";

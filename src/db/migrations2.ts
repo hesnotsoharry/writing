@@ -5,7 +5,7 @@
  * a further migrations3.ts as the file grows.
  */
 import type { DbClient } from "./dbClient";
-import { ensureColumn } from "./schema";
+import { ensureColumn } from "./ensureColumn";
 
 /**
  * Create the scene_snapshots table for per-scene version history.

@@ -23,7 +23,7 @@ import { fetchAndStoreHouseStyleConfig } from "./features/ai/ai.house-style";
 import { ActivationGate } from "./features/license/ActivationGate";
 import { useLicenseGate } from "./features/license/license.gate";
 import { useStartupUpdateCheck } from "./lib/updater";
-import { syncEngine } from "./sync/engine";
+import { syncEngine } from "./sync/desktopEngine";
 import { useTheme } from "./theme/useTheme";
 import { bindPersistence } from "./yjs/bindPersistence";
 import { applyEncoded, extractPlainText } from "./yjs/serialize";
