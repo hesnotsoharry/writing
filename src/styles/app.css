@@ -2296,6 +2296,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .sync-status[data-state="connected"] { color: var(--accent-deep); }
 .sync-pairing, .sync-join { margin-top: var(--s-3); padding: var(--s-3);
   background: var(--parchment); border: 1px solid var(--line); border-radius: var(--r-md); }
+.sync-qr { display: flex; justify-content: center; margin-bottom: var(--s-3); }
+.sync-qr svg { width: 180px; height: 180px; border-radius: var(--r-sm); background: #fff; }
 .sync-pairing-guide { margin-bottom: var(--s-2); color: var(--ink-3); font-size: var(--text-xs); }
 .sync-pairing-code { display: flex; align-items: center; gap: var(--s-2); }
 .sync-pairing-code code { min-width: 0; overflow-wrap: anywhere; color: var(--ink);

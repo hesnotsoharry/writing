@@ -16,11 +16,14 @@ async function updateSceneWordCount(sceneId: string, count: number): Promise<voi
   await db.execute("UPDATE scenes SET word_count = $1 WHERE id = $2", [count, sceneId]);
 }
 
+/** The relay this build connects to absent a `syncRelayUrl` tweak override —
+ *  also the value the pairing QR encodes when the tweak is unset (S4 step 4). */
+export const DEFAULT_RELAY_URL = (import.meta.env.VITE_SYNC_RELAY_URL as string | undefined)
+  ?? "wss://sync.writersnook.app";
+
 export function defaultEngineOptions(): EngineOptions {
-  const relayUrl = (import.meta.env.VITE_SYNC_RELAY_URL as string | undefined)
-    ?? "wss://sync.writersnook.app";
   return {
-    relayUrl,
+    relayUrl: DEFAULT_RELAY_URL,
     sceneStore: new SqliteSceneDocStore(), boardStore: new SqliteBoardDocStore(),
     metaStore: new SqliteProjectMetaDocStore(), metaApplyTarget: new SqliteMetaApplyTarget(),
     snapshotStore: new SqliteSnapshotStore(), epochStore: new SqliteAppliedEpochStore(),

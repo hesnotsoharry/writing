@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 
 import { syncEngine } from "../../sync/desktopEngine";
 import type { SyncStatus } from "../../sync/engine";
-import { decodeMasterKey, encodeMasterKey, generateMasterKey } from "../../sync/keys";
+import { DEFAULT_RELAY_URL } from "../../sync/engineDefaults";
+import {
+  buildPairPayload,
+  decodeMasterKey,
+  encodeMasterKey,
+  generateMasterKey,
+} from "../../sync/keys";
 import {
   clearSyncMasterKey,
   getSyncMasterKey,
@@ -11,6 +17,7 @@ import {
 import { clearSyncRole, setSyncRole, type SyncRole } from "../../sync/syncRole";
 import { SetRow } from "./Settings.primitives";
 import { getTweak, type Tweaks } from "./settings.store";
+import { SyncQr } from "./SyncQr";
 
 interface SyncSectionProps {
   tweaks: Tweaks;
@@ -39,7 +46,7 @@ function formatStatus(status: SyncStatus): string {
   return "Offline";
 }
 
-function PairingString({ value }: { value: string }) {
+function PairingString({ value, payload }: { value: string; payload: string }) {
   const [copied, setCopied] = useState(false);
   async function copyPairingString(): Promise<void> {
     try {
@@ -51,7 +58,8 @@ function PairingString({ value }: { value: string }) {
   }
   return (
     <div className="sync-pairing">
-      <div className="sync-pairing-guide">Enter this on your other device.</div>
+      <SyncQr payload={payload} />
+      <div className="sync-pairing-guide">Scan with your phone, or enter this on your other device.</div>
       <div className="sync-pairing-code">
         <code>{value}</code>
         <button className="btn btn-soft" onClick={() => { void copyPairingString(); }}>
@@ -125,6 +133,7 @@ function MissingKey({ joinOpen, busy, onEnable, onJoin, setJoinOpen }: MissingKe
 interface ReadyKeyProps {
   status: SyncStatus;
   pairingString: string | null;
+  pairingPayload: string | null;
   confirmingOff: boolean;
   onShowPairing: () => void;
   onRequestOff: () => void;
@@ -142,7 +151,9 @@ function ReadyKey(props: ReadyKeyProps) {
           Turn off sync on this device
         </button>}
       </div>
-      {props.pairingString && <PairingString value={props.pairingString} />}
+      {props.pairingString && props.pairingPayload && (
+        <PairingString value={props.pairingString} payload={props.pairingPayload} />
+      )}
       {props.confirmingOff && <div className="sync-confirm">
         <span>Turn off sync and forget this device’s pairing key?</span>
         <button className="btn btn-danger" onClick={props.onTurnOff}>Turn off sync</button>
@@ -183,26 +194,35 @@ function useSyncStatus(): SyncStatus {
 interface ActionSetters {
   setKeyState: React.Dispatch<React.SetStateAction<KeyState>>;
   setPairingString: React.Dispatch<React.SetStateAction<string | null>>;
+  setPairingPayload: React.Dispatch<React.SetStateAction<string | null>>;
   setJoinOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setConfirmingOff: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-function useSyncActions(setTweak: SyncSectionProps["setTweak"], setters: ActionSetters) {
+function useSyncActions(
+  setTweak: SyncSectionProps["setTweak"],
+  relayUrl: string,
+  setters: ActionSetters,
+) {
   const [busy, setBusy] = useState(false);
+  function showKeyAsPairing(key: Uint8Array): void {
+    setters.setPairingString(encodeMasterKey(key));
+    setters.setPairingPayload(buildPairPayload(key, relayUrl));
+  }
   async function activate(key: Uint8Array, role: SyncRole): Promise<void> {
     setBusy(true);
     await setSyncMasterKey(key);
     await setSyncRole(role);
     setTweak("syncExperimental", "on");
     await startSync();
-    setters.setPairingString(encodeMasterKey(key));
+    showKeyAsPairing(key);
     setters.setKeyState("ready");
     setters.setJoinOpen(false);
     setBusy(false);
   }
   async function showPairing(): Promise<void> {
     const key = await getSyncMasterKey();
-    if (key) setters.setPairingString(encodeMasterKey(key));
+    if (key) showKeyAsPairing(key);
   }
   async function turnOff(): Promise<void> {
     syncEngine.stop();
@@ -210,6 +230,7 @@ function useSyncActions(setTweak: SyncSectionProps["setTweak"], setters: ActionS
     await clearSyncRole();
     setTweak("syncExperimental", "off");
     setters.setPairingString(null);
+    setters.setPairingPayload(null);
     setters.setConfirmingOff(false);
     setters.setKeyState("missing");
   }
@@ -220,14 +241,17 @@ export function SyncSection({ tweaks, setTweak }: SyncSectionProps) {
   const [keyState, setKeyState] = useSyncKeyState();
   const status = useSyncStatus();
   const [pairingString, setPairingString] = useState<string | null>(null);
+  const [pairingPayload, setPairingPayload] = useState<string | null>(null);
   const [joinOpen, setJoinOpen] = useState(false);
   const [confirmingOff, setConfirmingOff] = useState(false);
-  const actions = useSyncActions(setTweak, {
-    setKeyState, setPairingString, setJoinOpen, setConfirmingOff,
+  const effectiveRelayUrl = tweaks.syncRelayUrl.trim() || DEFAULT_RELAY_URL;
+  const actions = useSyncActions(setTweak, effectiveRelayUrl, {
+    setKeyState, setPairingString, setPairingPayload, setJoinOpen, setConfirmingOff,
   });
 
   const body = keyState === "ready"
-    ? <ReadyKey status={status} pairingString={pairingString} confirmingOff={confirmingOff}
+    ? <ReadyKey status={status} pairingString={pairingString} pairingPayload={pairingPayload}
+      confirmingOff={confirmingOff}
       onShowPairing={() => { void actions.showPairing(); }} onRequestOff={() => setConfirmingOff(true)}
       onCancelOff={() => setConfirmingOff(false)} onTurnOff={() => { void actions.turnOff(); }} />
     : <MissingKey joinOpen={joinOpen} busy={actions.busy}

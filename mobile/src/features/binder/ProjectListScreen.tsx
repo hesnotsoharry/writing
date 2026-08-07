@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -10,6 +10,21 @@ import { seedSampleData } from "./devSeed";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectList">;
 type LoadState = "loading" | "ready" | "error";
+
+/** Header-right entry point to pairing — plain-glyph today, but the tap
+ *  target where a fuller settings menu can hang later (S4 step-4 brief). */
+function PairHeaderButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Pair with desktop"
+      style={styles.headerButton}
+    >
+      <Text style={styles.headerButtonGlyph}>⚙</Text>
+    </Pressable>
+  );
+}
 
 const EMPTY_COPY = "Nothing here yet — pair with your desktop to bring your writing over.";
 
@@ -33,10 +48,13 @@ function ProjectRow({ item, onPress }: { item: ProjectListItem; onPress: () => v
   );
 }
 
-function EmptyState({ onSeed }: { onSeed: () => void }) {
+function EmptyState({ onSeed, onPair }: { onSeed: () => void; onPair: () => void }) {
   return (
     <View style={styles.center}>
       <Text style={styles.emptyText}>{EMPTY_COPY}</Text>
+      <Pressable style={styles.pairButton} onPress={onPair}>
+        <Text style={styles.pairButtonText}>Pair with desktop</Text>
+      </Pressable>
       {__DEV__ && (
         <Pressable style={styles.devSeedButton} onPress={onSeed}>
           <Text style={styles.devSeedText}>Dev only: seed sample data</Text>
@@ -63,6 +81,12 @@ export function ProjectListScreen({ navigation }: Props) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const onPair = useCallback(() => navigation.navigate("Pair"), [navigation]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerRight: () => <PairHeaderButton onPress={onPair} /> });
+  }, [navigation, onPair]);
+
   const load = useCallback(() => {
     setState("loading");
     listProjects()
@@ -82,7 +106,7 @@ export function ProjectListScreen({ navigation }: Props) {
     return <View style={styles.center}><ActivityIndicator color={PALETTE.accent} /></View>;
   }
   if (state === "error") return <ErrorState message={errorMessage} onRetry={load} />;
-  if (projects.length === 0) return <EmptyState onSeed={onSeed} />;
+  if (projects.length === 0) return <EmptyState onSeed={onSeed} onPair={onPair} />;
 
   return (
     <FlatList
@@ -130,6 +154,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   emptyText: { color: PALETTE.inkMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
+  pairButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: PALETTE.accent,
+  },
+  pairButtonText: { color: PALETTE.card, fontSize: 14, fontWeight: "600" },
+  headerButton: { paddingHorizontal: 6, paddingVertical: 4 },
+  headerButtonGlyph: { color: PALETTE.accent, fontSize: 20 },
   devSeedButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,

@@ -39,16 +39,28 @@ vi.mock("../sync/syncRole", () => ({
   setSyncRole: mocks.setRole,
 }));
 
+// The QR itself is `uqr`'s SVG rendering (third-party, not this change's
+// logic); mock the presentation component so tests can read the `payload`
+// prop it was handed instead of trying to decode rendered SVG paths.
+vi.mock("../features/settings/SyncQr", () => ({
+  SyncQr: ({ payload }: { payload: string }) => <div data-testid="sync-qr" data-payload={payload} />,
+}));
+
 import { TWEAK_DEFAULTS } from "../features/settings/settings.store";
 import { SyncSection } from "../features/settings/Settings.sync";
-import { encodeMasterKey } from "../sync/keys";
+import { DEFAULT_RELAY_URL } from "../sync/engineDefaults";
+import { encodeMasterKey, parsePairPayload } from "../sync/keys";
 
 const MASTER_KEY = new Uint8Array(32).fill(7);
 
-function renderSection() {
+function renderSection(tweakOverrides: Partial<typeof TWEAK_DEFAULTS> = {}) {
   const setTweak = vi.fn();
-  render(<SyncSection tweaks={{ ...TWEAK_DEFAULTS }} setTweak={setTweak} />);
+  render(<SyncSection tweaks={{ ...TWEAK_DEFAULTS, ...tweakOverrides }} setTweak={setTweak} />);
   return { setTweak };
+}
+
+function readQrPayload(): string {
+  return screen.getByTestId("sync-qr").getAttribute("data-payload") ?? "";
 }
 
 beforeEach(() => {
@@ -112,7 +124,28 @@ describe("SyncSection", () => {
     expect(mocks.setRole).toHaveBeenCalledWith("origin");
     expect(setTweak).toHaveBeenCalledWith("syncExperimental", "on");
     expect(mocks.start).toHaveBeenCalledWith("");
-    expect(await screen.findByText("Enter this on your other device.")).toBeTruthy();
+    expect(await screen.findByText(/Scan with your phone, or enter this on your other device\./))
+      .toBeTruthy();
+    const parsed = parsePairPayload(readQrPayload());
+    expect(parsed.masterKey).toEqual(mocks.setKey.mock.calls[0][0]);
+    expect(parsed.relayUrl).toBe(DEFAULT_RELAY_URL);
+  });
+
+  it("encodes a custom relay tweak into the pairing QR instead of the default", async () => {
+    mocks.getKey.mockResolvedValue(null);
+    renderSection({ syncRelayUrl: "wss://relay.example.test" });
+    fireEvent.click(await screen.findByRole("button", { name: "Enable sync on this device" }));
+    await waitFor(() => expect(mocks.setKey).toHaveBeenCalled());
+    expect(parsePairPayload(readQrPayload()).relayUrl).toBe("wss://relay.example.test");
+  });
+
+  it("shows the pairing QR again from 'Show pairing string' for an already-enabled device", async () => {
+    mocks.getKey.mockResolvedValue(MASTER_KEY);
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Show pairing string" }));
+    const parsed = await waitFor(() => parsePairPayload(readQrPayload()));
+    expect(parsed.masterKey).toEqual(MASTER_KEY);
+    expect(parsed.relayUrl).toBe(DEFAULT_RELAY_URL);
   });
 
   it("marks a pairing-string device as joined and explains local-only projects", async () => {

@@ -9,7 +9,14 @@
     "plugins": [
       "expo-dev-client",
       "react-native-quick-crypto",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "WritersNook uses your camera to scan a pairing QR code from your other device.",
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "android": {
       "package": "com.coles.writersnook"

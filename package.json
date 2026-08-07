@@ -50,6 +50,7 @@
     "nspell": "^2.1.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "uqr": "0.1.3",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
