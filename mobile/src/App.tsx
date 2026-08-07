@@ -1,8 +1,20 @@
+import { useEffect, useState } from "react";
 import { SafeAreaView, StyleSheet, Text, View } from "react-native";
 
+import { assertDbReady } from "./db/database";
 import { SyncEngine } from "./shared/engine";
 
 export default function App() {
+  const [dbLine, setDbLine] = useState("opening database…");
+
+  useEffect(() => {
+    assertDbReady()
+      .then(({ userVersion, tableCount }) =>
+        setDbLine(`db ready · schema v${userVersion} · ${tableCount} tables`)
+      )
+      .catch((error: unknown) => setDbLine(`db FAILED: ${String(error)}`));
+  }, []);
+
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.card}>
@@ -11,6 +23,7 @@ export default function App() {
         <Text style={styles.body}>
           Android scaffold ready · portable {SyncEngine.name} boundary loaded
         </Text>
+        <Text style={styles.body}>{dbLine}</Text>
       </View>
     </SafeAreaView>
   );
