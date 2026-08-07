@@ -25,11 +25,10 @@ type Phase = "idle" | "success" | "error";
 
 interface PairScreenProps {
   /**
-   * TODO(S5): start the mobile SyncEngine here once mobile/src/sync/mobileEngine.ts
-   * exists (S4 blueprint step 5 — "Scene read plus sync-down"). Called once,
-   * after the key is in SecureStore and sync_role='joined' is in app_meta,
-   * with the relay URL the pairing code carried (QR) or the fallback
-   * default (manual entry).
+   * S4 step 5: wired by App.tsx (via AppNavigator) to start the mobile
+   * SyncEngine (mobile/src/sync/mobileEngine.ts). Called once, after the key
+   * is in SecureStore and sync_role='joined' is in app_meta, with the relay
+   * URL the pairing code carried (QR) or the fallback default (manual entry).
    */
   onPairedSuccessfully?: (relayUrl: string) => void;
 }

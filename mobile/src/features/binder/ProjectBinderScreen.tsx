@@ -5,6 +5,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { STATUS_META } from "../../shared/status";
+import { subscribeMobileStructureChanged } from "../../sync/mobileEngine";
 import { PALETTE, STATUS_DOT_COLOR } from "../../theme/palette";
 import type { BinderChapter, BinderSceneItem } from "./binderQueries";
 import { listBinder } from "./binderQueries";
@@ -38,10 +39,10 @@ function ChapterHeader({ title }: { title: string }) {
   return <Text style={styles.chapterHeader}>{title}</Text>;
 }
 
-function SceneRow({ scene }: { scene: BinderSceneItem }) {
+function SceneRow({ scene, onPress }: { scene: BinderSceneItem; onPress: () => void }) {
   const meta = STATUS_META[scene.status];
   return (
-    <View style={styles.sceneRow}>
+    <Pressable style={styles.sceneRow} onPress={onPress}>
       <View style={[styles.statusDot, { backgroundColor: STATUS_DOT_COLOR[scene.status] }]} />
       <View style={styles.sceneMain}>
         <Text style={styles.sceneTitle}>{scene.title}</Text>
@@ -51,7 +52,7 @@ function SceneRow({ scene }: { scene: BinderSceneItem }) {
         <Text style={styles.sceneStatusLabel}>{meta.label}</Text>
       </View>
       <Text style={styles.sceneWords}>{scene.wordCount.toLocaleString()}w</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -59,7 +60,7 @@ function CenteredMessage({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
 }
 
-export function ProjectBinderScreen({ route }: Props) {
+export function ProjectBinderScreen({ navigation, route }: Props) {
   const { projectId } = route.params;
   const [state, setState] = useState<LoadState>("loading");
   const [rows, setRows] = useState<Row[]>([]);
@@ -73,6 +74,13 @@ export function ProjectBinderScreen({ route }: Props) {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // S4 step 5: a remote binder change for this project refetches the tree.
+  useEffect(() => subscribeMobileStructureChanged(load), [load]);
+
+  const onOpenScene = useCallback((scene: BinderSceneItem) => {
+    navigation.navigate("Scene", { sceneId: scene.id, sceneTitle: scene.title });
+  }, [navigation]);
 
   if (state === "loading") {
     return <CenteredMessage><ActivityIndicator color={PALETTE.accent} /></CenteredMessage>;
@@ -98,7 +106,9 @@ export function ProjectBinderScreen({ route }: Props) {
       data={rows}
       keyExtractor={(row) => row.id}
       renderItem={({ item }) =>
-        item.kind === "header" ? <ChapterHeader title={item.title} /> : <SceneRow scene={item.scene} />
+        item.kind === "header"
+          ? <ChapterHeader title={item.title} />
+          : <SceneRow scene={item.scene} onPress={() => onOpenScene(item.scene)} />
       }
     />
   );

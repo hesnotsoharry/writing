@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import { subscribeMobileStructureChanged } from "../../sync/mobileEngine";
 import { PALETTE } from "../../theme/palette";
 import { listProjects } from "./binderQueries";
 import type { ProjectListItem } from "./binderQueries";
@@ -95,6 +96,10 @@ export function ProjectListScreen({ navigation }: Props) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // S4 step 5: a remote project/binder change (paired desktop edit) refetches
+  // this list — see mobileEngine.ts's single-slot-to-Set fan-out comment.
+  useEffect(() => subscribeMobileStructureChanged(load), [load]);
 
   const onSeed = useCallback(() => {
     seedSampleData()

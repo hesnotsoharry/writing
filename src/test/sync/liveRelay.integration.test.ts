@@ -268,4 +268,57 @@ describe.runIf(RELAY_URL)("live relay end-to-end", () => {
       engineB.stop();
     }
   }, 40_000);
+
+  it("clones a fresh mobile-shaped peer's project and scene prose from a desktop-shaped peer", async () => {
+    // Mirrors mobile/src/sync/mobileEngine.ts's buildMobileEngineOptions()
+    // composition (S4 blueprint step 5): every store option present except
+    // `ensureProjectMetas`/`subscribeMetaSaves` — mobile is always the
+    // "joined" side and never bootstraps or edits project meta locally, so
+    // makeEngine's peer-B here never receives those two hooks either. Unlike
+    // the "clones project structure" scenario above, this asserts scene
+    // *prose* clone-down too (not just structure), and never calls
+    // `attachLiveDoc` on either side — S4 mobile is read-only, no live bridge.
+    const masterKey = generateMasterKey();
+    const desktopScenes = new MemoryDocStore();
+    const mobileScenes = new MemoryDocStore();
+    const desktopMeta = new InMemoryProjectMetaDocStore();
+    const mobileMeta = new InMemoryProjectMetaDocStore();
+    const mobileTarget = new MemoryMetaTarget();
+
+    await desktopScenes.save("s1", encodeDoc(sceneDocWithText("cloned from desktop")));
+    const initial = buildFromSql({
+      project: { id: "p1", title: "Mobile Clone Novel", type: "novel" },
+      folders: [{ id: "f1", project_id: "p1", title: "Chapter One", sort_order: 1000 }],
+      scenes: [{ id: "s1", project_id: "p1", folder_id: "f1", title: "Opening", synopsis: null,
+        status: "draft", sort_order: 1000 }],
+      labels: [], sceneLabels: [],
+    });
+    await desktopMeta.save("p1", encodeDoc(initial));
+
+    const desktopEngine = makeEngine("desktop-peer", masterKey, desktopScenes, { metaStore: desktopMeta });
+    const mobileEngine = makeEngine("mobile-peer", masterKey, mobileScenes, {
+      metaStore: mobileMeta, metaTarget: mobileTarget,
+    });
+    try {
+      await desktopEngine.start();
+      await mobileEngine.start();
+
+      await until(() => mobileTarget.project?.title === "Mobile Clone Novel"
+        && mobileTarget.snapshot.scenes.some(({ id }) => id === "s1")
+        && mobileScenes.rows.has("s1"));
+
+      expect(mobileTarget.snapshot.folders).toEqual([
+        { id: "f1", project_id: "p1", title: "Chapter One", sort_order: 1000 },
+      ]);
+      const clonedScene = mobileTarget.snapshot.scenes.find(({ id }) => id === "s1");
+      expect(clonedScene).toMatchObject({ project_id: "p1", folder_id: "f1", title: "Opening" });
+
+      const clonedDoc = new Y.Doc();
+      applyEncoded(clonedDoc, mobileScenes.rows.get("s1")!.stateBase64);
+      expect(extractPlainText(clonedDoc)).toBe("cloned from desktop");
+    } finally {
+      desktopEngine.stop();
+      mobileEngine.stop();
+    }
+  }, 30_000);
 });
