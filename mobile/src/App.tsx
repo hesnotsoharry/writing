@@ -1,8 +1,12 @@
+import { NavigationContainer } from "@react-navigation/native";
 import { useEffect, useState } from "react";
-import { SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { assertDbReady } from "./db/database";
+import { AppNavigator } from "./navigation/AppNavigator";
 import { SyncEngine } from "./shared/engine";
+import { PALETTE } from "./theme/palette";
 
 export default function App() {
   const [dbLine, setDbLine] = useState("opening database…");
@@ -16,46 +20,43 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.card}>
-        <Text style={styles.eyebrow}>WRITERSNOOK MOBILE</Text>
-        <Text style={styles.title}>Your writing, close at hand.</Text>
-        <Text style={styles.body}>
-          Android scaffold ready · portable {SyncEngine.name} boundary loaded
-        </Text>
-        <Text style={styles.body}>{dbLine}</Text>
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+        {/*
+          Dev-status footer — the S4b/c scaffold's "WRITERSNOOK MOBILE"
+          status card, kept reachable (not deleted) per the S4 step-3 brief.
+          The db-ready line is the emulator smoke gate's oracle: it must stay
+          visible without navigating anywhere, so it lives as a persistent
+          footer under the stack navigator rather than its own screen.
+        */}
+        <SafeAreaView edges={["bottom"]} style={styles.devFooter}>
+          <Text style={styles.devFooterText}>
+            WRITERSNOOK MOBILE · {SyncEngine.name} loaded · {dbLine}
+          </Text>
+        </SafeAreaView>
       </View>
-    </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  root: {
     flex: 1,
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#F4EFE6",
+    backgroundColor: PALETTE.bg,
   },
-  card: {
-    gap: 12,
-    padding: 24,
-    borderRadius: 18,
-    backgroundColor: "#FFFCF7",
+  devFooter: {
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.border,
+    backgroundColor: PALETTE.card,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
-  eyebrow: {
-    color: "#87614A",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-  },
-  title: {
-    color: "#2F2925",
-    fontSize: 28,
-    fontWeight: "600",
-  },
-  body: {
-    color: "#655B54",
-    fontSize: 16,
-    lineHeight: 24,
+  devFooterText: {
+    color: PALETTE.inkMuted,
+    fontSize: 11,
   },
 });
