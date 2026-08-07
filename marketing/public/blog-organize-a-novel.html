@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script>(function(){try{var t=localStorage.getItem("wn-theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light");if(t==="dark")document.documentElement.setAttribute("data-theme","dark");}catch(e){}})();</script>
 <title>How to organize a novel without losing the magic | Writers Nook</title>
 <meta name="description" content="A practical guide to structuring your novel — outlines, binders, corkboards and story bibles — so the organization supports the writing instead of strangling it.">
 <link rel="canonical" href="https://writersnook.app/blog-organize-a-novel.html">
@@ -24,135 +23,198 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;0,7..72,700;1,7..72,400;1,7..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="site.css">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+  html, body { height:auto; min-height:0; overflow-x:clip; }
+  body { margin:0; background:#f4eee2; color:#2a251d; font-family:"Hanken Grotesk",system-ui,sans-serif; font-size:17px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  *, *::before, *::after { box-sizing:border-box; }
+  a { color:inherit; text-decoration:none; }
+  a:hover { color:#99492b; }
+  ::selection { background:rgba(178,90,56,.16); }
+  .a-prose { max-width:59ch; margin:0 auto; font-family:Literata,Georgia,serif; font-size:clamp(18px,1.75vw,20px); line-height:1.86; color:#4f473b; }
+  .a-prose p { margin:0 0 25px; text-wrap:pretty; }
+  .a-prose > p:first-child::first-letter { float:left; font-size:82px; line-height:.76; font-weight:600; color:#b25a38; margin:10px 14px 0 0; }
+  .a-prose h2 { margin:64px 0 20px; font-size:clamp(27px,3.4vw,40px); line-height:1.14; letter-spacing:-.025em; font-weight:500; color:#2a251d; text-wrap:balance; }
+  .a-prose a { color:#99492b; border-bottom:1px solid #cbb9a0; }
+  .a-prose blockquote { margin:44px -48px; padding:28px 42px 30px; border-top:1px solid #cbb9a0; border-bottom:1px solid #cbb9a0; color:#2a251d; font-size:clamp(22px,3vw,31px); line-height:1.42; font-style:italic; text-align:center; }
+  .a-prose ul { margin:8px 0 28px; padding-left:28px; }
+  .a-prose li { margin:10px 0; padding-left:5px; }
+  .a-prose strong { color:#2a251d; font-weight:600; }
+  .a-cork { margin:42px -76px 30px; border:1px solid #d8cab4; border-radius:5px; overflow:hidden; background:#d7b789; box-shadow:0 22px 54px rgba(72,53,28,.13); }
+  .a-cork-bar { display:flex; align-items:center; gap:7px; padding:11px 15px; background:#fcfaf5; border-bottom:1px solid #d8cab4; }
+  .a-cork-dot { width:8px; height:8px; border-radius:50%; background:#cfc5b5; }
+  .a-cork-title { margin-left:7px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:#8a8071; }
+  .a-cork-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; padding:24px; background-color:#cfad7d; background-image:radial-gradient(rgba(75,54,29,.10) .7px,transparent .7px); background-size:5px 5px; }
+  .a-card { position:relative; min-height:154px; padding:24px 20px 16px; background:#f7f0df; color:#40382c; box-shadow:1px 4px 12px rgba(64,43,20,.17); transform:rotate(-.4deg); }
+  .a-card:nth-child(even) { transform:rotate(.5deg); background:#f5ead0; }
+  .a-pin { position:absolute; top:9px; left:50%; width:8px; height:8px; border-radius:50%; background:#b25a38; box-shadow:0 2px 4px rgba(65,34,20,.28); }
+  .a-card h3 { margin:0; font-family:Literata,serif; font-size:16px; line-height:1.25; font-weight:600; }
+  .a-card p { margin:8px 0 15px; font-family:"Hanken Grotesk",sans-serif; font-size:12px; line-height:1.48; color:#6e6251; }
+  .a-card-meta { display:flex; justify-content:space-between; gap:12px; margin-top:auto; font-family:'IBM Plex Mono',monospace; font-size:8.5px; letter-spacing:.08em; text-transform:uppercase; color:#8a735c; }
+  .a-caption { display:block; margin:-2px 0 0; text-align:center; font-family:"Hanken Grotesk",sans-serif; font-size:14px; color:#8a8071; }
+  @media (max-width:760px) {
+    .a-prose blockquote { margin:38px 0; padding:25px 18px; }
+    .a-cork { margin:34px 0 26px; }
+    .a-cork-grid { grid-template-columns:1fr; padding:16px; }
+    .a-cta { padding:30px 24px !important; }
+    .a-related-grid { grid-template-columns:1fr !important; }
+    footer > div > div:first-child { grid-template-columns:1fr !important; }
+  }
+</style>
+<script src="site-motion.js"></script>
 <!-- Fathom - beautiful, simple website analytics -->
 <script src="https://cdn.usefathom.com/script.js" data-site="LMMYXJTT" defer></script>
 <!-- / Fathom -->
+<link rel="stylesheet" href="site-nav.css">
 </head>
 <body>
+<div id="a-root" style="position:relative;background:#f4eee2;overflow-x:clip">
 
-<nav class="nav" id="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="index.html"><img id="brand-logo" src="assets/logo-dark.png" alt="Writers Nook">Writers Nook</a>
-    <button class="nav-toggle" id="navToggle" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div class="nav-links" id="navLinks">
-      <a href="features.html">Features</a>
-      <a href="pricing.html">Pricing</a>
-      <a href="about.html">About</a>
-      <a href="blog.html" class="active">Blog</a>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle light or dark theme" title="Toggle theme"><svg class="ic moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><svg class="ic sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-      <a class="m-btn m-btn-primary nav-cta" href="pricing.html">Buy — $29</a>
-    </div>
-  </div>
-</nav>
-
-<article class="article">
-  <div class="wrap wrap-narrow">
-    <div class="article-head io">
-      <a href="blog.html" style="color:var(--ink-3);font-size:14px;display:inline-flex;align-items:center;gap:7px;margin-bottom:20px">
-        <svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
-        Back to the journal
+  <nav style="position:fixed;top:0;left:0;right:0;z-index:60;background:rgba(252,250,245,.8);backdrop-filter:blur(18px);border-bottom:1px solid #e6ddcd">
+    <div style="width:100%;max-width:1320px;margin:0 auto;padding:0 40px;height:60px;display:flex;align-items:center;gap:26px">
+      <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:17px;letter-spacing:-0.01em;color:#2a251d">
+        <img src="assets/logo-dark.png" alt="Writers Nook" style="width:24px;height:24px;display:block">Writers Nook
       </a>
-      <span class="bcat">Structure</span>
-      <h1>How to organize a novel without losing the magic</h1>
-      <div class="byline">
-        <span class="avatar">WN</span>
+      <button id="navToggle" aria-label="Menu" style="display:none;border:0;background:transparent;padding:8px;margin-left:auto;cursor:pointer;color:#2a251d"><svg style="width:22px;height:22px;display:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div id="navLinks" style="display:flex;align-items:center;gap:2px;margin-left:auto">
+        <a href="features.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Features</a>
+        <a href="pricing.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">Pricing</a>
+        <a href="about.html" style="font-size:14px;font-weight:500;color:#5c5446;padding:8px 13px">About</a>
+        <a href="blog.html" style="font-size:14px;font-weight:600;color:#99492b;padding:8px 13px">Blog</a>
+        <a class="nav-cta" href="checkout.html" style="display:inline-flex;align-items:center;font-weight:600;font-size:14px;padding:10px 19px;border-radius:999px;background:#b25a38;color:#fff;margin-left:10px">Buy — $29</a>
+      </div>
+    </div>
+  </nav>
+
+  <header style="position:relative;padding:126px 0 68px">
+    <div style="width:100%;max-width:960px;margin:0 auto;padding:0 48px">
+      <a class="a-in" href="blog.html" style="display:inline-flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#8a8071">
+        <svg style="width:13px;height:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"></path></svg>
+        Back to the Reading Room
+      </a>
+      <div class="a-in" style="display:flex;align-items:center;gap:14px;margin-top:38px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.17em;text-transform:uppercase;color:#99492b"><span>Structure</span><span style="width:18px;height:1px;background:#cbb9a0;display:block"></span><span style="color:#8a8071">The long read</span></div>
+      <h1 class="a-in" style="font-family:Literata,Georgia,serif;font-weight:400;color:#2a251d;margin:20px 0 0;line-height:1.01;letter-spacing:-0.04em;font-size:clamp(44px,7vw,82px);max-width:16ch;text-wrap:balance">How to organize a novel without losing the magic</h1>
+      <div class="a-in" style="display:flex;align-items:center;gap:13px;margin-top:27px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#8a8071">
+        <span style="display:inline-flex;width:34px;height:34px;align-items:center;justify-content:center;border:1px solid #cbb9a0;border-radius:50%;color:#99492b;letter-spacing:.04em">WN</span>
         <span>The Writers Nook team &nbsp;·&nbsp; June 1, 2026 &nbsp;·&nbsp; 9 min read</span>
       </div>
     </div>
+  </header>
 
-    <div class="prose io">
-      <p>Most advice about organizing a novel makes the same quiet mistake: it treats structure as something you build <em>before</em> the writing, like scaffolding around a building that doesn't exist yet. Then the writing starts, the story wanders somewhere more interesting, and the careful outline becomes a monument to a book you're no longer writing.</p>
-      <p>Good organization does the opposite. It's not a cage you pour the story into — it's a set of tools you reach for when you're lost, and ignore completely when you're not. Here's how to build that kind of structure for your novel, and how to keep it from getting in the way.</p>
+  <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px"><div class="a-in" style="height:1px;background:#ddd0b8"></div></div>
 
-      <h2>1. Separate the manuscript from the mess</h2>
-      <p>The single most useful thing you can do is give your actual prose one home, and everything else — research, character notes, deleted scenes, half-thoughts — a different one. When your draft and your debris share a folder, every time you open the book you have to step over the clutter to reach the writing.</p>
-      <p>A <strong>binder</strong> solves this. Chapters and scenes go in an outline you can see at a glance; loose research and notes live somewhere adjacent but out of the way. The page you're writing is never more than one click from the structure of the whole book — and the structure never crowds the page.</p>
+  <article style="position:relative;padding:70px 0 120px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div class="a-prose">
+        <p class="a-rise">Most advice about organizing a novel makes the same quiet mistake: it treats structure as something you build <em>before</em> the writing, like scaffolding around a building that doesn't exist yet. Then the writing starts, the story wanders somewhere more interesting, and the careful outline becomes a monument to a book you're no longer writing.</p>
+        <p class="a-rise">Good organization does the opposite. It's not a cage you pour the story into — it's a set of tools you reach for when you're lost, and ignore completely when you're not. Here's how to build that kind of structure for your novel, and how to keep it from getting in the way.</p>
 
-      <blockquote>The writing is the easy part. Finding the writing — and keeping the world straight — is what wears most novelists down.</blockquote>
+        <h2 class="a-rise">1. Separate the manuscript from the mess</h2>
+        <p class="a-rise">The single most useful thing you can do is give your actual prose one home, and everything else — research, character notes, deleted scenes, half-thoughts — a different one. When your draft and your debris share a folder, every time you open the book you have to step over the clutter to reach the writing.</p>
+        <p class="a-rise">A <strong>binder</strong> solves this. Chapters and scenes go in an outline you can see at a glance; loose research and notes live somewhere adjacent but out of the way. The page you're writing is never more than one click from the structure of the whole book — and the structure never crowds the page.</p>
 
-      <h2>2. Outline in pencil, not ink</h2>
-      <p>Whether you're a meticulous plotter or a pure discovery writer, you'll do some planning. The trick is to make that plan <em>cheap to change</em>. An outline carved into a static document resists revision; you feel the sunk cost of it every time the story wants to move.</p>
-      <p>Index cards — physical or digital — are the classic answer because they're so easy to reorder. Write one card per scene: a sentence of synopsis, who's in it, what changes. Then move them around until the order feels right. This is exactly what a <a href="features.html">corkboard view</a> is for.</p>
+        <blockquote class="a-rise">The writing is the easy part. Finding the writing — and keeping the world straight — is what wears most novelists down.</blockquote>
 
-      <div class="appframe" style="margin:36px 0">
-        <div class="af-bar"><span class="af-dot r"></span><span class="af-dot y"></span><span class="af-dot g"></span><span class="af-title">Corkboard</span></div>
-        <div class="mock-cork">
-          <div class="cork-card"><div class="cc-pin"></div><div class="cc-h">The Causeway</div><div class="cc-s">Maren returns to Thornwick three weeks after Edda's death.</div><div class="cc-f"><span class="cc-st draft">Drafting</span><span class="cc-w">1,840</span></div></div>
-          <div class="cork-card"><div class="cc-pin done"></div><div class="cc-h">An Empty Lighthouse</div><div class="cc-s">The keeper's quarters, cold and recently abandoned.</div><div class="cc-f"><span class="cc-st done">Done</span><span class="cc-w">2,110</span></div></div>
-          <div class="cork-card"><div class="cc-pin"></div><div class="cc-h">What the Logbook Said</div><div class="cc-s">A name Maren doesn't recognize, in handwriting she does.</div><div class="cc-f"><span class="cc-st draft">Drafting</span><span class="cc-w">980</span></div></div>
-          <div class="cork-card idea"><div class="cc-pin idea"></div><div class="cc-h">The First Night</div><div class="cc-s">Idea: the light comes on by itself.</div><div class="cc-f"><span class="cc-st idea">Idea</span><span class="cc-w">—</span></div></div>
+        <h2 class="a-rise">2. Outline in pencil, not ink</h2>
+        <p class="a-rise">Whether you're a meticulous plotter or a pure discovery writer, you'll do some planning. The trick is to make that plan <em>cheap to change</em>. An outline carved into a static document resists revision; you feel the sunk cost of it every time the story wants to move.</p>
+        <p class="a-rise">Index cards — physical or digital — are the classic answer because they're so easy to reorder. Write one card per scene: a sentence of synopsis, who's in it, what changes. Then move them around until the order feels right. This is exactly what a <a href="features.html">corkboard view</a> is for.</p>
+
+        <div class="a-cork a-rise">
+          <div class="a-cork-bar"><span class="a-cork-dot"></span><span class="a-cork-dot"></span><span class="a-cork-dot"></span><span class="a-cork-title">Corkboard</span></div>
+          <div class="a-cork-grid">
+            <div class="a-card"><span class="a-pin"></span><h3>The Causeway</h3><p>Maren returns to Thornwick three weeks after Edda's death.</p><div class="a-card-meta"><span>Drafting</span><span>1,840</span></div></div>
+            <div class="a-card"><span class="a-pin"></span><h3>An Empty Lighthouse</h3><p>The keeper's quarters, cold and recently abandoned.</p><div class="a-card-meta"><span>Done</span><span>2,110</span></div></div>
+            <div class="a-card"><span class="a-pin"></span><h3>What the Logbook Said</h3><p>A name Maren doesn't recognize, in handwriting she does.</p><div class="a-card-meta"><span>Drafting</span><span>980</span></div></div>
+            <div class="a-card"><span class="a-pin"></span><h3>The First Night</h3><p>Idea: the light comes on by itself.</p><div class="a-card-meta"><span>Idea</span><span>—</span></div></div>
+          </div>
+        </div>
+        <p class="a-caption a-rise">Scenes as cards in Writers Nook — drag to reorder, and the manuscript follows.</p>
+
+        <h2 class="a-rise">3. Give your world a memory</h2>
+        <p class="a-rise">Somewhere around the 30,000-word mark, every novelist hits the same wall: <em>what colour were her eyes?</em> You stop writing, scroll back through chapters hunting for a detail you established once and have since half-forgotten. Multiply that by every character, place, and rule of your world, and you've invented a whole second job for yourself.</p>
+        <p class="a-rise">A <strong>story bible</strong> is the cure. Give each character and location a page — appearance, voice, history, who they know. Keep it beside the manuscript, not in a separate spreadsheet you'll forget exists. The best versions link each entry to the scenes it appears in, so consistency becomes something you can check rather than something you have to remember.</p>
+        <ul class="a-rise">
+          <li><strong>Characters:</strong> the facts you'll need to keep straight — and the ones you're tempted to contradict.</li>
+          <li><strong>Locations:</strong> geography, mood, and the small sensory details that make a place feel real twice.</li>
+          <li><strong>Notes:</strong> rules, timelines, recurring objects, and the questions you haven't answered yet.</li>
+        </ul>
+
+        <h2 class="a-rise">4. Let structure stay invisible while you draft</h2>
+        <p class="a-rise">Here's the part the productivity articles skip: <em>most of the time, you shouldn't see any of this.</em> The binder, the corkboard, the bible — they're reference tools, not the writing surface. When you're actually drafting, the ideal is a clean page and nothing else.</p>
+        <p class="a-rise">That's a design choice as much as a discipline. A good writing app keeps the organization one keystroke away and otherwise out of sight, so the structure supports you without ever becoming the thing you're staring at. Open the page, write the scene, and let the machinery wait quietly in the next room until you need it.</p>
+
+        <h2 class="a-rise">5. Protect the work as you go</h2>
+        <p class="a-rise">None of this matters if the file vanishes. Organization includes <em>safety</em>: keep your manuscript in a durable, portable format on your own machine, and keep a copy somewhere else. The old "3-2-1" rule still holds — three copies, two kinds of storage, one of them off-site. Daily version history turns "I deleted the wrong chapter" from a catastrophe into a minor annoyance.</p>
+
+        <h2 class="a-rise">The short version</h2>
+        <p class="a-rise">Organize so you can forget about organizing. Keep the manuscript clean and the clutter close but separate. Plan in a way that's cheap to change. Give your world a memory so you don't have to be one. And then — most importantly — close all of it, open the page, and write the next sentence.</p>
+        <p class="a-rise">That's the whole philosophy behind <a href="index.html">Writers Nook</a>: a single calm room where the structure is always there when you reach for it, and gone the moment you don't.</p>
+      </div>
+
+      <div class="a-cta a-rise" style="max-width:900px;margin:76px auto 0;padding:38px 40px;border-top:1px solid #cbb9a0;border-bottom:1px solid #cbb9a0;display:flex;gap:28px;align-items:center;flex-wrap:wrap">
+        <img src="assets/logo-dark.png" alt="" style="width:54px;height:54px;flex:none">
+        <div style="flex:1;min-width:220px">
+          <h3 style="font-family:Literata,serif;font-size:24px;font-weight:500;line-height:1.2;color:#2a251d;margin:0">Write your novel somewhere quiet</h3>
+          <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:#5c5446;margin:7px 0 0">Binder, story bible, corkboard, and a page that disappears — founder price $29 USD.</p>
+        </div>
+        <a href="pricing.html" style="display:inline-flex;align-items:center;font-weight:600;font-size:15px;padding:14px 22px;border-radius:8px;background:#b25a38;color:#fff;box-shadow:0 12px 30px rgba(178,90,56,.18)">Buy Writers Nook</a>
+      </div>
+
+      <section class="a-rise" style="max-width:900px;margin:74px auto 0">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding-bottom:17px;border-bottom:1px solid #ddd0b8">
+          <h3 style="font-family:Literata,serif;font-size:24px;font-weight:500;color:#2a251d;margin:0">Keep reading</h3>
+          <a href="blog.html" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#99492b">The Reading Room →</a>
+        </div>
+        <div class="a-related-grid" style="display:grid;grid-template-columns:repeat(2,minmax(300px,1fr));gap:0 42px">
+          <a href="blog.html" style="padding:27px 0;border-bottom:1px solid #e6ddcd">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#99492b">Craft</span>
+            <h3 style="font-family:Literata,serif;font-size:21px;font-weight:600;color:#2a251d;line-height:1.3;margin:10px 0 0">Outlining vs. discovery writing: finding your method</h3>
+          </a>
+          <a href="blog.html" style="padding:27px 0;border-bottom:1px solid #e6ddcd">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#4e7c6b">Habits</span>
+            <h3 style="font-family:Literata,serif;font-size:21px;font-weight:600;color:#2a251d;line-height:1.3;margin:10px 0 0">Building a writing streak that survives real life</h3>
+          </a>
+        </div>
+      </section>
+    </div>
+  </article>
+</div>
+
+  <footer style="position:relative;background:#2a251d;color:rgba(247,242,232,.6);padding:76px 0 34px">
+    <div style="width:100%;max-width:1180px;margin:0 auto;padding:0 48px">
+      <div style="display:grid;grid-template-columns:1.5fr repeat(3,minmax(140px,1fr));gap:44px">
+        <div>
+          <a href="index.html" style="display:flex;align-items:center;gap:10px;font-family:Literata,Georgia,serif;font-weight:600;font-size:18px;color:#f7f2e8"><img src="assets/logo-light.png" alt="" style="width:26px;height:26px;display:block">Writers Nook</a>
+          <p style="font-family:Literata,serif;font-size:16px;line-height:1.7;color:rgba(247,242,232,.5);margin:16px 0 0;max-width:30ch">A quiet desk for the whole novel. Made in Canada, for people who would rather be writing.</p>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Product</div>
+          <a href="features.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Features</a><a href="pricing.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Pricing</a><a href="account.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Download</a><a href="whats-new.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">What's new</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Company</div>
+          <a href="about.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">About</a><a href="blog.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Blog</a><a href="press.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Press</a><a href="contact.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Contact</a>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(247,242,232,.4);padding-bottom:13px;border-bottom:1px solid rgba(247,242,232,.14)">Support &amp; legal</div>
+          <a href="support.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Support</a><a href="privacy.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Privacy</a><a href="terms.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Terms</a><a href="refunds.html" style="display:block;font-size:15px;color:rgba(247,242,232,.72);padding:9px 0">Refunds</a>
         </div>
       </div>
-      <p style="text-align:center;color:var(--ink-3);font-size:14px;margin-top:-14px">Scenes as cards in Writers Nook — drag to reorder, and the manuscript follows.</p>
-
-      <h2>3. Give your world a memory</h2>
-      <p>Somewhere around the 30,000-word mark, every novelist hits the same wall: <em>what colour were her eyes?</em> You stop writing, scroll back through chapters hunting for a detail you established once and have since half-forgotten. Multiply that by every character, place, and rule of your world, and you've invented a whole second job for yourself.</p>
-      <p>A <strong>story bible</strong> is the cure. Give each character and location a page — appearance, voice, history, who they know. Keep it beside the manuscript, not in a separate spreadsheet you'll forget exists. The best versions link each entry to the scenes it appears in, so consistency becomes something you can check rather than something you have to remember.</p>
-      <ul>
-        <li><strong>Characters:</strong> the facts you'll need to keep straight — and the ones you're tempted to contradict.</li>
-        <li><strong>Locations:</strong> geography, mood, and the small sensory details that make a place feel real twice.</li>
-        <li><strong>Notes:</strong> rules, timelines, recurring objects, and the questions you haven't answered yet.</li>
-      </ul>
-
-      <h2>4. Let structure stay invisible while you draft</h2>
-      <p>Here's the part the productivity articles skip: <em>most of the time, you shouldn't see any of this.</em> The binder, the corkboard, the bible — they're reference tools, not the writing surface. When you're actually drafting, the ideal is a clean page and nothing else.</p>
-      <p>That's a design choice as much as a discipline. A good writing app keeps the organization one keystroke away and otherwise out of sight, so the structure supports you without ever becoming the thing you're staring at. Open the page, write the scene, and let the machinery wait quietly in the next room until you need it.</p>
-
-      <h2>5. Protect the work as you go</h2>
-      <p>None of this matters if the file vanishes. Organization includes <em>safety</em>: keep your manuscript in a durable, portable format on your own machine, and keep a copy somewhere else. The old "3-2-1" rule still holds — three copies, two kinds of storage, one of them off-site. Daily version history turns "I deleted the wrong chapter" from a catastrophe into a minor annoyance.</p>
-
-      <h2>The short version</h2>
-      <p>Organize so you can forget about organizing. Keep the manuscript clean and the clutter close but separate. Plan in a way that's cheap to change. Give your world a memory so you don't have to be one. And then — most importantly — close all of it, open the page, and write the next sentence.</p>
-      <p>That's the whole philosophy behind <a href="index.html">Writers Nook</a>: a single calm room where the structure is always there when you reach for it, and gone the moment you don't.</p>
-    </div>
-
-    <!-- post CTA -->
-    <div class="io" style="margin-top:56px;padding:34px 36px;border:1px solid var(--accent-ring);border-radius:var(--r-xl);background:linear-gradient(180deg,var(--accent-tint),var(--paper));display:flex;gap:24px;align-items:center;flex-wrap:wrap">
-      <img src="assets/logo-dark.png" alt="" style="width:56px;height:56px;flex:none">
-      <div style="flex:1;min-width:220px">
-        <h3 style="font-size:22px">Write your novel somewhere quiet</h3>
-        <p style="color:var(--ink-2);margin:6px 0 0">Binder, story bible, corkboard, and a page that disappears — founder price $29 USD.</p>
-      </div>
-      <a class="m-btn m-btn-primary m-btn-lg" href="pricing.html">Buy Writers Nook</a>
-    </div>
-
-    <!-- related -->
-    <div class="io" style="margin-top:56px">
-      <h3 style="font-size:20px;margin-bottom:20px">Keep reading</h3>
-      <div class="blog-grid" style="grid-template-columns:1fr 1fr">
-        <a href="blog.html" class="bcard">
-          <div class="bcover cv-2" style="aspect-ratio:16/7"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:44px;height:44px"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4L12 17l-6.3 4.4L8 14 2 9.4h7.6z"/></svg></div></div>
-          <div class="bbody"><span class="bcat">Craft</span><h3 style="font-size:18px">What is a story bible, and do you actually need one?</h3></div>
-        </a>
-        <a href="blog.html" class="bcard">
-          <div class="bcover cv-3" style="aspect-ratio:16/7"><div class="cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" style="width:44px;height:44px"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg></div></div>
-          <div class="bbody"><span class="bcat">Habits</span><h3 style="font-size:18px">Building a writing streak that survives real life</h3></div>
-        </a>
+      <div style="margin-top:56px;padding-top:24px;border-top:1px solid rgba(247,242,232,.14);display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(247,242,232,.38)">
+        <span>© 2026 Writers Nook · writersnook.app</span>
+        <span>Built for one writer, shared with all of them</span>
       </div>
     </div>
-  </div>
-</article>
-
-<footer class="foot">
-  <div class="wrap">
-    <div class="foot-top">
-      <div>
-        <a class="brand" href="index.html"><img src="assets/logo-light.png" alt="" style="width:30px;height:30px">Writers Nook</a>
-        <p class="foot-blurb">A calm, paper-warm desktop writing app for novelists. Made with care in Canada.</p>
-      </div>
-      <div class="foot-col"><h5>Product</h5><a href="features.html">Features</a><a href="pricing.html">Pricing</a><a href="account.html">Download</a><a href="whats-new.html">What's new</a></div>
-      <div class="foot-col"><h5>Company</h5><a href="about.html">About</a><a href="blog.html">Blog</a><a href="press.html">Press</a><a href="contact.html">Contact</a><a href="signin.html">Sign in</a></div>
-      <div class="foot-col"><h5>Support &amp; legal</h5><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refunds.html">Refunds</a></div>
-    </div>
-    <div class="foot-bottom">
-      <span>© 2026 Writers Nook · writersnook.app</span>
-      <span class="made"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-6.7-4.3-9.3-8.2C.9 9.8 2.2 6 5.5 6c1.9 0 3.3 1.1 4.1 2.4C10.4 7.1 11.8 6 13.7 6 17 6 18.3 9.8 16.6 12.8 14.7 16.7 12 21 12 21z"/></svg>Built for one writer, shared with all of them</span>
-    </div>
-  </div>
-</footer>
-
+  </footer>
 <script src="site.js"></script>
+<script>
+WNMotion.ready(function () {
+  var gsap = window.gsap;
+  var m = WNMotion.create();
+
+  gsap.fromTo('.a-in', { y: 26 }, { y: 0, duration: 1, stagger: .1, ease: 'power3.out' });
+  m.reveal(document.querySelectorAll('.a-rise'), { y: 28, opacity: 0 }, { y: 0, opacity: 1, duration: .88, ease: 'power3.out' }, .06);
+  m.kick();
+});
+</script>
 </body>
 </html>

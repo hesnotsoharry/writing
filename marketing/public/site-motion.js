@@ -40,7 +40,9 @@
       var h = window.innerHeight;
       for (var i = pending.length - 1; i >= 0; i--) {
         var p = pending[i], r = p.el.getBoundingClientRect();
-        if (r.top < h * 0.92 && r.bottom > -80) { pending.splice(i, 1); play(p); }
+        /* in view OR already scrolled past — a fast flick or anchor jump can leap
+           over a small element between scroll events; it must still settle */
+        if (r.top < h * 0.92) { pending.splice(i, 1); play(p); }
       }
     };
 
