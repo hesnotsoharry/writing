@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-06",
   "compatibility_flags": ["nodejs_compat"],
+  // Both clients hardcode wss://sync.writersnook.app as their default relay
+  // (src/sync/engineDefaults.ts, mobile/src/sync/mobileEngine.ts). A bare
+  // deploy only lands on *.workers.dev, so the custom domain is load-bearing.
+  "routes": [{ "pattern": "sync.writersnook.app", "custom_domain": true }],
   "durable_objects": {
     "bindings": [
       {
