@@ -1,4 +1,4 @@
-import { fromUint8Array } from "js-base64";
+import { fromUint8Array, toUint8Array } from "js-base64";
 import { describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
@@ -13,7 +13,9 @@ import { deriveKeys } from "../../sync/keys";
 import type { InnerMessage } from "../../sync/messages";
 import type { MetaApplyTarget } from "../../sync/meta/applyExec";
 import type { SqlFolderRow, SqlProjectionSnapshot, SqlSceneRow } from "../../sync/meta/applyPlan";
-import { buildFromSql, bumpEpoch, type MetaProject, setFolder } from "../../sync/meta/metaDoc";
+import {
+  buildFromSql, bumpEpoch, getDocEpochs, type MetaProject, setFolder,
+} from "../../sync/meta/metaDoc";
 import type { ConnectionState } from "../../sync/provider";
 import { applyEncoded, encodeDoc, extractPlainText } from "../../yjs/serialize";
 
@@ -96,10 +98,19 @@ interface EngineOverrides {
 }
 
 function makeEngine(
-  meta: Y.Doc, scene = textDoc("local divergence"), overrides: EngineOverrides = {}
+  meta: Y.Doc, scene = textDoc("local divergence"),
+  overrides: EngineOverrides & { metaSaveDelayMs?: number } = {}
 ) {
+  const { metaSaveDelayMs, ...engineOverrides } = overrides;
   const provider = new FakeProvider(); const sceneStore = new MemorySceneStore();
   const metaStore = new InMemoryProjectMetaDocStore(); const epochs = new MemoryEpochStore();
+  if (metaSaveDelayMs !== undefined) {
+    const inner = metaStore.save.bind(metaStore);
+    metaStore.save = async (id: string, stateBase64: string): Promise<void> => {
+      await new Promise((resolve) => setTimeout(resolve, metaSaveDelayMs));
+      await inner(id, stateBase64);
+    };
+  }
   const snapshots = new InMemorySnapshotStore(); const target = new MemoryMetaTarget();
   sceneStore.rows.set("scene-1", { id: "scene-1", stateBase64: encodeDoc(scene), updatedAt: null });
   void metaStore.save("project-1", encodeDoc(meta));
@@ -109,7 +120,7 @@ function makeEngine(
     ensureProjectMetas: () => Promise.resolve(), readMasterKey: () => Promise.resolve(MASTER_KEY),
     getDeviceId: () => Promise.resolve("device-b"), providerFactory: () => provider,
     updateWordCount: () => Promise.resolve(),
-    ...overrides,
+    ...engineOverrides,
   });
   return { engine, provider, sceneStore, metaStore, epochs, snapshots, target };
 }
@@ -211,6 +222,79 @@ describe("SyncEngine meta and epoch enforcement", () => {
 
     const sent = await Promise.all(ctx.provider.sent.map((blob) => openMessage(key, blob)));
     expect(sent.filter((message) => (message as { t: string }).t === "live")).toHaveLength(0);
+    ctx.engine.stop();
+  });
+
+  // Regression: onBlob was fire-and-forget, so a restore's meta+scene pair raced.
+  // The short scene path finished first, accepts() rejected it against the old
+  // epoch, and the device waited a full sweep for a replacement already in hand.
+  it("applies a restore pair in arrival order even when the meta path is slow", async () => {
+    const ctx = makeEngine(metaDoc(), textDoc("stale local"), { metaSaveDelayMs: 80 });
+    await ctx.engine.start();
+    const key = (await deriveKeys(MASTER_KEY)).encKey;
+    const metaFrame = await sealMessage(key, {
+      t: "diff", c: "meta:project-1",
+      u: fromUint8Array(Y.encodeStateAsUpdate(metaDoc(1))),
+    });
+    const sceneFrame = await sealMessage(key, {
+      t: "diff", c: "scene:scene-1", e: 1,
+      u: fromUint8Array(Y.encodeStateAsUpdate(textDoc("restored state"))),
+    });
+
+    ctx.provider.receive(metaFrame);
+    ctx.provider.receive(sceneFrame);
+
+    await vi.waitFor(async () => {
+      const stored = new Y.Doc();
+      applyEncoded(stored, (await ctx.sceneStore.load("scene-1"))!);
+      expect(extractPlainText(stored)).toBe("restored state");
+    });
+    expect(ctx.epochs.value["scene-1"]).toBe(1);
+    ctx.engine.stop();
+  });
+
+  // Regression: restores run inside syncEngine.pause(), so the push was dropped and
+  // the peer waited out its own 60s sweep before asking for the replacement.
+  it("holds a restore pushed while paused and delivers it on resume, meta first", async () => {
+    let notify: ((projectId: string, epochs: Record<string, number>) => void) | null = null;
+    const ctx = makeEngine(metaDoc(), textDoc("restored text"), {
+      subscribeMetaSaves: (cb) => { notify = cb; return () => undefined; },
+    });
+    await ctx.engine.start();
+    const key = (await deriveKeys(MASTER_KEY)).encKey;
+    const frames = async () => Promise.all(
+      ctx.provider.sent.map((blob) => openMessage(key, blob) as Promise<{
+        t: string; c?: string; e?: number; u?: string;
+      }>)
+    );
+
+    ctx.engine.pause();
+    ctx.provider.sent.length = 0;
+    expect(notify).not.toBeNull();
+    // The store must actually hold the bumped meta, or the pushed meta frame
+    // carries epoch 0 and the peer never learns why the scene is being replaced.
+    await ctx.metaStore.save("project-1", encodeDoc(metaDoc(1)));
+    notify!("project-1", { "scene-1": 1 });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(await frames()).toHaveLength(0);
+
+    ctx.engine.resume();
+    await vi.waitFor(async () => {
+      const sent = await frames();
+      expect(sent.some((frame) => frame.c === "scene:scene-1")).toBe(true);
+    });
+    const sent = await frames();
+    const metaAt = sent.findIndex((frame) => frame.c === "meta:project-1");
+    const sceneAt = sent.findIndex((frame) => frame.c === "scene:scene-1");
+    // Order is load-bearing: a scene arriving before the peer knows the epoch is
+    // merged into its stale doc instead of replacing it.
+    expect(metaAt).toBeGreaterThanOrEqual(0);
+    expect(metaAt).toBeLessThan(sceneAt);
+    expect(sent[sceneAt]?.e).toBe(1);
+    // And the meta frame must actually carry the bump, not just precede the scene.
+    const pushedMeta = new Y.Doc();
+    Y.applyUpdate(pushedMeta, toUint8Array(sent[metaAt]!.u!));
+    expect(getDocEpochs(pushedMeta)["scene-1"]).toBe(1);
     ctx.engine.stop();
   });
 

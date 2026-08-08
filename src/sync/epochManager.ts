@@ -53,13 +53,16 @@ export class EpochManager {
     }
   }
 
-  async recordLocal(epochs: Record<string, number>): Promise<void> {
-    let changed = false;
+  /** Returns the scenes whose epoch this call advanced — i.e. what a local
+   *  restore just replaced, and therefore what peers still need pushed to them. */
+  async recordLocal(epochs: Record<string, number>): Promise<string[]> {
+    const advanced: string[] = [];
     for (const [sceneId, epoch] of Object.entries(epochs)) {
-      if (epoch > this.epoch(sceneId)) { this.applied[sceneId] = epoch; changed = true; }
+      if (epoch > this.epoch(sceneId)) { this.applied[sceneId] = epoch; advanced.push(sceneId); }
       this.known.set(sceneId, Math.max(this.epoch(sceneId), epoch));
     }
-    if (changed) await this.options.epochStore?.save(this.applied);
+    if (advanced.length > 0) await this.options.epochStore?.save(this.applied);
+    return advanced;
   }
 
   async handleBehindFrame(

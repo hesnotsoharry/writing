@@ -8,16 +8,17 @@ import type { SnapshotStore } from "../db/snapshotStore";
 import type { AppliedEpochStore } from "../db/syncEpochStore";
 import { SYNC_ORIGIN } from "../yjs/bindPersistence";
 import { extractPlainText } from "../yjs/serialize";
-import { answerFrame } from "./answerFrame";
+import { answerFrame, helloDoc } from "./epochFrames";
 import { EpochManager } from "./epochManager";
 import { openMessage, sealMessage } from "./frameCodec";
 import { deriveKeys } from "./keys";
 import {
-  boardChannel, type HelloDoc, type HelloMessage, type InnerMessage,
+  boardChannel, type HelloMessage, type InnerMessage,
   isInnerMessage, metaChannel, parseChannel, sceneChannel,
 } from "./messages";
 import { applyMetaDoc, type MetaApplyTarget } from "./meta/applyExec";
 import type { ConnectionState } from "./provider";
+import { ReplacementQueue } from "./replacementQueue";
 
 export type SyncState = "off" | ConnectionState;
 export interface SyncStatus { state: SyncState; peerSeen: boolean; lastSyncAt: string | null }
@@ -66,6 +67,8 @@ export class SyncEngine {
   private openScene: { id: string; doc: Y.Doc; listener: (u: Uint8Array, o: unknown) => void } | null = null;
   private pauseDepth = 0;
   private readonly epochs: EpochManager;
+  private readonly replacements = new ReplacementQueue();
+  private inbound: Promise<void> = Promise.resolve();
   private unsubscribeMetaSaves: (() => void) | null = null;
   private structureChanged: (() => void) | null = null;
   private docReplaced: ((sceneId: string) => void) | null = null;
@@ -95,7 +98,12 @@ export class SyncEngine {
       (projectId, epochs) => this.notifyLocalMetaSave(projectId, epochs)
     ) ?? null;
     provider.subscribeConnection((state) => this.onConnection(state));
-    provider.subscribeFrames((blob) => { void this.onBlob(blob).catch(() => undefined); });
+    // Serialized, not fire-and-forget: frames must be APPLIED in arrival order.
+    // A restore sends meta (carrying the new epoch) then the replacement scene;
+    // run concurrently, the short scene path finishes first, accepts() rejects it
+    // as a mismatched epoch, and the device waits out a whole sweep for a
+    // replacement that already arrived.
+    provider.subscribeFrames((blob) => { this.inbound = this.inbound.then(() => this.onBlob(blob)).catch(() => undefined); });
     provider.connect();
   }
 
@@ -106,6 +114,9 @@ export class SyncEngine {
     this.encKey = null;
     this.stopSweep();
     this.clearSaveTimers();
+    // Drop the old session's inbound chain: a handler still pending from it would
+    // otherwise serialize ahead of (or stall) every frame of the next session.
+    this.inbound = Promise.resolve();
     this.unsubscribeMetaSaves?.();
     this.unsubscribeMetaSaves = null;
     this.setStatus({ state: "off", peerSeen: false });
@@ -151,8 +162,20 @@ export class SyncEngine {
   }
 
   private notifyLocalMetaSave(projectId: string, epochs: Record<string, number>): void {
-    void this.epochs.recordLocal(epochs);
+    void this.epochs.recordLocal(epochs).then(async (advanced) => {
+      if (advanced.length === 0) return;
+      this.replacements.add(projectId, advanced);
+      await this.flushReplacements();
+    });
     this.scheduleTargetedHello(metaChannel(projectId));
+  }
+
+  /** Push queued restores. No-op while paused or offline — resume/reconnect retries. */
+  private async flushReplacements(): Promise<void> {
+    if (this.isPaused() || this.status.state !== "connected") return;
+    await this.replacements.flush({
+      metaStore: this.options.metaStore, sceneStore: this.options.sceneStore, epochs: this.epochs,
+    }, (frame) => this.sendMessage(frame));
   }
 
   private scheduleTargetedHello(channel: string): void {
@@ -176,6 +199,7 @@ export class SyncEngine {
     if (this.isPaused()) return;
     if (this.status.state === "connected") {
       void this.sendHello();
+      void this.flushReplacements();
       this.startSweep();
     }
   }
@@ -185,6 +209,7 @@ export class SyncEngine {
     if (state !== "connected") { this.stopSweep(); return; }
     if (this.isPaused()) return;
     void this.sendHello();
+    void this.flushReplacements();
     this.startSweep();
   }
 
@@ -219,18 +244,7 @@ export class SyncEngine {
 
   private async makeHello(docs?: Array<StoredDoc & { channel: string }>): Promise<HelloMessage> {
     const stored = docs ?? await this.listDocs();
-    const helloDocs: HelloDoc[] = stored.map((doc) => this.makeHelloDoc(doc));
-    return { t: "hello", device: this.deviceId, docs: helloDocs };
-  }
-
-  private makeHelloDoc(doc: StoredDoc & { channel: string }): HelloDoc {
-    const channel = parseChannel(doc.channel);
-    const behind = channel?.kind === "scene"
-      && this.epochs.isBehind(channel.id);
-    const vector = behind
-      ? Y.encodeStateVector(new Y.Doc())
-      : Y.encodeStateVectorFromUpdate(toUint8Array(doc.stateBase64));
-    return { c: doc.channel, sv: fromUint8Array(vector), at: doc.updatedAt };
+    return { t: "hello", device: this.deviceId, docs: stored.map((d) => helloDoc(d, this.epochs)) };
   }
 
   private async sendHello(): Promise<void> {
@@ -290,10 +304,15 @@ export class SyncEngine {
     const stored = await this.options.metaStore.load(projectId);
     const merged = stored ? Y.mergeUpdates([toUint8Array(stored), incoming]) : incoming;
     await this.options.metaStore.save(projectId, fromUint8Array(merged));
+    // Learn the epochs in the SAME continuation as the save, before the SQL apply
+    // below awaits. Otherwise a local structure edit landing in that window reads
+    // the already-persisted remote bump, recordLocal() sees epoch > known and
+    // misreads a REMOTE restore as a local one — marking it applied and pushing
+    // our stale scene at the new epoch, which is the resurrection bug again.
+    this.epochs.readMetaUpdate(merged);
     const doc = new Y.Doc();
     Y.applyUpdate(doc, merged);
     if (this.options.metaApplyTarget) await applyMetaDoc(projectId, doc, this.options.metaApplyTarget);
-    this.epochs.readMetaUpdate(merged);
     this.structureChanged?.();
   }
 

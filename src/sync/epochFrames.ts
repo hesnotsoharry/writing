@@ -2,7 +2,7 @@ import { fromUint8Array, toUint8Array } from "js-base64";
 import * as Y from "yjs";
 
 import type { EpochManager } from "./epochManager";
-import { type DiffMessage, parseChannel } from "./messages";
+import { type DiffMessage, type HelloDoc, parseChannel } from "./messages";
 
 export interface ChannelDoc { stateBase64: string; channel: string }
 
@@ -13,6 +13,20 @@ export interface ChannelDoc { stateBase64: string; channel: string }
 function owesReplacement(channelName: string, epochs: EpochManager): boolean {
   const channel = parseChannel(channelName);
   return channel?.kind === "scene" && epochs.isBehind(channel.id);
+}
+
+/**
+ * What we advertise for one doc. A scene we owe a replacement for advertises an
+ * EMPTY state vector — "send me everything" — so the peer replies with a full
+ * state we can swap in wholesale rather than a diff we would merge.
+ */
+export function helloDoc(
+  doc: ChannelDoc & { updatedAt: string | null }, epochs: EpochManager
+): HelloDoc {
+  const vector = owesReplacement(doc.channel, epochs)
+    ? Y.encodeStateVector(new Y.Doc())
+    : Y.encodeStateVectorFromUpdate(toUint8Array(doc.stateBase64));
+  return { c: doc.channel, sv: fromUint8Array(vector), at: doc.updatedAt };
 }
 
 function sceneEpoch(channelName: string, epochs: EpochManager): number {
