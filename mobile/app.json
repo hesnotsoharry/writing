@@ -6,6 +6,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "editor-web/dist/index.html"
+    ],
     "plugins": [
       "expo-dev-client",
       "react-native-quick-crypto",
@@ -19,7 +22,8 @@
       ]
     ],
     "android": {
-      "package": "com.coles.writersnook"
+      "package": "com.coles.writersnook",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "ios": {
       "bundleIdentifier": "com.coles.writersnook"

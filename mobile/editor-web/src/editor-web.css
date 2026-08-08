@@ -1,0 +1,80 @@
+:root {
+  color: var(--ink);
+  background: var(--paper);
+  color-scheme: light;
+  font-family: Georgia, "Times New Roman", serif;
+  --editor-bottom-inset: max(18vh, 7rem);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.editor-page {
+  height: 100dvh;
+  height: var(--editor-viewport-height, 100dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.editor-page--waiting {
+  cursor: wait;
+}
+
+.editor-content-mount {
+  min-height: 100%;
+}
+
+.prose {
+  min-height: 100%;
+  padding: max(2rem, env(safe-area-inset-top)) 1.35rem
+    calc(var(--editor-bottom-inset) + env(safe-area-inset-bottom));
+  outline: none;
+  font-size: 1.125rem;
+  line-height: 1.75;
+  caret-color: var(--ink);
+}
+
+.prose p {
+  margin: 0 0 1em;
+}
+
+.prose p.is-editor-empty:first-child::before {
+  float: left;
+  height: 0;
+  color: var(--ink-4);
+  content: "Begin writing…";
+  pointer-events: none;
+}
+
+.drop-cap-letter {
+  float: left;
+  margin: 0.08em 0.08em 0 0;
+  font-size: 3.2em;
+  line-height: 0.8;
+}
+
+mark {
+  padding: 0 0.08em;
+  background: var(--label-gold-tint);
+}
+
+.ai-exclude {
+  color: var(--ink-3);
+  background: var(--parchment);
+  border-radius: 0.15em;
+}

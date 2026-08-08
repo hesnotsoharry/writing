@@ -6,6 +6,8 @@ const repositoryRoot = path.resolve(projectRoot, "..");
 const config = getDefaultConfig(projectRoot);
 const webcryptoShim = path.resolve(projectRoot, "src/shims/isomorphicWebcrypto.cjs");
 
+config.resolver.assetExts.push("html");
+
 config.watchFolders = [repositoryRoot];
 // Hierarchical lookup stays OFF so shared repo-root source (src/sync, src/db)
 // can never resolve a second yjs/js-base64 copy out of the desktop's

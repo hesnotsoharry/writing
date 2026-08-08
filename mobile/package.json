@@ -4,13 +4,29 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "editor-web:build": "vite build --config editor-web/vite.config.ts",
+    "editor-web:watch": "vite build --watch --config editor-web/vite.config.ts",
+    "test": "vitest run --config vitest.config.ts --maxWorkers=4",
+    "lint": "eslint src/ editor-web/src/",
+    "typecheck:native": "tsc --noEmit",
+    "typecheck:editor-web": "tsc --noEmit -p editor-web/tsconfig.json",
+    "typecheck": "npm run typecheck:native && npm run typecheck:editor-web",
+    "prestart": "npm run editor-web:build",
     "start": "expo start --dev-client",
+    "preandroid": "npm run editor-web:build",
     "android": "expo run:android",
-    "typecheck": "tsc --noEmit"
+    "eas-build-post-install": "npm run editor-web:build"
   },
   "dependencies": {
     "@react-navigation/native": "^7.3.16",
     "@react-navigation/native-stack": "^7.18.8",
+    "@tiptap/core": "3.29.2",
+    "@tiptap/extension-collaboration": "3.29.2",
+    "@tiptap/extension-highlight": "3.29.2",
+    "@tiptap/extensions": "3.29.2",
+    "@tiptap/pm": "3.29.2",
+    "@tiptap/react": "3.29.2",
+    "@tiptap/starter-kit": "3.29.2",
     "expo": "~57.0.11",
     "expo-asset": "~57.0.9",
     "expo-build-properties": "~57.0.9",
@@ -20,6 +36,7 @@
     "expo-sqlite": "~57.0.1",
     "js-base64": "3.7.8",
     "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-native": "0.86.2",
     "react-native-quick-crypto": "1.1.6",
     "react-native-safe-area-context": "~5.7.0",
@@ -28,7 +45,20 @@
     "yjs": "13.6.31"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.4",
     "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "4.6.0",
+    "eslint": "9.39.4",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-simple-import-sort": "13.0.0",
+    "jsdom": "29.1.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "8.60.1",
+    "vite": "7.0.4",
+    "vite-plugin-singlefile": "2.3.3",
+    "vitest": "4.1.8"
   }
 }

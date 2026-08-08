@@ -24,3 +24,4 @@ eval/runs/
 
 # Expo local device state (regenerable)
 mobile/.expo/
+mobile/editor-web/dist/
