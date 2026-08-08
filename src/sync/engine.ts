@@ -8,6 +8,7 @@ import type { SnapshotStore } from "../db/snapshotStore";
 import type { AppliedEpochStore } from "../db/syncEpochStore";
 import { SYNC_ORIGIN } from "../yjs/bindPersistence";
 import { extractPlainText } from "../yjs/serialize";
+import { answerFrame } from "./answerFrame";
 import { EpochManager } from "./epochManager";
 import { openMessage, sealMessage } from "./frameCodec";
 import { deriveKeys } from "./keys";
@@ -123,6 +124,12 @@ export class SyncEngine {
     this.detachLiveDoc();
     const listener = (update: Uint8Array, origin: unknown) => {
       if (origin === SYNC_ORIGIN || this.isPaused()) return;
+      // Behind = a restore bumped this scene's epoch elsewhere and we have not
+      // applied the replacement yet. Our content IS what the restore discarded,
+      // so publishing it (even stamped at the new epoch, which the peer would
+      // accept) resurrects it on the device that restored. Stay quiet until
+      // handleBehindFrame swaps our copy.
+      if (this.epochs.isBehind(sceneId)) return;
       const epoch = this.epochs.epoch(sceneId);
       void this.sendMessage({
         t: "live", c: sceneChannel(sceneId), u: fromUint8Array(update),
@@ -238,23 +245,22 @@ export class SyncEngine {
     const doc = (await store?.listAll() ?? []).find((item) => item.id === channel.id);
     if (!doc) return;
     await this.sendMessage(await this.makeHello([{ ...doc, channel: channelName }]));
+    // A hello only ADVERTISES a state vector, and answerHello replies with what the
+    // peer lacks — so a local structure change is never actually pushed by this
+    // exchange; it waits for the peer's own 60s sweep to come asking (measured 63s
+    // desktop↔desktop 2026-08-07). Scenes have the live-doc channel for this, meta
+    // docs have nothing, so push meta content directly. Safe from echo: remote
+    // applies write through metaStore.save(), which does not notify saveListeners.
+    if (channel.kind === "meta") {
+      await this.sendMessage({ t: "diff", c: channelName, u: doc.stateBase64 });
+    }
   }
 
   private async answerHello(hello: HelloMessage): Promise<void> {
     const peerVectors = new Map(hello.docs.map((doc) => [doc.c, doc.sv]));
     for (const doc of await this.listDocs()) {
-      const state = toUint8Array(doc.stateBase64);
-      const peerVector = peerVectors.get(doc.channel);
-      const channel = parseChannel(doc.channel);
-      const epoch = channel?.kind === "scene" ? this.epochs.epoch(channel.id) : 0;
-      const update = !peerVector || epoch > 0
-        ? state : Y.diffUpdate(state, toUint8Array(peerVector));
-      if (!peerVector || epoch > 0 || update.length > 2) {
-        await this.sendMessage({
-          t: "diff", c: doc.channel, u: fromUint8Array(update),
-          ...(epoch > 0 ? { e: epoch } : {}),
-        });
-      }
+      const frame = answerFrame(doc, peerVectors.get(doc.channel), this.epochs);
+      if (frame) await this.sendMessage(frame);
     }
   }
 

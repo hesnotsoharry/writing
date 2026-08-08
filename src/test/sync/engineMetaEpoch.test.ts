@@ -88,7 +88,16 @@ function metaDoc(epoch = 0): Y.Doc {
   return doc;
 }
 
-function makeEngine(meta: Y.Doc, scene = textDoc("local divergence")) {
+interface EngineOverrides {
+  subscribeMetaSaves?: (
+    cb: (projectId: string, epochs: Record<string, number>) => void
+  ) => () => void;
+  saveDebounceMs?: number;
+}
+
+function makeEngine(
+  meta: Y.Doc, scene = textDoc("local divergence"), overrides: EngineOverrides = {}
+) {
   const provider = new FakeProvider(); const sceneStore = new MemorySceneStore();
   const metaStore = new InMemoryProjectMetaDocStore(); const epochs = new MemoryEpochStore();
   const snapshots = new InMemorySnapshotStore(); const target = new MemoryMetaTarget();
@@ -100,6 +109,7 @@ function makeEngine(meta: Y.Doc, scene = textDoc("local divergence")) {
     ensureProjectMetas: () => Promise.resolve(), readMasterKey: () => Promise.resolve(MASTER_KEY),
     getDeviceId: () => Promise.resolve("device-b"), providerFactory: () => provider,
     updateWordCount: () => Promise.resolve(),
+    ...overrides,
   });
   return { engine, provider, sceneStore, metaStore, epochs, snapshots, target };
 }
@@ -158,5 +168,74 @@ describe("SyncEngine meta and epoch enforcement", () => {
     });
     await vi.waitFor(() => expect(replaced).toHaveBeenCalledWith("scene-1"));
     expect(extractPlainText(open)).toBe("live divergence"); ctx.engine.stop();
+  });
+
+  // Regression: a behind device used to answer the sweep with the very content
+  // the restore discarded, stamped at the NEW epoch — which the restoring peer
+  // accepts (accepts() cannot tell the copies apart), merging it back in and
+  // silently undoing the restore. Observed live desktop↔desktop 2026-08-07.
+  it("does not publish a scene it is behind on", async () => {
+    const ctx = makeEngine(metaDoc(1), textDoc("content the restore discarded"));
+    await ctx.engine.start();
+    const key = (await deriveKeys(MASTER_KEY)).encKey;
+    ctx.provider.sent.length = 0;
+
+    await deliver(ctx.provider, {
+      t: "hello", device: "peer-a",
+      docs: [{ c: "scene:scene-1", sv: fromUint8Array(Y.encodeStateVector(new Y.Doc())), at: null }],
+    });
+    // deliver() resolves on the FIRST frame; answerHello walks every doc, so wait
+    // for it to finish or "no scene push" would pass vacuously.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const frames = async () => Promise.all(
+      ctx.provider.sent.map((blob) => openMessage(key, blob) as Promise<{ t: string; c?: string }>)
+    );
+    const sent = await frames();
+    // Positive control: the engine DID answer (meta is not epoch-gated).
+    expect(sent.some((frame) => frame.c === "meta:project-1")).toBe(true);
+    expect(sent.filter((frame) => frame.c === "scene:scene-1")).toHaveLength(0);
+    ctx.engine.stop();
+  });
+
+  it("does not publish live edits for a scene it is behind on", async () => {
+    const ctx = makeEngine(metaDoc(1)); const open = textDoc("stale local");
+    await ctx.engine.start(); ctx.engine.attachLiveDoc("scene-1", open);
+    const key = (await deriveKeys(MASTER_KEY)).encKey;
+    ctx.provider.sent.length = 0;
+
+    open.getXmlFragment("content").push([new Y.XmlElement("paragraph")]);
+    // The publish path is async (sealMessage); give it room to land a frame so
+    // an empty `sent` means "suppressed", not "not flushed yet".
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const sent = await Promise.all(ctx.provider.sent.map((blob) => openMessage(key, blob)));
+    expect(sent.filter((message) => (message as { t: string }).t === "live")).toHaveLength(0);
+    ctx.engine.stop();
+  });
+
+  // Regression: a local structure change (reorder) used to reach the peer only on
+  // its own 60s sweep, because a targeted hello advertises a state vector and
+  // answerHello replies with what the PEER lacks — nobody ever pushed ours.
+  it("pushes meta content on a local save rather than only advertising", async () => {
+    let notify: ((projectId: string, epochs: Record<string, number>) => void) | null = null;
+    const ctx = makeEngine(metaDoc(), textDoc("scene"), {
+      subscribeMetaSaves: (cb) => { notify = cb; return () => undefined; },
+      saveDebounceMs: 10,
+    });
+    await ctx.engine.start();
+    const key = (await deriveKeys(MASTER_KEY)).encKey;
+    ctx.provider.sent.length = 0;
+
+    expect(notify).not.toBeNull();
+    notify!("project-1", {});
+
+    await vi.waitFor(async () => {
+      const sent = await Promise.all(
+        ctx.provider.sent.map((blob) => openMessage(key, blob) as Promise<{ t: string; c?: string }>)
+      );
+      expect(sent.some((frame) => frame.t === "diff" && frame.c === "meta:project-1")).toBe(true);
+    });
+    ctx.engine.stop();
   });
 });
