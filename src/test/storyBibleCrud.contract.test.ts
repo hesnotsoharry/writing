@@ -1,11 +1,25 @@
 // ORCHESTRATOR-OWNED ACCEPTANCE TEST (Wave 3, Phase 1 — Story Bible schema + store seam).
 // Locks the StoryBibleStore contract: CRUD for characters/locations, scene links replace semantics.
 // Runs against InMemoryStoryBibleStore only — per the existing pattern (no SQLite in unit tests).
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
 
 describe("StoryBibleStore contract", () => {
+  it("notifies entity subscribers for create and rename until unsubscribed", async () => {
+    const store = new InMemoryStoryBibleStore();
+    const listener = vi.fn();
+    const unsubscribe = store.subscribeEntityChanges(listener);
+
+    const entity = await store.createEntity("proj-1", "item", "Needle", null);
+    await store.renameEntity("item", entity.id, "Valyrian Needle");
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+    await store.deleteEntity("item", entity.id);
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
   it("createCharacter returns a Character with the given project/name/notes", async () => {
     const store = new InMemoryStoryBibleStore();
     const char = await store.createCharacter("proj-1", "Arya", "Stark girl");

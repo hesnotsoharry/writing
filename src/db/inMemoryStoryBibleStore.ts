@@ -5,6 +5,7 @@
  */
 import type { ManuscriptAbout } from "../features/ai/ai.types";
 import { EMPTY_ABOUT } from "../features/ai/ai.types";
+import { EntityChangeEmitter } from "./entityChangeEmitter";
 import {
   imAddEntityField,
   imAddLink,
@@ -69,6 +70,7 @@ function imAddRelation(projectId: string, args: AddRelationArgs, relations: Rela
 // ── InMemoryStoryBibleStore ───────────────────────────────────────────────────
 
 export class InMemoryStoryBibleStore implements StoryBibleStore {
+  private readonly entityChanges = new EntityChangeEmitter();
   private characters: Character[] = [];
   private locations: Location[] = [];
   private genericEntities: Entity[] = [];
@@ -80,6 +82,10 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   private customTypes: CustomEntityType[] = [];
   private aboutByProject = new Map<string, ManuscriptAbout>();
 
+  subscribeEntityChanges(listener: () => void): () => void {
+    return this.entityChanges.subscribe(listener);
+  }
+
   async listCharacters(projectId: string): Promise<Character[]> {
     return this.characters.filter((c) => c.projectId === projectId);
   }
@@ -89,31 +95,39 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   }
 
   async createCharacter(projectId: string, name: string, notes: string | null): Promise<Character> {
-    return imCreateCharacter(projectId, name, notes, this.characters);
+    const character = imCreateCharacter(projectId, name, notes, this.characters);
+    this.entityChanges.notify();
+    return character;
   }
 
   async createLocation(projectId: string, name: string, notes: string | null): Promise<Location> {
-    return imCreateLocation(projectId, name, notes, this.locations);
+    const location = imCreateLocation(projectId, name, notes, this.locations);
+    this.entityChanges.notify();
+    return location;
   }
 
   async renameEntity(type: EntityType, id: string, name: string): Promise<void> {
     if (type !== "character" && type !== "location") {
       const e = this.genericEntities.find((x) => x.id === id);
       if (e) e.name = name;
+      this.entityChanges.notify();
       return;
     }
     const r = imRenameEntity(type, id, name, { characters: this.characters, locations: this.locations });
     this.characters = r.characters; this.locations = r.locations;
+    this.entityChanges.notify();
   }
 
   async updateEntityNotes(type: EntityType, id: string, notes: string | null): Promise<void> {
     if (type !== "character" && type !== "location") {
       const e = this.genericEntities.find((x) => x.id === id);
       if (e) e.notes = notes;
+      this.entityChanges.notify();
       return;
     }
     const r = imUpdateEntityNotes(type, id, notes, { characters: this.characters, locations: this.locations });
     this.characters = r.characters; this.locations = r.locations;
+    this.entityChanges.notify();
   }
 
   async deleteEntity(type: EntityType, id: string): Promise<void> {
@@ -129,11 +143,13 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
     this.entityFields = purged.entityFields;
     this.entityLinks = purged.entityLinks;
     this.relations = this.relations.filter((r) => r.fromEntity !== id && r.toEntity !== id);
+    this.entityChanges.notify();
   }
 
   async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {
     this.sceneLinks = this.sceneLinks.filter((sl) => sl.sceneId !== sceneId);
     for (const link of links) { this.sceneLinks.push({ sceneId, ...link }); }
+    this.entityChanges.notify();
   }
 
   async loadSceneLinks(sceneId: string): Promise<SceneLink[]> {
@@ -228,6 +244,7 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
   ): Promise<Entity> {
     const entity: Entity = { id: crypto.randomUUID(), projectId, type, name, notes, aliases: null };
     this.genericEntities.push(entity);
+    this.entityChanges.notify();
     return entity;
   }
 
@@ -301,6 +318,7 @@ export class InMemoryStoryBibleStore implements StoryBibleStore {
       const e = this.genericEntities.find((x) => x.id === id);
       if (e) e.exclude_from_ai = exclude;
     }
+    this.entityChanges.notify();
   }
 
   // ── Wave 35 Phase E — AI context v2 ──────────────────────────────────────

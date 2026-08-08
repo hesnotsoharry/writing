@@ -31,6 +31,15 @@ export function useSceneEntityGroups(sceneId: string | null, store: StoryBibleSt
   return groups;
 }
 
+/** Converts external Story Bible mutations into the existing entity-group refresh key. */
+export function useEntityRefreshKey(store: StoryBibleStore): number {
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => store.subscribeEntityChanges?.(() => {
+    setRefreshKey((key) => key + 1);
+  }), [store]);
+  return refreshKey;
+}
+
 /** Saves body to quick notes or falls back to clipboard when no project is active. */
 async function saveOrCopyNote(
   body: string,

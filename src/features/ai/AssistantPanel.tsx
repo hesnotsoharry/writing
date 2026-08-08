@@ -40,7 +40,7 @@ import { AiConsent, AiContextPicker } from "./AiOverlays";
 import { BALANCE_RETRY_DELAYS, type BalanceSetters, fetchBalance } from "./AssistantPanel.balance";
 import { type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
 import { AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
-import { useAiPanelSeed, useAiSlotHandlers, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
+import { useAiPanelSeed, useAiSlotHandlers, useEntityRefreshKey, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
 import { getBadgeLabel, PROVIDER_REGISTRY,type ProviderId } from "./providerRegistry";
 import { useByokKeys } from "./useByokKeys";
 
@@ -345,7 +345,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   const { convStore, convos, setConvos, activeId, setActiveId } = useConvoPersistence(p.activeProjectId);
   const { about, saveAbout } = useManuscriptAbout(p.activeProjectId, p.storyBibleStore); const [aiCtx, setAiCtx] = useState<AiCtxConfig>(INIT_AI_CTX);
   // W52 Phase 4: exclusion refresh counter — bump after setEntityExclusion to reload entity groups.
-  const [entityRefreshKey, setEntityRefreshKey] = useState(0);
+  const [exclusionRefreshKey, setExclusionRefreshKey] = useState(0); const entityRefreshKey = useEntityRefreshKey(p.storyBibleStore) + exclusionRefreshKey;
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab); const consented = getTweak("aiConsentGiven", false);
   const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance } = useAiBalance(consented, byokActive, p.gateStatus);
   const { panelKey, initialVerb, initialSel } = useAiPanelSeed(setInspTab, setActiveId);
@@ -354,7 +354,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   // D4: load raw entity groups; derive picker-facing list and persisted never-set.
   const sceneEntityGroups = useSceneEntityGroups(sceneId, p.storyBibleStore, entityRefreshKey);
   const allEntities = sceneEntityGroups.flatMap((g) => g.entities.filter((e) => e.exclude_from_ai !== true).map((e) => ({ id: e.id, name: e.name })));
-  const { neverNames, toggleNever } = useToggleNever(sceneEntityGroups, p.storyBibleStore, setEntityRefreshKey);
+  const { neverNames, toggleNever } = useToggleNever(sceneEntityGroups, p.storyBibleStore, setExclusionRefreshKey);
   return (<>
     <InspectorTabs tab={tab} setTab={setInspTab} scenePane={base} assistantPane={
       <SlotPanel key={panelKey} convos={convos} setConvos={setConvos} activeId={activeId} setActiveId={setActiveId}

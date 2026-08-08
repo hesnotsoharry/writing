@@ -186,6 +186,8 @@ export type EntityWithPortrait = Entity & { portraitPath: string | null };
 
 /** Abstraction over Story Bible persistence (characters, locations, scene links). */
 export interface StoryBibleStore {
+  /** Subscribe to entity or scene-link mutations. Returns an unsubscribe function. */
+  subscribeEntityChanges?(listener: () => void): () => void;
   listCharacters(projectId: string): Promise<Character[]>;
   listLocations(projectId: string): Promise<Location[]>;
   listEntities(projectId: string): Promise<Entity[]>;
