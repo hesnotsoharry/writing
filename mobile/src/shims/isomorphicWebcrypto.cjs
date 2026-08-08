@@ -1,3 +1,5 @@
+/* global module */
+
 const installedCrypto = globalThis.crypto;
 
 if (!installedCrypto?.subtle) {

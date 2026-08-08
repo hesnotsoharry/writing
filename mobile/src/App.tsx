@@ -5,8 +5,8 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { assertDbReady } from "./db/database";
 import { AppNavigator } from "./navigation/AppNavigator";
-import { SyncEngine } from "./shared/engine";
 import type { SyncStatus } from "./shared/engine";
+import { SyncEngine } from "./shared/engine";
 import { mobileEngine, startMobileEngine } from "./sync/mobileEngine";
 import { hasSyncMasterKey } from "./sync/mobileKeyStorage";
 import { isDeviceJoined } from "./sync/mobileSyncRole";

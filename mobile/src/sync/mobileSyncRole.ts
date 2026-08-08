@@ -9,8 +9,8 @@
 // pairing" note on orphaned-Keychain repair — a SecureStore key surviving
 // without this row (e.g. after an app reinstall on iOS) is a future S5+
 // repair-UI concern, not handled here.
-import type { DbClient } from "../shared/dbClient";
 import { getMobileDb } from "../db/database";
+import type { DbClient } from "../shared/dbClient";
 
 const SYNC_ROLE_KEY = "sync_role";
 

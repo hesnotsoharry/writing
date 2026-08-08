@@ -5,8 +5,12 @@
 // DbClient-parameterized functions, importing that module at the value level
 // would still pull schema.ts into the mobile bundle via its module-scope
 // `import { getDb } from "./schema"` (S4 blueprint portable-boundary rule).
+import {
+  type EpochStamp,
+  normalizeEpochStamp,
+} from "@writersnook/sync/meta/metaDoc";
+
 import type { AppliedEpochStore } from "../../shared/syncEpochStore";
-import { normalizeEpochStamp, type EpochStamp } from "@writersnook/sync/meta/metaDoc";
 import { getMobileDb } from "../database";
 
 const APPLIED_EPOCHS_KEY = "sync_applied_epochs";

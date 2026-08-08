@@ -1,6 +1,6 @@
+export type { Migration } from "@writersnook/db/migrations";
 export {
-  MIGRATIONS,
   assertSafeVersion,
+  MIGRATIONS,
   runMigrations,
 } from "@writersnook/db/migrations";
-export type { Migration } from "@writersnook/db/migrations";

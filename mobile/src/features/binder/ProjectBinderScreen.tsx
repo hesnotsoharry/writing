@@ -20,6 +20,17 @@ type Row =
   | { kind: "header"; id: string; title: string }
   | { kind: "scene"; id: string; scene: BinderSceneItem };
 
+interface BinderLoadHandlers {
+  onSuccess: (rows: Row[]) => void;
+  onError: (message: string) => void;
+}
+
+function fetchBinder(projectId: string, handlers: BinderLoadHandlers): void {
+  void listBinder(projectId)
+    .then((tree) => handlers.onSuccess(toRows(tree.chapters, tree.shortPieces)))
+    .catch((error: unknown) => handlers.onError(String(error)));
+}
+
 /** Flattens the chapter tree into one ordered list so a single FlatList can
  *  render chapter headers and their scenes without nested VirtualizedLists. */
 function toRows(chapters: BinderChapter[], shortPieces: BinderSceneItem[]): Row[] {
@@ -60,35 +71,22 @@ function CenteredMessage({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
 }
 
-export function ProjectBinderScreen({ navigation, route }: Props) {
-  const { projectId } = route.params;
-  const [state, setState] = useState<LoadState>("loading");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
+interface BinderContentProps {
+  errorMessage: string;
+  load: () => void;
+  onOpenScene: (scene: BinderSceneItem) => void;
+  rows: Row[];
+  state: LoadState;
+}
 
-  const load = useCallback(() => {
-    setState("loading");
-    listBinder(projectId)
-      .then((tree) => { setRows(toRows(tree.chapters, tree.shortPieces)); setState("ready"); })
-      .catch((error: unknown) => { setErrorMessage(String(error)); setState("error"); });
-  }, [projectId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  // S4 step 5: a remote binder change for this project refetches the tree.
-  useEffect(() => subscribeMobileStructureChanged(load), [load]);
-
-  const onOpenScene = useCallback((scene: BinderSceneItem) => {
-    navigation.navigate("Scene", { sceneId: scene.id, sceneTitle: scene.title });
-  }, [navigation]);
-
+function BinderContent({ errorMessage, load, onOpenScene, rows, state }: BinderContentProps) {
   if (state === "loading") {
     return <CenteredMessage><ActivityIndicator color={PALETTE.accent} /></CenteredMessage>;
   }
   if (state === "error") {
     return (
       <CenteredMessage>
-        <Text style={styles.errorText}>Couldn't load this manuscript.</Text>
+        <Text style={styles.errorText}>Couldn&apos;t load this manuscript.</Text>
         <Text style={styles.errorDetail}>{errorMessage}</Text>
         <Pressable style={styles.retryButton} onPress={load}>
           <Text style={styles.retryText}>Try again</Text>
@@ -99,19 +97,46 @@ export function ProjectBinderScreen({ navigation, route }: Props) {
   if (rows.length === 0) {
     return <CenteredMessage><Text style={styles.emptyText}>{EMPTY_COPY}</Text></CenteredMessage>;
   }
-
   return (
-    <FlatList
-      contentContainerStyle={styles.listContent}
-      data={rows}
-      keyExtractor={(row) => row.id}
-      renderItem={({ item }) =>
-        item.kind === "header"
-          ? <ChapterHeader title={item.title} />
-          : <SceneRow scene={item.scene} onPress={() => onOpenScene(item.scene)} />
-      }
+    <FlatList contentContainerStyle={styles.listContent} data={rows} keyExtractor={(row) => row.id}
+      renderItem={({ item }) => item.kind === "header"
+        ? <ChapterHeader title={item.title} />
+        : <SceneRow scene={item.scene} onPress={() => onOpenScene(item.scene)} />}
     />
   );
+}
+
+export function ProjectBinderScreen({ navigation, route }: Props) {
+  const { projectId } = route.params;
+  const [state, setState] = useState<LoadState>("loading");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const onSuccess = useCallback((nextRows: Row[]) => {
+    setRows(nextRows);
+    setState("ready");
+  }, []);
+  const onError = useCallback((message: string) => {
+    setErrorMessage(message);
+    setState("error");
+  }, []);
+  const load = useCallback(() => {
+    setState("loading");
+    fetchBinder(projectId, { onSuccess, onError });
+  }, [onError, onSuccess, projectId]);
+
+  useEffect(() => {
+    fetchBinder(projectId, { onSuccess, onError });
+  }, [onError, onSuccess, projectId]);
+
+  // S4 step 5: a remote binder change for this project refetches the tree.
+  useEffect(() => subscribeMobileStructureChanged(load), [load]);
+
+  const onOpenScene = useCallback((scene: BinderSceneItem) => {
+    navigation.navigate("Scene", { sceneId: scene.id, sceneTitle: scene.title });
+  }, [navigation]);
+
+  return <BinderContent {...{ errorMessage, load, onOpenScene, rows, state }} />;
 }
 
 const styles = StyleSheet.create({

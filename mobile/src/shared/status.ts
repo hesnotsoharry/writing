@@ -5,5 +5,5 @@
 // ("var(--ink-4)") that only means something on the web renderer — mobile UI
 // must NOT consume it directly; see mobile/src/theme/palette.ts for the
 // RN-native resolved color equivalents.
-export { normalizeStatus, STATUS_META, STATUS_ORDER } from "@writersnook/lib/status";
 export type { SceneStatus, StatusMeta } from "@writersnook/lib/status";
+export { normalizeStatus, STATUS_META, STATUS_ORDER } from "@writersnook/lib/status";

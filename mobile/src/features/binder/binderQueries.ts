@@ -1,6 +1,6 @@
 import { getMobileDb } from "../../db/database";
-import { buildBinderTree } from "./binderTree";
 import type { BinderTree, RawFolderRow, RawSceneRow } from "./binderTree";
+import { buildBinderTree } from "./binderTree";
 
 export type ProjectBadge = "synced" | "local";
 

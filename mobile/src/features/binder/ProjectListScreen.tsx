@@ -5,12 +5,23 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { subscribeMobileStructureChanged } from "../../sync/mobileEngine";
 import { PALETTE } from "../../theme/palette";
-import { listProjects } from "./binderQueries";
 import type { ProjectListItem } from "./binderQueries";
+import { listProjects } from "./binderQueries";
 import { seedSampleData } from "./devSeed";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectList">;
 type LoadState = "loading" | "ready" | "error";
+
+interface ProjectLoadHandlers {
+  onSuccess: (projects: ProjectListItem[]) => void;
+  onError: (message: string) => void;
+}
+
+function fetchProjects(handlers: ProjectLoadHandlers): void {
+  void listProjects()
+    .then(handlers.onSuccess)
+    .catch((error: unknown) => handlers.onError(String(error)));
+}
 
 /** Header-right entry point to pairing — plain-glyph today, but the tap
  *  target where a fuller settings menu can hang later (S4 step-4 brief). */
@@ -68,12 +79,41 @@ function EmptyState({ onSeed, onPair }: { onSeed: () => void; onPair: () => void
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <View style={styles.center}>
-      <Text style={styles.errorText}>Couldn't load your projects.</Text>
+      <Text style={styles.errorText}>Couldn&apos;t load your projects.</Text>
       <Text style={styles.errorDetail}>{message}</Text>
       <Pressable style={styles.retryButton} onPress={onRetry}>
         <Text style={styles.retryText}>Try again</Text>
       </Pressable>
     </View>
+  );
+}
+
+interface ProjectListContentProps {
+  errorMessage: string;
+  load: () => void;
+  onOpenProject: (project: ProjectListItem) => void;
+  onPair: () => void;
+  onSeed: () => void;
+  projects: ProjectListItem[];
+  state: LoadState;
+}
+
+function ProjectListContent(props: ProjectListContentProps) {
+  if (props.state === "loading") {
+    return <View style={styles.center}><ActivityIndicator color={PALETTE.accent} /></View>;
+  }
+  if (props.state === "error") {
+    return <ErrorState message={props.errorMessage} onRetry={props.load} />;
+  }
+  if (props.projects.length === 0) {
+    return <EmptyState onSeed={props.onSeed} onPair={props.onPair} />;
+  }
+  return (
+    <FlatList contentContainerStyle={styles.listContent} data={props.projects}
+      keyExtractor={(item) => item.id} renderItem={({ item }) => (
+        <ProjectRow item={item} onPress={() => props.onOpenProject(item)} />
+      )}
+    />
   );
 }
 
@@ -88,14 +128,22 @@ export function ProjectListScreen({ navigation }: Props) {
     navigation.setOptions({ headerRight: () => <PairHeaderButton onPress={onPair} /> });
   }, [navigation, onPair]);
 
+  const onSuccess = useCallback((rows: ProjectListItem[]) => {
+    setProjects(rows);
+    setState("ready");
+  }, []);
+  const onError = useCallback((message: string) => {
+    setErrorMessage(message);
+    setState("error");
+  }, []);
   const load = useCallback(() => {
     setState("loading");
-    listProjects()
-      .then((rows) => { setProjects(rows); setState("ready"); })
-      .catch((error: unknown) => { setErrorMessage(String(error)); setState("error"); });
-  }, []);
+    fetchProjects({ onSuccess, onError });
+  }, [onError, onSuccess]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetchProjects({ onSuccess, onError });
+  }, [onError, onSuccess]);
 
   // S4 step 5: a remote project/binder change (paired desktop edit) refetches
   // this list — see mobileEngine.ts's single-slot-to-Set fan-out comment.
@@ -104,30 +152,14 @@ export function ProjectListScreen({ navigation }: Props) {
   const onSeed = useCallback(() => {
     seedSampleData()
       .then(load)
-      .catch((error: unknown) => { setErrorMessage(String(error)); setState("error"); });
-  }, [load]);
-
-  if (state === "loading") {
-    return <View style={styles.center}><ActivityIndicator color={PALETTE.accent} /></View>;
-  }
-  if (state === "error") return <ErrorState message={errorMessage} onRetry={load} />;
-  if (projects.length === 0) return <EmptyState onSeed={onSeed} onPair={onPair} />;
-
-  return (
-    <FlatList
-      contentContainerStyle={styles.listContent}
-      data={projects}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
-        <ProjectRow
-          item={item}
-          onPress={() =>
-            navigation.navigate("ProjectBinder", { projectId: item.id, projectTitle: item.title })
-          }
-        />
-      )}
-    />
-  );
+      .catch((error: unknown) => onError(String(error)));
+  }, [load, onError]);
+  const onOpenProject = useCallback((project: ProjectListItem) => {
+    navigation.navigate("ProjectBinder", { projectId: project.id, projectTitle: project.title });
+  }, [navigation]);
+  return <ProjectListContent {...{
+    errorMessage, load, onOpenProject, onPair, onSeed, projects, state,
+  }} />;
 }
 
 const styles = StyleSheet.create({

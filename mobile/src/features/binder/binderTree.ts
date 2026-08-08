@@ -1,5 +1,5 @@
-import { normalizeStatus } from "../../shared/status";
 import type { SceneStatus } from "../../shared/status";
+import { normalizeStatus } from "../../shared/status";
 
 /** Raw row shapes as read straight off the `folders` / `scenes` tables
  *  (migration_001_baseline in src/db/migrations.ts). Kept separate from the

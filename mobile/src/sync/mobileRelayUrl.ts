@@ -1,5 +1,5 @@
-import type { DbClient } from "../shared/dbClient";
 import { getMobileDb } from "../db/database";
+import type { DbClient } from "../shared/dbClient";
 
 const RELAY_URL_KEY = "sync_relay_url";
 const RELAY_PROTOCOL_RE = /^wss?:\/\//;

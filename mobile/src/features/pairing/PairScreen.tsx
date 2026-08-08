@@ -27,6 +27,20 @@ interface PairScreenProps {
   onPairedSuccessfully?: () => void;
 }
 
+interface PairingState {
+  errorMessage: string;
+  handleBarcodeScanned: (result: { data: string }) => void;
+  manualValue: string;
+  mode: Mode;
+  permission: ReturnType<typeof useCameraPermissions>[0];
+  phase: Phase;
+  requestPermission: ReturnType<typeof useCameraPermissions>[1];
+  retryScanning: () => void;
+  setManualValue: (value: string) => void;
+  setMode: (mode: Mode) => void;
+  submitManual: () => void;
+}
+
 function CenteredMessage({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
 }
@@ -67,56 +81,107 @@ function ManualEntry({
   );
 }
 
-/**
- * S4 step 4: scan the desktop's pairing QR (or paste its pairing string),
- * store the sync master key in SecureStore, and mark this device joined.
- * Never logs the scanned payload or pairing string — both carry the raw key.
- */
-export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
+async function persistPairing(
+  masterKey: Uint8Array,
+  relayUrl: string | null,
+  onSuccess: () => void,
+): Promise<void> {
+  await setSyncMasterKey(masterKey);
+  if (relayUrl) await setMobileRelayUrlOverride(relayUrl);
+  await markDeviceJoined();
+  onSuccess();
+}
+
+function usePairing(onPairedSuccessfully?: () => void): PairingState {
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<Mode>("camera");
   const [phase, setPhase] = useState<Phase>("idle");
   const [errorMessage, setErrorMessage] = useState(SCAN_ERROR);
   const [manualValue, setManualValue] = useState("");
   const scannedRef = useRef(false);
-
-  const finishPairing = useCallback(async (masterKey: Uint8Array, relayUrl: string | null) => {
-    await setSyncMasterKey(masterKey);
-    if (relayUrl) await setMobileRelayUrlOverride(relayUrl);
-    await markDeviceJoined();
-    setPhase("success");
-    onPairedSuccessfully?.();
+  const finishPairing = useCallback((key: Uint8Array, url: string | null) => {
+    void persistPairing(key, url, () => { setPhase("success"); onPairedSuccessfully?.(); });
   }, [onPairedSuccessfully]);
-
   const handleBarcodeScanned = useCallback((result: { data: string }) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
     try {
       const { masterKey, relayUrl } = parseMobilePairingInput(result.data);
-      void finishPairing(masterKey, relayUrl);
+      finishPairing(masterKey, relayUrl);
     } catch {
-      setErrorMessage(SCAN_ERROR);
-      setPhase("error");
-      scannedRef.current = false;
+      setErrorMessage(SCAN_ERROR); setPhase("error"); scannedRef.current = false;
     }
   }, [finishPairing]);
-
   const submitManual = useCallback(() => {
     try {
       const { masterKey, relayUrl } = parseMobilePairingInput(manualValue);
-      void finishPairing(masterKey, relayUrl);
-    } catch {
-      setErrorMessage(MANUAL_ERROR);
-      setPhase("error");
-    }
-  }, [manualValue, finishPairing]);
+      finishPairing(masterKey, relayUrl);
+    } catch { setErrorMessage(MANUAL_ERROR); setPhase("error"); }
+  }, [finishPairing, manualValue]);
+  const retryScanning = useCallback(() => { setPhase("idle"); setMode("camera"); }, []);
+  return { errorMessage, handleBarcodeScanned, manualValue, mode, permission, phase,
+    requestPermission, retryScanning, setManualValue, setMode, submitManual };
+}
 
-  const retryScanning = useCallback(() => {
-    setPhase("idle");
-    setMode("camera");
-  }, []);
+function PermissionPrompt({ onAllow, onManual }: { onAllow: () => void; onManual: () => void }) {
+  return (
+    <CenteredMessage>
+      <Text style={styles.explainer}>
+        WritersNook needs camera access to scan your desktop&apos;s pairing code.
+      </Text>
+      <Pressable style={styles.primaryButton} onPress={onAllow}>
+        <Text style={styles.primaryButtonText}>Allow camera access</Text>
+      </Pressable>
+      <Pressable onPress={onManual}>
+        <Text style={styles.linkText}>Enter pairing code manually instead</Text>
+      </Pressable>
+    </CenteredMessage>
+  );
+}
 
-  if (phase === "success") {
+function CameraMode({ pairing }: { pairing: PairingState }) {
+  if (!pairing.permission) {
+    return <CenteredMessage><ActivityIndicator color={PALETTE.accent} /></CenteredMessage>;
+  }
+  if (!pairing.permission.granted) {
+    return <PermissionPrompt
+      onAllow={() => { void pairing.requestPermission(); }}
+      onManual={() => pairing.setMode("manual")}
+    />;
+  }
+  if (pairing.phase === "error") {
+    return (
+      <CenteredMessage>
+        <Text style={styles.errorText} role="alert">{pairing.errorMessage}</Text>
+        <Pressable style={styles.primaryButton} onPress={pairing.retryScanning}>
+          <Text style={styles.primaryButtonText}>Scan again</Text>
+        </Pressable>
+        <Pressable onPress={() => pairing.setMode("manual")}>
+          <Text style={styles.linkText}>Enter pairing code manually instead</Text>
+        </Pressable>
+      </CenteredMessage>
+    );
+  }
+  return (
+    <>
+      <CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+        onBarcodeScanned={pairing.handleBarcodeScanned} />
+      <Text style={styles.explainer}>Point your camera at the QR code on your desktop.</Text>
+      <Pressable onPress={() => pairing.setMode("manual")}>
+        <Text style={styles.linkText}>Enter pairing code manually instead</Text>
+      </Pressable>
+    </>
+  );
+}
+
+/**
+ * S4 step 4: scan the desktop's pairing QR (or paste its pairing string),
+ * store the sync master key in SecureStore, and mark this device joined.
+ * Never logs the scanned payload or pairing string — both carry the raw key.
+ */
+export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
+  const pairing = usePairing(onPairedSuccessfully);
+  if (pairing.phase === "success") {
     return (
       <CenteredMessage>
         <Text style={styles.successTitle}>Paired</Text>
@@ -125,69 +190,23 @@ export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
     );
   }
 
-  if (mode === "manual") {
+  if (pairing.mode === "manual") {
     return (
       <View style={styles.screen}>
-        {phase === "error" && <Text style={styles.errorText} role="alert">{errorMessage}</Text>}
+        {pairing.phase === "error" && (
+          <Text style={styles.errorText} role="alert">{pairing.errorMessage}</Text>
+        )}
         <ManualEntry
-          value={manualValue}
-          onChange={setManualValue}
-          onSubmit={submitManual}
-          onUseCamera={retryScanning}
-          disabled={!manualValue.trim()}
+          value={pairing.manualValue}
+          onChange={pairing.setManualValue}
+          onSubmit={pairing.submitManual}
+          onUseCamera={pairing.retryScanning}
+          disabled={!pairing.manualValue.trim()}
         />
       </View>
     );
   }
-
-  if (!permission) return <CenteredMessage><ActivityIndicator color={PALETTE.accent} /></CenteredMessage>;
-
-  if (!permission.granted) {
-    return (
-      <CenteredMessage>
-        <Text style={styles.explainer}>
-          WritersNook needs camera access to scan your desktop&apos;s pairing code.
-        </Text>
-        <Pressable style={styles.primaryButton} onPress={() => { void requestPermission(); }}>
-          <Text style={styles.primaryButtonText}>Allow camera access</Text>
-        </Pressable>
-        <Pressable onPress={() => setMode("manual")}>
-          <Text style={styles.linkText}>Enter pairing code manually instead</Text>
-        </Pressable>
-      </CenteredMessage>
-    );
-  }
-
-  return (
-    <View style={styles.screen}>
-      {phase === "error"
-        ? (
-          <CenteredMessage>
-            <Text style={styles.errorText} role="alert">{errorMessage}</Text>
-            <Pressable style={styles.primaryButton} onPress={retryScanning}>
-              <Text style={styles.primaryButtonText}>Scan again</Text>
-            </Pressable>
-            <Pressable onPress={() => setMode("manual")}>
-              <Text style={styles.linkText}>Enter pairing code manually instead</Text>
-            </Pressable>
-          </CenteredMessage>
-        )
-        : (
-          <>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-              onBarcodeScanned={handleBarcodeScanned}
-            />
-            <Text style={styles.explainer}>Point your camera at the QR code on your desktop.</Text>
-            <Pressable onPress={() => setMode("manual")}>
-              <Text style={styles.linkText}>Enter pairing code manually instead</Text>
-            </Pressable>
-          </>
-        )}
-    </View>
-  );
+  return <View style={styles.screen}><CameraMode pairing={pairing} /></View>;
 }
 
 const styles = StyleSheet.create({
