@@ -36,6 +36,12 @@ assert: dep:yjs
 
 ## sqlite-plugin
 value: Local persistence is tauri-plugin-sql (SQLite). The Yjs doc is stored as base64 TEXT, NOT a BLOB — the plugin does not round-trip binary columns reliably (plugins-workspace#105). The scene_docs column is state_base64 TEXT.
-lastVerified: 2026-06-21
+lastVerified: 2026-07-10
 evidence: dep @tauri-apps/plugin-sql in package.json
 assert: dep:@tauri-apps/plugin-sql
+
+## zai-coding-plan-endpoint
+value: GLM via a Z.ai CODING-PLAN key (~/.zai-key.txt) has three verified traps — (1) endpoint must be `https://api.z.ai/api/coding/paas/v4` (the general `/api/paas/v4` returns 429 "Insufficient balance" for coding keys); (2) the endpoint honors `max_tokens` and silently IGNORES `max_completion_tokens` (OpenAI SDK default → uncapped generation); (3) GLM-5.x defaults thinking ON, charging hidden reasoning_content against the budget and emptying visible content — send `thinking:{type:"disabled"}`. Wired as the `zhipu` provider (src/features/ai/providerModels.ts + adapter/node.transport.ts, `oaiProviderParams()` branches per provider); key via ZHIPU_API_KEY in eval/.env.eval; GLM-only eval runs via `EVAL_MODELS=glm-5.2`. 2026-06-23 n=20 result: house-style harness reduces GLM slop (panel 4.78→3.33, both judges agree); principles-only ≈ full harness for GLM.
+lastVerified: 2026-07-10
+evidence: verified live 2026-06-23 (429/token-cap/blank-content probes); salvaged from retired agent memory M-73 2026-07-10
+assert: grep:zhipu:src/features/ai/providerModels.ts

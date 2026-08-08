@@ -27,5 +27,11 @@ assert: file-exists:publish.ps1
 
 ## marketing-deploy
 value: Pushing master auto-deploys the marketing site — Cloudflare Pages is git-connected to this repo and ships marketing/public/ to writersnook.app on every push. `npm run deploy` (direct wrangler) fails in agent sessions (interactive auth); push IS the deploy pipeline. Marketing-only changes still trigger a deploy.
-lastVerified: 2026-06-21
+lastVerified: 2026-07-10
 evidence: marketing/ tree present in repo; documented in repo CLAUDE.md "Pushing master deploys the live marketing site"
+
+## authenticode-signing
+value: publish.ps1 signs via signtool + Microsoft.Trusted.Signing.Client dlib (assets in ~/.artifact-signing/ — dlib under client\bin\x64\, metadata.json → endpoint https://eus.codesigning.azure.net, account `writersnook`, profile `writersnook-pub`). Auth = AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET User-scope env vars (app registration `writersnook-signer`, role "Artifact Signing Certificate Profile Signer"); agent shells don't inherit fresh User-scope vars — load via [Environment]::GetEnvironmentVariable($v,'User'). Two 403 traps: the service 403s (not 404s) on WRONG account/profile NAMES (anti-enumeration), and the Azure-portal IAM picker once resolved writersnook-signer to a stale duplicate service principal — on 403, pull ground truth via az CLI (`az ad sp show --id <client-id>`, compare objectId against `az role assignment list`), never trust portal display names. The rust wrappers (trusted-signing-cli etc.) are dead ends for subscription-less SPs. CLEANUP PENDING: rotate the client secret (exposed in a session transcript ~2026-06-10); optionally delete failed profile `writersnook-public` + the stale 9989b5e4 role assignment.
+lastVerified: 2026-07-10
+evidence: wired 2026-06-10 commit 930b8d6; salvaged from retired agent memory M-73 2026-07-10 — 403 gotchas observed live 2026-06-10
+assert: file-exists:publish.ps1

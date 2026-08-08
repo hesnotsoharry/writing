@@ -55,10 +55,16 @@ zone → Caching → Purge Cache → Purge by URL. Release-day discipline: uploa
 
 - Preferred setup (verified against CF docs 2026-06-10): dashboard → Pages project → **Metrics** →
   **Enable Web Analytics**. Auto-injects the beacon on next deploy; no code change.
-- Manual fallback: every page in `public/` already carries a commented-out beacon snippet
-  (`TODO(cole)` marker). If using it, the Web Analytics site MUST be registered under
+- Manual fallback: if hand-injecting the beacon, the Web Analytics site MUST be registered under
   **`writersnook.app`**, not `*.pages.dev` — hostname mismatch causes CORS errors (documented in CF
   Web Analytics FAQ).
+- **CORRECTION (2026-07-06):** a prior version of this note claimed "every page in `public/` already
+  carries a commented-out beacon snippet (`TODO(cole)` marker)." That is **false** — an audit grepped
+  all `public/*.html` for `cloudflareinsights` / `beacon.min.js` / `TODO(cole)` / `Web Analytics` and
+  found zero matches. No commented beacon exists in the repo; use the one-click dashboard toggle above.
+- Note (2026-07-06): CF Web Analytics is **ad-blockable** (CF's own FAQ: the beacon is blocked by
+  adblockplus/Brave/DuckDuckGo) and captures **no custom events** — not a fit for CTA click tracking.
+  For that, the ad-block-resistant path is a first-party proxy (Zaraz, or a proxied cookieless tool).
 
 ## Asset-generation pattern (not CF-specific, lives here for discoverability)
 
