@@ -47,8 +47,29 @@ describe("project meta doc", () => {
 
   it("exposes epoch bumps", () => {
     const doc = buildFromSql(rows);
-    expect(getEpoch(doc, "s1")).toBe(0);
-    expect(bumpEpoch(doc, "s1")).toBe(1);
-    expect(getEpoch(doc, "s1")).toBe(1);
+    expect(getEpoch(doc, "s1")).toEqual({ n: 0, d: "" });
+    expect(bumpEpoch(doc, "s1", "device-a")).toEqual({ n: 1, d: "device-a" });
+    expect(getEpoch(doc, "s1")).toEqual({ n: 1, d: "device-a" });
+  });
+
+  it("normalizes legacy numeric epochs from SQL and raw Yjs values", () => {
+    const built = buildFromSql({ ...rows, docEpochs: { s1: 3 } });
+    expect(getEpoch(built, "s1")).toEqual({ n: 3, d: "" });
+    const raw = new Y.Doc();
+    raw.getMap<unknown>("docEpochs").set("s1", 4);
+    expect(getEpoch(raw, "s1")).toEqual({ n: 4, d: "" });
+  });
+
+  it("converges concurrent owned bumps to one identical authoritative entry", () => {
+    const base = Y.encodeStateAsUpdate(buildFromSql(rows));
+    const left = new Y.Doc(); const right = new Y.Doc();
+    Y.applyUpdate(left, base); Y.applyUpdate(right, base);
+    bumpEpoch(left, "s1", "device-a");
+    bumpEpoch(right, "s1", "device-b");
+    const leftUpdate = Y.encodeStateAsUpdate(left);
+    const rightUpdate = Y.encodeStateAsUpdate(right);
+    Y.applyUpdate(left, rightUpdate); Y.applyUpdate(right, leftUpdate);
+    expect(getEpoch(left, "s1")).toEqual(getEpoch(right, "s1"));
+    expect(["device-a", "device-b"]).toContain(getEpoch(left, "s1").d);
   });
 });

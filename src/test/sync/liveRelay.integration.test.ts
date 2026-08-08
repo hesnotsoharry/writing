@@ -19,7 +19,7 @@ import type {
   SortOrderRewrite, SqlFolderRow, SqlProjectionSnapshot, SqlSceneRow,
 } from "../../sync/meta/applyPlan";
 import {
-  buildFromSql, bumpEpoch, getScenes, type MetaProject, setScene,
+  buildFromSql, bumpEpoch, type EpochStamp, getDocEpochs, getScenes, type MetaProject, setScene,
 } from "../../sync/meta/metaDoc";
 import { RelayProvider } from "../../sync/provider";
 import { applyEncoded, encodeDoc, extractPlainText } from "../../yjs/serialize";
@@ -47,9 +47,9 @@ class MemoryDocStore implements SceneDocStore, BoardDocStore {
 }
 
 class MemoryEpochStore implements AppliedEpochStore {
-  value: Record<string, number> = {};
-  async load(): Promise<Record<string, number>> { return { ...this.value }; }
-  async save(value: Record<string, number>): Promise<void> { this.value = { ...value }; }
+  value: Record<string, EpochStamp> = {};
+  async load(): Promise<Record<string, EpochStamp>> { return { ...this.value }; }
+  async save(value: Record<string, EpochStamp>): Promise<void> { this.value = { ...value }; }
 }
 
 function replaceById<T extends { id: string }>(rows: T[], row: T): void {
@@ -97,11 +97,14 @@ function sceneDocWithText(text: string): Y.Doc {
   return doc;
 }
 
+type MetaSaveListener = (projectId: string, epochs: Record<string, EpochStamp>) => void;
+
 interface EngineMemory {
   metaStore?: InMemoryProjectMetaDocStore;
   metaTarget?: MemoryMetaTarget;
   snapshots?: InMemorySnapshotStore;
   epochs?: MemoryEpochStore;
+  metaSaves?: { listener: MetaSaveListener | null };
   /** Long value = "if this converges, it was pushed, not swept". */
   sweepMs?: number;
 }
@@ -118,6 +121,10 @@ function makeEngine(
     metaApplyTarget: memory.metaTarget,
     snapshotStore: memory.snapshots,
     epochStore: memory.epochs,
+    subscribeMetaSaves: memory.metaSaves ? (listener) => {
+      memory.metaSaves!.listener = listener;
+      return () => { memory.metaSaves!.listener = null; };
+    } : undefined,
     readMasterKey: async () => masterKey,
     getDeviceId: async () => deviceId,
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),
@@ -283,16 +290,16 @@ describe.runIf(RELAY_URL)("live relay end-to-end", () => {
       await storeB.save("s1", encodeDoc(sceneDocWithText("paused B divergence")));
       const restoredMeta = new Y.Doc();
       applyEncoded(restoredMeta, (await metaA.load("p1"))!);
-      bumpEpoch(restoredMeta, "s1");
+      bumpEpoch(restoredMeta, "s1", "epoch-A");
       await metaA.save("p1", encodeDoc(restoredMeta));
       await storeA.save("s1", encodeDoc(sceneDocWithText("A restored replacement")));
-      epochsA.value = { s1: 1 };
+      epochsA.value = { s1: { n: 1, d: "epoch-A" } };
       engineA.stop();
       engineA = makeEngine("epoch-A", masterKey, storeA, { metaStore: metaA, epochs: epochsA });
       await engineA.start();
       engineB.resume();
 
-      await until(() => epochsB.value.s1 === 1);
+      await until(() => epochsB.value.s1?.n === 1);
       const received = new Y.Doc();
       applyEncoded(received, (await storeB.load("s1"))!);
       expect(extractPlainText(received)).toBe("A restored replacement");
@@ -305,6 +312,65 @@ describe.runIf(RELAY_URL)("live relay end-to-end", () => {
     } finally {
       engineA.stop();
       engineB.stop();
+    }
+  }, 40_000);
+
+  it("converges concurrent restores on the epoch owner without waiting for a sweep", async () => {
+    const masterKey = generateMasterKey();
+    const storeA = new MemoryDocStore(); const storeB = new MemoryDocStore();
+    const metaA = new InMemoryProjectMetaDocStore();
+    const metaB = new InMemoryProjectMetaDocStore();
+    const epochsA = new MemoryEpochStore(); const epochsB = new MemoryEpochStore();
+    const savesA: { listener: MetaSaveListener | null } = { listener: null };
+    const savesB: { listener: MetaSaveListener | null } = { listener: null };
+    const initial = buildFromSql({
+      project: { id: "p1", title: "Concurrent Restore", type: "novel" },
+      folders: [], scenes: [], labels: [], sceneLabels: [],
+    });
+    await metaA.save("p1", encodeDoc(initial));
+    await storeA.save("s1", encodeDoc(sceneDocWithText("shared")));
+    const engineA = makeEngine("restore-A", masterKey, storeA, {
+      metaStore: metaA, epochs: epochsA, metaSaves: savesA, sweepMs: 60_000,
+    });
+    const engineB = makeEngine("restore-B", masterKey, storeB, {
+      metaStore: metaB, metaTarget: new MemoryMetaTarget(), epochs: epochsB,
+      metaSaves: savesB, sweepMs: 60_000,
+    });
+    try {
+      await engineA.start(); await engineB.start();
+      await until(() => storeB.rows.has("s1") && metaB.load("p1") !== null);
+      engineA.pause(); engineB.pause();
+
+      const localA = new Y.Doc(); const localB = new Y.Doc();
+      applyEncoded(localA, (await metaA.load("p1"))!);
+      applyEncoded(localB, (await metaB.load("p1"))!);
+      const stampA = bumpEpoch(localA, "s1", "restore-A");
+      const stampB = bumpEpoch(localB, "s1", "restore-B");
+      await metaA.save("p1", encodeDoc(localA)); await metaB.save("p1", encodeDoc(localB));
+      await storeA.save("s1", encodeDoc(sceneDocWithText("replacement A")));
+      await storeB.save("s1", encodeDoc(sceneDocWithText("replacement B")));
+      savesA.listener?.("p1", { s1: stampA }); savesB.listener?.("p1", { s1: stampB });
+      await until(() => epochsA.value.s1?.d === "restore-A"
+        && epochsB.value.s1?.d === "restore-B");
+      const startedAt = Date.now();
+      engineA.resume(); engineB.resume();
+
+      await until(async () => {
+        const mergedA = new Y.Doc(); const mergedB = new Y.Doc();
+        applyEncoded(mergedA, (await metaA.load("p1"))!);
+        applyEncoded(mergedB, (await metaB.load("p1"))!);
+        const ownerA = getDocEpochs(mergedA).s1?.d;
+        const ownerB = getDocEpochs(mergedB).s1?.d;
+        if (!ownerA || ownerA !== ownerB) return false;
+        const expected = ownerA === "restore-A" ? "replacement A" : "replacement B";
+        const docA = new Y.Doc(); const docB = new Y.Doc();
+        applyEncoded(docA, (await storeA.load("s1"))!);
+        applyEncoded(docB, (await storeB.load("s1"))!);
+        return extractPlainText(docA) === expected && extractPlainText(docB) === expected;
+      }, 20_000);
+      expect(Date.now() - startedAt).toBeLessThan(10_000);
+    } finally {
+      engineA.stop(); engineB.stop();
     }
   }, 40_000);
 

@@ -104,3 +104,22 @@ Each meta doc carries a top-level `project` map (`id`, `title`, `type`) so a joi
 device can create the parent `projects` row before applying folders, scenes, and labels.
 The generating device persists `app_meta['sync_role'] = 'origin'`; a device entering a
 pairing string persists `joined` and never bootstraps meta docs for its existing projects.
+
+## v1.2 additions (epoch ownership)
+
+`docEpochs` values are ownership stamps: `{ n: number, d: string }`. `n` is the
+whole-document replacement counter and `d` is the persistent device id of the
+device that performed that restore. `diff` and `live` messages continue to carry
+only the numeric counter in `e`; ownership exists only in the Yjs meta doc.
+
+The converged Yjs map entry is authoritative. Readers adopt that exact `{n, d}`
+instead of retaining the maximum counter seen locally. The applied-epoch store also
+persists the tuple. A device is behind when its applied tuple does not match the
+known tuple; a missing applied entry is `{n: 0, d: ""}`. An empty owner is a wildcard
+on either side of this comparison.
+
+The wildcard is the persisted-data compatibility shim: a legacy bare numeric value
+in either an on-disk v1.1 meta doc or the JSON applied-epoch store normalizes to
+`{n, d: ""}`. Live wire compatibility with v1.1 peers is not provided. During
+concurrent restores Yjs selects one owned entry, the losing restorer becomes behind,
+withholds its scene, and requests the owner's full state for wholesale adoption.

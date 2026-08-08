@@ -5,7 +5,7 @@ import type { BoardDocStore } from "../db/boardDocStore";
 import type { ProjectMetaDocStore } from "../db/projectMetaDocStore";
 import type { SceneDocStore } from "../db/sceneDocStore";
 import type { SnapshotStore } from "../db/snapshotStore";
-import type { AppliedEpochStore } from "../db/syncEpochStore";
+import type { AppliedEpochs, AppliedEpochStore } from "../db/syncEpochStore";
 import { SYNC_ORIGIN } from "../yjs/bindPersistence";
 import { extractPlainText } from "../yjs/serialize";
 import { answerFrame, helloDoc, targetedSaveFrame } from "./epochFrames";
@@ -42,7 +42,7 @@ export interface EngineOptions {
   epochStore?: AppliedEpochStore;
   ensureProjectMetas?: () => Promise<void>;
   subscribeMetaSaves?: (
-    cb: (projectId: string, epochs: Record<string, number>) => void
+    cb: (projectId: string, epochs: AppliedEpochs) => void
   ) => () => void;
   subscribeSceneWrites?: (cb: (sceneId: string) => void) => () => void;
   readMasterKey: () => Promise<Uint8Array | null>;
@@ -85,7 +85,6 @@ export class SyncEngine {
   async start(relayUrlOverride?: string): Promise<void> {
     if (this.provider) return;
     await this.options.ensureProjectMetas?.();
-    await this.epochs.initialize(this.options.metaStore);
     const masterKey = await this.options.readMasterKey();
     if (!masterKey) { this.setStatus({ state: "off" }); return; }
     const [{ roomId, encKey }, deviceId] = await Promise.all([
@@ -93,6 +92,7 @@ export class SyncEngine {
     ]);
     this.encKey = encKey;
     this.deviceId = deviceId;
+    await this.epochs.initialize(deviceId, this.options.metaStore);
     const relayUrl = relayUrlOverride?.trim() ? relayUrlOverride.trim() : this.options.relayUrl;
     const provider = this.options.providerFactory(relayUrl, roomId, deviceId);
     this.provider = provider;
@@ -164,7 +164,7 @@ export class SyncEngine {
     this.scheduleTargetedHello(sceneChannel(sceneId));
   }
 
-  private notifyLocalMetaSave(projectId: string, epochs: Record<string, number>): void {
+  private notifyLocalMetaSave(projectId: string, epochs: AppliedEpochs): void {
     void this.epochs.recordLocal(epochs).then(async (advanced) => {
       if (advanced.length === 0) return;
       this.replacements.add(projectId, advanced);
@@ -177,7 +177,7 @@ export class SyncEngine {
   private async flushReplacements(): Promise<void> {
     if (this.isPaused() || this.statusEmitter.current().state !== "connected") return;
     await this.replacements.flush({
-      metaStore: this.options.metaStore, sceneStore: this.options.sceneStore, epochs: this.epochs,
+      metaStore: this.options.metaStore,
     }, (frame) => this.sendMessage(frame));
   }
 
@@ -201,8 +201,8 @@ export class SyncEngine {
     this.pauseDepth -= 1;
     if (this.isPaused()) return;
     if (this.statusEmitter.current().state === "connected") {
-      void this.sendHello();
-      void this.flushReplacements();
+      if (this.replacements.hasPending()) void this.flushReplacements();
+      else void this.sendHello();
       this.startSweep();
     }
   }
@@ -211,8 +211,8 @@ export class SyncEngine {
     this.setStatus({ state });
     if (state !== "connected") { this.stopSweep(); return; }
     if (this.isPaused()) return;
-    void this.sendHello();
-    void this.flushReplacements();
+    if (this.replacements.hasPending()) void this.flushReplacements();
+    else void this.sendHello();
     this.startSweep();
   }
 
@@ -314,7 +314,8 @@ export class SyncEngine {
     // the already-persisted remote bump, recordLocal() sees epoch > known and
     // misreads a REMOTE restore as a local one — marking it applied and pushing
     // our stale scene at the new epoch, which is the resurrection bug again.
-    this.epochs.readMetaUpdate(merged);
+    const newlyBehind = this.epochs.readMetaUpdate(merged);
+    await Promise.all(newlyBehind.map((sceneId) => this.sendTargetedHello(sceneChannel(sceneId))));
     const doc = new Y.Doc();
     Y.applyUpdate(doc, merged);
     if (this.options.metaApplyTarget) await applyMetaDoc(projectId, doc, this.options.metaApplyTarget);

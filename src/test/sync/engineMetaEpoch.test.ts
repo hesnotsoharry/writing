@@ -14,7 +14,7 @@ import type { InnerMessage } from "../../sync/messages";
 import type { MetaApplyTarget } from "../../sync/meta/applyExec";
 import type { SqlFolderRow, SqlProjectionSnapshot, SqlSceneRow } from "../../sync/meta/applyPlan";
 import {
-  buildFromSql, bumpEpoch, getDocEpochs, type MetaProject, setFolder,
+  buildFromSql, bumpEpoch, type EpochStamp, getDocEpochs, type MetaProject, setFolder,
 } from "../../sync/meta/metaDoc";
 import type { ConnectionState } from "../../sync/provider";
 import { applyEncoded, encodeDoc, extractPlainText } from "../../yjs/serialize";
@@ -57,9 +57,9 @@ class FakeProvider implements SyncProvider {
 }
 
 class MemoryEpochStore implements AppliedEpochStore {
-  value: Record<string, number> = {};
-  async load(): Promise<Record<string, number>> { return { ...this.value }; }
-  async save(value: Record<string, number>): Promise<void> { this.value = { ...value }; }
+  value: Record<string, EpochStamp> = {};
+  async load(): Promise<Record<string, EpochStamp>> { return { ...this.value }; }
+  async save(value: Record<string, EpochStamp>): Promise<void> { this.value = { ...value }; }
 }
 
 class MemoryMetaTarget implements MetaApplyTarget {
@@ -80,28 +80,29 @@ function textDoc(text: string): Y.Doc {
   doc.getXmlFragment("content").insert(0, [paragraph]); return doc;
 }
 
-function metaDoc(epoch = 0): Y.Doc {
+function metaDoc(epoch = 0, owner = "device-a"): Y.Doc {
   const doc = buildFromSql({
     project: { id: "project-1", title: "Remote Project", type: "novel" },
     folders: [], scenes: [], labels: [], sceneLabels: [],
   });
   setFolder(doc, { id: "folder-1", projectId: "project-1", title: "Remote", sortKey: "a0" });
-  if (epoch > 0) bumpEpoch(doc, "scene-1");
+  if (epoch > 0) bumpEpoch(doc, "scene-1", owner);
   return doc;
 }
 
 interface EngineOverrides {
   subscribeMetaSaves?: (
-    cb: (projectId: string, epochs: Record<string, number>) => void
+    cb: (projectId: string, epochs: Record<string, EpochStamp>) => void
   ) => () => void;
   saveDebounceMs?: number;
+  deviceId?: string;
 }
 
 function makeEngine(
   meta: Y.Doc, scene = textDoc("local divergence"),
   overrides: EngineOverrides & { metaSaveDelayMs?: number; metaApplyDelayMs?: number } = {}
 ) {
-  const { metaSaveDelayMs, metaApplyDelayMs, ...engineOverrides } = overrides;
+  const { deviceId = "device-b", metaSaveDelayMs, metaApplyDelayMs, ...engineOverrides } = overrides;
   const provider = new FakeProvider(); const sceneStore = new MemorySceneStore();
   const metaStore = new InMemoryProjectMetaDocStore(); const epochs = new MemoryEpochStore();
   if (metaSaveDelayMs !== undefined) {
@@ -126,7 +127,7 @@ function makeEngine(
     relayUrl: "wss://relay.test", sceneStore, boardStore: new EmptyBoardStore(), metaStore,
     metaApplyTarget: target, snapshotStore: snapshots, epochStore: epochs,
     ensureProjectMetas: () => Promise.resolve(), readMasterKey: () => Promise.resolve(MASTER_KEY),
-    getDeviceId: () => Promise.resolve("device-b"), providerFactory: () => provider,
+    getDeviceId: () => Promise.resolve(deviceId), providerFactory: () => provider,
     updateWordCount: () => Promise.resolve(),
     ...engineOverrides,
   });
@@ -143,6 +144,42 @@ async function deliver(provider: FakeProvider, message: InnerMessage): Promise<v
 }
 
 describe("SyncEngine meta and epoch enforcement", () => {
+  it("makes the concurrent-restore loser adopt the converged owner's content", async () => {
+    const base = Y.encodeStateAsUpdate(metaDoc());
+    const metaA = new Y.Doc(); const metaB = new Y.Doc();
+    Y.applyUpdate(metaA, base); Y.applyUpdate(metaB, base);
+    const stampA = bumpEpoch(metaA, "scene-1", "device-a");
+    const stampB = bumpEpoch(metaB, "scene-1", "device-b");
+    const left = makeEngine(metaA, textDoc("restore A"), { deviceId: "device-a" });
+    const right = makeEngine(metaB, textDoc("restore B"), { deviceId: "device-b" });
+    left.epochs.value = { "scene-1": stampA };
+    right.epochs.value = { "scene-1": stampB };
+    await left.engine.start(); await right.engine.start();
+
+    await deliver(left.provider, {
+      t: "diff", c: "meta:project-1", u: fromUint8Array(Y.encodeStateAsUpdate(metaB)),
+    });
+    await deliver(right.provider, {
+      t: "diff", c: "meta:project-1", u: fromUint8Array(Y.encodeStateAsUpdate(metaA)),
+    });
+    const merged = new Y.Doc();
+    applyEncoded(merged, (await left.metaStore.load("project-1"))!);
+    const owner = getDocEpochs(merged)["scene-1"]!.d;
+    const winner = owner === "device-a" ? left : right;
+    const loser = owner === "device-a" ? right : left;
+
+    await deliver(loser.provider, {
+      t: "diff", c: "scene:scene-1", e: 1,
+      u: (await winner.sceneStore.load("scene-1"))!,
+    });
+    await vi.waitFor(async () => {
+      const adopted = new Y.Doc();
+      applyEncoded(adopted, (await loser.sceneStore.load("scene-1"))!);
+      expect(extractPlainText(adopted)).toBe(owner === "device-a" ? "restore A" : "restore B");
+    });
+    left.engine.stop(); right.engine.stop();
+  });
+
   it("applies remote meta structure and fires onStructureChanged", async () => {
     const local = buildFromSql({ folders: [], scenes: [], labels: [], sceneLabels: [] });
     const ctx = makeEngine(local); const changed = vi.fn(); ctx.engine.onStructureChanged(changed);
@@ -161,7 +198,7 @@ describe("SyncEngine meta and epoch enforcement", () => {
       t: "diff", c: "scene:scene-1", e: 1,
       u: fromUint8Array(Y.encodeStateAsUpdate(textDoc("restored state"))),
     });
-    await vi.waitFor(() => expect(ctx.epochs.value["scene-1"]).toBe(1));
+    await vi.waitFor(() => expect(ctx.epochs.value["scene-1"]).toEqual({ n: 1, d: "device-a" }));
     const stored = new Y.Doc(); applyEncoded(stored, (await ctx.sceneStore.load("scene-1"))!);
     expect(extractPlainText(stored)).toBe("restored state");
     expect(await ctx.snapshots.listSnapshots("scene-1")).toHaveLength(1);
@@ -257,7 +294,7 @@ describe("SyncEngine meta and epoch enforcement", () => {
       applyEncoded(stored, (await ctx.sceneStore.load("scene-1"))!);
       expect(extractPlainText(stored)).toBe("restored state");
     });
-    expect(ctx.epochs.value["scene-1"]).toBe(1);
+    expect(ctx.epochs.value["scene-1"]).toEqual({ n: 1, d: "device-a" });
     ctx.engine.stop();
   });
 
@@ -267,7 +304,7 @@ describe("SyncEngine meta and epoch enforcement", () => {
   // local restore, marked it applied, and pushed our stale scene at the new epoch —
   // resurrection via the replacement queue.
   it("does not mistake a remote epoch bump for a local restore", async () => {
-    let notify: ((projectId: string, epochs: Record<string, number>) => void) | null = null;
+    let notify: ((projectId: string, epochs: Record<string, EpochStamp>) => void) | null = null;
     const ctx = makeEngine(metaDoc(), textDoc("stale local"), {
       subscribeMetaSaves: (cb) => { notify = cb; return () => undefined; },
       metaApplyDelayMs: 120,
@@ -285,7 +322,7 @@ describe("SyncEngine meta and epoch enforcement", () => {
     // which now include the remote bump.
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect(notify).not.toBeNull();
-    notify!("project-1", { "scene-1": 1 });
+    notify!("project-1", { "scene-1": { n: 1, d: "device-a" } });
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     // We never applied that restore, so we must still be behind: no applied epoch
@@ -300,8 +337,8 @@ describe("SyncEngine meta and epoch enforcement", () => {
 
   // Regression: restores run inside syncEngine.pause(), so the push was dropped and
   // the peer waited out its own 60s sweep before asking for the replacement.
-  it("holds a restore pushed while paused and delivers it on resume, meta first", async () => {
-    let notify: ((projectId: string, epochs: Record<string, number>) => void) | null = null;
+  it("holds restore meta while paused and answers the behind peer after resume", async () => {
+    let notify: ((projectId: string, epochs: Record<string, EpochStamp>) => void) | null = null;
     const ctx = makeEngine(metaDoc(), textDoc("restored text"), {
       subscribeMetaSaves: (cb) => { notify = cb; return () => undefined; },
     });
@@ -318,15 +355,23 @@ describe("SyncEngine meta and epoch enforcement", () => {
     expect(notify).not.toBeNull();
     // The store must actually hold the bumped meta, or the pushed meta frame
     // carries epoch 0 and the peer never learns why the scene is being replaced.
-    await ctx.metaStore.save("project-1", encodeDoc(metaDoc(1)));
-    notify!("project-1", { "scene-1": 1 });
+    await ctx.metaStore.save("project-1", encodeDoc(metaDoc(1, "device-b")));
+    notify!("project-1", { "scene-1": { n: 1, d: "device-b" } });
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(await frames()).toHaveLength(0);
 
     ctx.engine.resume();
     await vi.waitFor(async () => {
       const sent = await frames();
-      expect(sent.some((frame) => frame.c === "scene:scene-1")).toBe(true);
+      expect(sent.some((frame) => frame.c === "meta:project-1")).toBe(true);
+    });
+    ctx.provider.receive(await sealMessage(key, {
+      t: "hello", device: "device-a", docs: [{
+        c: "scene:scene-1", sv: fromUint8Array(Y.encodeStateVector(new Y.Doc())), at: null,
+      }],
+    }));
+    await vi.waitFor(async () => {
+      expect((await frames()).some((frame) => frame.c === "scene:scene-1")).toBe(true);
     });
     const sent = await frames();
     const metaAt = sent.findIndex((frame) => frame.c === "meta:project-1");
@@ -339,7 +384,7 @@ describe("SyncEngine meta and epoch enforcement", () => {
     // And the meta frame must actually carry the bump, not just precede the scene.
     const pushedMeta = new Y.Doc();
     Y.applyUpdate(pushedMeta, toUint8Array(sent[metaAt]!.u!));
-    expect(getDocEpochs(pushedMeta)["scene-1"]).toBe(1);
+    expect(getDocEpochs(pushedMeta)["scene-1"]).toEqual({ n: 1, d: "device-b" });
     ctx.engine.stop();
   });
 
@@ -347,7 +392,7 @@ describe("SyncEngine meta and epoch enforcement", () => {
   // its own 60s sweep, because a targeted hello advertises a state vector and
   // answerHello replies with what the PEER lacks — nobody ever pushed ours.
   it("pushes meta content on a local save rather than only advertising", async () => {
-    let notify: ((projectId: string, epochs: Record<string, number>) => void) | null = null;
+    let notify: ((projectId: string, epochs: Record<string, EpochStamp>) => void) | null = null;
     const ctx = makeEngine(metaDoc(), textDoc("scene"), {
       subscribeMetaSaves: (cb) => { notify = cb; return () => undefined; },
       saveDebounceMs: 10,

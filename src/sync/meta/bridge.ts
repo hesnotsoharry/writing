@@ -1,19 +1,22 @@
 import * as Y from "yjs";
 
+import { getOrCreateDeviceId } from "../../db/deviceId";
 import type { LabelColor } from "../../db/labelStore";
 import { getDb } from "../../db/schema";
 import { SqliteProjectMetaDocStore } from "../../db/sqliteProjectMetaDocStore";
 import { normalizeStatus } from "../../lib/status";
 import { applyEncoded, encodeDoc } from "../../yjs/serialize";
 import { getSyncRole } from "../syncRole";
-import { buildFromSql, bumpEpoch, getDocEpochs, type SqlMetaRows } from "./metaDoc";
+import {
+  buildFromSql, bumpEpoch, type EpochStamp, getDocEpochs, type SqlMetaRows,
+} from "./metaDoc";
 
 const store = new SqliteProjectMetaDocStore();
 const projectTails = new Map<string, Promise<void>>();
-const saveListeners = new Set<(projectId: string, epochs: Record<string, number>) => void>();
+const saveListeners = new Set<(projectId: string, epochs: Record<string, EpochStamp>) => void>();
 
 export function subscribeProjectMetaSaves(
-  listener: (projectId: string, epochs: Record<string, number>) => void
+  listener: (projectId: string, epochs: Record<string, EpochStamp>) => void
 ): () => void {
   saveListeners.add(listener);
   return () => saveListeners.delete(listener);
@@ -47,8 +50,9 @@ export function withProjectMeta(
   });
 }
 
-export function bumpProjectSceneEpoch(projectId: string, sceneId: string): Promise<void> {
-  return withProjectMeta(projectId, (doc) => { bumpEpoch(doc, sceneId); });
+export async function bumpProjectSceneEpoch(projectId: string, sceneId: string): Promise<void> {
+  const deviceId = await getOrCreateDeviceId();
+  await withProjectMeta(projectId, (doc) => { bumpEpoch(doc, sceneId, deviceId); });
 }
 
 async function loadSqlRows(projectId: string): Promise<SqlMetaRows> {

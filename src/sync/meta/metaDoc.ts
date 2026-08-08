@@ -19,6 +19,8 @@ export interface MetaLabel {
 }
 export interface MetaSceneLabel { id: string; sceneId: string; labelId: string }
 export interface MetaTombstone { kind: TombstoneKind; at: number }
+export interface EpochStamp { n: number; d: string }
+export type PersistedEpochStamp = EpochStamp | number;
 
 export interface SqlMetaRows {
   project?: { id: string; title: string; type: string };
@@ -31,13 +33,13 @@ export interface SqlMetaRows {
     id: string; project_id: string; name: string; color: LabelColor; sort: number;
   }>;
   sceneLabels: Array<{ id?: string; scene_id: string; label_id: string }>;
-  docEpochs?: Record<string, number>;
+  docEpochs?: Record<string, PersistedEpochStamp>;
 }
 
 export interface MetaState {
   project: MetaProject | null;
   folders: MetaFolder[]; scenes: MetaScene[]; labels: MetaLabel[];
-  sceneLabels: MetaSceneLabel[]; docEpochs: Record<string, number>;
+  sceneLabels: MetaSceneLabel[]; docEpochs: Record<string, EpochStamp>;
   tombstones: Record<string, MetaTombstone>;
 }
 
@@ -80,8 +82,27 @@ export function getFolders(doc: Y.Doc): MetaFolder[] { return readRows(doc, "fol
 export function getScenes(doc: Y.Doc): MetaScene[] { return readRows(doc, "scenes"); }
 export function getLabels(doc: Y.Doc): MetaLabel[] { return readRows(doc, "labels"); }
 export function getSceneLabels(doc: Y.Doc): MetaSceneLabel[] { return readRows(doc, "sceneLabels"); }
-export function getDocEpochs(doc: Y.Doc): Record<string, number> {
-  return doc.getMap<number>("docEpochs").toJSON();
+function isEpochNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+export function normalizeEpochStamp(value: unknown): EpochStamp | null {
+  if (isEpochNumber(value)) {
+    return { n: value, d: "" };
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const stamp = value as Record<string, unknown>;
+  return isEpochNumber(stamp.n) && typeof stamp.d === "string"
+    ? { n: stamp.n, d: stamp.d } : null;
+}
+
+export function getDocEpochs(doc: Y.Doc): Record<string, EpochStamp> {
+  const result: Record<string, EpochStamp> = {};
+  for (const [id, value] of doc.getMap<unknown>("docEpochs")) {
+    const stamp = normalizeEpochStamp(value);
+    if (stamp) result[id] = stamp;
+  }
+  return result;
 }
 export function getTombstones(doc: Y.Doc): Record<string, MetaTombstone> {
   return doc.getMap<MetaTombstone>("tombstones").toJSON();
@@ -104,18 +125,19 @@ export function removeWithTombstone(
   });
 }
 
-export function bumpEpoch(doc: Y.Doc, docId: string): number {
-  let next = 0;
+export function bumpEpoch(doc: Y.Doc, docId: string, deviceId: string): EpochStamp {
+  let next: EpochStamp = { n: 0, d: deviceId };
   doc.transact(() => {
-    const epochs = doc.getMap<number>("docEpochs");
-    next = (epochs.get(docId) ?? 0) + 1;
+    const epochs = doc.getMap<unknown>("docEpochs");
+    const current = normalizeEpochStamp(epochs.get(docId));
+    next = { n: (current?.n ?? 0) + 1, d: deviceId };
     epochs.set(docId, next);
   });
   return next;
 }
 
-export function getEpoch(doc: Y.Doc, docId: string): number {
-  return doc.getMap<number>("docEpochs").get(docId) ?? 0;
+export function getEpoch(doc: Y.Doc, docId: string): EpochStamp {
+  return normalizeEpochStamp(doc.getMap<unknown>("docEpochs").get(docId)) ?? { n: 0, d: "" };
 }
 
 export function readMetaDoc(doc: Y.Doc): MetaState {
@@ -179,7 +201,8 @@ export function buildFromSql(rows: SqlMetaRows): Y.Doc {
       sceneId: row.scene_id, labelId: row.label_id,
     });
     for (const [id, epoch] of Object.entries(rows.docEpochs ?? {})) {
-      doc.getMap<number>("docEpochs").set(id, epoch);
+      const stamp = normalizeEpochStamp(epoch);
+      if (stamp) doc.getMap<EpochStamp>("docEpochs").set(id, stamp);
     }
     doc.getMap<MetaTombstone>("tombstones");
   });

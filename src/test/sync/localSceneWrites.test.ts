@@ -9,6 +9,7 @@ import { SyncEngine, type SyncProvider } from "../../sync/engine";
 import { openMessage } from "../../sync/frameCodec";
 import { deriveKeys } from "../../sync/keys";
 import { type InnerMessage,isInnerMessage } from "../../sync/messages";
+import type { EpochStamp } from "../../sync/meta/metaDoc";
 import type { ConnectionState } from "../../sync/provider";
 import { encodeDoc } from "../../yjs/serialize";
 
@@ -33,9 +34,9 @@ class EmptyBoardStore implements BoardDocStore {
 }
 
 class MemoryEpochStore implements AppliedEpochStore {
-  constructor(private value: Record<string, number>) {}
-  async load(): Promise<Record<string, number>> { return { ...this.value }; }
-  async save(value: Record<string, number>): Promise<void> { this.value = { ...value }; }
+  constructor(private value: Record<string, EpochStamp>) {}
+  async load(): Promise<Record<string, EpochStamp>> { return { ...this.value }; }
+  async save(value: Record<string, EpochStamp>): Promise<void> { this.value = { ...value }; }
 }
 
 class FakeProvider implements SyncProvider {
@@ -71,7 +72,9 @@ async function makeHarness(options: HarnessOptions = {}) {
   let notify: ((sceneId: string) => void) | null = null;
   const engine = new SyncEngine({
     relayUrl: "wss://relay.test", sceneStore, boardStore: new EmptyBoardStore(), metaStore,
-    epochStore: new MemoryEpochStore({ "scene-1": options.appliedEpoch ?? 0 }),
+    epochStore: new MemoryEpochStore(options.appliedEpoch === undefined ? {} : {
+      "scene-1": { n: options.appliedEpoch, d: "device-a" },
+    }),
     subscribeSceneWrites: (cb) => { notify = cb; return () => { notify = null; }; },
     readMasterKey: () => Promise.resolve(MASTER_KEY),
     getDeviceId: () => Promise.resolve("device-a"), providerFactory: () => provider,
