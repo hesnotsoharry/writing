@@ -18,3 +18,9 @@ eval/runs/
 
 # Local wrangler dev state (miniflare DO/cache sqlite) — regenerable, never commit
 .wrangler/
+
+# Repo-local codex CLI config (machine-local)
+.codex/
+
+# Expo local device state (regenerable)
+mobile/.expo/
