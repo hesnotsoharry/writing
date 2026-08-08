@@ -99,9 +99,9 @@ interface EngineOverrides {
 
 function makeEngine(
   meta: Y.Doc, scene = textDoc("local divergence"),
-  overrides: EngineOverrides & { metaSaveDelayMs?: number } = {}
+  overrides: EngineOverrides & { metaSaveDelayMs?: number; metaApplyDelayMs?: number } = {}
 ) {
-  const { metaSaveDelayMs, ...engineOverrides } = overrides;
+  const { metaSaveDelayMs, metaApplyDelayMs, ...engineOverrides } = overrides;
   const provider = new FakeProvider(); const sceneStore = new MemorySceneStore();
   const metaStore = new InMemoryProjectMetaDocStore(); const epochs = new MemoryEpochStore();
   if (metaSaveDelayMs !== undefined) {
@@ -112,6 +112,14 @@ function makeEngine(
     };
   }
   const snapshots = new InMemorySnapshotStore(); const target = new MemoryMetaTarget();
+  if (metaApplyDelayMs !== undefined) {
+    // Stretches the SQL-projection await inside mergeMeta, which is the window a
+    // local structure save can land in.
+    target.load = async (): Promise<SqlProjectionSnapshot> => {
+      await new Promise((resolve) => setTimeout(resolve, metaApplyDelayMs));
+      return target.snapshot;
+    };
+  }
   sceneStore.rows.set("scene-1", { id: "scene-1", stateBase64: encodeDoc(scene), updatedAt: null });
   void metaStore.save("project-1", encodeDoc(meta));
   const engine = new SyncEngine({
@@ -250,6 +258,43 @@ describe("SyncEngine meta and epoch enforcement", () => {
       expect(extractPlainText(stored)).toBe("restored state");
     });
     expect(ctx.epochs.value["scene-1"]).toBe(1);
+    ctx.engine.stop();
+  });
+
+  // Regression: mergeMeta persisted an incoming meta BEFORE EpochManager learned its
+  // epochs, so a local structure save landing during the SQL-apply await read the
+  // already-persisted REMOTE bump. recordLocal() then saw epoch > known, called it a
+  // local restore, marked it applied, and pushed our stale scene at the new epoch —
+  // resurrection via the replacement queue.
+  it("does not mistake a remote epoch bump for a local restore", async () => {
+    let notify: ((projectId: string, epochs: Record<string, number>) => void) | null = null;
+    const ctx = makeEngine(metaDoc(), textDoc("stale local"), {
+      subscribeMetaSaves: (cb) => { notify = cb; return () => undefined; },
+      metaApplyDelayMs: 120,
+    });
+    await ctx.engine.start();
+    const key = (await deriveKeys(MASTER_KEY)).encKey;
+    ctx.provider.sent.length = 0;
+
+    // Remote restore arrives; mergeMeta is now parked in the slow SQL apply.
+    ctx.provider.receive(await sealMessage(key, {
+      t: "diff", c: "meta:project-1",
+      u: fromUint8Array(Y.encodeStateAsUpdate(metaDoc(1))),
+    }));
+    // A local structure edit lands mid-window and reports the epochs it read back —
+    // which now include the remote bump.
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(notify).not.toBeNull();
+    notify!("project-1", { "scene-1": 1 });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    // We never applied that restore, so we must still be behind: no applied epoch
+    // recorded, and above all no push of our stale scene at the new epoch.
+    expect(ctx.epochs.value["scene-1"]).toBeUndefined();
+    const sent = await Promise.all(
+      ctx.provider.sent.map((blob) => openMessage(key, blob) as Promise<{ c?: string }>)
+    );
+    expect(sent.filter((frame) => frame.c === "scene:scene-1")).toHaveLength(0);
     ctx.engine.stop();
   });
 
