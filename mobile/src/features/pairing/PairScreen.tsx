@@ -5,17 +5,11 @@ import {
   ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
 } from "react-native";
 
-import { decodeMasterKey, parsePairPayload } from "../../shared/keys";
 import { setSyncMasterKey } from "../../sync/mobileKeyStorage";
+import { parseMobilePairingInput } from "../../sync/mobilePairing";
+import { setMobileRelayUrlOverride } from "../../sync/mobileRelayUrl";
 import { markDeviceJoined } from "../../sync/mobileSyncRole";
 import { PALETTE } from "../../theme/palette";
-
-// Duplicated literal, not shared: the same production relay default as
-// src/sync/engineDefaults.ts's `DEFAULT_RELAY_URL`, but that module pulls in
-// Tauri-only SQLite classes — forbidden on mobile (S4 blueprint portable-
-// boundary rule). Manual pairing-string entry has no QR `relay` param to
-// read, so it falls back to this constant, matching desktop's own default.
-const FALLBACK_RELAY_URL = "wss://sync.writersnook.app";
 
 const SCAN_ERROR = "That code doesn't look like a WritersNook pairing code. Try scanning again.";
 const MANUAL_ERROR = "That pairing string doesn't look right. Check it and try again.";
@@ -27,10 +21,10 @@ interface PairScreenProps {
   /**
    * S4 step 5: wired by App.tsx (via AppNavigator) to start the mobile
    * SyncEngine (mobile/src/sync/mobileEngine.ts). Called once, after the key
-   * is in SecureStore and sync_role='joined' is in app_meta, with the relay
-   * URL the pairing code carried (QR) or the fallback default (manual entry).
+   * is in SecureStore, sync_role='joined' is in app_meta, and any QR relay
+   * override has been persisted for the engine start.
    */
-  onPairedSuccessfully?: (relayUrl: string) => void;
+  onPairedSuccessfully?: () => void;
 }
 
 function CenteredMessage({ children }: { children: ReactNode }) {
@@ -86,18 +80,19 @@ export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
   const [manualValue, setManualValue] = useState("");
   const scannedRef = useRef(false);
 
-  const finishPairing = useCallback(async (masterKey: Uint8Array, relayUrl: string) => {
+  const finishPairing = useCallback(async (masterKey: Uint8Array, relayUrl: string | null) => {
     await setSyncMasterKey(masterKey);
+    if (relayUrl) await setMobileRelayUrlOverride(relayUrl);
     await markDeviceJoined();
     setPhase("success");
-    onPairedSuccessfully?.(relayUrl);
+    onPairedSuccessfully?.();
   }, [onPairedSuccessfully]);
 
   const handleBarcodeScanned = useCallback((result: { data: string }) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
     try {
-      const { masterKey, relayUrl } = parsePairPayload(result.data);
+      const { masterKey, relayUrl } = parseMobilePairingInput(result.data);
       void finishPairing(masterKey, relayUrl);
     } catch {
       setErrorMessage(SCAN_ERROR);
@@ -108,8 +103,8 @@ export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
 
   const submitManual = useCallback(() => {
     try {
-      const masterKey = decodeMasterKey(manualValue.trim());
-      void finishPairing(masterKey, FALLBACK_RELAY_URL);
+      const { masterKey, relayUrl } = parseMobilePairingInput(manualValue);
+      void finishPairing(masterKey, relayUrl);
     } catch {
       setErrorMessage(MANUAL_ERROR);
       setPhase("error");

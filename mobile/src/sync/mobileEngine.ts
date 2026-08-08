@@ -14,11 +14,12 @@ import { RelayProvider } from "../shared/provider";
 import { getMobileDb } from "../db/database";
 import { getSyncMasterKey } from "./mobileKeyStorage";
 import { getOrCreateMobileDeviceId } from "./mobileDeviceId";
+import { getMobileRelayUrlOverride, resolveMobileRelayUrl } from "./mobileRelayUrl";
 
 /**
  * Same production relay as src/sync/engineDefaults.ts's `DEFAULT_RELAY_URL`
- * and PairScreen's `FALLBACK_RELAY_URL` — duplicated as a literal, not
- * imported, because engineDefaults.ts pulls in `import.meta.env` (Vite-only)
+ * — duplicated as a literal, not imported, because engineDefaults.ts pulls
+ * in `import.meta.env` (Vite-only)
  * plus the desktop Sqlite*Store classes (Tauri-bearing) — both forbidden on
  * mobile (S4 blueprint portable-boundary rule).
  */
@@ -54,6 +55,12 @@ function buildMobileEngineOptions(): EngineOptions {
  *  boot when a key + joined role already exist; `.stop()`/`.subscribe()`/
  *  `.pause()`/`.resume()` are the same public surface as desktop's. */
 export const mobileEngine = new SyncEngine(buildMobileEngineOptions());
+
+/** Start against a persisted pairing override, or the production relay. */
+export async function startMobileEngine(): Promise<void> {
+  const override = await getMobileRelayUrlOverride();
+  await mobileEngine.start(resolveMobileRelayUrl(override, DEFAULT_RELAY_URL));
+}
 
 // ── Structure-changed fan-out ────────────────────────────────────────────
 // `SyncEngine.onStructureChanged` holds a single callback slot (one desktop

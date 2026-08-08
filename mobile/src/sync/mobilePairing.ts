@@ -1,0 +1,16 @@
+import { decodeMasterKey, parsePairPayload } from "../shared/keys";
+
+export interface MobilePairingInput {
+  masterKey: Uint8Array;
+  relayUrl: string | null;
+}
+
+/** Accept the current QR payload and the legacy raw-key pairing string. */
+export function parseMobilePairingInput(value: string): MobilePairingInput {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("writersnook:")) {
+    const parsed = parsePairPayload(trimmed);
+    return { masterKey: parsed.masterKey, relayUrl: parsed.relayUrl };
+  }
+  return { masterKey: decodeMasterKey(trimmed), relayUrl: null };
+}

@@ -7,7 +7,7 @@ import { assertDbReady } from "./db/database";
 import { AppNavigator } from "./navigation/AppNavigator";
 import { SyncEngine } from "./shared/engine";
 import type { SyncStatus } from "./shared/engine";
-import { mobileEngine } from "./sync/mobileEngine";
+import { mobileEngine, startMobileEngine } from "./sync/mobileEngine";
 import { hasSyncMasterKey } from "./sync/mobileKeyStorage";
 import { isDeviceJoined } from "./sync/mobileSyncRole";
 import { PALETTE } from "./theme/palette";
@@ -42,13 +42,13 @@ export default function App() {
   useEffect(() => {
     Promise.all([hasSyncMasterKey(), isDeviceJoined()])
       .then(([hasKey, joined]) => {
-        if (hasKey && joined) void mobileEngine.start();
+        if (hasKey && joined) void startMobileEngine();
       })
       .catch(() => undefined);
   }, []);
 
-  const handlePaired = useCallback((relayUrl: string) => {
-    void mobileEngine.start(relayUrl);
+  const handlePaired = useCallback(() => {
+    void startMobileEngine();
   }, []);
 
   return (

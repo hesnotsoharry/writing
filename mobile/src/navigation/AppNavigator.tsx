@@ -18,7 +18,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 interface AppNavigatorProps {
   /** S4 step 5: forwarded to PairScreen so App.tsx can start the mobile
    *  SyncEngine right after a successful pair — see PairScreen's prop doc. */
-  onPairedSuccessfully?: (relayUrl: string) => void;
+  onPairedSuccessfully?: () => void;
 }
 
 /**
