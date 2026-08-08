@@ -15,3 +15,6 @@ eval/.env.eval
 # Real pilot/matrix evidence is preserved deliberately at live-run time (copied
 # out of runs/ into a committed evidence path), not via this directory.
 eval/runs/
+
+# Local wrangler dev state (miniflare DO/cache sqlite) — regenerable, never commit
+.wrangler/
