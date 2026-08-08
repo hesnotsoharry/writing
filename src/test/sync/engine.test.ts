@@ -210,8 +210,13 @@ describe("SyncEngine sweeps and live updates", () => {
     await vi.advanceTimersByTimeAsync(1);
     await waitForSent(provider);
     const sent = await decodeSent(provider);
-    expect(sent).toHaveLength(1);
+    // Two notifies collapse into ONE flush — which is now a pair: the hello that
+    // advertises, plus the content frame that actually delivers it (a hello alone
+    // left the peer waiting for its own 60s sweep). Four frames would mean the
+    // debounce broke.
+    expect(sent).toHaveLength(2);
     expect(sent[0]).toMatchObject({ t: "hello", docs: [{ c: "scene:saved" }] });
+    expect(sent[1]).toMatchObject({ t: "diff", c: "scene:saved" });
     engine.stop();
   });
 });

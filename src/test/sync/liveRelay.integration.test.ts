@@ -102,6 +102,8 @@ interface EngineMemory {
   metaTarget?: MemoryMetaTarget;
   snapshots?: InMemorySnapshotStore;
   epochs?: MemoryEpochStore;
+  /** Long value = "if this converges, it was pushed, not swept". */
+  sweepMs?: number;
 }
 
 function makeEngine(
@@ -120,7 +122,7 @@ function makeEngine(
     getDeviceId: async () => deviceId,
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),
     updateWordCount: async () => undefined,
-    sweepMs: 2_000,
+    sweepMs: memory.sweepMs ?? 2_000,
     saveDebounceMs: 100,
   });
 }
@@ -168,6 +170,43 @@ describe.runIf(RELAY_URL)("live relay end-to-end", () => {
     engineA.stop();
     engineB.stop();
   }, 30_000);
+
+  // A write to a scene that is NOT open has no live channel, so before the
+  // localSceneWrites bridge it reached the peer only when that peer's next hello
+  // sweep came asking. The 60s sweep here is the point: if this converges, it
+  // converged because the write was PUSHED, not because anything swept.
+  it("pushes a closed-scene local write without waiting for a sweep", async () => {
+    const masterKey = generateMasterKey();
+    const storeA = new MemoryDocStore();
+    const storeB = new MemoryDocStore();
+    await storeA.save("s1", encodeDoc(sceneDocWithText("before")));
+
+    const engineA = makeEngine("device-A", masterKey, storeA, { sweepMs: 60_000 });
+    const engineB = makeEngine("device-B", masterKey, storeB, { sweepMs: 60_000 });
+    await engineA.start();
+    await engineB.start();
+    await until(() => storeB.rows.has("s1"));
+
+    // Rewrite s1 while it is closed (no attachLiveDoc), exactly as Replace-All and
+    // note-promotion do, then fire the bridge notification those paths now send.
+    await storeA.save("s1", encodeDoc(sceneDocWithText("closed-scene rewrite")));
+    const startedAt = Date.now();
+    engineA.notifyLocalSave("s1");
+
+    await until(() => {
+      const row = storeB.rows.get("s1");
+      if (!row) return false;
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, Uint8Array.from(atob(row.stateBase64), (c) => c.charCodeAt(0)));
+      return doc.getXmlFragment("content").toString().includes("closed-scene rewrite");
+    }, 20_000);
+    const elapsed = Date.now() - startedAt;
+    // Comfortably inside one sweep; the debounce alone is 100ms here.
+    expect(elapsed).toBeLessThan(10_000);
+
+    engineA.stop();
+    engineB.stop();
+  }, 40_000);
 
   it("clones project structure and converges live rename and reorder changes", async () => {
     const masterKey = generateMasterKey();

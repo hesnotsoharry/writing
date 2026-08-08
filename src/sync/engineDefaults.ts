@@ -8,6 +8,7 @@ import { SqliteSnapshotStore } from "../db/sqliteSnapshotStore";
 import { SqliteAppliedEpochStore } from "../db/syncEpochStore";
 import type { EngineOptions } from "./engine";
 import { getSyncMasterKey } from "./keyStorage";
+import { subscribeLocalSceneWrites } from "./localSceneWrites";
 import { ensureAllProjectMetas, subscribeProjectMetaSaves } from "./meta/bridge";
 import { RelayProvider } from "./provider";
 
@@ -28,6 +29,7 @@ export function defaultEngineOptions(): EngineOptions {
     metaStore: new SqliteProjectMetaDocStore(), metaApplyTarget: new SqliteMetaApplyTarget(),
     snapshotStore: new SqliteSnapshotStore(), epochStore: new SqliteAppliedEpochStore(),
     ensureProjectMetas: ensureAllProjectMetas, subscribeMetaSaves: subscribeProjectMetaSaves,
+    subscribeSceneWrites: subscribeLocalSceneWrites,
     readMasterKey: getSyncMasterKey, getDeviceId: getOrCreateDeviceId,
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),
     updateWordCount: updateSceneWordCount,

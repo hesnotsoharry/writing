@@ -14,6 +14,7 @@
 import * as Y from "yjs";
 
 import { syncEngine } from "../sync/desktopEngine";
+import { notifyLocalSceneWrite } from "../sync/localSceneWrites";
 import { bumpProjectSceneEpoch } from "../sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText, xmlTextToPlain } from "../yjs/serialize";
 import { getDb } from "./schema";
@@ -153,6 +154,7 @@ async function persistDoc(
   try {
     const wordCount = plaintext.trim() ? plaintext.trim().split(/\s+/).filter(Boolean).length : 0;
     await sceneDocStore.save(sceneId, encodeDoc(doc), plaintext);
+    notifyLocalSceneWrite(sceneId);
     await db.execute("UPDATE scenes SET word_count = $1 WHERE id = $2", [wordCount, sceneId]);
     if (projectId) await bumpProjectSceneEpoch(projectId, sceneId);
   } finally {

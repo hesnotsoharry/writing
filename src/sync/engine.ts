@@ -8,7 +8,7 @@ import type { SnapshotStore } from "../db/snapshotStore";
 import type { AppliedEpochStore } from "../db/syncEpochStore";
 import { SYNC_ORIGIN } from "../yjs/bindPersistence";
 import { extractPlainText } from "../yjs/serialize";
-import { answerFrame, helloDoc } from "./epochFrames";
+import { answerFrame, helloDoc, targetedSaveFrame } from "./epochFrames";
 import { EpochManager } from "./epochManager";
 import { openMessage, sealMessage } from "./frameCodec";
 import { deriveKeys } from "./keys";
@@ -18,10 +18,11 @@ import {
 } from "./messages";
 import { applyMetaDoc, type MetaApplyTarget } from "./meta/applyExec";
 import type { ConnectionState } from "./provider";
+import { StatusEmitter, type SyncStatus } from "./statusEmitter";
+
+export type { SyncState, SyncStatus } from "./statusEmitter";
 import { ReplacementQueue } from "./replacementQueue";
 
-export type SyncState = "off" | ConnectionState;
-export interface SyncStatus { state: SyncState; peerSeen: boolean; lastSyncAt: string | null }
 export interface SyncProvider {
   connect(): void;
   destroy(): void;
@@ -43,6 +44,7 @@ export interface EngineOptions {
   subscribeMetaSaves?: (
     cb: (projectId: string, epochs: Record<string, number>) => void
   ) => () => void;
+  subscribeSceneWrites?: (cb: (sceneId: string) => void) => () => void;
   readMasterKey: () => Promise<Uint8Array | null>;
   getDeviceId: () => Promise<string>;
   providerFactory: (relayUrl: string, roomId: string, deviceId: string) => SyncProvider;
@@ -60,8 +62,7 @@ export class SyncEngine {
   private provider: SyncProvider | null = null;
   private encKey: CryptoKey | null = null;
   private deviceId = "";
-  private status: SyncStatus = { state: "off", peerSeen: false, lastSyncAt: null };
-  private readonly listeners = new Set<(status: SyncStatus) => void>();
+  private readonly statusEmitter = new StatusEmitter();
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private readonly saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private openScene: { id: string; doc: Y.Doc; listener: (u: Uint8Array, o: unknown) => void } | null = null;
@@ -70,6 +71,7 @@ export class SyncEngine {
   private readonly replacements = new ReplacementQueue();
   private inbound: Promise<void> = Promise.resolve();
   private unsubscribeMetaSaves: (() => void) | null = null;
+  private unsubscribeSceneWrites: (() => void) | null = null;
   private structureChanged: (() => void) | null = null;
   private docReplaced: ((sceneId: string) => void) | null = null;
 
@@ -97,6 +99,9 @@ export class SyncEngine {
     this.unsubscribeMetaSaves = this.options.subscribeMetaSaves?.(
       (projectId, epochs) => this.notifyLocalMetaSave(projectId, epochs)
     ) ?? null;
+    this.unsubscribeSceneWrites = this.options.subscribeSceneWrites?.(
+      (sceneId) => this.notifyLocalSave(sceneId)
+    ) ?? null;
     provider.subscribeConnection((state) => this.onConnection(state));
     // Serialized, not fire-and-forget: frames must be APPLIED in arrival order.
     // A restore sends meta (carrying the new epoch) then the replacement scene;
@@ -119,14 +124,12 @@ export class SyncEngine {
     this.inbound = Promise.resolve();
     this.unsubscribeMetaSaves?.();
     this.unsubscribeMetaSaves = null;
+    this.unsubscribeSceneWrites?.();
+    this.unsubscribeSceneWrites = null;
     this.setStatus({ state: "off", peerSeen: false });
   }
 
-  subscribe(cb: (status: SyncStatus) => void): () => void {
-    this.listeners.add(cb);
-    cb({ ...this.status });
-    return () => this.listeners.delete(cb);
-  }
+  subscribe(cb: (status: SyncStatus) => void): () => void { return this.statusEmitter.subscribe(cb); }
 
   onStructureChanged(callback: (() => void) | null): void { this.structureChanged = callback; }
   onDocReplaced(callback: ((sceneId: string) => void) | null): void { this.docReplaced = callback; }
@@ -172,7 +175,7 @@ export class SyncEngine {
 
   /** Push queued restores. No-op while paused or offline — resume/reconnect retries. */
   private async flushReplacements(): Promise<void> {
-    if (this.isPaused() || this.status.state !== "connected") return;
+    if (this.isPaused() || this.statusEmitter.current().state !== "connected") return;
     await this.replacements.flush({
       metaStore: this.options.metaStore, sceneStore: this.options.sceneStore, epochs: this.epochs,
     }, (frame) => this.sendMessage(frame));
@@ -197,7 +200,7 @@ export class SyncEngine {
     if (this.pauseDepth === 0) return;
     this.pauseDepth -= 1;
     if (this.isPaused()) return;
-    if (this.status.state === "connected") {
+    if (this.statusEmitter.current().state === "connected") {
       void this.sendHello();
       void this.flushReplacements();
       this.startSweep();
@@ -260,14 +263,16 @@ export class SyncEngine {
     if (!doc) return;
     await this.sendMessage(await this.makeHello([{ ...doc, channel: channelName }]));
     // A hello only ADVERTISES a state vector, and answerHello replies with what the
-    // peer lacks — so a local structure change is never actually pushed by this
-    // exchange; it waits for the peer's own 60s sweep to come asking (measured 63s
-    // desktop↔desktop 2026-08-07). Scenes have the live-doc channel for this, meta
-    // docs have nothing, so push meta content directly. Safe from echo: remote
-    // applies write through metaStore.save(), which does not notify saveListeners.
-    if (channel.kind === "meta") {
-      await this.sendMessage({ t: "diff", c: channelName, u: doc.stateBase64 });
-    }
+    // PEER lacks — so a local change is never actually pushed by that exchange; it
+    // waits for the peer's own 60s sweep to come asking (measured 63s desktop↔desktop
+    // 2026-08-07). So deliver the content here too. targetedSaveFrame withholds the
+    // open scene (the live channel already covers it) and any scene we owe a
+    // replacement for. Echo-safe: remote applies never reach these notify paths —
+    // meta goes through metaStore.save(), scenes through the engine's own merge.
+    const frame = targetedSaveFrame(
+      { ...doc, channel: channelName }, this.epochs, this.openScene?.id ?? null
+    );
+    if (frame) await this.sendMessage(frame);
   }
 
   private async answerHello(hello: HelloMessage): Promise<void> {
@@ -333,7 +338,7 @@ export class SyncEngine {
   }
 
   private async sendMessage(message: InnerMessage): Promise<void> {
-    if (this.isPaused() || !this.encKey || this.status.state !== "connected") return;
+    if (this.isPaused() || !this.encKey || this.statusEmitter.current().state !== "connected") return;
     const blob = await sealMessage(this.encKey, message);
     if (!this.isPaused()) this.provider?.send(blob);
   }
@@ -355,8 +360,5 @@ export class SyncEngine {
 
   private isPaused(): boolean { return this.pauseDepth > 0; }
 
-  private setStatus(patch: Partial<SyncStatus>): void {
-    this.status = { ...this.status, ...patch };
-    this.listeners.forEach((listener) => listener({ ...this.status }));
-  }
+  private setStatus(patch: Partial<SyncStatus>): void { this.statusEmitter.patch(patch); }
 }

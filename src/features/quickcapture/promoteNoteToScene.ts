@@ -2,6 +2,7 @@ import * as Y from "yjs";
 
 import type { BinderStore } from "../../db/binderStore";
 import type { SceneDocStore } from "../../db/sceneDocStore";
+import { notifyLocalSceneWrite } from "../../sync/localSceneWrites";
 import { encodeDoc } from "../../yjs/serialize";
 import type { QuickNote } from "./SqliteQuickNoteStore";
 
@@ -48,6 +49,7 @@ export async function promoteNoteToScene(
     noteBodyToSceneDoc(args.note.body),
     args.note.body
   );
+  notifyLocalSceneWrite(sceneId);
   await deps.quickNoteStore.markFiled(args.note.id);
   return sceneId;
 }

@@ -9,6 +9,7 @@ import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
 import { getTweak, TWEAK_DEFAULTS } from "./features/settings/settings.store";
 import { syncEngine } from "./sync/desktopEngine";
+import { notifyLocalSceneWrite } from "./sync/localSceneWrites";
 import { bumpProjectSceneEpoch } from "./sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText } from "./yjs/serialize";
 
@@ -190,6 +191,7 @@ export function snapUndoReplace(
       .then((record) => {
         if (!record) return;
         return save(sid, record.stateBase64, null).then(async () => {
+          notifyLocalSceneWrite(sid);
           if (projectId) await bumpProjectSceneEpoch(projectId, sid);
           if (reloadScene) { reloadScene(sid); return; }
           const doc = getDoc(sid);

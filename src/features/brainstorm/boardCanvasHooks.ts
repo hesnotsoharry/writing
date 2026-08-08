@@ -18,6 +18,7 @@ import type { BinderTree } from "../../binder/buildTree";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SqliteBinderStore } from "../../db/sqliteBinderStore";
 import type { Entity, StoryBibleStore } from "../../db/storyBibleStore";
+import { notifyLocalSceneWrite } from "../../sync/localSceneWrites";
 import { noteBodyToSceneDoc } from "../quickcapture/promoteNoteToScene";
 import { AI_ASK_FROM_EDITOR } from "../settings/settings.store";
 import type { ContextNodeKind } from "./BoardContextMenu";
@@ -103,6 +104,7 @@ function usePromote({
     binderStore.createScene({ projectId, folderId: null, title })
       .then(async (sceneId) => {
         await sceneDocStore.save(sceneId, noteBodyToSceneDoc(text), null);
+        notifyLocalSceneWrite(sceneId);
         markCardGraduated(doc, cardId, { kind: "scene", id: sceneId });
         onTreeChanged?.();
         onSelectScene?.(sceneId);

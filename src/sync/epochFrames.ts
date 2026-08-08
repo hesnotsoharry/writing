@@ -57,3 +57,13 @@ export function answerFrame(
     ...(epoch > 0 ? { e: epoch } : {}),
   };
 }
+
+/** Content a targeted local-save hello should deliver immediately. */
+export function targetedSaveFrame(
+  doc: ChannelDoc, epochs: EpochManager, openSceneId: string | null
+): DiffMessage | null {
+  const channel = parseChannel(doc.channel);
+  if (!channel || channel.kind === "board") return null;
+  if (channel.kind === "scene" && channel.id === openSceneId) return null;
+  return answerFrame(doc, undefined, epochs);
+}
