@@ -6,12 +6,12 @@ import type { ProjectMetaDocStore } from "../db/projectMetaDocStore";
 import type { SceneDocStore } from "../db/sceneDocStore";
 import type { SnapshotStore } from "../db/snapshotStore";
 import type { AppliedEpochs, AppliedEpochStore } from "../db/syncEpochStore";
-import { SYNC_ORIGIN } from "../yjs/bindPersistence";
-import { extractPlainText } from "../yjs/serialize";
 import { answerFrame, helloDoc, targetedSaveFrame } from "./epochFrames";
 import { EpochManager } from "./epochManager";
 import { openMessage, sealMessage } from "./frameCodec";
 import { deriveKeys } from "./keys";
+import { type EngineLiveScenePort, LiveSceneBindings } from "./liveSceneBindings";
+import { LiveSceneUpdateRouter } from "./liveSceneUpdateRouter";
 import {
   boardChannel, type HelloMessage, type InnerMessage,
   isInnerMessage, metaChannel, parseChannel, sceneChannel,
@@ -19,7 +19,9 @@ import {
 import { applyMetaDoc, type MetaApplyTarget } from "./meta/applyExec";
 import type { ConnectionState } from "./provider";
 import { StatusEmitter, type SyncStatus } from "./statusEmitter";
+import { mergeStoredBoard } from "./storedDocMerge";
 
+export type { EngineLiveScenePort, LiveSceneFlushResult } from "./liveSceneBindings";
 export type { SyncState, SyncStatus } from "./statusEmitter";
 import { ReplacementQueue } from "./replacementQueue";
 
@@ -53,10 +55,6 @@ export interface EngineOptions {
   saveDebounceMs?: number;
 }
 
-function wordCount(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
-}
-
 export class SyncEngine {
   private readonly options: EngineOptions;
   private provider: SyncProvider | null = null;
@@ -65,7 +63,8 @@ export class SyncEngine {
   private readonly statusEmitter = new StatusEmitter();
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private readonly saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private openScene: { id: string; doc: Y.Doc; listener: (u: Uint8Array, o: unknown) => void } | null = null;
+  private readonly liveScenes = new LiveSceneBindings();
+  private readonly sceneUpdates: LiveSceneUpdateRouter;
   private pauseDepth = 0;
   private readonly epochs: EpochManager;
   private readonly replacements = new ReplacementQueue();
@@ -78,6 +77,9 @@ export class SyncEngine {
   constructor(options: EngineOptions) {
     this.options = options;
     this.epochs = new EpochManager(options);
+    this.sceneUpdates = new LiveSceneUpdateRouter(
+      options, this.epochs, this.liveScenes, (sceneId) => this.docReplaced?.(sceneId),
+    );
   }
 
   /** `relayUrlOverride` lets callers honor the `syncRelayUrl` tweak without
@@ -113,7 +115,7 @@ export class SyncEngine {
   }
 
   stop(): void {
-    this.detachLiveDoc();
+    this.liveScenes.clear();
     this.provider?.destroy();
     this.provider = null;
     this.encKey = null;
@@ -135,29 +137,34 @@ export class SyncEngine {
   onDocReplaced(callback: ((sceneId: string) => void) | null): void { this.docReplaced = callback; }
 
   attachLiveDoc(sceneId: string, doc: Y.Doc): void {
-    this.detachLiveDoc();
-    const listener = (update: Uint8Array, origin: unknown) => {
-      if (origin === SYNC_ORIGIN || this.isPaused()) return;
-      // Behind = a restore bumped this scene's epoch elsewhere and we have not
-      // applied the replacement yet. Our content IS what the restore discarded,
-      // so publishing it (even stamped at the new epoch, which the peer would
-      // accept) resurrects it on the device that restored. Stay quiet until
-      // handleBehindFrame swaps our copy.
-      if (this.epochs.isBehind(sceneId)) return;
-      const epoch = this.epochs.epoch(sceneId);
-      void this.sendMessage({
-        t: "live", c: sceneChannel(sceneId), u: fromUint8Array(update),
-        ...(epoch > 0 ? { e: epoch } : {}),
-      });
-    };
-    doc.on("update", listener);
-    this.openScene = { id: sceneId, doc, listener };
+    this.liveScenes.attachDoc(sceneId, doc, (update) => { void this.publishLiveUpdate(sceneId, update); });
   }
 
   detachLiveDoc(): void {
-    if (!this.openScene) return;
-    this.openScene.doc.off("update", this.openScene.listener);
-    this.openScene = null;
+    this.liveScenes.detachDoc();
+  }
+
+  attachLiveScenePort(sceneId: string, port: EngineLiveScenePort): void {
+    this.liveScenes.attachPort(sceneId, port);
+  }
+
+  detachLiveScenePort(port: EngineLiveScenePort): void {
+    this.liveScenes.detachPort(port);
+  }
+
+  async publishLiveUpdate(sceneId: string, update: Uint8Array): Promise<void> {
+    if (this.liveScenes.activeSceneId() !== sceneId || this.isPaused()) return;
+    // Behind = a restore bumped this scene's epoch elsewhere and we have not
+    // applied the replacement yet. Our content IS what the restore discarded,
+    // so publishing it (even stamped at the new epoch, which the peer would
+    // accept) resurrects it on the device that restored. Stay quiet until
+    // handleBehindFrame swaps our copy.
+    if (this.epochs.isBehind(sceneId)) return;
+    const epoch = this.epochs.epoch(sceneId);
+    await this.sendMessage({
+      t: "live", c: sceneChannel(sceneId), u: fromUint8Array(update),
+      ...(epoch > 0 ? { e: epoch } : {}),
+    });
   }
 
   notifyLocalSave(sceneId: string): void {
@@ -270,7 +277,7 @@ export class SyncEngine {
     // replacement for. Echo-safe: remote applies never reach these notify paths —
     // meta goes through metaStore.save(), scenes through the engine's own merge.
     const frame = targetedSaveFrame(
-      { ...doc, channel: channelName }, this.epochs, this.openScene?.id ?? null
+      { ...doc, channel: channelName }, this.epochs, this.liveScenes.activeSceneId()
     );
     if (frame) await this.sendMessage(frame);
   }
@@ -288,20 +295,10 @@ export class SyncEngine {
     if (!channel) return;
     const update = toUint8Array(message.u);
     if (channel.kind === "meta") { await this.mergeMeta(channel.id, update); return; }
-    if (channel.kind === "board") { await this.mergeBoard(channel.id, update); return; }
-    await this.applySceneMessage(channel.id, message, update);
-  }
-
-  private async applySceneMessage(
-    sceneId: string, message: Exclude<InnerMessage, HelloMessage>, update: Uint8Array
-  ): Promise<void> {
-    if (!this.epochs.accepts(sceneId, message.e)) return;
-    const openDoc = this.openScene?.id === sceneId ? this.openScene.doc : null;
-    const result = await this.epochs.handleBehindFrame(sceneId, message, openDoc);
-    if (result === "replaced" && openDoc) this.docReplaced?.(sceneId);
-    if (result !== "none") return;
-    if (openDoc) { Y.applyUpdate(openDoc, update, SYNC_ORIGIN); return; }
-    await this.mergeScene(sceneId, update);
+    if (channel.kind === "board") {
+      await mergeStoredBoard(this.options.boardStore, channel.id, update); return;
+    }
+    await this.sceneUpdates.apply(channel.id, message, update);
   }
 
   private async mergeMeta(projectId: string, incoming: Uint8Array): Promise<void> {
@@ -320,22 +317,6 @@ export class SyncEngine {
     Y.applyUpdate(doc, merged);
     if (this.options.metaApplyTarget) await applyMetaDoc(projectId, doc, this.options.metaApplyTarget);
     this.structureChanged?.();
-  }
-
-  private async mergeBoard(id: string, incoming: Uint8Array): Promise<void> {
-    const stored = await this.options.boardStore.load(id);
-    const merged = stored ? Y.mergeUpdates([toUint8Array(stored), incoming]) : incoming;
-    await this.options.boardStore.save(id, fromUint8Array(merged));
-  }
-
-  private async mergeScene(id: string, incoming: Uint8Array): Promise<void> {
-    const stored = await this.options.sceneStore.load(id);
-    const merged = stored ? Y.mergeUpdates([toUint8Array(stored), incoming]) : incoming;
-    const doc = new Y.Doc();
-    Y.applyUpdate(doc, merged);
-    const plaintext = extractPlainText(doc);
-    await this.options.sceneStore.save(id, fromUint8Array(merged), plaintext || null);
-    await this.options.updateWordCount(id, wordCount(plaintext));
   }
 
   private async sendMessage(message: InnerMessage): Promise<void> {

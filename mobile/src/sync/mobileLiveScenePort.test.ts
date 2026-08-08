@@ -1,0 +1,300 @@
+import { fromUint8Array } from "js-base64";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as Y from "yjs";
+
+import type { EngineLiveScenePort } from "../shared/engine";
+import {
+  MOBILE_EDITOR_BRIDGE_VERSION, parseNativeMessage, serializeBridgeMessage,
+  type WebViewToNativeMessage,
+} from "../shared/mobileEditorBridgeProtocol";
+import type { SceneDocStore } from "../shared/sceneDocStore";
+import { encodeDoc, extractPlainText } from "../shared/serialize";
+import {
+  createMobileLiveScenePort, type MobileLiveScenePort, type MobileLiveSceneTransport,
+} from "./mobileLiveScenePort";
+
+const SCENE_ID = "scene-1";
+const SESSION_ID = "session-1";
+
+class MemorySceneStore implements SceneDocStore {
+  state: string | null = null;
+  readonly events: string[];
+  constructor(events: string[]) { this.events = events; }
+  async listAll() { return []; }
+  async load(): Promise<string | null> { return this.state; }
+  async save(_id: string, state: string): Promise<void> {
+    this.events.push("persist"); this.state = state;
+  }
+  async loadProjection(): Promise<string | null> { return null; }
+  async delete(): Promise<void> { this.state = null; }
+}
+
+class FakeTransport implements MobileLiveSceneTransport {
+  readonly raw: string[] = [];
+  readonly events: string[];
+  unavailable = false;
+  constructor(events: string[]) { this.events = events; }
+  postMessage(message: string): void {
+    if (this.unavailable) throw new Error("unavailable");
+    const parsed = parseNativeMessage(message);
+    this.events.push(parsed?.type === "ack" ? "ack" : `post:${parsed?.type ?? "invalid"}`);
+    this.raw.push(message);
+  }
+  messages() { return this.raw.map(parseNativeMessage).filter((value) => value !== null); }
+  clear(): void { this.raw.length = 0; }
+}
+
+function makeHarness(text = "base") {
+  const events: string[] = [];
+  const store = new MemorySceneStore(events); store.state = encodeDoc(textDoc(text));
+  const transport = new FakeTransport(events);
+  const engine = {
+    attached: null as EngineLiveScenePort | null,
+    detached: false,
+    attachLiveScenePort: vi.fn((_id: string, port: EngineLiveScenePort) => { engine.attached = port; }),
+    detachLiveScenePort: vi.fn(() => { engine.detached = true; }),
+    publishLiveUpdate: vi.fn(async () => { events.push("publish"); }),
+    notifyLocalSave: vi.fn(() => { events.push("notify"); }),
+  };
+  const updateWordCount = vi.fn(async () => { events.push("words"); });
+  const port = createMobileLiveScenePort(
+    { sceneId: SCENE_ID, transport, ackTimeoutMs: 100 },
+    { engine, sceneStore: store, updateWordCount },
+  );
+  return { port, store, transport, engine, events, updateWordCount };
+}
+
+function textDoc(text: string): Y.Doc {
+  const doc = new Y.Doc();
+  const paragraph = new Y.XmlElement("paragraph");
+  const value = new Y.XmlText(); value.insert(0, text); paragraph.insert(0, [value]);
+  doc.getXmlFragment("content").insert(0, [paragraph]);
+  return doc;
+}
+
+function appendUpdate(state: string, suffix: string): Uint8Array {
+  const doc = new Y.Doc(); Y.applyUpdate(doc, decode(state));
+  let update: Uint8Array<ArrayBufferLike> = new Uint8Array();
+  doc.on("update", (next) => { update = next; });
+  const paragraph = doc.getXmlFragment("content").get(0) as Y.XmlElement;
+  const value = paragraph.get(0) as Y.XmlText;
+  value.insert(value.length, suffix);
+  return update;
+}
+
+function decode(state: string): Uint8Array {
+  return Uint8Array.from(atob(state), (character) => character.charCodeAt(0));
+}
+
+type WithoutEnvelope<T> = T extends WebViewToNativeMessage
+  ? Omit<T, "v" | "sessionId"> & { sessionId?: string }
+  : never;
+
+function webMessage(message: WithoutEnvelope<WebViewToNativeMessage>): string {
+  return serializeBridgeMessage({
+    v: MOBILE_EDITOR_BRIDGE_VERSION, sessionId: message.sessionId ?? SESSION_ID, ...message,
+  } as WebViewToNativeMessage);
+}
+
+function ack(seq: number, ackType: "hydrate" | "update" | "replace" | "flush"): string {
+  return webMessage({ type: "ack", sceneId: SCENE_ID, seq, ackType });
+}
+
+async function settle(): Promise<void> {
+  for (let index = 0; index < 8; index += 1) await Promise.resolve();
+}
+
+async function hydrate(port: MobileLiveScenePort, transport: FakeTransport): Promise<void> {
+  await port.start();
+  const ready = port.receive(webMessage({ type: "ready" }));
+  await settle();
+  const message = transport.messages().at(-1);
+  expect(message).toMatchObject({ type: "hydrate", seq: 1 });
+  await port.receive(ack(1, "hydrate"));
+  await ready;
+  transport.clear();
+}
+
+function localUpdate(seq: number, update: Uint8Array, overrides = {}) {
+  return webMessage({
+    type: "update", sceneId: SCENE_ID, seq, update: fromUint8Array(update), ...overrides,
+  });
+}
+
+function lastStateSeq(transport: FakeTransport): number {
+  const message = transport.messages().at(-1);
+  if (!message || !("seq" in message) || typeof message.seq !== "number") {
+    throw new Error("state message missing");
+  }
+  return message.seq;
+}
+
+describe("MobileLiveScenePort persistence and routing", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("orders local persist, publish, notification, then ACK with original bytes", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport); ctx.events.length = 0;
+    const update = appendUpdate(ctx.store.state!, " local");
+    await ctx.port.receive(localUpdate(1, update));
+    expect(ctx.events).toEqual(["persist", "words", "publish", "notify", "ack"]);
+    expect(ctx.engine.publishLiveUpdate).toHaveBeenCalledWith(SCENE_ID, update);
+    expect(ctx.transport.messages()[0]).toMatchObject({ type: "ack", seq: 1, ackType: "update" });
+  });
+
+  it("persists a remote update before posting its original incremental bytes", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport); ctx.events.length = 0;
+    const update = appendUpdate(ctx.store.state!, " remote");
+    await ctx.port.applyRemoteUpdate(update);
+    expect(ctx.events).toEqual(["persist", "words", "post:update"]);
+    expect(ctx.transport.messages()[0]).toMatchObject({ type: "update", update: fromUint8Array(update) });
+  });
+
+  it("serializes a local/remote race and converges both edits in storage", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const base = ctx.store.state!;
+    const local = appendUpdate(base, " local");
+    const remote = appendUpdate(base, " remote");
+    await Promise.all([ctx.port.receive(localUpdate(1, local)), ctx.port.applyRemoteUpdate(remote)]);
+    const stored = new Y.Doc(); Y.applyUpdate(stored, decode(ctx.store.state!));
+    expect(extractPlainText(stored)).toContain("local");
+    expect(extractPlainText(stored)).toContain("remote");
+  });
+
+  it("re-sends the prior ACK for a duplicate without persisting twice", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const update = appendUpdate(ctx.store.state!, " once");
+    await ctx.port.receive(localUpdate(1, update));
+    const saves = ctx.events.filter((event) => event === "persist").length;
+    await ctx.port.receive(localUpdate(1, update));
+    expect(ctx.events.filter((event) => event === "persist")).toHaveLength(saves);
+    expect(ctx.transport.messages().filter((message) => message?.type === "ack")).toHaveLength(2);
+  });
+
+  it("rejects sequence gaps, wrong scenes, and wrong sessions without storage writes", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport); ctx.events.length = 0;
+    const update = appendUpdate(ctx.store.state!, " rejected");
+    await ctx.port.receive(localUpdate(2, update));
+    await ctx.port.receive(localUpdate(1, update, { sceneId: "other" }));
+    await ctx.port.receive(localUpdate(1, update, { sessionId: "old" }));
+    expect(ctx.events.filter((event) => event === "persist")).toHaveLength(0);
+    expect(ctx.transport.messages()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "error", code: "sequence-gap" }),
+      expect.objectContaining({ type: "error", code: "scene-mismatch" }),
+      expect.objectContaining({ type: "error", code: "session-mismatch" }),
+    ]));
+  });
+
+  it("accepts a fresh ready session and rejects messages from the replaced session", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const restarting = ctx.port.receive(webMessage({ type: "ready", sessionId: "session-2" }));
+    await settle();
+    const hydrateMessage = ctx.transport.messages().at(-1);
+    expect(hydrateMessage).toMatchObject({ type: "hydrate", sessionId: "session-2", seq: 1 });
+    await ctx.port.receive(webMessage({
+      type: "ack", sessionId: "session-2", sceneId: SCENE_ID, seq: 1, ackType: "hydrate",
+    }));
+    await restarting; ctx.transport.clear();
+    await ctx.port.receive(localUpdate(1, appendUpdate(ctx.store.state!, " stale")));
+    expect(ctx.transport.messages()[0]).toMatchObject({ type: "error", code: "session-mismatch" });
+  });
+
+  it("ACKs after durable persistence when the relay publish is offline", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport); ctx.events.length = 0;
+    ctx.engine.publishLiveUpdate.mockImplementation(async () => { ctx.events.push("publish-offline"); });
+    await ctx.port.receive(localUpdate(1, appendUpdate(ctx.store.state!, " offline")));
+    expect(ctx.events).toEqual(["persist", "words", "publish-offline", "notify", "ack"]);
+  });
+
+  it("never copies update bytes into protocol errors", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const encoded = fromUint8Array(appendUpdate(ctx.store.state!, " secret-marker"));
+    await ctx.port.receive(webMessage({
+      type: "update", sceneId: "wrong", seq: 1, update: encoded,
+    }));
+    expect(ctx.transport.raw.at(-1)).not.toContain(encoded);
+    expect(ctx.transport.raw.at(-1)).not.toContain("secret-marker");
+  });
+});
+
+describe("MobileLiveScenePort flush, close, and replacement", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("flushes immediately when the WebView reports no edits", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const flushing = ctx.port.flushLocal(); await settle();
+    const seq = lastStateSeq(ctx.transport); await ctx.port.receive(ack(seq, "flush"));
+    await expect(flushing).resolves.toEqual({ status: "flushed" });
+  });
+
+  it("accepts a drained local batch before the flush ACK", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const flushing = ctx.port.flushLocal(); await settle();
+    const flushSeq = lastStateSeq(ctx.transport);
+    await ctx.port.receive(localUpdate(1, appendUpdate(ctx.store.state!, " batched")));
+    await ctx.port.receive(ack(flushSeq, "flush"));
+    await expect(flushing).resolves.toEqual({ status: "flushed" });
+    expect(extractStored(ctx.store)).toContain("batched");
+  });
+
+  it("queues flush behind an unacknowledged remote update", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    await ctx.port.applyRemoteUpdate(appendUpdate(ctx.store.state!, " remote"));
+    const updateSeq = lastStateSeq(ctx.transport);
+    const flushing = ctx.port.flushLocal(); await settle();
+    expect(ctx.transport.messages().at(-1)?.type).toBe("update");
+    await ctx.port.receive(ack(updateSeq, "update")); await settle();
+    const flushSeq = lastStateSeq(ctx.transport);
+    expect(ctx.transport.messages().at(-1)?.type).toBe("flush");
+    await ctx.port.receive(ack(flushSeq, "flush"));
+    await expect(flushing).resolves.toEqual({ status: "flushed" });
+  });
+
+  it("times out with pending local work and keeps the port attached on close", async () => {
+    vi.useFakeTimers();
+    const ctx = makeHarness(); await hydrateWithTimers(ctx.port, ctx.transport);
+    const closing = ctx.port.close(); await settle();
+    await vi.advanceTimersByTimeAsync(100);
+    await expect(closing).resolves.toEqual({ status: "timed-out", pendingLocal: true });
+    expect(ctx.engine.detachLiveScenePort).not.toHaveBeenCalled();
+  });
+
+  it("detaches only after a safely acknowledged close", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const closing = ctx.port.close(); await settle();
+    await ctx.port.receive(ack(lastStateSeq(ctx.transport), "flush"));
+    await expect(closing).resolves.toEqual({ status: "flushed" });
+    expect(ctx.engine.detachLiveScenePort).toHaveBeenCalledWith(ctx.port);
+  });
+
+  it("reports unavailable without pending edits before ready and safely detaches", async () => {
+    const ctx = makeHarness(); await ctx.port.start();
+    await expect(ctx.port.close()).resolves.toEqual({ status: "unavailable", pendingLocal: false });
+    expect(ctx.engine.detachLiveScenePort).toHaveBeenCalledWith(ctx.port);
+  });
+
+  it("replacement discards queued visual increments and posts authoritative state unchanged", async () => {
+    const ctx = makeHarness(); await hydrate(ctx.port, ctx.transport);
+    const first = appendUpdate(ctx.store.state!, " first");
+    const second = appendUpdate(ctx.store.state!, " second");
+    await ctx.port.applyRemoteUpdate(first);
+    const firstSeq = lastStateSeq(ctx.transport);
+    await ctx.port.applyRemoteUpdate(second);
+    const replacement = encodeDoc(textDoc("replacement wins"));
+    await ctx.port.replaceFromState(replacement);
+    await ctx.port.receive(ack(firstSeq, "update")); await settle();
+    const posted = ctx.transport.messages().at(-1);
+    expect(posted).toMatchObject({ type: "replace", update: replacement });
+    expect(ctx.transport.messages().filter((message) => message?.type === "update")).toHaveLength(1);
+  });
+});
+
+function extractStored(store: MemorySceneStore): string {
+  const doc = new Y.Doc(); Y.applyUpdate(doc, decode(store.state!));
+  return extractPlainText(doc);
+}
+
+async function hydrateWithTimers(port: MobileLiveScenePort, transport: FakeTransport): Promise<void> {
+  await port.start();
+  const ready = port.receive(webMessage({ type: "ready" })); await settle();
+  await port.receive(ack(lastStateSeq(transport), "hydrate")); await ready; transport.clear();
+}

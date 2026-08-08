@@ -2,6 +2,7 @@
 // dependencies for S4 step 5 (scene read + sync-down). Mirrors
 // src/sync/desktopEngine.ts's "construct once, export the singleton" shape —
 // see that file's `export const syncEngine = new SyncEngine(...)`.
+import { getMobileDb } from "../db/database";
 import { MobileMetaApplyTarget } from "../db/mobileMetaApplyTarget";
 import { MobileBoardDocStore } from "../db/syncStores/mobileBoardDocStore";
 import { MobileEpochStore } from "../db/syncStores/mobileEpochStore";
@@ -11,9 +12,13 @@ import { MobileSnapshotStore } from "../db/syncStores/mobileSnapshotStore";
 import type { EngineOptions } from "../shared/engine";
 import { SyncEngine } from "../shared/engine";
 import { RelayProvider } from "../shared/provider";
-import { getMobileDb } from "../db/database";
-import { getSyncMasterKey } from "./mobileKeyStorage";
 import { getOrCreateMobileDeviceId } from "./mobileDeviceId";
+import { getSyncMasterKey } from "./mobileKeyStorage";
+import {
+  createMobileLiveScenePort as buildMobileLiveScenePort,
+  type MobileLiveScenePort,
+  type MobileLiveScenePortOptions,
+} from "./mobileLiveScenePort";
 import { getMobileRelayUrlOverride, resolveMobileRelayUrl } from "./mobileRelayUrl";
 
 /**
@@ -24,6 +29,7 @@ import { getMobileRelayUrlOverride, resolveMobileRelayUrl } from "./mobileRelayU
  * mobile (S4 blueprint portable-boundary rule).
  */
 const DEFAULT_RELAY_URL = "wss://sync.writersnook.app";
+const mobileSceneStore = new MobileSceneDocStore();
 
 async function updateSceneWordCount(sceneId: string, count: number): Promise<void> {
   const db = await getMobileDb();
@@ -33,7 +39,7 @@ async function updateSceneWordCount(sceneId: string, count: number): Promise<voi
 function buildMobileEngineOptions(): EngineOptions {
   return {
     relayUrl: DEFAULT_RELAY_URL,
-    sceneStore: new MobileSceneDocStore(),
+    sceneStore: mobileSceneStore,
     boardStore: new MobileBoardDocStore(),
     metaStore: new MobileProjectMetaDocStore(),
     metaApplyTarget: new MobileMetaApplyTarget(),
@@ -55,6 +61,17 @@ function buildMobileEngineOptions(): EngineOptions {
  *  boot when a key + joined role already exist; `.stop()`/`.subscribe()`/
  *  `.pause()`/`.resume()` are the same public surface as desktop's. */
 export const mobileEngine = new SyncEngine(buildMobileEngineOptions());
+
+/** Compose a mounted editor bridge with the shared mobile engine and store. */
+export function createMobileLiveScenePort(
+  options: MobileLiveScenePortOptions,
+): MobileLiveScenePort {
+  return buildMobileLiveScenePort(options, {
+    engine: mobileEngine,
+    sceneStore: mobileSceneStore,
+    updateWordCount: updateSceneWordCount,
+  });
+}
 
 /** Start against a persisted pairing override, or the production relay. */
 export async function startMobileEngine(): Promise<void> {
