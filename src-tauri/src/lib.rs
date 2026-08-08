@@ -128,11 +128,17 @@ pub fn run() {
     // chrome-devtools MCP can attach and drive/inspect the app for UI smoke. Gated on
     // debug_assertions (false in release builds), so the port never ships to users.
     // Set before the builder so it's in place before WebView2 creates its environment.
+    // WRITING_CDP_PORT overrides the default so two dev instances can run side by side
+    // (device-sync gates need a second peer; without it the second instance loses the
+    // race for 9222 and comes up with no CDP endpoint at all).
     #[cfg(debug_assertions)]
-    std::env::set_var(
-        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-        "--remote-debugging-port=9222",
-    );
+    {
+        let port = std::env::var("WRITING_CDP_PORT").unwrap_or_else(|_| "9222".to_string());
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            format!("--remote-debugging-port={port}"),
+        );
+    }
 
     tauri::Builder::default()
         .setup(|app| {
