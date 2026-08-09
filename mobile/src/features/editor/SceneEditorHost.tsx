@@ -7,13 +7,16 @@ import type { LiveSceneFlushResult } from "../../shared/engine";
 import { parseWebViewMessage } from "../../shared/mobileEditorBridgeProtocol";
 import { createMobileLiveScenePort, subscribeMobileDocReplaced } from "../../sync/mobileEngine";
 import {
-  MOBILE_LIVE_SCENE_ACK_TIMEOUT_MS, type MobileLiveScenePort,
+  type MobileLiveScenePort,
 } from "../../sync/mobileLiveScenePort";
 import { useTheme } from "../../theme/ThemeProvider";
 import { copyText } from "../ai/mobileClipboard";
 import type { SelectionCommand } from "../ai/selectionBridge";
 import type { FocusSettings } from "../focus/focusSettings";
 import type { AutoLinkTapPayload } from "../storybible";
+import {
+  EDITOR_ASSET_TIMEOUT_MS, EDITOR_BOOT_TIMEOUT_MS, EDITOR_DIAG_TAG, EDITOR_ERROR_FORWARDER,
+} from "./editorBootBudget";
 import type {
   EditorCommandName, EditorSelectionMessage, EditorSelectionState,
 } from "./editorUiProtocol";
@@ -57,11 +60,17 @@ function useEditorAsset(dispatch: Dispatch): string | null {
     let current = true;
     const timer = setTimeout(() => {
       if (current) dispatch({ type: "asset-failed", token: 1 });
-    }, MOBILE_LIVE_SCENE_ACK_TIMEOUT_MS);
+    }, EDITOR_ASSET_TIMEOUT_MS);
     void getEditorWebAssetUri().then((loadedUri) => {
       if (!current) return;
       clearTimeout(timer); setUri(loadedUri); dispatch({ type: "asset-loaded", token: 1 });
-    }).catch(() => { if (current) dispatch({ type: "asset-failed", token: 1 }); });
+    }).catch((error: unknown) => {
+      // The editor falling back to read-only is a visible, confusing failure —
+      // "Couldn't load the editor" with no reason is not diagnosable from a
+      // device. Surface the cause; the fallback still renders either way.
+      console.error("[editor] asset load failed", error);
+      if (current) dispatch({ type: "asset-failed", token: 1 });
+    });
     return () => { current = false; clearTimeout(timer); };
   }, [dispatch]);
   return uri;
@@ -91,7 +100,10 @@ function useWordCount(projectId: string | undefined, sceneId: string): [number, 
 function usePortLifecycle(port: MobileLiveScenePort, uri: string | null, dispatch: Dispatch): void {
   useEffect(() => {
     if (!uri) return undefined;
-    void port.start().catch(() => { dispatch({ type: "editor-failed" }); });
+    void port.start().catch((error: unknown) => {
+      console.error("[editor] port.start failed", error);
+      dispatch({ type: "editor-failed" });
+    });
     return () => { void port.close(); };
   }, [dispatch, port, uri]);
 }
@@ -100,7 +112,7 @@ function useHandshakeTimeout(phase: string, dispatch: Dispatch): void {
   useEffect(() => {
     if (!["waiting-ready", "hydrating"].includes(phase)) return undefined;
     const timer = setTimeout(() => { dispatch({ type: "editor-failed" }); },
-      MOBILE_LIVE_SCENE_ACK_TIMEOUT_MS);
+      EDITOR_BOOT_TIMEOUT_MS);
     return () => { clearTimeout(timer); };
   }, [dispatch, phase]);
 }
@@ -161,7 +173,17 @@ function EditorSurface({
     <WebView key={webViewKey} ref={bindWebView} source={{ uri: localUri }}
       allowFileAccess originWhitelist={["file://*"]}
       onShouldStartLoadWithRequest={(request) => isLocalNavigation(request, localUri)}
-      onMessage={onMessage} onError={onFailed}
+      // A JS error inside the WebView is otherwise completely invisible from
+      // the device — the editor just never answers the handshake and silently
+      // degrades to read-only. Forward it out so the failure is diagnosable.
+      injectedJavaScriptBeforeContentLoaded={EDITOR_ERROR_FORWARDER}
+      onHttpError={(event) => {
+        console.error("[editor] webview httpError", JSON.stringify(event.nativeEvent));
+      }}
+      onMessage={onMessage} onError={(event) => {
+        console.error("[editor] webview error", JSON.stringify(event.nativeEvent));
+        onFailed();
+      }}
       onContentProcessDidTerminate={onTerminated}
       style={[styles.webView, { backgroundColor: theme.colors.paper }]} />
     {opening && <OpeningOverlay />}
@@ -192,6 +214,7 @@ function handleParsedMessage(message: ReturnType<typeof parseWebViewMessage>,
 
 async function receiveBridgeEvent(event: WebViewMessageEvent, options: BridgeMessageOptions) {
   const raw = event.nativeEvent.data;
+  if (raw.includes(EDITOR_DIAG_TAG)) { console.error("[editor] WebView JS error:", raw); return; }
   if (options.ui.receive(raw)) return;
   const message = parseWebViewMessage(raw);
   await options.port.receive(raw);

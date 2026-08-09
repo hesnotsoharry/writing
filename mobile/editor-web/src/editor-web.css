@@ -12,11 +12,16 @@
   src: url("../../node_modules/@expo-google-fonts/literata/600SemiBold/Literata_600SemiBold.ttf");
 }
 
+/* Italic, not 700. The design's frame scan found Literata 400 / 400-italic /
+   600 in use and no 700 anywhere — and prose italics are a format-bar action,
+   so shipping bold-that-is-never-asked-for while faux-slanting real italics
+   was backwards. Each face is a ~370 KB inlined binary in the single-file
+   bundle, so the count here is load-bearing for editor boot time. */
 @font-face {
   font-family: "Literata";
-  font-style: normal;
-  font-weight: 700;
-  src: url("../../node_modules/@expo-google-fonts/literata/700Bold/Literata_700Bold.ttf");
+  font-style: italic;
+  font-weight: 400;
+  src: url("../../node_modules/@expo-google-fonts/literata/400Regular_Italic/Literata_400Regular_Italic.ttf");
 }
 
 :root {
