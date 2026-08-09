@@ -1,0 +1,59 @@
+import type { DbClient } from "../../db/dbClient";
+
+export interface ActivationRecord {
+  licenseKey: string;
+  instanceId: string;
+  activatedAt: string;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const LICENSE_KEY = "license";
+
+// ─── Low-level record accessors (db-handle-first, testable) ──────────────────
+
+/**
+ * Upsert the activation record as JSON under key 'license' in app_meta.
+ * INSERT OR REPLACE handles both first write and any future re-activation.
+ */
+export async function writeActivationRecord(
+  db: DbClient,
+  record: ActivationRecord,
+): Promise<void> {
+  await db.execute(
+    `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
+    [LICENSE_KEY, JSON.stringify(record)],
+  );
+}
+
+/**
+ * Read the stored activation record. Returns null (never throws) when:
+ *   - no row exists under key 'license'
+ *   - the stored value is not valid JSON
+ *   - the parsed JSON is missing any required field
+ */
+export async function readActivationRecord(
+  db: DbClient,
+): Promise<ActivationRecord | null> {
+  const rows = await db.select<{ value: string }[]>(
+    `SELECT value FROM app_meta WHERE key = ?`,
+    [LICENSE_KEY],
+  );
+  if (rows.length === 0) return null;
+  try {
+    const parsed: unknown = JSON.parse(rows[0].value);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      typeof (parsed as Record<string, unknown>).licenseKey !== "string" ||
+      typeof (parsed as Record<string, unknown>).instanceId !== "string" ||
+      typeof (parsed as Record<string, unknown>).activatedAt !== "string"
+    ) {
+      return null;
+    }
+    return parsed as ActivationRecord;
+  } catch {
+    return null;
+  }
+}
+

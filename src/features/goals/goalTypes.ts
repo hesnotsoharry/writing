@@ -1,4 +1,4 @@
-import type { IconName } from "../../components/Icon";
+import type { IconName } from "../../components/iconPaths";
 
 /** Unique identifier for each goal type. */
 export type GoalTypeId =

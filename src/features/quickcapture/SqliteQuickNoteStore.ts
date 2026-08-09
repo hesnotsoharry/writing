@@ -1,66 +1,57 @@
 import type { DbClient } from "../../db/dbClient";
 import { getDb } from "../../db/schema";
+import {
+  makeQuickNoteStore,
+  type QuickNote,
+  type QuickNoteStore,
+} from "./quickNoteStore";
 
-export interface QuickNote {
-  id: string;
-  project_id: string;
-  body: string;
-  created_at: number;
-  filed: number;
+export type { QuickNote, QuickNoteStore } from "./quickNoteStore";
+
+function productionDb(): DbClient {
+  return {
+    select<T>(sql: string, params?: unknown[]): Promise<T> {
+      return getDb().then((db) => db.select<T>(sql, params));
+    },
+    execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number }> {
+      return getDb().then((db) => db.execute(sql, params));
+    },
+  };
 }
 
-export class SqliteQuickNoteStore {
-  constructor(private dbProvider: () => Promise<DbClient> = getDb) {}
+export function makeProductionQuickNoteStore(): QuickNoteStore {
+  return makeQuickNoteStore(productionDb());
+}
+
+/** Backward-compatible wrapper for existing desktop call sites and tests. */
+export class SqliteQuickNoteStore implements QuickNoteStore {
+  constructor(private readonly dbProvider: () => Promise<DbClient> = getDb) {}
+
+  private async store(): Promise<QuickNoteStore> {
+    return makeQuickNoteStore(await this.dbProvider());
+  }
 
   async create(projectId: string, body: string): Promise<string> {
-    const db = await this.dbProvider();
-    const id = crypto.randomUUID();
-    const created_at = Date.now();
-    await db.execute(
-      "INSERT INTO quick_notes (id, project_id, body, created_at, filed) VALUES ($1,$2,$3,$4,0)",
-      [id, projectId, body, created_at]
-    );
-    return id;
+    return (await this.store()).create(projectId, body);
   }
 
   async listUnfiled(projectId: string): Promise<QuickNote[]> {
-    const db = await this.dbProvider();
-    return db.select<QuickNote[]>(
-      "SELECT id, project_id, body, created_at, filed FROM quick_notes WHERE project_id=$1 AND filed=0 ORDER BY created_at DESC",
-      [projectId]
-    );
+    return (await this.store()).listUnfiled(projectId);
   }
 
   async countUnfiled(projectId: string): Promise<number> {
-    const db = await this.dbProvider();
-    const rows = await db.select<{ n: number }[]>(
-      "SELECT COUNT(*) AS n FROM quick_notes WHERE project_id=$1 AND filed=0",
-      [projectId]
-    );
-    return rows[0]?.n ?? 0;
+    return (await this.store()).countUnfiled(projectId);
   }
 
   async updateBody(id: string, body: string): Promise<void> {
-    const db = await this.dbProvider();
-    await db.execute(
-      "UPDATE quick_notes SET body=$1 WHERE id=$2",
-      [body, id]
-    );
+    await (await this.store()).updateBody(id, body);
   }
 
   async markFiled(id: string): Promise<void> {
-    const db = await this.dbProvider();
-    await db.execute(
-      "UPDATE quick_notes SET filed=1 WHERE id=$1",
-      [id]
-    );
+    await (await this.store()).markFiled(id);
   }
 
   async delete(id: string): Promise<void> {
-    const db = await this.dbProvider();
-    await db.execute(
-      "DELETE FROM quick_notes WHERE id=$1",
-      [id]
-    );
+    await (await this.store()).delete(id);
   }
 }

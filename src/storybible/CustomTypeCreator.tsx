@@ -7,12 +7,10 @@ import { useEffect, useRef, useState } from "react";
 import type { IconName } from "../components/Icon";
 import { Icon } from "../components/Icon";
 import type { StoryBibleStore } from "../db/storyBibleStore";
+import { CT_ICONS, CT_PALETTE, type CtColor } from "./customTypeDefs";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CT_PALETTE = ["clay", "sea", "moss", "plum", "gold", "slate", "rose", "ink"] as const;
-type CtColor = typeof CT_PALETTE[number];
-const CT_ICONS: IconName[] = ["archive", "pin", "book", "sparkle", "target", "zap", "command", "feather"];
 function ctVar(c: CtColor): string { return `var(--label-${c})`; }
 function ctTint(c: CtColor): string { return `color-mix(in srgb, var(--label-${c}) 16%, transparent)`; }
 

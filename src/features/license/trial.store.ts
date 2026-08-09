@@ -1,78 +1,13 @@
-/**
- * trial.store — trial record persistence in app_meta (wave-33).
- *
- * Decision D2 (wave-33): trial record stored as JSON under key 'trial' in the
- * app_meta KV table — same pattern as license.store.ts (no migration needed).
- * Low-level functions take a db handle for testability; thin app-facing
- * wrappers bind to getDb().
- *
- * Stub: signatures declared by the orchestrator; Phase 1 implements
- * against the oracle acceptance test.
- */
-import type { DbClient } from "../../db/dbClient";
 import { getDb } from "../../db/schema";
 import type { TrialRecord } from "./trial";
+import { readTrialRecord, writeTrialRecord } from "./trialRecordStore";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+export * from "./trialRecordStore";
 
-const TRIAL_KEY = "trial";
-
-// ─── Low-level record accessors (db-handle-first, testable) ──────────────────
-
-/** Upsert the trial record as JSON under key 'trial' in app_meta. */
-export async function writeTrialRecord(
-  db: DbClient,
-  record: TrialRecord,
-): Promise<void> {
-  await db.execute(
-    `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
-    [TRIAL_KEY, JSON.stringify(record)],
-  );
-}
-
-/**
- * Read the stored trial record. Returns null (never throws) when no row
- * exists, the value is not valid JSON, or required fields are missing.
- */
-export async function readTrialRecord(
-  db: DbClient,
-): Promise<TrialRecord | null> {
-  const rows = await db.select<{ value: string }[]>(
-    `SELECT value FROM app_meta WHERE key = ?`,
-    [TRIAL_KEY],
-  );
-  if (rows.length === 0) return null;
-  try {
-    const parsed: unknown = JSON.parse(rows[0].value);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      typeof (parsed as Record<string, unknown>).trialStartedAt !== "string" ||
-      typeof (parsed as Record<string, unknown>).lastSeenAt !== "string" ||
-      // Unparseable date strings must read as no-record: NaN would otherwise
-      // flow through computeTrialStatus as state "active" forever (NaN <= 0
-      // is false), turning a hand-edited row into an infinite trial.
-      Number.isNaN(Date.parse((parsed as TrialRecord).trialStartedAt)) ||
-      Number.isNaN(Date.parse((parsed as TrialRecord).lastSeenAt))
-    ) {
-      return null;
-    }
-    return parsed as TrialRecord;
-  } catch {
-    return null;
-  }
-}
-
-// ─── App-facing wrappers (bind to getDb()) ────────────────────────────────────
-
-/** Load the stored trial record from the app db, or null if none. */
 export async function loadTrial(): Promise<TrialRecord | null> {
-  const db = await getDb();
-  return readTrialRecord(db);
+  return readTrialRecord(await getDb());
 }
 
-/** Persist a trial record to the app db. */
 export async function saveTrial(record: TrialRecord): Promise<void> {
-  const db = await getDb();
-  await writeTrialRecord(db, record);
+  await writeTrialRecord(await getDb(), record);
 }

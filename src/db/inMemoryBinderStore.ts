@@ -11,7 +11,7 @@ import type {
   Project,
   Scene,
   SceneStatus,
-} from "./binderStore";
+} from "./binderTypes";
 
 /** Internal restore record — not exported. Payload is polymorphic by kind. */
 type ArchiveRecord =

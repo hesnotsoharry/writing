@@ -1,28 +1,7 @@
+import type { Goal, GoalsStore } from "./goalsStore";
 import { getDb } from "./schema";
 
-/** A goal row as it exists in the database. */
-export interface Goal {
-  id: string;
-  project_id: string;
-  goal_type: string;
-  target: number;
-  /** Mapped from SQLite INTEGER 0/1. */
-  enabled: boolean;
-  created_at: number;
-}
-
-/** Persistence contract for project goals. */
-export interface GoalsStore {
-  getGoals(projectId: string): Promise<Goal[]>;
-  upsertGoal(input: {
-    projectId: string;
-    goalType: string;
-    target: number;
-    enabled: boolean;
-  }): Promise<Goal>;
-  /** Delete a goal by id. No-op (does not throw) if the id does not exist. */
-  deleteGoal(id: string): Promise<void>;
-}
+export type { Goal, GoalsStore } from "./goalsStore";
 
 /** Raw row shape returned by tauri-plugin-sql before boolean mapping. */
 interface GoalRow {
