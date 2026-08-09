@@ -6,7 +6,8 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { STATUS_META } from "../../shared/status";
 import { subscribeMobileStructureChanged } from "../../sync/mobileEngine";
-import { PALETTE, STATUS_DOT_COLOR } from "../../theme/palette";
+import { PALETTE } from "../../theme/palette";
+import { useTheme } from "../../theme/ThemeProvider";
 import type { BinderChapter, BinderSceneItem } from "./binderQueries";
 import { listBinder } from "./binderQueries";
 
@@ -23,6 +24,23 @@ type Row =
 interface BinderLoadHandlers {
   onSuccess: (rows: Row[]) => void;
   onError: (message: string) => void;
+}
+
+/** Preserve the shipped light binder colours while giving every value a
+ * dark-theme counterpart. The legacy palette predates the shared tokens. */
+function useBinderColors() {
+  const theme = useTheme();
+  if (theme.name === "light") return PALETTE;
+  return {
+    bg: theme.colors.parchment,
+    card: theme.colors.paper,
+    accent: theme.colors.accent,
+    ink: theme.colors.ink,
+    inkMuted: theme.colors.ink2,
+    inkFaint: theme.colors.ink4,
+    border: theme.colors.parchmentEdge,
+    good: theme.colors.good,
+  };
 }
 
 function fetchBinder(projectId: string, handlers: BinderLoadHandlers): void {
@@ -47,22 +65,25 @@ function toRows(chapters: BinderChapter[], shortPieces: BinderSceneItem[]): Row[
 }
 
 function ChapterHeader({ title }: { title: string }) {
-  return <Text style={styles.chapterHeader}>{title}</Text>;
+  const colors = useBinderColors();
+  return <Text style={[styles.chapterHeader, { color: colors.accent }]}>{title}</Text>;
 }
 
 function SceneRow({ scene, onPress }: { scene: BinderSceneItem; onPress: () => void }) {
+  const colors = useBinderColors();
+  const theme = useTheme();
   const meta = STATUS_META[scene.status];
   return (
-    <Pressable style={styles.sceneRow} onPress={onPress}>
-      <View style={[styles.statusDot, { backgroundColor: STATUS_DOT_COLOR[scene.status] }]} />
+    <Pressable style={[styles.sceneRow, { backgroundColor: colors.card }]} onPress={onPress}>
+      <View style={[styles.statusDot, { backgroundColor: theme.statusDot[scene.status] }]} />
       <View style={styles.sceneMain}>
-        <Text style={styles.sceneTitle}>{scene.title}</Text>
+        <Text style={[styles.sceneTitle, { color: colors.ink }]}>{scene.title}</Text>
         {scene.synopsis != null && scene.synopsis !== "" && (
-          <Text style={styles.sceneSynopsis} numberOfLines={2}>{scene.synopsis}</Text>
+          <Text style={[styles.sceneSynopsis, { color: colors.inkMuted }]} numberOfLines={2}>{scene.synopsis}</Text>
         )}
-        <Text style={styles.sceneStatusLabel}>{meta.label}</Text>
+        <Text style={[styles.sceneStatusLabel, { color: colors.inkFaint }]}>{meta.label}</Text>
       </View>
-      <Text style={styles.sceneWords}>{scene.wordCount.toLocaleString()}w</Text>
+      <Text style={[styles.sceneWords, { color: colors.inkFaint }]}>{scene.wordCount.toLocaleString()}w</Text>
     </Pressable>
   );
 }
@@ -80,22 +101,23 @@ interface BinderContentProps {
 }
 
 function BinderContent({ errorMessage, load, onOpenScene, rows, state }: BinderContentProps) {
+  const colors = useBinderColors();
   if (state === "loading") {
-    return <CenteredMessage><ActivityIndicator color={PALETTE.accent} /></CenteredMessage>;
+    return <CenteredMessage><ActivityIndicator color={colors.accent} /></CenteredMessage>;
   }
   if (state === "error") {
     return (
       <CenteredMessage>
-        <Text style={styles.errorText}>Couldn&apos;t load this manuscript.</Text>
-        <Text style={styles.errorDetail}>{errorMessage}</Text>
-        <Pressable style={styles.retryButton} onPress={load}>
-          <Text style={styles.retryText}>Try again</Text>
+        <Text style={[styles.errorText, { color: colors.ink }]}>Couldn&apos;t load this manuscript.</Text>
+        <Text style={[styles.errorDetail, { color: colors.inkMuted }]}>{errorMessage}</Text>
+        <Pressable style={[styles.retryButton, { backgroundColor: colors.accent }]} onPress={load}>
+          <Text style={[styles.retryText, { color: colors.card }]}>Try again</Text>
         </Pressable>
       </CenteredMessage>
     );
   }
   if (rows.length === 0) {
-    return <CenteredMessage><Text style={styles.emptyText}>{EMPTY_COPY}</Text></CenteredMessage>;
+    return <CenteredMessage><Text style={[styles.emptyText, { color: colors.inkMuted }]}>{EMPTY_COPY}</Text></CenteredMessage>;
   }
   return (
     <FlatList contentContainerStyle={styles.listContent} data={rows} keyExtractor={(row) => row.id}
@@ -143,7 +165,6 @@ const styles = StyleSheet.create({
   listContent: { padding: 16, paddingBottom: 32 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   chapterHeader: {
-    color: PALETTE.accent,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1,
@@ -157,23 +178,21 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: PALETTE.card,
     marginBottom: 8,
   },
   statusDot: { width: 9, height: 9, borderRadius: 5, marginTop: 5 },
   sceneMain: { flex: 1, gap: 3 },
-  sceneTitle: { color: PALETTE.ink, fontSize: 15, fontWeight: "600" },
-  sceneSynopsis: { color: PALETTE.inkMuted, fontSize: 13, lineHeight: 18 },
-  sceneStatusLabel: { color: PALETTE.inkFaint, fontSize: 11, fontWeight: "600" },
-  sceneWords: { color: PALETTE.inkFaint, fontSize: 12, fontVariant: ["tabular-nums"] },
-  emptyText: { color: PALETTE.inkMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
-  errorText: { color: PALETTE.ink, fontSize: 16, fontWeight: "600" },
-  errorDetail: { color: PALETTE.inkMuted, fontSize: 13, textAlign: "center" },
+  sceneTitle: { fontSize: 15, fontWeight: "600" },
+  sceneSynopsis: { fontSize: 13, lineHeight: 18 },
+  sceneStatusLabel: { fontSize: 11, fontWeight: "600" },
+  sceneWords: { fontSize: 12, fontVariant: ["tabular-nums"] },
+  emptyText: { fontSize: 15, textAlign: "center", lineHeight: 22 },
+  errorText: { fontSize: 16, fontWeight: "600" },
+  errorDetail: { fontSize: 13, textAlign: "center" },
   retryButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: PALETTE.accent,
   },
-  retryText: { color: PALETTE.card, fontSize: 13, fontWeight: "600" },
+  retryText: { fontSize: 13, fontWeight: "600" },
 });
