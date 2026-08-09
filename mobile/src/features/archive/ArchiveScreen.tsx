@@ -7,9 +7,11 @@ import { Card, Icon, IconButton, Screen, Topbar } from "../../components";
 import { getArchiveStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { ArchivedItem } from "../../shared/binderStore";
+import { mobileEngine } from "../../sync/mobileEngine";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import { restoreArchivePlan } from "./archiveRestore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Archive">;
 
@@ -22,9 +24,28 @@ export function ArchiveScreen({ navigation, route }: Props) {
   const theme = useTheme(); const projectId = route.params.projectId; const [items, setItems] = useState<ArchivedItem[]>([]);
   const load = useCallback(() => { void getArchiveStore().then((store) => store.listArchived(projectId)).then(setItems); }, [projectId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
-  const restore = () => Alert.alert("Restore unavailable", "The current archive store does not expose the manifest and scene-epoch handoff required for a resurrection-safe restore.");
+  const restore = async (item: ArchivedItem) => {
+    const store = await getArchiveStore();
+    const plan = await store.getRestorePlan(item.id);
+    if (!plan) return;
+    mobileEngine.pause();
+    try {
+      await restoreArchivePlan({
+        publishBinderMeta: (value) => store.publishRestoredOwnership(value),
+        replaceThroughEpoch: (scene, project) => store.handoffRestoredScene(scene, project),
+        removeArchiveRow: async () => store.removeRestoredArchive(plan),
+      }, plan);
+    } catch (error: unknown) {
+      Alert.alert("Restore incomplete", `The archived copy is still safe. ${String(error)}`);
+      return;
+    } finally {
+      mobileEngine.resume();
+    }
+    await mobileEngine.syncNow();
+    load();
+  };
   const purge = (item: ArchivedItem) => Alert.alert("Delete forever?", `${item.title} cannot be recovered.`, [{ text: "Cancel", style: "cancel" }, { text: "Delete forever", style: "destructive", onPress: () => { void getArchiveStore().then((store) => store.purgeArchived(item.id)).then(load); } }]);
-  return <Screen contentStyle={styles.screen}><Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Archived" trailing={<Text style={[TYPE.meta, styles.count, { color: theme.colors.ink3 }]}>{items.length}</Text>} /><ScrollView contentContainerStyle={styles.content}><Text style={[TYPE.bodySmall, styles.intro, { color: theme.colors.ink2 }]}>Out of the way, not gone. Restore any item or remove it for good.</Text>{items.map((item) => <ArchiveRow item={item} key={item.id} onPurge={() => purge(item)} onRestore={restore} />)}{items.length === 0 && <View style={[styles.empty, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink4} name="archive" size={32} /><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink3 }]}>Nothing archived.</Text></View>}</ScrollView><Text style={[TYPE.metaSmall, styles.footer, { color: theme.colors.ink3 }]}>Restoring puts an item back where it came from. Delete forever cannot be undone.</Text></Screen>;
+  return <Screen contentStyle={styles.screen}><Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Archived" trailing={<Text style={[TYPE.meta, styles.count, { color: theme.colors.ink3 }]}>{items.length}</Text>} /><ScrollView contentContainerStyle={styles.content}><Text style={[TYPE.bodySmall, styles.intro, { color: theme.colors.ink2 }]}>Out of the way, not gone. Restore any item or remove it for good.</Text>{items.map((item) => <ArchiveRow item={item} key={item.id} onPurge={() => purge(item)} onRestore={() => { void restore(item); }} />)}{items.length === 0 && <View style={[styles.empty, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink4} name="archive" size={32} /><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink3 }]}>Nothing archived.</Text></View>}</ScrollView><Text style={[TYPE.metaSmall, styles.footer, { color: theme.colors.ink3 }]}>Restoring puts an item back where it came from. Delete forever cannot be undone.</Text></Screen>;
 }
 
 const styles = StyleSheet.create({ screen: { flex: 1 }, count: { minWidth: 44, textAlign: "center" }, content: { paddingHorizontal: 16, paddingTop: 8, gap: 8, paddingBottom: 24 }, intro: { lineHeight: 21, paddingHorizontal: 2, paddingBottom: 8 }, row: { minHeight: 66, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 13, paddingVertical: 10 }, copy: { flex: 1 }, restore: { minHeight: HIT_SLOP_MIN, borderRadius: RADIUS.pill, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5 }, restoreText: { fontFamily: TYPE.bodySmallStrong.fontFamily }, trash: { width: HIT_SLOP_MIN, height: HIT_SLOP_MIN, alignItems: "center", justifyContent: "center" }, empty: { marginTop: 18, borderWidth: 1, borderStyle: "dashed", borderRadius: RADIUS.lg, padding: 28, alignItems: "center", gap: 8 }, footer: { paddingHorizontal: 16, paddingVertical: 14, lineHeight: 17 }, });

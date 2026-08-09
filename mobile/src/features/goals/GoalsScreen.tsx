@@ -5,12 +5,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Card, HeatMap, Icon, IconButton, Meter, Ring, Screen, Toggle, Topbar } from "../../components";
 import type { MobileGoal } from "../../db/mobileGoalsStore";
-import { getBinderStore, getGoalsStore } from "../../db/stores";
+import { getBinderStore, getGoalLocalStateStore, getGoalsStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { GoalTypeId } from "../../shared/goalTypes";
 import { useTheme } from "../../theme/ThemeProvider";
 import { RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import type { GoalLocalState } from "./goalLocalState";
 import { deadlinePaceLabel, type GoalDefinition,progressFor, remainderCopy } from "./goalModel";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Goals">;
@@ -38,28 +39,37 @@ function DeadlineCard({ goal, current }: { goal: GoalDefinition; current: number
   return <Card radius="large" style={styles.cardGap}><View style={styles.row}><Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>Deadline pace</Text><Text style={[styles.pacePill, { color: progress.delta < 0 ? theme.colors.warn : theme.colors.good, backgroundColor: theme.colors.parchmentDeep }]}>{deadlinePaceLabel(progress)}</Text></View><View style={[styles.row, styles.deadlineNumbers]}><Text style={[TYPE.bodySmall, { color: theme.colors.ink2 }]}><Text style={{ color: theme.colors.ink }}>{progress.daysLeft}</Text> days left</Text><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>{progress.current.toLocaleString()} / {progress.finalWords.toLocaleString()}</Text></View><View><Meter height={6} progress={progress.wordPct / 100} /><View style={[styles.marker, { backgroundColor: theme.colors.ink3, left: `${marker}%` }]} /></View><Text style={[TYPE.metaSmall, styles.deadlineFooter, { color: theme.colors.ink3 }]}>{remainderCopy(goal, { current })}</Text></Card>;
 }
 
-function StreakCard({ goal }: { goal: GoalDefinition }) {
+function StreakCard({ goal, local }: { goal: GoalDefinition; local?: GoalLocalState }) {
   const theme = useTheme();
-  const days = Array.from({ length: 21 }, (_, index) => { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - (20 - index)); return { date: date.toISOString().slice(0, 10), value: index === 3 ? 0 : index < 18 ? 0.85 : 0 }; });
-  return <Card radius="large" style={styles.cardGap}><View style={styles.streakHead}><Icon color={theme.colors.accent} name="flame" size={26} /><Text style={[styles.streakCount, { color: theme.colors.ink }]}>0</Text><Text style={[TYPE.bodySmall, { color: theme.colors.ink2 }]}>day streak · best 0</Text></View><View style={styles.weekdays}>{["M", "T", "W", "T", "F", "S", "S"].map((day, index) => <Text key={`${day}-${index}`} style={[TYPE.microLabel, styles.weekday, { color: theme.colors.ink4 }]}>{day}</Text>)}</View><HeatMap cellSize={36} days={days} /><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{remainderCopy(goal, { current: 0 })}</Text></Card>;
+  const met = new Set(local?.metDays ?? []); const days = Array.from({ length: 21 }, (_, index) => { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - (20 - index)); const key = date.toISOString().slice(0, 10); return { date: key, value: met.has(key) ? 1 : 0 }; }); const count = local?.streak.count ?? 0;
+  return <Card radius="large" style={styles.cardGap}><View style={styles.streakHead}><Icon color={theme.colors.accent} name="flame" size={26} /><Text style={[styles.streakCount, { color: theme.colors.ink }]}>{count}</Text><Text style={[TYPE.bodySmall, { color: theme.colors.ink2 }]}>{count === 1 ? "day" : "days"} streak</Text></View><View style={styles.weekdays}>{["M", "T", "W", "T", "F", "S", "S"].map((day, index) => <Text key={`${day}-${index}`} style={[TYPE.microLabel, styles.weekday, { color: theme.colors.ink4 }]}>{day}</Text>)}</View><HeatMap cellSize={36} days={days} /><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{remainderCopy(goal, { current: 0 })}</Text></Card>;
 }
 
-function GoalCards({ goals, manuscriptWords }: { goals: GoalDefinition[]; manuscriptWords: number }) {
+function GoalCards({ goals, local, manuscriptWords }: { goals: GoalDefinition[]; local: Record<string, GoalLocalState>; manuscriptWords: number }) {
   return <>{goals.filter(({ enabled }) => enabled).map((goal) => {
-    const current = goal.type === "project" || goal.type === "deadline" ? manuscriptWords : 0;
+    const state = local[goal.id]; const current = localProgress(goal, state, manuscriptWords);
     if (goal.type === "deadline") return <DeadlineCard current={current} goal={goal} key={goal.id} />;
-    if (goal.type === "streak") return <StreakCard goal={goal} key={goal.id} />;
+    if (goal.type === "streak") return <StreakCard goal={goal} key={goal.id} local={state} />;
     if (goal.type === "session") return null;
     return <AmountCard current={current} goal={goal} key={goal.id} />;
   })}</>;
 }
 
+function localProgress(
+  goal: GoalDefinition, state: GoalLocalState | undefined, manuscriptWords: number,
+): number {
+  if (goal.type === "project" || goal.type === "deadline") return manuscriptWords;
+  if (goal.type === "daily") return Math.max(0, manuscriptWords - (state?.baseline ?? manuscriptWords));
+  return state?.sessionWords ?? 0;
+}
+
 export function GoalsScreen({ navigation, route }: Props) {
   const theme = useTheme(); const projectId = route.params.projectId;
-  const [goals, setGoals] = useState<GoalDefinition[]>([]); const [manuscriptWords, setWords] = useState(0); const [sessionOn, setSessionOn] = useState(false);
-  const load = useCallback(() => { void Promise.all([getGoalsStore(), getBinderStore()]).then(async ([goalStore, binder]) => { const [goalRows, project] = await Promise.all([goalStore.getGoals(projectId), binder.loadProject(projectId)]); setGoals((goalRows as MobileGoal[]).map(definition).filter((item): item is GoalDefinition => item !== null)); setWords(project.scenes.reduce((sum, scene) => sum + scene.word_count, 0)); }); }, [projectId]);
+  const [goals, setGoals] = useState<GoalDefinition[]>([]); const [manuscriptWords, setWords] = useState(0); const [local, setLocal] = useState<Record<string, GoalLocalState>>({}); const [sessionOn, setSessionOn] = useState(false);
+  const load = useCallback(() => { void Promise.all([getGoalsStore(), getBinderStore(), getGoalLocalStateStore()]).then(async ([goalStore, binder, localStore]) => { const [goalRows, project] = await Promise.all([goalStore.getGoals(projectId), binder.loadProject(projectId)]); const definitions = (goalRows as MobileGoal[]).map(definition).filter((item): item is GoalDefinition => item !== null); const words = project.scenes.reduce((sum, scene) => sum + scene.word_count, 0); const entries = await Promise.all(definitions.map(async (goal) => [goal.id, await localStore.ensure(goal.id, words)] as const)); setGoals(definitions); setWords(words); setLocal(Object.fromEntries(entries)); setSessionOn(entries.some(([, state]) => state.sessionStartedAt !== null)); }); }, [projectId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
-  return <Screen contentStyle={styles.screen}><Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Goals" trailing={<IconButton icon="plus" label="New goal" onPress={() => navigation.navigate("NewGoal", { projectId })} />} /><ScrollView contentContainerStyle={styles.content}><GoalCards goals={goals} manuscriptWords={manuscriptWords} />{goals.length === 0 && <Pressable onPress={() => navigation.navigate("NewGoal", { projectId })} style={[styles.empty, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink4} name="target" size={34} /><Text style={[TYPE.cardTitle, { color: theme.colors.ink }]}>Set your first goal</Text><Text style={[TYPE.bodySmall, { color: theme.colors.ink3 }]}>Track words, time, a deadline, or a writing streak.</Text></Pressable>}<Card radius="medium" style={styles.cardGap}><View style={styles.sessionRow}><Icon color={theme.colors.ink3} name="target" size={18} /><Toggle description={sessionOn ? "This sitting is tracked on this device" : "Off · start one when you sit down"} label="Session goal" onChange={setSessionOn} value={sessionOn} /></View></Card></ScrollView></Screen>;
+  const toggleSession = async (enabled: boolean) => { const target = goals.find(({ type }) => type === "session") ?? goals[0]; setSessionOn(enabled); if (!target) return; const store = await getGoalLocalStateStore(); const current = local[target.id] ?? await store.ensure(target.id, manuscriptWords); const next = { ...current, sessionStartedAt: enabled ? Date.now() : null, sessionWords: enabled ? current.sessionWords : 0 }; await store.write(target.id, next); setLocal((value) => ({ ...value, [target.id]: next })); };
+  return <Screen contentStyle={styles.screen}><Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Goals" trailing={<IconButton icon="plus" label="New goal" onPress={() => navigation.navigate("NewGoal", { projectId })} />} /><ScrollView contentContainerStyle={styles.content}><GoalCards goals={goals} local={local} manuscriptWords={manuscriptWords} />{goals.length === 0 && <Pressable onPress={() => navigation.navigate("NewGoal", { projectId })} style={[styles.empty, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink4} name="target" size={34} /><Text style={[TYPE.cardTitle, { color: theme.colors.ink }]}>Set your first goal</Text><Text style={[TYPE.bodySmall, { color: theme.colors.ink3 }]}>Track words, time, a deadline, or a writing streak.</Text></Pressable>}<Card radius="medium" style={styles.cardGap}><View style={styles.sessionRow}><Icon color={theme.colors.ink3} name="target" size={18} /><Toggle description={sessionOn ? "This sitting is tracked on this device" : "Off · start one when you sit down"} label="Session goal" onChange={(enabled) => { void toggleSession(enabled); }} value={sessionOn} /></View></Card></ScrollView></Screen>;
 }
 
 const styles = StyleSheet.create({

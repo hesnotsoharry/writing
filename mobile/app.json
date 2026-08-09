@@ -3,6 +3,7 @@
     "name": "WritersNook",
     "slug": "writersnook-mobile",
     "version": "0.1.0",
+    "scheme": "writersnook",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -11,6 +12,7 @@
     ],
     "plugins": [
       "expo-dev-client",
+      "expo-share-intent",
       "react-native-quick-crypto",
       "expo-secure-store",
       [

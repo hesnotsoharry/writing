@@ -2,12 +2,19 @@
 // SQL is identical to desktop's — mirrored rather than shared because the
 // desktop class imports Tauri-bearing schema.ts (S4 blueprint portable-
 // boundary rule: never import desktop SQLite classes from mobile).
+import type { DbClient } from "../../shared/dbClient";
 import type { SceneDocStore } from "../../shared/sceneDocStore";
 import { getMobileDb } from "../database";
 
 export class MobileSceneDocStore implements SceneDocStore {
+  constructor(private readonly db?: DbClient) {}
+
+  private client(): Promise<DbClient> {
+    return this.db ? Promise.resolve(this.db) : getMobileDb();
+  }
+
   async listAll(): Promise<Array<{ id: string; stateBase64: string; updatedAt: string | null }>> {
-    const db = await getMobileDb();
+    const db = await this.client();
     const rows = await db.select<Array<{
       scene_id: string; state_base64: string; updated_at: string | null;
     }>>("SELECT scene_id, state_base64, updated_at FROM scene_docs");
@@ -17,7 +24,7 @@ export class MobileSceneDocStore implements SceneDocStore {
   }
 
   async load(sceneId: string): Promise<string | null> {
-    const db = await getMobileDb();
+    const db = await this.client();
     const rows = await db.select<{ state_base64: string }[]>(
       "SELECT state_base64 FROM scene_docs WHERE scene_id = $1", [sceneId]
     );
@@ -25,7 +32,7 @@ export class MobileSceneDocStore implements SceneDocStore {
   }
 
   async save(sceneId: string, base64: string, plaintext: string | null): Promise<void> {
-    const db = await getMobileDb();
+    const db = await this.client();
     const updatedAt = new Date().toISOString();
     if (plaintext !== null && plaintext.length > 0) {
       await db.execute(
@@ -50,7 +57,7 @@ export class MobileSceneDocStore implements SceneDocStore {
   }
 
   async loadProjection(sceneId: string): Promise<string | null> {
-    const db = await getMobileDb();
+    const db = await this.client();
     const rows = await db.select<{ plaintext_projection: string | null }[]>(
       "SELECT plaintext_projection FROM scene_docs WHERE scene_id = $1", [sceneId]
     );
@@ -58,7 +65,7 @@ export class MobileSceneDocStore implements SceneDocStore {
   }
 
   async delete(sceneId: string): Promise<void> {
-    const db = await getMobileDb();
+    const db = await this.client();
     await db.execute("DELETE FROM scene_docs WHERE scene_id=$1", [sceneId]);
   }
 }

@@ -1,13 +1,11 @@
 import type { ArchivedItem, Folder, Scene } from "../shared/binderStore";
 import type { DbClient } from "../shared/dbClient";
 import { normalizeStatus } from "../shared/status";
+import { type ArchiveRestorePlan, parseArchiveManifest } from "./mobileArchiveManifest";
+import { MobileEpochOwner } from "./mobileEpochOwner";
 import { mobileLocalWrites } from "./mobileLocalWriteBridge";
-import {
-  bridgeMobileRemoved,
-  bridgeMobileRestored,
-  type MobileFolderRow,
-  type MobileSceneRow,
-} from "./mobileMetaBridge";
+import { bridgeMobileRemoved, bridgeMobileRestored, type MobileSceneRow } from "./mobileMetaBridge";
+import { MobileSceneDocStore } from "./syncStores/mobileSceneDocStore";
 
 interface ArchiveRow {
   id: string; project_id: string; kind: string; original_id: string | null;
@@ -29,22 +27,15 @@ async function loadSceneManifest(db: DbClient, scene: Scene): Promise<SceneManif
   };
 }
 
-async function insertScene(db: DbClient, projectId: string, folderId: string | null, row: SceneManifest): Promise<void> {
-  await db.execute(
-    `INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [row.id, projectId, folderId, row.title, row.synopsis, row.sortOrder, row.wordCount, row.status],
-  );
-  if (row.doc !== null) {
-    await db.execute(
-      "INSERT OR REPLACE INTO scene_docs (scene_id, state_base64) VALUES (?, ?)",
-      [row.id, row.doc],
-    );
-  }
-}
-
 export class MobileArchiveStore {
-  constructor(private readonly db: DbClient) {}
+  constructor(
+    private readonly db: DbClient,
+    private readonly epochOwner: {
+      replaceThroughEpoch(input: {
+        projectId: string; sceneId: string; stateBase64: string | null;
+      }): Promise<unknown>;
+    } = new MobileEpochOwner(db, new MobileSceneDocStore(db)),
+  ) {}
 
   async archiveScene(sceneId: string, projectId: string): Promise<void> {
     const rows = await this.db.select<Scene[]>(
@@ -122,63 +113,94 @@ export class MobileArchiveStore {
     }));
   }
 
-  async restoreArchived(archiveId: string): Promise<void> {
+  async getRestorePlan(archiveId: string): Promise<ArchiveRestorePlan | null> {
     const rows = await this.db.select<ArchiveRow[]>(
       `SELECT id, project_id, kind, original_id, title, sub, state_base64, archived_at
        FROM archive WHERE id = ?`, [archiveId],
     );
     const row = rows[0];
-    if (!row) return;
-    const restored = row.kind === "chapter"
-      ? await this.restoreChapter(row)
-      : await this.restoreScene(row);
-    await this.db.execute("DELETE FROM archive WHERE id = ?", [archiveId]);
-    mobileLocalWrites.notify({
-      domain: "archive", projectId: row.project_id, rowId: archiveId, deleted: true,
+    if (!row) return null;
+    return parseArchiveManifest({
+      id: row.id, projectId: row.project_id,
+      kind: row.kind === "chapter" ? "chapter" : "scene",
+      originalId: row.original_id, title: row.title, stateBase64: row.state_base64,
     });
+  }
+
+  async publishRestoredOwnership(plan: ArchiveRestorePlan): Promise<void> {
+    if (plan.folder) await this.upsertFolder(plan);
+    for (const scene of plan.scenes) await this.upsertScene(plan.projectId, scene);
     const folderRows = await this.db.select<{ id: string }[]>(
-      "SELECT id FROM folders WHERE project_id = ? ORDER BY sort_order, id", [row.project_id],
+      "SELECT id FROM folders WHERE project_id = ? ORDER BY sort_order, id", [plan.projectId],
     );
     const sceneOrders = new Map<string, string[]>();
-    for (const folderId of new Set(restored.scenes.map((scene) => scene.folderId))) {
+    for (const folderId of new Set(plan.scenes.map((scene) => scene.folderId))) {
       const sql = folderId === null
         ? "SELECT id FROM scenes WHERE project_id = ? AND folder_id IS NULL ORDER BY sort_order, id"
         : "SELECT id FROM scenes WHERE project_id = ? AND folder_id = ? ORDER BY sort_order, id";
-      const params = folderId === null ? [row.project_id] : [row.project_id, folderId];
+      const params = folderId === null ? [plan.projectId] : [plan.projectId, folderId];
       const scenes = await this.db.select<{ id: string }[]>(sql, params);
       sceneOrders.set(folderId ?? "", scenes.map(({ id }) => id));
     }
-    await bridgeMobileRestored(row.project_id, restored.folders, restored.scenes, {
+    await bridgeMobileRestored(plan.projectId,
+      plan.folder ? [{ id: plan.folder.id, projectId: plan.projectId, title: plan.folder.title }] : [],
+      plan.scenes.map((scene) => this.sceneBridgeRow(plan.projectId, scene.folderId, scene)), {
       folders: folderRows.map(({ id }) => id), scenes: sceneOrders,
     });
   }
 
-  private async restoreScene(row: ArchiveRow): Promise<{ folders: MobileFolderRow[]; scenes: MobileSceneRow[] }> {
-    const manifest = JSON.parse(row.state_base64 ?? "{}") as SceneManifest;
-    manifest.id = row.original_id ?? crypto.randomUUID();
-    manifest.title = row.title;
-    await insertScene(this.db, row.project_id, null, manifest);
-    return { folders: [], scenes: [this.sceneBridgeRow(row.project_id, null, manifest)] };
+  async handoffRestoredScene(
+    scene: ArchiveRestorePlan["scenes"][number], projectId: string,
+  ): Promise<void> {
+    await this.epochOwner.replaceThroughEpoch({
+      projectId, sceneId: scene.id, stateBase64: scene.stateBase64,
+    });
   }
 
-  private async restoreChapter(row: ArchiveRow): Promise<{ folders: MobileFolderRow[]; scenes: MobileSceneRow[] }> {
-    const manifest = JSON.parse(row.state_base64 ?? "{}") as {
-      folderSortOrder?: number; scenes?: SceneManifest[];
-    };
-    const folderId = row.original_id ?? crypto.randomUUID();
+  async removeRestoredArchive(plan: ArchiveRestorePlan): Promise<void> {
+    await this.db.execute("DELETE FROM archive WHERE id = ?", [plan.archiveId]);
+    mobileLocalWrites.notify({
+      domain: "archive", projectId: plan.projectId, rowId: plan.archiveId, deleted: true,
+    });
+  }
+
+  async restoreArchived(archiveId: string): Promise<void> {
+    const plan = await this.getRestorePlan(archiveId);
+    if (!plan) return;
+    await this.publishRestoredOwnership(plan);
+    for (const scene of plan.scenes) await this.handoffRestoredScene(scene, plan.projectId);
+    await this.removeRestoredArchive(plan);
+  }
+
+  private async upsertFolder(plan: ArchiveRestorePlan): Promise<void> {
+    if (!plan.folder) return;
     await this.db.execute(
-      "INSERT INTO folders (id, project_id, title, sort_order) VALUES (?, ?, ?, ?)",
-      [folderId, row.project_id, row.title, manifest.folderSortOrder ?? 1000],
+      `INSERT INTO folders (id, project_id, title, sort_order) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id,
+       title=excluded.title, sort_order=excluded.sort_order`,
+      [plan.folder.id, plan.projectId, plan.folder.title, plan.folder.sortOrder],
     );
-    const scenes = manifest.scenes ?? [];
-    for (const scene of scenes) await insertScene(this.db, row.project_id, folderId, scene);
-    return {
-      folders: [{ id: folderId, projectId: row.project_id, title: row.title }],
-      scenes: scenes.map((scene) => this.sceneBridgeRow(row.project_id, folderId, scene)),
-    };
   }
 
-  private sceneBridgeRow(projectId: string, folderId: string | null, row: SceneManifest): MobileSceneRow {
+  private async upsertScene(
+    projectId: string, scene: ArchiveRestorePlan["scenes"][number],
+  ): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO scenes
+       (id, project_id, folder_id, title, synopsis, sort_order, word_count, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id,
+       folder_id=excluded.folder_id, title=excluded.title, synopsis=excluded.synopsis,
+       sort_order=excluded.sort_order, word_count=excluded.word_count, status=excluded.status`,
+      [scene.id, projectId, scene.folderId, scene.title, scene.synopsis,
+        scene.sortOrder, scene.wordCount, normalizeStatus(scene.status)],
+    );
+  }
+
+  private sceneBridgeRow(
+    projectId: string, folderId: string | null,
+    row: Pick<SceneManifest, "id" | "title" | "synopsis" | "status">,
+  ): MobileSceneRow {
     return {
       id: row.id, projectId, folderId, title: row.title,
       synopsis: row.synopsis, status: normalizeStatus(row.status),

@@ -1,4 +1,5 @@
 import { NavigationContainer } from "@react-navigation/native";
+import { ShareIntentProvider } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -7,6 +8,8 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { useAppFonts } from "./components/useAppFonts";
 import { assertDbReady } from "./db/database";
+import { ShareIntentCapture } from "./features/inbox/ShareIntentCapture";
+import { ActivationGate, TrialDaysProvider, useMobileLicenseGate } from "./features/license";
 import { AppNavigator } from "./navigation/AppNavigator";
 import type { SyncStatus } from "./shared/engine";
 import { SyncEngine } from "./shared/engine";
@@ -31,15 +34,17 @@ function syncStatusLine(status: SyncStatus): string {
 }
 
 export default function App() {
+  const [dbReady, setDbReady] = useState(false);
   const [dbLine, setDbLine] = useState("opening database…");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(OFF_STATUS);
   const fontsLoaded = useAppFonts();
 
   useEffect(() => {
     assertDbReady()
-      .then(({ userVersion, tableCount }) =>
-        setDbLine(`db ready · schema v${userVersion} · ${tableCount} tables`)
-      )
+      .then(({ userVersion, tableCount }) => {
+        setDbLine(`db ready · schema v${userVersion} · ${tableCount} tables`);
+        setDbReady(true);
+      })
       .catch((error: unknown) => setDbLine(`db FAILED: ${String(error)}`));
   }, []);
 
@@ -63,34 +68,45 @@ export default function App() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <AppTree dbLine={dbLine} fontsLoaded={fontsLoaded} onPaired={handlePaired} syncStatus={syncStatus} />
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ShareIntentProvider options={{ scheme: "writersnook" }}>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <ShareIntentCapture />
+            <AppTree dbLine={dbLine} dbReady={dbReady} fontsLoaded={fontsLoaded} onPaired={handlePaired} syncStatus={syncStatus} />
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ShareIntentProvider>
   );
 }
 
 interface AppTreeProps {
   dbLine: string;
+  dbReady: boolean;
   fontsLoaded: boolean;
   onPaired: () => void;
   syncStatus: SyncStatus;
 }
 
-function AppTree({ dbLine, fontsLoaded, onPaired, syncStatus }: AppTreeProps) {
+function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTreeProps) {
   const theme = useTheme();
+  const gate = useMobileLicenseGate(dbReady);
   const statusStyle = theme.name === "dark" ? "light" : "dark";
   const background = { backgroundColor: theme.colors.parchment };
   if (!fontsLoaded) {
     return <><StatusBar style={statusStyle} /><View style={[styles.root, background]} /></>;
   }
+  if (gate.gateStatus === "checking") {
+    return <><StatusBar style={statusStyle} /><View style={[styles.root, background]} /></>;
+  }
+  if (gate.gateStatus === "needed") {
+    return <><StatusBar style={statusStyle} /><ActivationGate onActivated={gate.onActivated} trialExpired={gate.trialExpired} /></>;
+  }
   return (
     <View style={[styles.root, background]}>
       <StatusBar style={statusStyle} />
-      <NavigationContainer><AppNavigator onPairedSuccessfully={onPaired} /></NavigationContainer>
+      <TrialDaysProvider daysLeft={gate.daysLeft}><NavigationContainer><AppNavigator onPairedSuccessfully={onPaired} /></NavigationContainer></TrialDaysProvider>
       <DevFooter dbLine={dbLine} status={syncStatus} />
     </View>
   );

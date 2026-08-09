@@ -1,4 +1,7 @@
+import * as Y from "yjs";
+
 import type { MobileQuickNote } from "../../db/mobileQuickNoteStore";
+import { encodeDoc } from "../../shared/serialize";
 
 export type SwipeState = "idle" | "dragging" | "committing" | "archived";
 export type SwipeEvent = "start" | "cancel" | "open" | "success" | "failure";
@@ -30,13 +33,27 @@ export function provenance(note: MobileQuickNote, now = Date.now()): string {
 
 export const promotionKey = (noteId: string): string => `quick-note:${noteId}`;
 
+export function noteBodyToSceneDoc(body: string): string {
+  const doc = new Y.Doc();
+  const fragment = doc.getXmlFragment("content");
+  for (const line of body.split("\n")) {
+    const paragraph = new Y.XmlElement("paragraph");
+    const textNode = new Y.XmlText();
+    textNode.insert(0, line);
+    paragraph.insert(0, [textNode]);
+    fragment.push([paragraph]);
+  }
+  return encodeDoc(doc);
+}
+
 export interface PromotionDeps {
   findSceneByKey(key: string): Promise<string | null>;
   createScene(input: { projectId: string; title: string; idempotencyKey: string }): Promise<string>;
+  sceneDocExists(sceneId: string): Promise<boolean>;
   saveSceneDoc(sceneId: string, stateBase64: string, plaintext: string): Promise<void>;
   publishScene(sceneId: string): Promise<void>;
   markFiled(noteId: string): Promise<void>;
-  syncAfterSave(): Promise<void>;
+  syncAfterSave(sceneId: string): Promise<void>;
 }
 
 export async function promoteNote(
@@ -47,13 +64,18 @@ export async function promoteNote(
   const key = promotionKey(note.id);
   const existing = await deps.findSceneByKey(key);
   if (existing) {
+    if (!await deps.sceneDocExists(existing)) {
+      await deps.saveSceneDoc(existing, stateBase64, note.body);
+    }
+    await deps.publishScene(existing);
     await deps.markFiled(note.id);
+    await deps.syncAfterSave(existing);
     return existing;
   }
   const sceneId = await deps.createScene({ projectId: note.project_id, title: "Untitled", idempotencyKey: key });
   await deps.saveSceneDoc(sceneId, stateBase64, note.body);
   await deps.publishScene(sceneId);
   await deps.markFiled(note.id);
-  await deps.syncAfterSave();
+  await deps.syncAfterSave(sceneId);
   return sceneId;
 }

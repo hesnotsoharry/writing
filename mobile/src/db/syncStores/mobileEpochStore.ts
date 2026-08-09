@@ -10,6 +10,7 @@ import {
   normalizeEpochStamp,
 } from "@writersnook/sync/meta/metaDoc";
 
+import type { DbClient } from "../../shared/dbClient";
 import type { AppliedEpochStore } from "../../shared/syncEpochStore";
 import { getMobileDb } from "../database";
 
@@ -27,8 +28,14 @@ function normalizeEpochs(value: unknown): Record<string, EpochStamp> {
 }
 
 export class MobileEpochStore implements AppliedEpochStore {
+  constructor(private readonly db?: DbClient) {}
+
+  private client(): Promise<DbClient> {
+    return this.db ? Promise.resolve(this.db) : getMobileDb();
+  }
+
   async load(): Promise<Record<string, EpochStamp>> {
-    const db = await getMobileDb();
+    const db = await this.client();
     const rows = await db.select<Array<{ value: string }>>(
       "SELECT value FROM app_meta WHERE key = ?", [APPLIED_EPOCHS_KEY]
     );
@@ -42,9 +49,14 @@ export class MobileEpochStore implements AppliedEpochStore {
   }
 
   async save(epochs: Record<string, EpochStamp>): Promise<void> {
-    const db = await getMobileDb();
+    const db = await this.client();
     await db.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
       APPLIED_EPOCHS_KEY, JSON.stringify(epochs),
     ]);
+  }
+
+  async markApplied(sceneId: string, stamp: EpochStamp): Promise<void> {
+    const epochs = await this.load();
+    await this.save({ ...epochs, [sceneId]: stamp });
   }
 }

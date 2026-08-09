@@ -8,13 +8,17 @@ export interface HeatMapCell extends HeatMapDay {
 }
 
 function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function startOfGrid(today: Date): Date {
   const start = new Date(today);
   start.setHours(12, 0, 0, 0);
-  start.setDate(start.getDate() - 20);
+  const daysSinceMonday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - daysSinceMonday - 14);
   return start;
 }
 
