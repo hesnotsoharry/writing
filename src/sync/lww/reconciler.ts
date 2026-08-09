@@ -23,6 +23,7 @@ export class LwwReconciler {
   }
 
   async sendSummary(domain: string, projectId: string | null, after = ""): Promise<void> {
+    if (!this.registry.get(domain)) return;
     const rows = await this.store.list(domain, projectId, after, ROW_SUMMARY_LIMIT + 1);
     const page = rows.slice(0, ROW_SUMMARY_LIMIT);
     const more = rows.length > ROW_SUMMARY_LIMIT;
@@ -36,6 +37,7 @@ export class LwwReconciler {
   }
 
   async receiveSummary(message: RowHelloMessage): Promise<void> {
+    if (!this.registry.get(message.domain)) return;
     const key = `${message.domain}\u0000${message.project ?? ""}`;
     const seen = this.peerRows.get(key) ?? new Set<string>();
     this.peerRows.set(key, seen);

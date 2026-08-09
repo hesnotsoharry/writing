@@ -5,6 +5,7 @@
  */
 
 import { normalizeStatus } from "../lib/status";
+import { desktopLwwBridges } from "../sync/desktopLwwBridges";
 import {
   bridgeRemoved,
   bridgeRestored,
@@ -247,10 +248,10 @@ export async function sqliteArchiveScene(sceneId: string, projectId: string): Pr
     meta: { synopsis: scene.synopsis, status: normalizeStatus(scene.status), sort_order: scene.sort_order, word_count: scene.word_count },
     doc,
   });
-  await db.execute(
+  const archiveId = crypto.randomUUID(); await db.execute(
     "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-    [crypto.randomUUID(), projectId, "scene", sceneId, scene.title, sub, manifest, Date.now()]
-  );
+    [archiveId, projectId, "scene", sceneId, scene.title, sub, manifest, Date.now()]
+  ); await desktopLwwBridges.archive.saved(projectId, archiveId);
   await sceneDocStore.delete(sceneId);
   await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
   bridgeRemoved(projectId, [{ kind: "scene", id: sceneId }, ...assignmentRows], "scene archive");
@@ -271,10 +272,10 @@ export async function sqliteArchiveChapter(folderId: string, projectId: string):
   const scenes = await buildSceneManifestEntries(childScenes);
   const assignmentRows = await assignmentTombstones(childScenes.map(({ id }) => id));
   const manifest = JSON.stringify({ folder: { sort_order: folder.sort_order }, scenes });
-  await db.execute(
+  const archiveId = crypto.randomUUID(); await db.execute(
     "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-    [crypto.randomUUID(), projectId, "chapter", folderId, folder.title, `${childScenes.length} scenes`, manifest, Date.now()]
-  );
+    [archiveId, projectId, "chapter", folderId, folder.title, `${childScenes.length} scenes`, manifest, Date.now()]
+  ); await desktopLwwBridges.archive.saved(projectId, archiveId);
   for (const scene of childScenes) {
     await sceneDocStore.delete(scene.id);
   }
@@ -328,12 +329,15 @@ export async function sqliteRestoreArchived(archiveId: string): Promise<void> {
     sceneIds = restored.sceneIds;
   }
   await db.execute("DELETE FROM archive WHERE id=$1", [archiveId]);
+  await desktopLwwBridges.archive.deleted(row.project_id, archiveId);
   reportLookup("archive restore", bridgeArchiveRestore(row.project_id, folderIds, sceneIds));
 }
 
 export async function sqlitePurgeArchived(archiveId: string): Promise<void> {
   const db = await getDb();
+  const rows = await db.select<Array<{ project_id: string }>>("SELECT project_id FROM archive WHERE id=$1", [archiveId]);
   await db.execute("DELETE FROM archive WHERE id=$1", [archiveId]);
+  if (rows[0]) await desktopLwwBridges.archive.deleted(rows[0].project_id, archiveId);
 }
 
 export async function sqliteArchivedCount(projectId: string): Promise<number> {

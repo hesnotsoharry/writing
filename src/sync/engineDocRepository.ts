@@ -34,10 +34,13 @@ export class EngineDocRepository {
     }));
   }
 
-  async mergeDomain(domain: string, projectId: string, incoming: Uint8Array): Promise<void> {
-    if (!this.options.domainDocStore) return;
+  async mergeDomain(
+    domain: string, projectId: string, incoming: Uint8Array,
+  ): Promise<Uint8Array | null> {
+    if (!this.options.domainDocStore) return null;
     const stored = await this.options.domainDocStore.load(domain, projectId);
     const merged = stored ? Y.mergeUpdates([toUint8Array(stored), incoming]) : incoming;
     await this.options.domainDocStore.save(domain, projectId, fromUint8Array(merged));
+    return merged;
   }
 }

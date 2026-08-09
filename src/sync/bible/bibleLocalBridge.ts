@@ -1,15 +1,16 @@
 import { fromUint8Array, toUint8Array } from "js-base64";
 import * as Y from "yjs";
 
+import type { DbClient } from "../../db/dbClient";
 import type { ProjectDomainDocStore } from "../../db/projectDomainDocStore";
 import { getDb } from "../../db/schema";
 import { SqliteProjectDomainDocStore } from "../../db/sqliteProjectDomainDocStore";
 import { getSyncRole } from "../syncRole";
-import { buildBibleFromSql } from "./bibleDoc";
+import { applyBibleSqlDelta, buildBibleFromSql, type SqlBibleRows } from "./bibleDoc";
 import { loadBibleProjection } from "./dbBibleApplyTarget";
 
 export type BibleContentListener = (projectId: string, stateBase64: string) => void;
-export type BibleDocMutation<T = void> = (doc: Y.Doc, result: T) => void;
+export type BibleDocMutation<T = void> = (doc: Y.Doc, result: T) => void | Promise<void>;
 
 /**
  * Explicit local-write boundary. Remote SQL projection never enters this class,
@@ -32,7 +33,7 @@ export class BibleLocalBridge {
       const encoded = await this.store.load("bible", projectId);
       if (encoded === null) return result; // Unpaired projects remain SQL-only and behavior-identical.
       const doc = new Y.Doc(); Y.applyUpdate(doc, toUint8Array(encoded));
-      doc.transact(() => mutateDoc(doc, result), "local-bible-write");
+      await mutateDoc(doc, result);
       const stateBase64 = fromUint8Array(Y.encodeStateAsUpdate(doc));
       await this.store.save("bible", projectId, stateBase64);
       // The callback carries CONTENT, not a state vector. The engine must send it immediately.
@@ -54,14 +55,27 @@ export class BibleLocalBridge {
 
 const desktopBridge = new BibleLocalBridge(new SqliteProjectDomainDocStore());
 
+export interface BibleLocalWriteDependencies {
+  bridge: BibleLocalBridge;
+  db: DbClient;
+}
+
 export function subscribeBibleSaves(listener: BibleContentListener): () => void {
   return desktopBridge.subscribe(listener);
 }
 
 export function bridgeBibleLocalWrite<T>(
-  projectId: string, sqlWrite: () => Promise<T>, mutateDoc: BibleDocMutation<T>,
+  projectId: string, sqlWrite: () => Promise<T>, dependencies?: BibleLocalWriteDependencies,
 ): Promise<T> {
-  return desktopBridge.mutate(projectId, sqlWrite, mutateDoc);
+  const bridge = dependencies?.bridge ?? desktopBridge;
+  const dbPromise = dependencies?.db ? Promise.resolve(dependencies.db) : getDb();
+  let before: SqlBibleRows;
+  return bridge.mutate(projectId, async () => {
+    const db = await dbPromise; before = await loadBibleProjection(db, projectId);
+    return sqlWrite();
+  }, async (doc) => {
+    applyBibleSqlDelta(doc, before, await loadBibleProjection(await dbPromise, projectId));
+  });
 }
 
 export async function bootstrapProjectBible(projectId: string): Promise<void> {

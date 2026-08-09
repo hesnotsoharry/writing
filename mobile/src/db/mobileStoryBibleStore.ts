@@ -1,3 +1,8 @@
+import type { BibleLocalBridge } from "../../../src/sync/bible/bibleLocalBridge";
+import {
+  findEntityLinkProjectId, findEntityProjectId, findEntityTypeProjectId,
+  findFieldProjectId, findRelationProjectId, findSceneProjectId,
+} from "../../../src/sync/bible/bibleMutationContext";
 import type { DbClient } from "../shared/dbClient";
 import {
   sqliteGetManuscriptAbout,
@@ -41,6 +46,7 @@ import type {
   EntityField, EntityLink, EntityType, EntityWithPortrait, FieldKind, Location,
   ManuscriptAbout, Relation, SceneEntityGroup, SceneLink, StoryBibleStore,
 } from "../shared/storyBibleStore";
+import { bridgeMobileBibleLocalWrite } from "./mobileBibleLocalBridge";
 import { MobileEntityChangeEmitter } from "./mobileEntityChangeEmitter";
 import { mobileLocalWrites } from "./mobileLocalWriteBridge";
 
@@ -62,8 +68,13 @@ function tableFor(type: EntityType): "characters" | "locations" | "entities" {
 
 export class MobileStoryBibleStore implements StoryBibleStore {
   private readonly changes = new MobileEntityChangeEmitter();
-  constructor(private readonly db: DbClient) {}
+  constructor(private readonly db: DbClient, private readonly bibleBridge?: BibleLocalBridge) {}
   subscribeEntityChanges(listener: () => void): () => void { return this.changes.subscribe(listener); }
+  private localWrite<T>(projectId: string | undefined, write: () => Promise<T>): Promise<T> {
+    return projectId
+      ? bridgeMobileBibleLocalWrite(projectId, this.db, write, this.bibleBridge)
+      : write();
+  }
 
   listCharacters(projectId: string): Promise<Character[]> {
     return this.db.select(
@@ -101,38 +112,52 @@ export class MobileStoryBibleStore implements StoryBibleStore {
   }
   private async createLegacy(type: "character" | "location", projectId: string, name: string, notes: string | null) {
     const id = crypto.randomUUID();
-    await this.db.execute(
+    await this.localWrite(projectId, async () => this.db.execute(
       `INSERT INTO ${tableFor(type)} (id, project_id, name, notes, aliases) VALUES (?, ?, ?, ?, NULL)`,
       [id, projectId, name, notes],
-    );
+    ));
     this.changes.notify();
     return { id, projectId, name, notes, aliases: null };
   }
 
   async renameEntity(type: EntityType, id: string, name: string): Promise<void> {
-    await this.db.execute(`UPDATE ${tableFor(type)} SET name = ? WHERE id = ?`, [name, id]);
+    const projectId = await findEntityProjectId(this.db, id);
+    await this.localWrite(projectId, async () => this.db.execute(
+      `UPDATE ${tableFor(type)} SET name = ? WHERE id = ?`, [name, id],
+    ));
     this.changes.notify();
   }
   async updateEntityNotes(type: EntityType, id: string, notes: string | null): Promise<void> {
-    await this.db.execute(`UPDATE ${tableFor(type)} SET notes = ? WHERE id = ?`, [notes, id]);
+    const projectId = await findEntityProjectId(this.db, id);
+    await this.localWrite(projectId, async () => this.db.execute(
+      `UPDATE ${tableFor(type)} SET notes = ? WHERE id = ?`, [notes, id],
+    ));
     this.changes.notify();
   }
   async deleteEntity(type: EntityType, id: string): Promise<void> {
-    await this.db.execute(`DELETE FROM ${tableFor(type)} WHERE id = ?`, [id]);
-    await this.db.execute("DELETE FROM scene_links WHERE entity_id = ? AND entity_type = ?", [id, type]);
-    await sqlitePurgeEntityDetail(this.db, id);
+    const projectId = await findEntityProjectId(this.db, id);
+    await this.localWrite(projectId, async () => {
+      await this.db.execute(`DELETE FROM ${tableFor(type)} WHERE id = ?`, [id]);
+      await this.db.execute("DELETE FROM scene_links WHERE entity_id = ? AND entity_type = ?", [id, type]);
+      await sqlitePurgeEntityDetail(this.db, id);
+    });
     this.changes.notify();
   }
   async setEntityExclusion(type: EntityType, id: string, exclude: boolean): Promise<void> {
-    await sqliteSetEntityExclusion(this.db, type, id, exclude); this.changes.notify();
+    const projectId = await findEntityProjectId(this.db, id);
+    await this.localWrite(projectId, () => sqliteSetEntityExclusion(this.db, type, id, exclude));
+    this.changes.notify();
   }
 
   async replaceSceneLinks(sceneId: string, links: SceneLink[]): Promise<void> {
-    await this.db.execute("DELETE FROM scene_links WHERE scene_id = ?", [sceneId]);
-    for (const link of links) await this.db.execute(
-      "INSERT OR IGNORE INTO scene_links (scene_id, entity_type, entity_id) VALUES (?, ?, ?)",
-      [sceneId, link.entityType, link.entityId],
-    );
+    const projectId = await findSceneProjectId(this.db, sceneId);
+    await this.localWrite(projectId, async () => {
+      await this.db.execute("DELETE FROM scene_links WHERE scene_id = ?", [sceneId]);
+      for (const link of links) await this.db.execute(
+        "INSERT OR IGNORE INTO scene_links (scene_id, entity_type, entity_id) VALUES (?, ?, ?)",
+        [sceneId, link.entityType, link.entityId],
+      );
+    });
     this.changes.notify();
   }
   async loadSceneLinks(sceneId: string): Promise<SceneLink[]> {
@@ -169,45 +194,71 @@ export class MobileStoryBibleStore implements StoryBibleStore {
   getEntity(type: EntityType, id: string): Promise<EntityWithPortrait | null> { return sqliteGetEntity(this.db, type, id); }
   getEntityFields(id: string): Promise<EntityField[]> { return sqliteGetEntityFields(this.db, id); }
   async setEntityField(entityId: string, kind: FieldKind, key: string, value: string): Promise<void> {
-    await sqliteSetEntityField(this.db, { entityId, kind, key }, value); this.changes.notify();
+    const projectId = await findEntityProjectId(this.db, entityId);
+    await this.localWrite(projectId, () => sqliteSetEntityField(this.db, { entityId, kind, key }, value));
+    this.changes.notify();
   }
   async addEntityField(entityId: string, kind: FieldKind, key: string): Promise<EntityField> {
-    const field = await sqliteAddEntityField(this.db, entityId, kind, key); this.changes.notify(); return field;
+    const projectId = await findEntityProjectId(this.db, entityId);
+    const field = await this.localWrite(projectId, () => sqliteAddEntityField(this.db, entityId, kind, key));
+    this.changes.notify(); return field;
   }
-  async deleteEntityField(id: string): Promise<void> { await sqliteDeleteEntityField(this.db, id); this.changes.notify(); }
+  async deleteEntityField(id: string): Promise<void> {
+    const projectId = await findFieldProjectId(this.db, id);
+    await this.localWrite(projectId, () => sqliteDeleteEntityField(this.db, id)); this.changes.notify();
+  }
   async reorderEntityFields(updates: { id: string; sort: number }[]): Promise<void> {
-    await sqliteReorderEntityFields(this.db, updates); this.changes.notify();
+    const projectId = updates[0] ? await findFieldProjectId(this.db, updates[0].id) : undefined;
+    await this.localWrite(projectId, () => sqliteReorderEntityFields(this.db, updates)); this.changes.notify();
   }
   listLinksFor(id: string): Promise<EntityLink[]> { return sqliteListLinksFor(this.db, id); }
   listLinksTo(id: string): Promise<EntityLink[]> { return sqliteListLinksTo(this.db, id); }
   async updateEntityFieldKey(id: string, key: string): Promise<void> {
-    await sqliteUpdateEntityFieldKey(this.db, id, key); this.changes.notify();
+    const projectId = await findFieldProjectId(this.db, id);
+    await this.localWrite(projectId, () => sqliteUpdateEntityFieldKey(this.db, id, key)); this.changes.notify();
   }
   async addLink(from: string, to: string, relation: string): Promise<EntityLink> {
-    const link = await sqliteAddLink(this.db, from, to, relation); this.changes.notify(); return link;
+    const projectId = await findEntityProjectId(this.db, from);
+    const link = await this.localWrite(projectId, () => sqliteAddLink(this.db, from, to, relation));
+    this.changes.notify(); return link;
   }
-  async removeLink(id: string): Promise<void> { await sqliteRemoveLink(this.db, id); this.changes.notify(); }
+  async removeLink(id: string): Promise<void> {
+    const projectId = await findEntityLinkProjectId(this.db, id);
+    await this.localWrite(projectId, () => sqliteRemoveLink(this.db, id)); this.changes.notify();
+  }
   async updateLinkRelation(id: string, relation: string): Promise<void> {
-    await sqliteUpdateLinkRelation(this.db, id, relation); this.changes.notify();
+    const projectId = await findEntityLinkProjectId(this.db, id);
+    await this.localWrite(projectId, () => sqliteUpdateLinkRelation(this.db, id, relation));
+    this.changes.notify();
   }
   setPortrait(type: EntityType, id: string, path: string): Promise<void> { return sqliteSetPortrait(this.db, type, id, path); }
   clearPortrait(type: EntityType, id: string): Promise<void> { return sqliteClearPortrait(this.db, type, id); }
 
   async createEntity(projectId: string, type: EntityType, name: string, notes: string | null): Promise<Entity> {
-    const entity = await sqliteCreateEntity(this.db, { projectId, type, name, notes }); this.changes.notify(); return entity;
+    const entity = await this.localWrite(
+      projectId, () => sqliteCreateEntity(this.db, { projectId, type, name, notes }),
+    );
+    this.changes.notify(); return entity;
   }
   listEntitiesByType(projectId: string, type: EntityType): Promise<Entity[]> { return sqliteListEntitiesByType(this.db, projectId, type); }
   async createCustomType(args: CreateCustomTypeArgs): Promise<CustomEntityType> {
-    const type = await sqliteCreateCustomType(this.db, args); this.changes.notify(); return type;
+    const type = await this.localWrite(args.projectId, () => sqliteCreateCustomType(this.db, args));
+    this.changes.notify(); return type;
   }
   listCustomTypes(projectId: string): Promise<CustomEntityType[]> { return sqliteListCustomTypes(this.db, projectId); }
-  async deleteCustomType(id: string): Promise<void> { await sqliteDeleteCustomType(this.db, id); this.changes.notify(); }
+  async deleteCustomType(id: string): Promise<void> {
+    const projectId = await findEntityTypeProjectId(this.db, id);
+    await this.localWrite(projectId, () => sqliteDeleteCustomType(this.db, id)); this.changes.notify();
+  }
   async addRelation(projectId: string, args: AddRelationArgs): Promise<Relation> {
+    const relation = await this.localWrite(projectId, () => this.addRelationSql(projectId, args));
+    this.changes.notify(); return relation;
+  }
+  private async addRelationSql(projectId: string, args: AddRelationArgs): Promise<Relation> {
     await this.db.execute("BEGIN IMMEDIATE");
     try {
       const relation = await sqliteAddRelation(this.db, projectId, args);
       await this.db.execute("COMMIT");
-      this.changes.notify();
       return relation;
     } catch (error) {
       await this.db.execute("ROLLBACK");
@@ -216,18 +267,24 @@ export class MobileStoryBibleStore implements StoryBibleStore {
   }
   listRelations(projectId: string, entityId?: string): Promise<Relation[]> { return sqliteListRelations(this.db, projectId, entityId); }
   async deleteRelation(id: string): Promise<void> {
+    const projectId = await findRelationProjectId(this.db, id);
+    await this.localWrite(projectId, () => this.deleteRelationSql(id));
+    this.changes.notify();
+  }
+  private async deleteRelationSql(id: string): Promise<void> {
     await this.db.execute("BEGIN IMMEDIATE");
     try {
       await sqliteDeleteRelation(this.db, id);
       await this.db.execute("COMMIT");
-      this.changes.notify();
     } catch (error) {
       await this.db.execute("ROLLBACK");
       throw error;
     }
   }
   async updateRelationLabel(id: string, label: string): Promise<void> {
-    await sqliteUpdateRelationLabel(this.db, id, label); this.changes.notify();
+    const projectId = await findRelationProjectId(this.db, id);
+    await this.localWrite(projectId, () => sqliteUpdateRelationLabel(this.db, id, label));
+    this.changes.notify();
   }
   allRelations(projectId: string): Promise<Relation[]> { return this.listRelations(projectId); }
 

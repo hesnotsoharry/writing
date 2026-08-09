@@ -8,17 +8,26 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
 import type { BoardDocStore } from "../../db/boardDocStore";
+import type { DbClient } from "../../db/dbClient";
 import { InMemorySnapshotStore } from "../../db/inMemorySnapshotStore";
+import { runMigrations } from "../../db/migrations";
 import type {
   PendingReplacement, PendingReplacementStore,
 } from "../../db/pendingReplacementStore";
 import type { ProjectDomainDoc, ProjectDomainDocStore } from "../../db/projectDomainDocStore";
 import { InMemoryProjectMetaDocStore } from "../../db/projectMetaDocStore";
 import type { SceneDocStore } from "../../db/sceneDocStore";
+import { SqliteSyncLwwStore } from "../../db/sqliteSyncLwwStore";
+import { SqliteSyncOutboxStore } from "../../db/sqliteSyncOutboxStore";
 import type { AppliedEpochStore } from "../../db/syncEpochStore";
+import type { SyncLwwStore } from "../../db/syncLwwStore";
+import type { BibleApplyTarget } from "../../sync/bible/bibleApplyExec";
 import { buildBibleFromSql, readBibleDoc } from "../../sync/bible/bibleDoc";
+import { DbBibleApplyTarget } from "../../sync/bible/dbBibleApplyTarget";
 import { SyncEngine } from "../../sync/engine";
 import { generateMasterKey } from "../../sync/keys";
+import { LwwDomainRegistry } from "../../sync/lww/registry";
+import { createLwwLocalBridges, registerLwwDomains } from "../../sync/lwwDomains";
 import type { MetaApplyTarget } from "../../sync/meta/applyExec";
 import type {
   SortOrderRewrite, SqlFolderRow, SqlProjectionSnapshot, SqlSceneRow,
@@ -28,6 +37,7 @@ import {
 } from "../../sync/meta/metaDoc";
 import { RelayProvider } from "../../sync/provider";
 import { applyEncoded, encodeDoc, extractPlainText } from "../../yjs/serialize";
+import { makeSqlJsDb } from "../support/sqljsDb";
 
 const RELAY_URL = process.env.SYNC_LIVE_RELAY;
 
@@ -141,6 +151,9 @@ interface EngineMemory {
   pending?: PendingReplacementStore;
   epochAcceptance?: "automatic" | "manual";
   domainStore?: ProjectDomainDocStore;
+  bibleTarget?: BibleApplyTarget;
+  bibleSaves?: { listener: ((projectId: string, stateBase64: string) => void) | null };
+  lww?: { store: SyncLwwStore; registry: LwwDomainRegistry; outbox: SqliteSyncOutboxStore };
 }
 
 function makeEngine(
@@ -152,6 +165,7 @@ function makeEngine(
     sceneStore,
     boardStore: new MemoryDocStore(),
     domainDocStore: memory.domainStore,
+    bibleApplyTarget: memory.bibleTarget,
     metaStore: memory.metaStore,
     metaApplyTarget: memory.metaTarget,
     snapshotStore: memory.snapshots,
@@ -162,6 +176,13 @@ function makeEngine(
       memory.metaSaves!.listener = listener;
       return () => { memory.metaSaves!.listener = null; };
     } : undefined,
+    subscribeBibleSaves: memory.bibleSaves ? (listener) => {
+      memory.bibleSaves!.listener = listener;
+      return () => { memory.bibleSaves!.listener = null; };
+    } : undefined,
+    lwwStore: memory.lww?.store,
+    lwwRegistry: memory.lww?.registry,
+    outboxStore: memory.lww?.outbox,
     readMasterKey: async () => masterKey,
     getDeviceId: async () => deviceId,
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),
@@ -178,6 +199,74 @@ async function until(check: () => boolean | Promise<boolean>, ms = 15_000): Prom
     await new Promise((r) => setTimeout(r, 150));
   }
   throw new Error("condition not met in time");
+}
+
+interface LiveLwwFixture {
+  domain: string; rowId: string; projectId: string; table: string; key: string;
+  payload: Record<string, unknown>;
+}
+
+const LIVE_LWW_FIXTURES: readonly LiveLwwFixture[] = [
+  { domain: "goals", rowId: "g1", projectId: "p1", table: "goals", key: "id",
+    payload: { id: "g1", project_id: "p1", goal_type: "daily", target: 500,
+      enabled: 1, created_at: 1, config_json: "{}", updated_at: "one" } },
+  { domain: "quick_notes", rowId: "n1", projectId: "p1", table: "quick_notes", key: "id",
+    payload: { id: "n1", project_id: "p1", body: "relay note", created_at: 2,
+      filed: 0, source: "quick", state: "inbox" } },
+  { domain: "archive", rowId: "a1", projectId: "p1", table: "archive", key: "id",
+    payload: { id: "a1", project_id: "p1", kind: "scene", original_id: "s1",
+      title: "Archived", sub: null, state_base64: "{}", archived_at: 3 } },
+  { domain: "scene_snapshots", rowId: "ss1", projectId: "p1",
+    table: "scene_snapshots", key: "id", payload: { id: "ss1", scene_id: "s1",
+      label: "Before", state_base64: "YWJj", word_count: 1, created_at: 4, kind: "manual" } },
+  { domain: "boards", rowId: "b1", projectId: "p1", table: "boards", key: "id",
+    payload: { id: "b1", project_id: "p1", title: "Plot", sort: 1024 } },
+  { domain: "manuscript_about", rowId: "p1", projectId: "p1",
+    table: "manuscript_about", key: "project_id", payload: { project_id: "p1",
+      synopsis: "Relay synopsis", genre: "Fantasy", tone: "Warm", pov: "Third", notes: "" } },
+  { domain: "ai_conversations", rowId: "conversation:c1", projectId: "p1",
+    table: "ai_conversations", key: "id", payload: { id: "c1", project_id: "p1",
+      title: "Consented relay chat", last_verb: null, boundary_chapter_id: null,
+      context_config: null, created_at: 5, updated_at: 5 } },
+  { domain: "ai_conversations", rowId: "message:m1", projectId: "p1",
+    table: "ai_messages", key: "id", payload: { id: "m1", conversation_id: "c1",
+      role: "you", verb: "ask", body: "private prompt body", context_json: null,
+      credits_cost: null, created_at: 6 } },
+];
+
+async function seedLwwParents(db: DbClient): Promise<void> {
+  await db.execute(
+    "INSERT INTO projects (id,title,type,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+    ["p1", "Relay", "novel", 1000, "now", "now"],
+  );
+  await db.execute(
+    "INSERT INTO scenes (id,project_id,folder_id,title,sort_order,word_count,status) VALUES (?,?,?,?,?,?,?)",
+    ["s1", "p1", null, "Opening", 1000, 0, "draft"],
+  );
+}
+
+function fireLiveLwwBridge(
+  fixture: LiveLwwFixture, bridges: ReturnType<typeof createLwwLocalBridges>,
+): Promise<boolean> {
+  if (fixture.domain === "ai_conversations") {
+    return fixture.rowId.startsWith("message:")
+      ? bridges.aiConversations.messageAppended(fixture.projectId, "m1")
+      : bridges.aiConversations.conversationSaved(fixture.projectId, "c1");
+  }
+  const bridgeByDomain: Record<string, typeof bridges.goals> = {
+    goals: bridges.goals, quick_notes: bridges.quickNotes, archive: bridges.archive,
+    scene_snapshots: bridges.sceneSnapshots, boards: bridges.boards,
+    manuscript_about: bridges.manuscriptAbout,
+  };
+  return bridgeByDomain[fixture.domain].saved(fixture.projectId, fixture.rowId);
+}
+
+async function liveLwwRowArrived(db: DbClient, fixture: LiveLwwFixture): Promise<boolean> {
+  const id = fixture.rowId.replace(/^(conversation|message):/, "");
+  const rows = await db.select<Array<Record<string, unknown>>>(
+    `SELECT * FROM ${fixture.table} WHERE ${fixture.key} = ?`, [id],
+  );
+  return rows.length === 1;
 }
 
 describe.runIf(RELAY_URL)("live relay end-to-end", () => {
@@ -199,6 +288,83 @@ describe.runIf(RELAY_URL)("live relay end-to-end", () => {
       expect(readBibleDoc(received).entities[0]).toMatchObject({ name: "Ada", notes: "Relay notes" });
     } finally { engineA.stop(); engineB.stop(); }
   }, 30_000);
+
+  it("pushes a local Bible save into the peer SQL projection without a sweep", async () => {
+    const masterKey = generateMasterKey(); const targetDb = await makeSqlJsDb();
+    await runMigrations(targetDb);
+    await seedLwwParents(targetDb);
+    const domainA = new MemoryDomainDocStore(); const domainB = new MemoryDomainDocStore();
+    const savesA: { listener: ((projectId: string, stateBase64: string) => void) | null } = {
+      listener: null,
+    };
+    const engineA = makeEngine("bible-push-A", masterKey, new MemoryDocStore(), {
+      domainStore: domainA, bibleSaves: savesA, sweepMs: 60_000,
+    });
+    const engineB = makeEngine("bible-push-B", masterKey, new MemoryDocStore(), {
+      domainStore: domainB, bibleTarget: new DbBibleApplyTarget(targetDb), sweepMs: 60_000,
+    });
+    try {
+      await engineA.start(); await engineB.start();
+      await until(() => engineA.status().state === "connected"
+        && engineB.status().state === "connected");
+      const bible = buildBibleFromSql({
+        entities: [{ id: "c-push", projectId: "p1", storage: "character",
+          entityType: "character", name: "Immediate Ada", notes: "pushed",
+          aliases: null, excludeFromAi: false }],
+        entityTypes: [], fields: [], sceneLinks: [], entityLinks: [], relations: [],
+      });
+      const stateBase64 = encodeDoc(bible); await domainA.save("bible", "p1", stateBase64);
+      const startedAt = Date.now(); savesA.listener?.("p1", stateBase64);
+      await until(async () => (await targetDb.select<Array<{ name: string }>>(
+        "SELECT name FROM characters WHERE id = ?", ["c-push"],
+      ))[0]?.name === "Immediate Ada", 20_000);
+      expect(Date.now() - startedAt).toBeLessThan(10_000);
+    } finally { engineA.stop(); engineB.stop(); targetDb.close(); }
+  }, 40_000);
+
+  it("pushes every LWW domain into the peer SQL projection without a sweep", async () => {
+    const masterKey = generateMasterKey(); const dbA = await makeSqlJsDb();
+    const dbB = await makeSqlJsDb(); await runMigrations(dbA); await runMigrations(dbB);
+    await seedLwwParents(dbA); await seedLwwParents(dbB);
+    const registryA = new LwwDomainRegistry(); const registryB = new LwwDomainRegistry();
+    registerLwwDomains(registryA, dbA, { aiConversationsEnabled: true });
+    registerLwwDomains(registryB, dbB, { aiConversationsEnabled: true });
+    const engineA = makeEngine("lww-push-A", masterKey, new MemoryDocStore(), {
+      lww: { store: new SqliteSyncLwwStore(dbA), registry: registryA,
+        outbox: new SqliteSyncOutboxStore(dbA) }, sweepMs: 60_000,
+    });
+    const engineB = makeEngine("lww-push-B", masterKey, new MemoryDocStore(), {
+      lww: { store: new SqliteSyncLwwStore(dbB), registry: registryB,
+        outbox: new SqliteSyncOutboxStore(dbB) }, sweepMs: 60_000,
+    });
+    const bridges = createLwwLocalBridges(
+      (mutation) => engineA.publishRow(mutation), () => true,
+    );
+    try {
+      await engineA.start(); await engineB.start();
+      await until(() => engineA.status().state === "connected"
+        && engineB.status().state === "connected");
+      const startedAt = Date.now();
+      for (const fixture of LIVE_LWW_FIXTURES) {
+        await registryA.get(fixture.domain)!.projectReceived(
+          fixture.rowId, fixture.projectId, JSON.stringify(fixture.payload),
+        );
+        expect(await fireLiveLwwBridge(fixture, bridges)).toBe(true);
+        try {
+          await until(() => liveLwwRowArrived(dbB, fixture), 20_000);
+        } catch (error) {
+          const shadow = await dbB.select<Array<Record<string, unknown>>>(
+            "SELECT domain,row_id,deleted,payload_json FROM sync_lww_rows ORDER BY row_id",
+          );
+          throw new Error(
+            `LWW relay timeout: ${fixture.domain}/${fixture.rowId}; shadow=${JSON.stringify(shadow)}`,
+            { cause: error },
+          );
+        }
+      }
+      expect(Date.now() - startedAt).toBeLessThan(10_000);
+    } finally { engineA.stop(); engineB.stop(); dbA.close(); dbB.close(); }
+  }, 50_000);
 
   it("converges a fresh peer and streams live edits", async () => {
     const masterKey = generateMasterKey();

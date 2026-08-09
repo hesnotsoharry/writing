@@ -2,8 +2,15 @@
 // dependencies for S4 step 5 (scene read + sync-down). Mirrors
 // src/sync/desktopEngine.ts's "construct once, export the singleton" shape —
 // see that file's `export const syncEngine = new SyncEngine(...)`.
+import { LwwDomainRegistry } from "@writersnook/sync/lww/registry";
+import { registerLwwDomains } from "@writersnook/sync/lwwDomains";
+
 import { getMobileDb } from "../db/database";
+import { MobileBibleApplyTarget } from "../db/mobileBibleApplyTarget";
+import { subscribeMobileBibleSaves } from "../db/mobileBibleLocalBridge";
+import { mobileLocalWrites } from "../db/mobileLocalWriteBridge";
 import { MobileMetaApplyTarget } from "../db/mobileMetaApplyTarget";
+import { subscribeMobileMetaSaves } from "../db/mobileMetaBridge";
 import { MobileBoardDocStore } from "../db/syncStores/mobileBoardDocStore";
 import { MobileEpochStore } from "../db/syncStores/mobileEpochStore";
 import { MobilePendingReplacementStore } from "../db/syncStores/mobilePendingReplacementStore";
@@ -35,6 +42,11 @@ import { getMobileRelayUrlOverride, resolveMobileRelayUrl } from "./mobileRelayU
  */
 const DEFAULT_RELAY_URL = "wss://sync.writersnook.app";
 const mobileSceneStore = new MobileSceneDocStore();
+const mobileDb = deferredMobileDbClient();
+const mobileLwwRegistry = new LwwDomainRegistry();
+const mobileLwwDomains = registerLwwDomains(mobileLwwRegistry, mobileDb, {
+  aiConversationsEnabled: false,
+});
 
 async function updateSceneWordCount(sceneId: string, count: number): Promise<void> {
   const db = await getMobileDb();
@@ -42,7 +54,6 @@ async function updateSceneWordCount(sceneId: string, count: number): Promise<voi
 }
 
 function buildMobileEngineOptions(): EngineOptions {
-  const db = deferredMobileDbClient();
   return {
     relayUrl: DEFAULT_RELAY_URL,
     sceneStore: mobileSceneStore,
@@ -51,17 +62,17 @@ function buildMobileEngineOptions(): EngineOptions {
     metaApplyTarget: new MobileMetaApplyTarget(),
     snapshotStore: new MobileSnapshotStore(),
     epochStore: new MobileEpochStore(),
-    domainDocStore: new MobileProjectDomainDocStore(db),
-    lwwStore: new MobileSyncLwwStore(db), outboxStore: new MobileSyncOutboxStore(db),
-    pendingReplacementStore: new MobilePendingReplacementStore(db),
+    domainDocStore: new MobileProjectDomainDocStore(mobileDb),
+    bibleApplyTarget: new MobileBibleApplyTarget(),
+    subscribeBibleSaves: subscribeMobileBibleSaves,
+    lwwStore: new MobileSyncLwwStore(mobileDb),
+    lwwRegistry: mobileLwwRegistry,
+    outboxStore: new MobileSyncOutboxStore(mobileDb),
+    pendingReplacementStore: new MobilePendingReplacementStore(mobileDb),
     epochAcceptance: "manual",
-    loadLastPeerSeenAt: () => readLastPeerSeenAt(db),
-    saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(db, value),
-    // No `ensureProjectMetas`/`subscribeMetaSaves`: those bootstrap/notify
-    // *local* project-meta edits, which only happen on the desktop authoring
-    // side. Mobile is always the "joined" (scanning) side per the S4
-    // blueprint's QR pairing note — it never creates a project locally or
-    // edits binder structure locally in S4 (read-only), so both stay unset.
+    loadLastPeerSeenAt: () => readLastPeerSeenAt(mobileDb),
+    saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(mobileDb, value),
+    subscribeMetaSaves: subscribeMobileMetaSaves,
     readMasterKey: getSyncMasterKey,
     getDeviceId: getOrCreateMobileDeviceId,
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),
@@ -96,6 +107,17 @@ async function writeLastPeerSeenAt(db: DbClient, value: string): Promise<void> {
  *  boot when a key + joined role already exist; `.stop()`/`.subscribe()`/
  *  `.pause()`/`.resume()` are the same public surface as desktop's. */
 export const mobileEngine = new SyncEngine(buildMobileEngineOptions());
+mobileLocalWrites.subscribe((mutation) => {
+  if (mutation.domain === "ai_conversations" && !mobileLwwDomains.aiConversationsEnabled()) return;
+  void mobileEngine.publishRow(mutation).catch((error: unknown) => {
+    console.error("[sync-lww] mobile row publish failed", error);
+  });
+});
+
+/** Apply the privacy setting immediately to new writes and reconciliation. */
+export function setMobileAiConversationsSyncEnabled(enabled: boolean): void {
+  mobileLwwDomains.setAiConversationsEnabled(enabled);
+}
 
 /** Compose a mounted editor bridge with the shared mobile engine and store. */
 export function createMobileLiveScenePort(

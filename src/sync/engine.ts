@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import type { AppliedEpochs } from "../db/syncEpochStore";
 import { CatchUpCoordinator,type CatchUpResult } from "./catchUpCoordinator";
 import { type ChannelDoc,EngineDocRepository } from "./engineDocRepository";
+import { publishBibleSave, sendEligibleOutboxMessage } from "./engineOutbound";
 import { prepareSession } from "./engineSession";
 import type { EngineOptions, SyncProvider } from "./engineTypes";
 import { answerFrame, helloDoc, targetedSaveFrame } from "./epochFrames";
@@ -11,12 +12,11 @@ import { EpochManager, type SnapshotRef } from "./epochManager";
 import { openMessage, sealMessage } from "./frameCodec";
 import { type EngineLiveScenePort, LiveSceneBindings } from "./liveSceneBindings";
 import { LiveSceneUpdateRouter } from "./liveSceneUpdateRouter";
+import { LocalContentSubscriptions } from "./localContentSubscriptions";
 import { type LocalRowMutation, LwwPublisher } from "./lww/publisher";
 import { LwwReconciler } from "./lww/reconciler";
 import { LwwDomainRegistry } from "./lww/registry";
-import {
-  type HelloMessage, type InnerMessage, isInnerMessage, metaChannel, parseChannel, sceneChannel,
-} from "./messages";
+import { type HelloMessage, type InnerMessage, isInnerMessage, metaChannel, parseChannel, sceneChannel } from "./messages";
 import { DurableOutbox } from "./outbox";
 import type { ConnectionState } from "./provider";
 import { RemoteUpdateRouter } from "./remoteUpdateRouter";
@@ -45,12 +45,12 @@ export class SyncEngine {
   private readonly replacements = new ReplacementQueue();
   private readonly outbox: DurableOutbox | null;
   private readonly lww: LwwReconciler | null;
+  private readonly lwwRegistry: LwwDomainRegistry;
   private readonly rowPublisher: LwwPublisher | null;
   private readonly catchUp: CatchUpCoordinator;
   private readonly remoteUpdates: RemoteUpdateRouter;
   private inbound: Promise<void> = Promise.resolve();
-  private unsubscribeMetaSaves: (() => void) | null = null;
-  private unsubscribeSceneWrites: (() => void) | null = null;
+  private readonly localContent: LocalContentSubscriptions;
   private unsubscribeOutbox: (() => void) | null = null;
   private structureChanged: (() => void) | null = null;
   private docReplaced: ((sceneId: string) => void) | null = null;
@@ -61,6 +61,7 @@ export class SyncEngine {
     this.epochs = new EpochManager(options);
     this.outbox = options.outboxStore ? new DurableOutbox(options.outboxStore) : null;
     const registry = options.lwwRegistry ?? new LwwDomainRegistry();
+    this.lwwRegistry = registry;
     this.rowPublisher = options.lwwStore && this.outbox
       ? new LwwPublisher({ store: options.lwwStore, registry, outbox: this.outbox,
         send: (message) => this.sendMessage(message), deviceId: () => this.deviceId }) : null;
@@ -81,6 +82,12 @@ export class SyncEngine {
       requestScene: (channel) => this.sendTargetedHello(channel),
       notifyStructure: () => this.structureChanged?.(),
     });
+    this.localContent = new LocalContentSubscriptions(
+      options,
+      (projectId, epochs) => this.notifyLocalMetaSave(projectId, epochs),
+      (projectId, stateBase64) => void publishBibleSave(this.outbox, (message) => this.sendMessage(message), projectId, stateBase64),
+      (sceneId) => this.notifyLocalSave(sceneId),
+    );
   }
 
   /** `relayUrlOverride` lets callers honor the `syncRelayUrl` tweak without
@@ -96,12 +103,7 @@ export class SyncEngine {
     this.unsubscribeOutbox = this.outbox?.subscribe((queue) => this.setStatus({ queue })) ?? null;
     const provider = session.provider;
     this.provider = provider;
-    this.unsubscribeMetaSaves = this.options.subscribeMetaSaves?.(
-      (projectId, epochs) => this.notifyLocalMetaSave(projectId, epochs)
-    ) ?? null;
-    this.unsubscribeSceneWrites = this.options.subscribeSceneWrites?.(
-      (sceneId) => this.notifyLocalSave(sceneId)
-    ) ?? null;
+    this.localContent.start();
     provider.subscribeConnection((state) => this.onConnection(state));
     // Serialized, not fire-and-forget: frames must be APPLIED in arrival order.
     // A restore sends meta (carrying the new epoch) then the replacement scene;
@@ -122,8 +124,7 @@ export class SyncEngine {
     // Drop the old session's inbound chain: a handler still pending from it would
     // otherwise serialize ahead of (or stall) every frame of the next session.
     this.inbound = Promise.resolve();
-    this.unsubscribeMetaSaves?.(); this.unsubscribeMetaSaves = null;
-    this.unsubscribeSceneWrites?.(); this.unsubscribeSceneWrites = null;
+    this.localContent.stop();
     this.unsubscribeOutbox?.(); this.unsubscribeOutbox = null;
     this.setStatus({ state: "off", peerSeen: false });
   }
@@ -131,17 +132,16 @@ export class SyncEngine {
   subscribe(cb: (status: SyncStatus) => void): () => void { return this.statusEmitter.subscribe(cb); }
   status(): SyncStatus { return this.statusEmitter.current(); }
   listBehind(): readonly BehindScene[] { return this.epochs.listBehind(); }
-  subscribeQueue(listener: (queue: SyncQueueDepth) => void): () => void {
-    return this.outbox?.subscribe(listener) ?? (() => undefined);
-  }
+  subscribeQueue(listener: (queue: SyncQueueDepth) => void): () => void { return this.outbox?.subscribe(listener) ?? (() => undefined); }
   async syncNow(): Promise<void> {
     if (this.isPaused() || this.statusEmitter.current().state !== "connected") return;
-    await this.outbox?.flush((message) => this.sendMessage(message));
+    await this.outbox?.flush((message) => sendEligibleOutboxMessage(message, this.lwwRegistry, (eligible) => this.sendMessage(eligible)));
     await this.sendHello();
     await this.lww?.sendAllSummaries();
   }
   async publishRow(mutation: LocalRowMutation): Promise<boolean> {
-    return this.rowPublisher?.publish(mutation) ?? false;
+    if (!this.rowPublisher) return false;
+    if (!this.deviceId) this.deviceId = await this.options.getDeviceId(); return this.rowPublisher.publish(mutation);
   }
   async prepareCatchUp(sceneIds?: readonly string[]): Promise<{ snapshots: SnapshotRef[] }> {
     return this.catchUp.prepare(sceneIds);

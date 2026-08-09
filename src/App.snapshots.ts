@@ -9,6 +9,7 @@ import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
 import { getTweak, TWEAK_DEFAULTS } from "./features/settings/settings.store";
 import { syncEngine } from "./sync/desktopEngine";
+import { publishSnapshotDeleted, publishSnapshotSaved } from "./sync/desktopLwwBridges";
 import { notifyLocalSceneWrite } from "./sync/localSceneWrites";
 import { bumpProjectSceneEpoch } from "./sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText } from "./yjs/serialize";
@@ -129,13 +130,20 @@ export function snapCapture(
         wordCount: wordCountFromBase64(base64), kind: "manual",
       }),
     )
-    .then((snap) => { set((prev) => [snap, ...(prev as Snapshot[])]); return snap.id; })
+    .then(async (snap) => {
+      await publishSnapshotSaved(targetSceneId, snap.id);
+      set((prev) => [snap, ...(prev as Snapshot[])]); return snap.id;
+    })
     .catch((e: unknown) => { console.error("[snapshots] takeSnapshot failed", e); return null; });
 }
 
 export function snapRename(snapshotId: string, label: string, sceneId: string | null, set: SetSnapshots): Promise<void> {
   return snapshotStore.renameSnapshot(snapshotId, label)
-    .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })
+    .then(async () => {
+      if (!sceneId) return;
+      await publishSnapshotSaved(sceneId, snapshotId);
+      reloadSnapshotList(sceneId, set);
+    })
     .catch((e: unknown) => { console.error("[snapshots] rename failed", e); });
 }
 
@@ -148,10 +156,11 @@ export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Pr
     // Pre-restore auto-backup of the TARGET scene's current content.
     // When non-active: bytes come from persistent storage — we must not read or touch the active editor's doc.
     const currentBytes = await resolveTargetBytes(targetSceneId, isActive, activeDoc, load);
-    await snapshotStore.takeSnapshot({
+    const safety = await snapshotStore.takeSnapshot({
       sceneId: targetSceneId, label: null, stateBase64: currentBytes,
       wordCount: wordCountFromBase64(currentBytes), kind: "auto",
     });
+    await publishSnapshotSaved(targetSceneId, safety.id);
     // Persist restored bytes to the TARGET scene's store FIRST.
     // The scene reload reads from storage, so saving after the reload would silently no-op.
     // This is the same save-then-reloadScene idiom used by snapUndoReplace (App.snapshots.ts:75–76).
@@ -221,9 +230,10 @@ export async function snapAutoCapture({
   }
   const wordCount = currentText.split(/\s+/).filter(Boolean).length;
   const stateBase64 = encodeDoc(doc);
-  await snapshotStore.takeSnapshot({
+  const snapshot = await snapshotStore.takeSnapshot({
     sceneId, label: null, stateBase64, wordCount, kind: "auto",
   });
+  await publishSnapshotSaved(sceneId, snapshot.id);
   const limit = getTweak("snapshotAutoLimit", TWEAK_DEFAULTS.snapshotAutoLimit);
   if (limit > 0) {
     await snapshotStore.pruneAuto(sceneId, limit);
@@ -232,7 +242,11 @@ export async function snapAutoCapture({
 
 export function snapDelete(snapshotId: string, sceneId: string | null, set: SetSnapshots): Promise<void> {
   return snapshotStore.deleteSnapshot(snapshotId)
-    .then(() => { if (sceneId) reloadSnapshotList(sceneId, set); })
+    .then(async () => {
+      if (!sceneId) return;
+      await publishSnapshotDeleted(sceneId, snapshotId);
+      reloadSnapshotList(sceneId, set);
+    })
     .catch((e: unknown) => { console.error("[snapshots] delete failed", e); });
 }
 
@@ -247,7 +261,10 @@ export function snapTakeFromMenu(
         wordCount: wordCountFromBase64(base64), kind: "manual",
       }),
     )
-    .then(() => { setShowHistory(true); reloadSnapshotList(targetSceneId, set); })
+    .then(async (snapshot) => {
+      await publishSnapshotSaved(targetSceneId, snapshot.id);
+      setShowHistory(true); reloadSnapshotList(targetSceneId, set);
+    })
     .catch((e: unknown) => { console.error("[snapshots] takeSnapshot (menu) failed", e); });
 }
 

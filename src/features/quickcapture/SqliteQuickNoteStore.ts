@@ -1,5 +1,6 @@
 import type { DbClient } from "../../db/dbClient";
 import { getDb } from "../../db/schema";
+import { desktopLwwBridges } from "../../sync/desktopLwwBridges";
 import {
   makeQuickNoteStore,
   type QuickNote,
@@ -20,7 +21,7 @@ function productionDb(): DbClient {
 }
 
 export function makeProductionQuickNoteStore(): QuickNoteStore {
-  return makeQuickNoteStore(productionDb());
+  return new SqliteQuickNoteStore(() => Promise.resolve(productionDb()));
 }
 
 /** Backward-compatible wrapper for existing desktop call sites and tests. */
@@ -32,7 +33,9 @@ export class SqliteQuickNoteStore implements QuickNoteStore {
   }
 
   async create(projectId: string, body: string): Promise<string> {
-    return (await this.store()).create(projectId, body);
+    const id = await (await this.store()).create(projectId, body);
+    await desktopLwwBridges.quickNotes.saved(projectId, id);
+    return id;
   }
 
   async listUnfiled(projectId: string): Promise<QuickNote[]> {
@@ -44,14 +47,27 @@ export class SqliteQuickNoteStore implements QuickNoteStore {
   }
 
   async updateBody(id: string, body: string): Promise<void> {
+    const projectId = await this.projectId(id);
     await (await this.store()).updateBody(id, body);
+    if (projectId) await desktopLwwBridges.quickNotes.saved(projectId, id);
   }
 
   async markFiled(id: string): Promise<void> {
+    const projectId = await this.projectId(id);
     await (await this.store()).markFiled(id);
+    if (projectId) await desktopLwwBridges.quickNotes.saved(projectId, id);
   }
 
   async delete(id: string): Promise<void> {
+    const projectId = await this.projectId(id);
     await (await this.store()).delete(id);
+    if (projectId) await desktopLwwBridges.quickNotes.deleted(projectId, id);
+  }
+
+  private async projectId(id: string): Promise<string | null> {
+    const rows = await (await this.dbProvider()).select<Array<{ project_id: string }>>(
+      "SELECT project_id FROM quick_notes WHERE id=$1", [id],
+    );
+    return rows?.[0]?.project_id ?? null;
   }
 }

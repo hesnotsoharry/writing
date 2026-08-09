@@ -12,6 +12,35 @@ import type {
 } from "./storyBibleStore";
 
 interface CreateEntityArgs { projectId: string; type: EntityType; name: string; notes: string | null; }
+export type EntityRow = {
+  id: string; project_id: string; name: string; notes: string | null;
+  aliases: string | null; exclude_from_ai: number;
+};
+
+export const rowToEntity = (row: EntityRow, type: string): Entity => ({
+  id: row.id, projectId: row.project_id, type, name: row.name, notes: row.notes,
+  aliases: row.aliases, exclude_from_ai: row.exclude_from_ai !== 0,
+});
+
+/** List all legacy and generic Story Bible entities for a project. */
+export async function sqliteListEntities(db: DbClient, projectId: string): Promise<Entity[]> {
+  const columns = "id, project_id, name, notes, aliases, exclude_from_ai";
+  const characters = await db.select<EntityRow[]>(
+    `SELECT ${columns} FROM characters WHERE project_id = $1`, [projectId],
+  );
+  const locations = await db.select<EntityRow[]>(
+    `SELECT ${columns} FROM locations WHERE project_id = $1`, [projectId],
+  );
+  const generic = await db.select<Array<EntityRow & { entity_type: string }>>(
+    `SELECT id, project_id, entity_type, name, notes, aliases, exclude_from_ai
+     FROM entities WHERE project_id = $1`, [projectId],
+  );
+  return [
+    ...characters.map((row) => rowToEntity(row, "character")),
+    ...locations.map((row) => rowToEntity(row, "location")),
+    ...generic.map((row) => rowToEntity(row, row.entity_type)),
+  ];
+}
 
 export async function sqliteCreateEntity(db: DbClient, args: CreateEntityArgs): Promise<Entity> {
   const { projectId, type, name, notes } = args;

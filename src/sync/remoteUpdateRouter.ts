@@ -1,6 +1,7 @@
 import { fromUint8Array, toUint8Array } from "js-base64";
 import * as Y from "yjs";
 
+import { applyBibleDoc } from "./bible/bibleApplyExec";
 import type { EngineDocRepository } from "./engineDocRepository";
 import type { EngineOptions } from "./engineTypes";
 import type { EpochManager } from "./epochManager";
@@ -22,7 +23,13 @@ export class RemoteUpdateRouter {
       await mergeStoredBoard(this.dependencies.options.boardStore, channel.id, update); return;
     }
     if (channel.kind === "bible") {
-      await this.dependencies.docs.mergeDomain("bible", channel.id, update); return;
+      const merged = await this.dependencies.docs.mergeDomain("bible", channel.id, update);
+      if (!merged) return;
+      const doc = new Y.Doc(); Y.applyUpdate(doc, merged);
+      if (this.dependencies.options.bibleApplyTarget) {
+        await applyBibleDoc(channel.id, doc, this.dependencies.options.bibleApplyTarget);
+      }
+      return;
     }
     await this.dependencies.scenes.apply(channel.id, message, update);
   }

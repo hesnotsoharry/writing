@@ -3,16 +3,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
 import type { BoardDocStore } from "../../db/boardDocStore";
+import { runMigrations } from "../../db/migrations";
 import { InMemoryProjectMetaDocStore } from "../../db/projectMetaDocStore";
 import type { SceneDocStore } from "../../db/sceneDocStore";
+import { SqliteSyncLwwStore } from "../../db/sqliteSyncLwwStore";
+import { SqliteSyncOutboxStore } from "../../db/sqliteSyncOutboxStore";
 import { SyncEngine, type SyncProvider } from "../../sync/engine";
 import { openMessage, sealMessage } from "../../sync/frameCodec";
 import { deriveKeys } from "../../sync/keys";
+import { LwwDomainRegistry } from "../../sync/lww/registry";
+import { registerLwwDomains } from "../../sync/lwwDomains";
 import type { InnerMessage } from "../../sync/messages";
 import { buildFromSql, getScenes } from "../../sync/meta/metaDoc";
 import type { ConnectionState } from "../../sync/provider";
 import { SYNC_ORIGIN } from "../../yjs/bindPersistence";
 import { encodeDoc, extractPlainText } from "../../yjs/serialize";
+import { makeSqlJsDb } from "../support/sqljsDb";
 
 interface Row { id: string; stateBase64: string; updatedAt: string | null }
 
@@ -148,6 +154,21 @@ describe("SyncEngine sweeps and live updates", () => {
     engine.stop();
   });
 
+  it("bootstraps meta and Bible docs before reading the master key", async () => {
+    const ready = new Set<string>();
+    const engine = new SyncEngine({
+      relayUrl: "wss://relay.test", sceneStore: new MemorySceneStore(),
+      boardStore: new MemoryBoardStore(), ensureProjectMetas: async () => { ready.add("meta"); },
+      ensureProjectBibles: async () => { ready.add("bible"); },
+      readMasterKey: async () => {
+        expect([...ready].sort()).toEqual(["bible", "meta"]); return null;
+      },
+      getDeviceId: async () => "device-a", providerFactory: () => new FakeProvider(),
+      updateWordCount: async () => undefined,
+    });
+    await engine.start(); expect(engine.status().state).toBe("off");
+  });
+
   it("converges bidirectional divergence after hello and diff exchange", async () => {
     const base = textDoc("base");
     const leftDoc = new Y.Doc(); Y.applyUpdate(leftDoc, Y.encodeStateAsUpdate(base));
@@ -271,6 +292,46 @@ describe("SyncEngine sweeps and live updates", () => {
     expect(sent[0]).toMatchObject({ t: "hello", docs: [{ c: "scene:saved" }] });
     expect(sent[1]).toMatchObject({ t: "diff", c: "scene:saved" });
     engine.stop();
+  });
+
+  it("does not flush queued AI rows after conversation sync is disabled", async () => {
+    const db = await makeSqlJsDb(); await runMigrations(db);
+    const registry = new LwwDomainRegistry();
+    const domains = registerLwwDomains(registry, db, { aiConversationsEnabled: true });
+    const adapter = registry.get("ai_conversations")!;
+    await adapter.projectReceived("conversation:c1", "p1", JSON.stringify({
+      id: "c1", project_id: "p1", title: "private prompt", last_verb: null,
+      boundary_chapter_id: null, context_config: null, created_at: 1, updated_at: 1,
+    }));
+    await adapter.projectReceived("message:m1", "p1", JSON.stringify({
+      id: "m1", conversation_id: "c1", role: "you", verb: "ask",
+      body: "private prompt body", context_json: null, credits_cost: null, created_at: 2,
+    }));
+    const provider = new FakeProvider();
+    const engine = new SyncEngine({
+      relayUrl: "wss://relay.test", sceneStore: new MemorySceneStore(),
+      boardStore: new MemoryBoardStore(), lwwRegistry: registry,
+      lwwStore: new SqliteSyncLwwStore(db), outboxStore: new SqliteSyncOutboxStore(db),
+      readMasterKey: () => Promise.resolve(MASTER_KEY),
+      getDeviceId: () => Promise.resolve("device-a"), providerFactory: () => provider,
+      updateWordCount: () => Promise.resolve(),
+    });
+    expect(await engine.publishRow({ domain: "ai_conversations", projectId: "p1",
+      rowId: "conversation:c1", deleted: false })).toBe(true);
+    expect(await engine.publishRow({ domain: "ai_conversations", projectId: "p1",
+      rowId: "message:m1", deleted: false })).toBe(true);
+    const pending = await new SqliteSyncOutboxStore(db).listPending();
+    expect(pending).toHaveLength(2);
+    expect(pending.every(({ payload }) => payload?.includes('"device":"device-a"'))).toBe(true);
+    domains.setAiConversationsEnabled(false);
+
+    await engine.start(); await waitForSent(provider); await flush();
+    const sent = await decodeSent(provider);
+    expect(sent.filter((message) => message.t === "row"
+      && message.domain === "ai_conversations")).toHaveLength(0);
+    expect(sent.filter((message) => message.t === "row-hello"
+      && message.domain === "ai_conversations")).toHaveLength(0);
+    engine.stop(); db.close();
   });
 });
 

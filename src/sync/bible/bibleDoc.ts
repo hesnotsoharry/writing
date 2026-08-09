@@ -46,11 +46,12 @@ function syncText(row: Y.Map<unknown>, key: string, value: string | null): void 
   const existing = row.get(key);
   const text = existing instanceof Y.Text ? existing : new Y.Text();
   const next = value ?? "";
-  if (text.toString() !== next) {
+  const current = existing instanceof Y.Text ? existing.toString() : "";
+  if (!(existing instanceof Y.Text)) row.set(key, text);
+  if (current !== next) {
     if (text.length > 0) text.delete(0, text.length);
     if (next.length > 0) text.insert(0, next);
   }
-  if (!(existing instanceof Y.Text)) row.set(key, text);
   row.set(`${key}Null`, value === null);
 }
 
@@ -215,6 +216,37 @@ export function buildBibleFromSql(rows: SqlBibleRows): Y.Doc {
   });
   // A future whole-domain restore needs a Bible-local epoch, never meta docEpochs.
   return doc;
+}
+
+interface RowDelta<T> {
+  kind: BibleTombstoneKind; before: T[]; after: T[]; set: (row: T) => void;
+}
+
+function applyRowDelta<T extends { id: string }>(doc: Y.Doc, delta: RowDelta<T>): void {
+  const { kind, before, after, set } = delta;
+  const previous = new Map(before.map((row) => [row.id, row]));
+  const nextIds = new Set(after.map(({ id }) => id));
+  after.filter((row) => JSON.stringify(previous.get(row.id)) !== JSON.stringify(row)).forEach(set);
+  before.filter(({ id }) => !nextIds.has(id))
+    .forEach(({ id }) => removeWithTombstone(doc, kind, id));
+}
+
+/** Apply only rows changed by one successful local SQL mutation. */
+export function applyBibleSqlDelta(doc: Y.Doc, before: SqlBibleRows, after: SqlBibleRows): void {
+  doc.transact(() => {
+    applyRowDelta(doc, { kind: "entityType", before: before.entityTypes, after: after.entityTypes,
+      set: (row) => setEntityType(doc, row) });
+    applyRowDelta(doc, { kind: "entity", before: before.entities, after: after.entities,
+      set: (row) => setEntity(doc, row) });
+    applyRowDelta(doc, { kind: "field", before: before.fields, after: after.fields,
+      set: (row) => setField(doc, row) });
+    applyRowDelta(doc, { kind: "sceneLink", before: before.sceneLinks, after: after.sceneLinks,
+      set: (row) => setSceneLink(doc, row) });
+    applyRowDelta(doc, { kind: "entityLink", before: before.entityLinks, after: after.entityLinks,
+      set: (row) => setEntityLink(doc, row) });
+    applyRowDelta(doc, { kind: "relation", before: before.relations, after: after.relations,
+      set: (row) => writeRelation(doc, row) });
+  });
 }
 
 export function sceneLinkId(sceneId: string, entityId: string): string {

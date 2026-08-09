@@ -1,3 +1,4 @@
+import { desktopLwwBridges } from "../sync/desktopLwwBridges";
 import type { Goal, GoalsStore } from "./goalsStore";
 import { getDb } from "./schema";
 
@@ -60,7 +61,9 @@ export class SqliteGoalsStore implements GoalsStore {
         "UPDATE goals SET target = $1, enabled = $2 WHERE id = $3",
         [input.target, input.enabled ? 1 : 0, row.id]
       );
-      return mapRow({ ...row, target: input.target, enabled: input.enabled ? 1 : 0 });
+      const saved = mapRow({ ...row, target: input.target, enabled: input.enabled ? 1 : 0 });
+      await desktopLwwBridges.goals.saved(input.projectId, saved.id);
+      return saved;
     }
 
     const id = crypto.randomUUID();
@@ -69,7 +72,7 @@ export class SqliteGoalsStore implements GoalsStore {
       "INSERT INTO goals (id, project_id, goal_type, target, enabled, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
       [id, input.projectId, input.goalType, input.target, input.enabled ? 1 : 0, created_at]
     );
-    return {
+    const saved = {
       id,
       project_id: input.projectId,
       goal_type: input.goalType,
@@ -77,10 +80,16 @@ export class SqliteGoalsStore implements GoalsStore {
       enabled: input.enabled,
       created_at,
     };
+    await desktopLwwBridges.goals.saved(input.projectId, id);
+    return saved;
   }
 
   async deleteGoal(id: string): Promise<void> {
     const db = await getDb();
+    const rows = await db.select<Array<{ project_id: string }>>(
+      "SELECT project_id FROM goals WHERE id = $1", [id],
+    );
     await db.execute("DELETE FROM goals WHERE id = $1", [id]);
+    if (rows?.[0]) await desktopLwwBridges.goals.deleted(rows[0].project_id, id);
   }
 }

@@ -1,3 +1,4 @@
+import { desktopLwwBridges } from "../sync/desktopLwwBridges";
 import type { BoardsStore } from "./boardsStore";
 import { getDb } from "./schema";
 
@@ -23,16 +24,28 @@ export class SqliteBoardsStore implements BoardsStore {
       "INSERT INTO boards (id, project_id, title, sort) VALUES ($1, $2, $3, $4)",
       [board.id, board.project_id, board.title, board.sort]
     );
+    await desktopLwwBridges.boards.saved(board.project_id, board.id);
   }
 
   async rename(id: string, title: string): Promise<void> {
     const db = await getDb();
+    const projectId = await this.projectId(id);
     await db.execute("UPDATE boards SET title = $1 WHERE id = $2", [title, id]);
+    if (projectId) await desktopLwwBridges.boards.saved(projectId, id);
   }
 
   async remove(id: string): Promise<void> {
     const db = await getDb();
+    const projectId = await this.projectId(id);
     await db.execute("DELETE FROM board_docs WHERE board_id = $1", [id]);
     await db.execute("DELETE FROM boards WHERE id = $1", [id]);
+    if (projectId) await desktopLwwBridges.boards.deleted(projectId, id);
+  }
+
+  private async projectId(id: string): Promise<string | null> {
+    const rows = await (await getDb()).select<Array<{ project_id: string }>>(
+      "SELECT project_id FROM boards WHERE id = $1", [id],
+    );
+    return rows?.[0]?.project_id ?? null;
   }
 }

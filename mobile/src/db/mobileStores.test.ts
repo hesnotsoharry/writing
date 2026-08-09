@@ -1,10 +1,16 @@
 /// <reference types="node" />
+import { DbProjectDomainDocStore } from "@writersnook/db/projectDomainDocStore";
+import { applyBibleDoc } from "@writersnook/sync/bible/bibleApplyExec";
+import { buildBibleFromSql } from "@writersnook/sync/bible/bibleDoc";
+import { DbBibleApplyTarget } from "@writersnook/sync/bible/dbBibleApplyTarget";
 import { makeSqlJsDb, type SqlJsTestDb } from "@writersnook/test/support/sqljsDb";
+import { encodeDoc } from "@writersnook/yjs/serialize";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runMigrations } from "../shared/migrations";
 import { MobileAiContextStore } from "./mobileAiContextStore";
 import { MobileAiConversationStore } from "./mobileAiConversationStore";
+import { subscribeMobileBibleSaves } from "./mobileBibleLocalBridge";
 import { MobileBinderStore } from "./mobileBinderStore";
 import { MobileBoardsStore } from "./mobileBoardsStore";
 import { MobileGoalsStore } from "./mobileGoalsStore";
@@ -177,6 +183,24 @@ describe("mobile search and rich goals", () => {
 });
 
 describe("local-write ping-pong guard", () => {
+  it("notifies a local Bible mutation but not raw remote projection", async () => {
+    const projectId = await project(new MobileBinderStore(db));
+    const docs = new DbProjectDomainDocStore(db);
+    await docs.save("bible", projectId, encodeDoc(buildBibleFromSql({
+      entities: [], entityTypes: [], fields: [], sceneLinks: [], entityLinks: [], relations: [],
+    })));
+    const listener = vi.fn(); const unsubscribe = subscribeMobileBibleSaves(listener);
+    await new MobileStoryBibleStore(db).createCharacter(projectId, "Local", null);
+    expect(listener).toHaveBeenCalledTimes(1);
+    await applyBibleDoc(projectId, buildBibleFromSql({
+      entities: [{ id: "remote", projectId, storage: "character", entityType: "character",
+        name: "Remote", notes: null, aliases: null, excludeFromAi: false }],
+      entityTypes: [], fields: [], sceneLinks: [], entityLinks: [], relations: [],
+    }), new DbBibleApplyTarget(db));
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+
   it("notifies local meta writes but not remote projection writes", async () => {
     const binder = new MobileBinderStore(db);
     const projectId = await project(binder);

@@ -1,6 +1,7 @@
 import type { DbClient } from "../db/dbClient";
 import { getOrCreateDeviceId } from "../db/deviceId";
 import { getDb } from "../db/schema";
+import { SqliteBibleApplyTarget } from "../db/sqliteBibleApplyTarget";
 import { SqliteBoardDocStore } from "../db/sqliteBoardDocStore";
 import { SqliteMetaApplyTarget } from "../db/sqliteMetaApplyTarget";
 import { SqlitePendingReplacementStore } from "../db/sqlitePendingReplacementStore";
@@ -11,6 +12,7 @@ import { SqliteSnapshotStore } from "../db/sqliteSnapshotStore";
 import { SqliteSyncLwwStore } from "../db/sqliteSyncLwwStore";
 import { SqliteSyncOutboxStore } from "../db/sqliteSyncOutboxStore";
 import { SqliteAppliedEpochStore } from "../db/syncEpochStore";
+import { ensureAllProjectBibles, subscribeBibleSaves } from "./bible/bibleLocalBridge";
 import type { EngineOptions } from "./engine";
 import { getSyncMasterKey } from "./keyStorage";
 import { subscribeLocalSceneWrites } from "./localSceneWrites";
@@ -28,19 +30,21 @@ export const DEFAULT_RELAY_URL = (import.meta.env.VITE_SYNC_RELAY_URL as string 
   ?? "wss://sync.writersnook.app";
 
 export function defaultEngineOptions(): EngineOptions {
-  const db = deferredDbClient();
+  const db = desktopDbClient();
   return {
     relayUrl: DEFAULT_RELAY_URL,
     sceneStore: new SqliteSceneDocStore(), boardStore: new SqliteBoardDocStore(),
     metaStore: new SqliteProjectMetaDocStore(), metaApplyTarget: new SqliteMetaApplyTarget(),
     snapshotStore: new SqliteSnapshotStore(), epochStore: new SqliteAppliedEpochStore(),
     domainDocStore: new SqliteProjectDomainDocStore(),
+    bibleApplyTarget: new SqliteBibleApplyTarget(),
     lwwStore: new SqliteSyncLwwStore(db), outboxStore: new SqliteSyncOutboxStore(db),
     pendingReplacementStore: new SqlitePendingReplacementStore(db),
     epochAcceptance: "automatic",
     loadLastPeerSeenAt: () => readLastPeerSeenAt(db),
     saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(db, value),
     ensureProjectMetas: ensureAllProjectMetas, subscribeMetaSaves: subscribeProjectMetaSaves,
+    ensureProjectBibles: ensureAllProjectBibles, subscribeBibleSaves,
     subscribeSceneWrites: subscribeLocalSceneWrites,
     readMasterKey: getSyncMasterKey, getDeviceId: getOrCreateDeviceId,
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),
@@ -48,7 +52,7 @@ export function defaultEngineOptions(): EngineOptions {
   };
 }
 
-function deferredDbClient(): DbClient {
+export function desktopDbClient(): DbClient {
   return {
     async select<T>(sql: string, params?: unknown[]): Promise<T> {
       return (await getDb()).select<T>(sql, params);

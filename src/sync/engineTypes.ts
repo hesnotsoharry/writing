@@ -6,6 +6,7 @@ import type { SceneDocStore } from "../db/sceneDocStore";
 import type { SnapshotStore } from "../db/snapshotStore";
 import type { AppliedEpochs, AppliedEpochStore } from "../db/syncEpochStore";
 import type { SyncLwwStore } from "../db/syncLwwStore";
+import type { BibleApplyTarget } from "./bible/bibleApplyExec";
 import type { LwwDomainRegistry } from "./lww/registry";
 import type { MetaApplyTarget } from "./meta/applyExec";
 import type { SyncOutboxStore } from "./outbox";
@@ -25,6 +26,7 @@ export interface EngineOptions {
   boardStore: BoardDocStore;
   metaStore?: ProjectMetaDocStore;
   domainDocStore?: ProjectDomainDocStore;
+  bibleApplyTarget?: BibleApplyTarget;
   metaApplyTarget?: MetaApplyTarget;
   snapshotStore?: SnapshotStore;
   epochStore?: AppliedEpochStore;
@@ -36,7 +38,11 @@ export interface EngineOptions {
   loadLastPeerSeenAt?: () => Promise<string | null>;
   saveLastPeerSeenAt?: (value: string) => Promise<void>;
   ensureProjectMetas?: () => Promise<void>;
+  ensureProjectBibles?: () => Promise<void>;
   subscribeMetaSaves?: (cb: (projectId: string, epochs: AppliedEpochs) => void) => () => void;
+  subscribeBibleSaves?: (
+    callback: (projectId: string, stateBase64: string) => void,
+  ) => () => void;
   subscribeSceneWrites?: (cb: (sceneId: string) => void) => () => void;
   readMasterKey: () => Promise<Uint8Array | null>;
   getDeviceId: () => Promise<string>;

@@ -79,6 +79,8 @@ export interface Tweaks {
   syncExperimental: "on" | "off";
   /** Relay URL override for local/dev testing; empty = the production default. */
   syncRelayUrl: string;
+  /** Explicit consent for syncing prompts and model replies between paired devices. */
+  syncAiConversations: boolean;
 }
 
 export const TWEAK_DEFAULTS: Tweaks = {
@@ -110,6 +112,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   customEndpoints: { endpoints: [], defaultId: null },
   syncExperimental: "off",
   syncRelayUrl: "",
+  syncAiConversations: false,
 };
 
 // ── Storage helpers ───────────────────────────────────────────────────────────

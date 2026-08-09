@@ -13,7 +13,10 @@ export async function prepareSession(
   options: EngineOptions, epochs: EpochManager, outbox: DurableOutbox | null,
   relayUrlOverride?: string,
 ): Promise<PreparedSession | null> {
-  await options.ensureProjectMetas?.();
+  await Promise.all([
+    options.ensureProjectMetas?.(),
+    options.ensureProjectBibles?.(),
+  ]);
   const masterKey = await options.readMasterKey();
   if (!masterKey) return null;
   const [{ roomId, encKey }, deviceId] = await Promise.all([

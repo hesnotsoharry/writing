@@ -14,6 +14,7 @@
 import * as Y from "yjs";
 
 import { syncEngine } from "../sync/desktopEngine";
+import { publishSnapshotSaved } from "../sync/desktopLwwBridges";
 import { notifyLocalSceneWrite } from "../sync/localSceneWrites";
 import { bumpProjectSceneEpoch } from "../sync/meta/bridge";
 import { applyEncoded, encodeDoc, extractPlainText, xmlTextToPlain } from "../yjs/serialize";
@@ -232,9 +233,14 @@ export async function replaceInScene(
   const currentWords = plaintext.trim() ? plaintext.trim().split(/\s+/).filter(Boolean).length : 0;
   const count = replaceInDoc(currentDoc, find, replace, opts);
   if (count === 0) return { replacedCount: 0 };
-  await snapshotStore.takeSnapshot({
+  const snapshot = await snapshotStore.takeSnapshot({
     sceneId, label: null, stateBase64: existingBase64 ?? "", wordCount: currentWords, kind: "auto",
   });
+  // The pre-replace snapshot is the user's undo point, so it publishes like any
+  // user-authored snapshot. `snapshot?.id` rather than `snapshot.id`: callers
+  // inject their own SnapshotStore here, and a notification must never be the
+  // reason a Replace All fails.
+  if (snapshot?.id != null) await publishSnapshotSaved(sceneId, snapshot.id);
   const projectRows = await db.select<Array<{ project_id: string }>>(
     "SELECT project_id FROM scenes WHERE id = $1", [sceneId]
   );
