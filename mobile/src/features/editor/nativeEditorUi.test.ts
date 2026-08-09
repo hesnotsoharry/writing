@@ -13,6 +13,19 @@ const selection: EditorSelectionMessage = {
 };
 
 describe("NativeEditorUiController", () => {
+  it("queues the latest focus state behind theme using one-in-flight ACKs", () => {
+    const messages: string[] = [];
+    const controller = new NativeEditorUiController("scene", { postMessage: (raw) => messages.push(raw) }, vi.fn());
+    controller.focus({ enabled: true, dimParagraphs: true, typewriter: false, activeParagraph: 8 });
+    controller.start("session", { theme: "dark" });
+    expect(messages).toHaveLength(1);
+    controller.receive(serializeEditorUiMessage({ v: EDITOR_UI_VERSION, type: "editor-ui-ack",
+      sessionId: "session", sceneId: "scene", seq: 1, ackType: "theme" }));
+    expect(parseNativeEditorUiMessage(messages[1])).toMatchObject({
+      type: "editor-focus", seq: 2, enabled: true, activeParagraph: 8,
+    });
+  });
+
   it("keeps commands behind one in-flight ACK", () => {
     const messages: string[] = [];
     const controller = new NativeEditorUiController("scene", { postMessage: (raw) => messages.push(raw) }, vi.fn());

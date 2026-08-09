@@ -39,3 +39,8 @@ export async function isDeviceJoined(): Promise<boolean> {
   const db = await getMobileDb();
   return (await readSyncRole(db)) === "joined";
 }
+
+export async function clearDeviceJoined(): Promise<void> {
+  const db = await getMobileDb();
+  await db.execute("DELETE FROM app_meta WHERE key = ?", [SYNC_ROLE_KEY]);
+}

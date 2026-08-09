@@ -51,7 +51,8 @@ export class WebEditorUiChannel {
     this.postRaw(serializeEditorUiMessage({
       v: EDITOR_UI_VERSION, type: "editor-ui-ack", sessionId: this.sessionId,
       sceneId: message.sceneId, seq: message.seq,
-      ackType: message.type === "editor-theme" ? "theme" : "command",
+      ackType: message.type === "editor-theme" ? "theme"
+        : message.type === "editor-focus" ? "focus" : "command",
     }));
   }
 

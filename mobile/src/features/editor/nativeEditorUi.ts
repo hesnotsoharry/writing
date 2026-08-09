@@ -2,6 +2,7 @@ import {
   classifyUiSequence,
   EDITOR_UI_VERSION,
   type EditorCommandName,
+  type EditorFocusMessage,
   type EditorSelectionMessage,
   type EditorUiAck,
   type EntityLinkPayload,
@@ -19,6 +20,7 @@ export class NativeEditorUiController {
   private nextWebSeq = 1;
   private inFlight: QueuedMessage | null = null;
   private queue: QueuedMessage[] = [];
+  private pendingFocus: Omit<EditorFocusMessage, "v" | "type" | "sessionId" | "sceneId" | "seq"> | null = null;
 
   constructor(
     private readonly sceneId: string,
@@ -33,10 +35,16 @@ export class NativeEditorUiController {
     this.inFlight = null;
     this.queue = [];
     this.enqueue({ type: "editor-theme", colors });
+    if (this.pendingFocus) this.enqueue({ type: "editor-focus", ...this.pendingFocus });
   }
 
   command(command: EditorCommandName, entity?: EntityLinkPayload): void {
     this.enqueue({ type: "editor-command", command, ...(entity ? { entity } : {}) });
+  }
+
+  focus(input: Omit<EditorFocusMessage, "v" | "type" | "sessionId" | "sceneId" | "seq">): void {
+    this.pendingFocus = input;
+    if (this.sessionId) this.enqueue({ type: "editor-focus", ...input });
   }
 
   receive(raw: string): boolean {
@@ -48,6 +56,7 @@ export class NativeEditorUiController {
   }
 
   private enqueue(input: { type: "editor-theme"; colors: Record<string, string> }
+    | { type: "editor-focus"; enabled: boolean; dimParagraphs: boolean; typewriter: boolean; activeParagraph: number | null }
     | { type: "editor-command"; command: EditorCommandName; entity?: EntityLinkPayload }): void {
     if (!this.sessionId) return;
     const message = {
@@ -68,7 +77,8 @@ export class NativeEditorUiController {
   private receiveAck(ack: EditorUiAck): void {
     if (!this.inFlight || ack.sessionId !== this.sessionId || ack.sceneId !== this.sceneId) return;
     if (ack.seq !== this.inFlight.message.seq) return;
-    const type = this.inFlight.message.type === "editor-theme" ? "theme" : "command";
+    const type = this.inFlight.message.type === "editor-theme" ? "theme"
+      : this.inFlight.message.type === "editor-focus" ? "focus" : "command";
     if (ack.ackType !== type) return;
     this.inFlight = null;
     this.drain();

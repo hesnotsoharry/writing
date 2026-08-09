@@ -120,6 +120,11 @@ mark {
 
 .ai-exclude {
   color: var(--ink-3);
-  background: var(--parchment);
-  border-radius: 0.15em;
+  background: var(--parchment-deep);
+  border-radius: 2px;
+  padding: 0 1px;
+  box-shadow: inset 2px 0 0 var(--ink-4);
 }
+
+.focus-mode .prose p { opacity: 0.35; transition: opacity 120ms ease; }
+.focus-mode .prose p.focus-active-paragraph { opacity: 1; }

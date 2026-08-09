@@ -8,6 +8,7 @@ import type { RootStackParamList } from "../../navigation/routes";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import { TrialStatusPill, useTrialDaysLeft } from "../license";
 import { HubFooter, HubHeader } from "./HubChrome";
 import type { HubGoalModel, HubModel, HubSceneModel } from "./hubModel";
 import { useHubModel } from "./useHubModel";
@@ -96,10 +97,11 @@ function openEditor(navigation: Props["navigation"], projectId: string, scene: H
 }
 
 function HubContent({ model, navigation, projectId, projectTitle }: { model: HubModel; navigation: Props["navigation"]; projectId: string; projectTitle: string }) {
+  const daysLeft = useTrialDaysLeft();
   return (
     <>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <HubHeader onSettings={() => navigation.navigate("Settings", { projectId })} onSwitchProject={() => navigation.navigate("ProjectList")} projectTitle={projectTitle} subtitle={`${model.totalWords.toLocaleString()} words · synced`} trialStatusSlot={undefined} />
+        <HubHeader onSettings={() => navigation.navigate("Settings", { projectId })} onSwitchProject={() => navigation.navigate("ProjectList")} projectTitle={projectTitle} subtitle={`${model.totalWords.toLocaleString()} words · synced`} trialStatusSlot={daysLeft === null ? undefined : <TrialStatusPill daysLeft={daysLeft} onPress={() => navigation.navigate("Trial", { projectId, projectTitle })} />} />
         {model.primaryScene && <ResumeCard onOpen={(scene) => openEditor(navigation, projectId, scene)} primary={model.primaryScene} recent={model.recentScenes} />}
         <GoalCards goal={model.goal} />
         <View style={styles.desk}><SectionLabel>The desk</SectionLabel><DeskGrid model={model} navigation={navigation} projectId={projectId} projectTitle={projectTitle} /></View>

@@ -132,8 +132,21 @@ export function createMobileLiveScenePort(
 
 /** Start against a persisted pairing override, or the production relay. */
 export async function startMobileEngine(): Promise<void> {
+  await restoreAiConversationSyncSetting();
   const override = await getMobileRelayUrlOverride();
   await mobileEngine.start(resolveMobileRelayUrl(override, DEFAULT_RELAY_URL));
+}
+
+async function restoreAiConversationSyncSetting(): Promise<void> {
+  const rows = await mobileDb.select<Array<{ value: string }>>(
+    "SELECT value FROM app_meta WHERE key = ?", ["mobile_device_settings"],
+  );
+  try {
+    const value = rows[0] ? JSON.parse(rows[0].value) as unknown : null;
+    const enabled = typeof value === "object" && value !== null
+      && (value as Record<string, unknown>)["syncAiConversations"] === true;
+    setMobileAiConversationsSyncEnabled(enabled);
+  } catch { setMobileAiConversationsSyncEnabled(false); }
 }
 
 // ── Structure-changed fan-out ────────────────────────────────────────────

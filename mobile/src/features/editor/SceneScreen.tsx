@@ -10,14 +10,15 @@ import type { Entity } from "../../shared/storyBibleStore";
 import { useTheme } from "../../theme/ThemeProvider";
 import { TYPE } from "../../theme/typography";
 import { BinderDrawer, useBinderDrawerState } from "../binder/BinderDrawer";
+import { FocusHud, useFocusSettings } from "../focus";
 import { InspectorSheet } from "./InspectorSheet";
 import { SceneEditorHost } from "./SceneEditorHost";
 import { SceneReader } from "./SceneReader";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Scene">;
 
-function EditorHeader({ onBinder, onInspector, title }: {
-  title: string; onBinder(): void; onInspector(): void;
+function EditorHeader({ onBinder, onFocus, onInspector, title }: {
+  title: string; onBinder(): void; onFocus(): void; onInspector(): void;
 }) {
   const theme = useTheme();
   return <View style={styles.header}>
@@ -25,7 +26,7 @@ function EditorHeader({ onBinder, onInspector, title }: {
       <Icon name="list" size={20} color={theme.colors.ink3} />
     </Pressable>
     <Text numberOfLines={1} style={[styles.breadcrumb, { color: theme.colors.ink2 }]}>{title}</Text>
-    <Pressable accessibilityLabel="Focus mode unavailable" style={styles.headerButton}>
+    <Pressable accessibilityLabel="Enter focus mode" onPress={onFocus} style={styles.headerButton}>
       <Icon name="focus" size={19} color={theme.colors.ink3} />
     </Pressable>
     <Pressable accessibilityLabel="Scene inspector" onPress={onInspector} style={styles.headerButton}>
@@ -40,6 +41,9 @@ export function SceneScreen({ navigation, route }: Props) {
   const { projectId, sceneId, sceneTitle } = route.params;
   const [drawer, drawerDispatch] = useBinderDrawerState();
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [wordCount, setWordCount] = useState(0);
+  const focus = useFocusSettings();
   const openScene = (scene: Scene): void => {
     if (!projectId) return;
     navigation.reset({ index: 0, routes: [{
@@ -52,11 +56,12 @@ export function SceneScreen({ navigation, route }: Props) {
     });
   };
   return <View style={[styles.screen, { backgroundColor: theme.colors.paper, paddingTop: insets.top }]}>
-    <EditorHeader title={sceneTitle} onBinder={() => { drawerDispatch({ type: "open" }); }}
-      onInspector={() => { setInspectorOpen(true); }} />
+    {!focusMode && <EditorHeader title={sceneTitle} onBinder={() => { drawerDispatch({ type: "open" }); }}
+      onFocus={() => { setFocusMode(true); }} onInspector={() => { setInspectorOpen(true); }} />}
     <View style={styles.editor}>
       <SceneReader sceneId={sceneId} />
-      <SceneEditorHost key={sceneId} sceneId={sceneId} projectId={projectId} />
+      <SceneEditorHost key={sceneId} sceneId={sceneId} projectId={projectId}
+        focus={{ enabled: focusMode, settings: focus.settings }} onWordCountChange={setWordCount} />
     </View>
     {projectId && <BinderDrawer projectId={projectId} activeSceneId={sceneId}
       state={drawer} dispatch={drawerDispatch} onOpenScene={openScene}
@@ -64,6 +69,8 @@ export function SceneScreen({ navigation, route }: Props) {
     {projectId && <InspectorSheet open={inspectorOpen} projectId={projectId} sceneId={sceneId}
       onDismiss={() => { setInspectorOpen(false); }} onOpenEntity={openEntity}
       onOpenSnapshots={() => { navigation.navigate("SceneVersionHistory", { projectId, sceneId }); }} />}
+    {focusMode && <FocusHud sceneTitle={sceneTitle} settings={focus.settings} wordCount={wordCount}
+      onExit={() => { setFocusMode(false); }} onUpdate={focus.update} />}
   </View>;
 }
 

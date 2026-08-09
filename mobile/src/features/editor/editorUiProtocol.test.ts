@@ -15,10 +15,14 @@ const selection: EditorSelectionMessage = {
   seq: 1, bold: true, italic: false, blockquote: true, aiExcluded: false,
   collapsed: false, from: 1, to: 4, aiSafeText: "safe", rect: { x: 1, y: 2, width: 3, height: 4 },
 };
+const focus = { v: EDITOR_UI_VERSION, type: "editor-focus" as const, sessionId: "session",
+  sceneId: "scene", seq: 2, enabled: true, dimParagraphs: true,
+  typewriter: true, activeParagraph: 14 };
 
 describe("editor UI protocol hostile-input oracle", () => {
   it("accepts valid direction-specific messages and rejects the opposite direction", () => {
     expect(parseNativeEditorUiMessage(serializeEditorUiMessage(command))).toEqual(command);
+    expect(parseNativeEditorUiMessage(serializeEditorUiMessage(focus))).toEqual(focus);
     expect(parseWebEditorUiMessage(serializeEditorUiMessage(selection))).toEqual(selection);
     expect(parseWebEditorUiMessage(serializeEditorUiMessage(command))).toBeNull();
     expect(parseNativeEditorUiMessage(serializeEditorUiMessage(selection))).toBeNull();
@@ -29,6 +33,9 @@ describe("editor UI protocol hostile-input oracle", () => {
     JSON.stringify({ ...command, sessionId: "" }), JSON.stringify({ ...command, extra: true }),
     JSON.stringify({ ...command, command: "unknown" }),
     JSON.stringify({ ...command, command: "link-entity" }),
+    JSON.stringify({ ...focus, activeParagraph: -1 }),
+    JSON.stringify({ ...focus, enabled: "yes" }),
+    JSON.stringify({ ...focus, unknown: true }),
     JSON.stringify({ ...selection, aiSafeText: "x".repeat(16_001) }),
     JSON.stringify({ ...selection, rect: { x: 0, y: 0, width: "bad", height: 1 } }),
   ])("rejects malformed input %#", (raw) => {

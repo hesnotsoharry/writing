@@ -10,6 +10,7 @@ import {
   MOBILE_LIVE_SCENE_ACK_TIMEOUT_MS, type MobileLiveScenePort,
 } from "../../sync/mobileLiveScenePort";
 import { useTheme } from "../../theme/ThemeProvider";
+import type { FocusSettings } from "../focus/focusSettings";
 import type {
   EditorCommandName, EditorSelectionMessage, EditorSelectionState,
 } from "./editorUiProtocol";
@@ -27,6 +28,8 @@ export interface SceneEditorHostProps {
   onSelectionChange?: (selection: SceneEditorSelection) => void;
   onRequestEntityLink?: (selection: SceneEditorSelection | null) => void;
   onRequestSelectionActions?: (selection: SceneEditorSelection | null) => void;
+  focus?: { enabled: boolean; settings: FocusSettings };
+  onWordCountChange?: (wordCount: number) => void;
 }
 
 type Dispatch = (action: SceneEditorAction) => void;
@@ -205,8 +208,22 @@ function useExitState(port: MobileLiveScenePort, state: ReturnType<typeof create
   return { guard, stay };
 }
 
+function useFocusUi({ activeParagraph, focus, onWordCountChange, ui, wordCount }: {
+  ui: NativeEditorUiController; focus: SceneEditorHostProps["focus"];
+  activeParagraph: number | undefined; wordCount: number;
+  onWordCountChange: SceneEditorHostProps["onWordCountChange"];
+}): void {
+  useEffect(() => { onWordCountChange?.(wordCount); }, [onWordCountChange, wordCount]);
+  useEffect(() => { ui.focus({ enabled: focus?.enabled ?? false,
+    dimParagraphs: focus?.settings.dimParagraphs ?? false,
+    typewriter: focus?.settings.typewriter ?? false,
+    activeParagraph: activeParagraph ?? null,
+  }); }, [activeParagraph, focus, ui]);
+}
+
 export function SceneEditorHost({
-  onRequestEntityLink, onRequestSelectionActions, onSelectionChange, projectId, sceneId,
+  focus, onRequestEntityLink, onRequestSelectionActions, onSelectionChange,
+  onWordCountChange, projectId, sceneId,
 }: SceneEditorHostProps) {
   const theme = useTheme();
   const [state, dispatch] = useReducer(reduceSceneEditor, undefined, createSceneEditorState);
@@ -224,6 +241,7 @@ export function SceneEditorHost({
   }), [theme]);
   const localUri = useEditorAsset(dispatch);
   const [wordCount, refresh] = useWordCount(projectId, sceneId);
+  useFocusUi({ ui, focus, activeParagraph: selection?.from, wordCount, onWordCountChange });
   usePortLifecycle(port, localUri, dispatch);
   useHandshakeTimeout(state.phase, dispatch);
   useEffect(() => { if (state.phase === "fallback") void port.close(); }, [port, state.phase]);

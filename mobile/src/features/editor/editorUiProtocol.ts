@@ -34,6 +34,18 @@ export interface EditorThemeMessage {
   colors: Record<string, string>;
 }
 
+export interface EditorFocusMessage {
+  v: typeof EDITOR_UI_VERSION;
+  type: "editor-focus";
+  sessionId: string;
+  sceneId: string;
+  seq: number;
+  enabled: boolean;
+  dimParagraphs: boolean;
+  typewriter: boolean;
+  activeParagraph: number | null;
+}
+
 export interface SelectionRect {
   x: number;
   y: number;
@@ -67,17 +79,17 @@ export interface EditorUiAck {
   sessionId: string;
   sceneId: string;
   seq: number;
-  ackType: "command" | "selection" | "theme";
+  ackType: "command" | "selection" | "theme" | "focus";
 }
 
-export type NativeEditorUiMessage = EditorUiCommand | EditorThemeMessage | EditorUiAck;
+export type NativeEditorUiMessage = EditorUiCommand | EditorThemeMessage | EditorFocusMessage | EditorUiAck;
 export type WebEditorUiMessage = EditorSelectionMessage | EditorUiAck;
 
 const COMMANDS: readonly EditorCommandName[] = [
   "toggle-bold", "toggle-italic", "toggle-blockquote", "wrap-quote",
   "link-entity", "toggle-ai-exclude",
 ];
-const ACK_TYPES = ["command", "selection", "theme"] as const;
+const ACK_TYPES = ["command", "selection", "theme", "focus"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -127,6 +139,14 @@ function isTheme(value: unknown): value is EditorThemeMessage {
     && envelope(value, "editor-theme") && validColors(value.colors);
 }
 
+function isFocus(value: unknown): value is EditorFocusMessage {
+  if (!isRecord(value) || !exactKeys(value, ["v", "type", "sessionId", "sceneId", "seq",
+    "enabled", "dimParagraphs", "typewriter", "activeParagraph"])) return false;
+  return envelope(value, "editor-focus")
+    && [value.enabled, value.dimParagraphs, value.typewriter].every((flag) => typeof flag === "boolean")
+    && (value.activeParagraph === null || validSelectionRange(value.activeParagraph, value.activeParagraph));
+}
+
 function isRect(value: unknown): value is SelectionRect {
   if (!isRecord(value) || !exactKeys(value, ["x", "y", "width", "height"])) return false;
   return [value.x, value.y, value.width, value.height]
@@ -166,6 +186,7 @@ export function parseNativeEditorUiMessage(raw: string): NativeEditorUiMessage |
   const value = parse(raw);
   if (isCommand(value)) return value;
   if (isTheme(value)) return value;
+  if (isFocus(value)) return value;
   if (isAck(value)) return value;
   return null;
 }

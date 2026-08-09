@@ -5,11 +5,15 @@ import {
   ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
 } from "react-native";
 
+import { Icon, PrimaryButton, Screen } from "../../components";
 import { setSyncMasterKey } from "../../sync/mobileKeyStorage";
 import { parseMobilePairingInput } from "../../sync/mobilePairing";
 import { setMobileRelayUrlOverride } from "../../sync/mobileRelayUrl";
 import { markDeviceJoined } from "../../sync/mobileSyncRole";
-import { PALETTE } from "../../theme/palette";
+import { setPairedDeviceName } from "../../sync/pairedDevice";
+import { useTheme } from "../../theme/ThemeProvider";
+import { LIGHT, RADIUS, SPACE } from "../../theme/tokens";
+import { TYPE } from "../../theme/typography";
 
 const SCAN_ERROR = "That code doesn't look like a WritersNook pairing code. Try scanning again.";
 const MANUAL_ERROR = "That pairing string doesn't look right. Check it and try again.";
@@ -54,28 +58,23 @@ function ManualEntry({
   onUseCamera: () => void;
   disabled: boolean;
 }) {
+  const theme = useTheme();
   return (
     <View style={styles.manualWrap}>
-      <Text style={styles.explainer}>Paste the pairing string shown on your desktop.</Text>
+      <Text style={[TYPE.body, { color: theme.colors.ink2 }]}>Paste the pairing string shown on your desktop.</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, TYPE.mono, { color: theme.colors.ink, backgroundColor: theme.colors.paper, borderColor: theme.colors.parchmentEdge }]}
         value={value}
         onChangeText={onChange}
         placeholder="Pairing string"
-        placeholderTextColor={PALETTE.inkFaint}
+        placeholderTextColor={theme.colors.ink4}
         autoCapitalize="none"
         autoCorrect={false}
         accessibilityLabel="Pairing string"
       />
-      <Pressable
-        style={[styles.primaryButton, disabled && styles.buttonDisabled]}
-        disabled={disabled}
-        onPress={onSubmit}
-      >
-        <Text style={styles.primaryButtonText}>Connect this device</Text>
-      </Pressable>
+      <PrimaryButton disabled={disabled} onPress={onSubmit}>Connect this device</PrimaryButton>
       <Pressable onPress={onUseCamera}>
-        <Text style={styles.linkText}>Scan a QR code instead</Text>
+        <Text style={[styles.linkText, { color: theme.colors.accent }]}>Scan a QR code instead</Text>
       </Pressable>
     </View>
   );
@@ -84,10 +83,12 @@ function ManualEntry({
 async function persistPairing(
   masterKey: Uint8Array,
   relayUrl: string | null,
+  deviceName: string | null,
   onSuccess: () => void,
 ): Promise<void> {
   await setSyncMasterKey(masterKey);
   if (relayUrl) await setMobileRelayUrlOverride(relayUrl);
+  if (deviceName) await setPairedDeviceName(deviceName);
   await markDeviceJoined();
   onSuccess();
 }
@@ -99,23 +100,23 @@ function usePairing(onPairedSuccessfully?: () => void): PairingState {
   const [errorMessage, setErrorMessage] = useState(SCAN_ERROR);
   const [manualValue, setManualValue] = useState("");
   const scannedRef = useRef(false);
-  const finishPairing = useCallback((key: Uint8Array, url: string | null) => {
-    void persistPairing(key, url, () => { setPhase("success"); onPairedSuccessfully?.(); });
+  const finishPairing = useCallback((key: Uint8Array, url: string | null, deviceName: string | null) => {
+    void persistPairing(key, url, deviceName, () => { setPhase("success"); onPairedSuccessfully?.(); });
   }, [onPairedSuccessfully]);
   const handleBarcodeScanned = useCallback((result: { data: string }) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
     try {
-      const { masterKey, relayUrl } = parseMobilePairingInput(result.data);
-      finishPairing(masterKey, relayUrl);
+      const { deviceName, masterKey, relayUrl } = parseMobilePairingInput(result.data);
+      finishPairing(masterKey, relayUrl, deviceName ?? null);
     } catch {
       setErrorMessage(SCAN_ERROR); setPhase("error"); scannedRef.current = false;
     }
   }, [finishPairing]);
   const submitManual = useCallback(() => {
     try {
-      const { masterKey, relayUrl } = parseMobilePairingInput(manualValue);
-      finishPairing(masterKey, relayUrl);
+      const { deviceName, masterKey, relayUrl } = parseMobilePairingInput(manualValue);
+      finishPairing(masterKey, relayUrl, deviceName ?? null);
     } catch { setErrorMessage(MANUAL_ERROR); setPhase("error"); }
   }, [finishPairing, manualValue]);
   const retryScanning = useCallback(() => { setPhase("idle"); setMode("camera"); }, []);
@@ -124,24 +125,24 @@ function usePairing(onPairedSuccessfully?: () => void): PairingState {
 }
 
 function PermissionPrompt({ onAllow, onManual }: { onAllow: () => void; onManual: () => void }) {
+  const theme = useTheme();
   return (
     <CenteredMessage>
-      <Text style={styles.explainer}>
+      <Text style={[styles.explainer, { color: theme.colors.ink2 }]}>
         WritersNook needs camera access to scan your desktop&apos;s pairing code.
       </Text>
-      <Pressable style={styles.primaryButton} onPress={onAllow}>
-        <Text style={styles.primaryButtonText}>Allow camera access</Text>
-      </Pressable>
+      <PrimaryButton onPress={onAllow}>Allow camera access</PrimaryButton>
       <Pressable onPress={onManual}>
-        <Text style={styles.linkText}>Enter pairing code manually instead</Text>
+        <Text style={[styles.linkText, { color: theme.colors.accent }]}>Enter pairing code manually instead</Text>
       </Pressable>
     </CenteredMessage>
   );
 }
 
 function CameraMode({ pairing }: { pairing: PairingState }) {
+  const theme = useTheme();
   if (!pairing.permission) {
-    return <CenteredMessage><ActivityIndicator color={PALETTE.accent} /></CenteredMessage>;
+    return <CenteredMessage><ActivityIndicator color={theme.colors.accent} /></CenteredMessage>;
   }
   if (!pairing.permission.granted) {
     return <PermissionPrompt
@@ -152,26 +153,41 @@ function CameraMode({ pairing }: { pairing: PairingState }) {
   if (pairing.phase === "error") {
     return (
       <CenteredMessage>
-        <Text style={styles.errorText} role="alert">{pairing.errorMessage}</Text>
-        <Pressable style={styles.primaryButton} onPress={pairing.retryScanning}>
-          <Text style={styles.primaryButtonText}>Scan again</Text>
-        </Pressable>
+        <Text style={[styles.errorText, { color: theme.colors.danger }]} role="alert">{pairing.errorMessage}</Text>
+        <PrimaryButton onPress={pairing.retryScanning}>Scan again</PrimaryButton>
         <Pressable onPress={() => pairing.setMode("manual")}>
-          <Text style={styles.linkText}>Enter pairing code manually instead</Text>
+          <Text style={[styles.linkText, { color: theme.colors.accent }]}>Enter pairing code manually instead</Text>
         </Pressable>
       </CenteredMessage>
     );
   }
   return (
-    <>
-      <CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+    <View style={styles.cameraStack}>
+      <View style={styles.cameraFrame}><CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         onBarcodeScanned={pairing.handleBarcodeScanned} />
-      <Text style={styles.explainer}>Point your camera at the QR code on your desktop.</Text>
+        <View pointerEvents="none" style={styles.brackets}>{[styles.tl, styles.tr, styles.bl, styles.br].map((corner, index) =>
+          <View key={index} style={[styles.corner, corner, { borderColor: LIGHT.colors.paper }]} />)}</View>
+        <Text style={[styles.scanning, { color: LIGHT.colors.paper }]}>Looking for a pairing code…</Text>
+      </View>
       <Pressable onPress={() => pairing.setMode("manual")}>
-        <Text style={styles.linkText}>Enter pairing code manually instead</Text>
+        <Text style={[styles.linkText, { color: theme.colors.accent }]}>Enter the code by hand instead</Text>
       </Pressable>
-    </>
+    </View>
   );
+}
+
+function PairingHeader() {
+  const theme = useTheme();
+  return <><View style={styles.steps}><View style={[styles.step, { backgroundColor: theme.colors.accent }]} /><View style={[styles.step, { backgroundColor: theme.colors.accent }]} /><View style={[styles.step, { backgroundColor: theme.colors.parchmentEdge }]} />
+    <Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>Step 2 of 3</Text></View>
+    <Text style={[TYPE.screenTitle, styles.title, { color: theme.colors.ink }]}>Point this at your desktop</Text>
+    <Text style={[TYPE.body, styles.intro, { color: theme.colors.ink2 }]}>On your computer, open <Text style={TYPE.bodyStrong}>Settings → Sync</Text> and choose “Pair a phone”. A code will appear.</Text></>;
+}
+
+function ShieldNote() {
+  const theme = useTheme();
+  return <View style={[styles.shield, { backgroundColor: theme.colors.parchmentDeep }]}><Icon color={theme.colors.ink3} name="shield" size={15} />
+    <Text style={[TYPE.metaSmall, styles.shieldCopy, { color: theme.colors.ink2 }]}>The code carries an encryption key. Your writing syncs end-to-end encrypted and never sits readable on a server.</Text></View>;
 }
 
 /**
@@ -180,21 +196,22 @@ function CameraMode({ pairing }: { pairing: PairingState }) {
  * Never logs the scanned payload or pairing string — both carry the raw key.
  */
 export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
+  const theme = useTheme();
   const pairing = usePairing(onPairedSuccessfully);
   if (pairing.phase === "success") {
     return (
       <CenteredMessage>
-        <Text style={styles.successTitle}>Paired</Text>
-        <Text style={styles.explainer}>Your writing will appear here after the first sync.</Text>
+        <Text style={[TYPE.cardTitle, { color: theme.colors.ink }]}>Paired</Text>
+        <Text style={[styles.explainer, { color: theme.colors.ink2 }]}>Your writing will appear here after the first sync.</Text>
       </CenteredMessage>
     );
   }
 
   if (pairing.mode === "manual") {
     return (
-      <View style={styles.screen}>
+      <Screen contentStyle={styles.screen}><PairingHeader />
         {pairing.phase === "error" && (
-          <Text style={styles.errorText} role="alert">{pairing.errorMessage}</Text>
+          <Text style={[styles.errorText, { color: theme.colors.danger }]} role="alert">{pairing.errorMessage}</Text>
         )}
         <ManualEntry
           value={pairing.manualValue}
@@ -203,33 +220,35 @@ export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
           onUseCamera={pairing.retryScanning}
           disabled={!pairing.manualValue.trim()}
         />
-      </View>
+        <ShieldNote /></Screen>
     );
   }
-  return <View style={styles.screen}><CameraMode pairing={pairing} /></View>;
+  return <Screen contentStyle={styles.screen}><PairingHeader /><CameraMode pairing={pairing} /><ShieldNote /></Screen>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 20, gap: 14, backgroundColor: PALETTE.bg },
+  screen: { flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   center: {
     flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14,
-    backgroundColor: PALETTE.bg,
   },
-  camera: { flex: 1, borderRadius: 16, overflow: "hidden" },
-  explainer: { color: PALETTE.inkMuted, fontSize: 14, textAlign: "center", lineHeight: 20 },
-  successTitle: { color: PALETTE.ink, fontSize: 22, fontWeight: "700" },
-  errorText: { color: "#B0402E", fontSize: 14, textAlign: "center" },
-  primaryButton: {
-    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10,
-    backgroundColor: PALETTE.accent, alignItems: "center",
-  },
-  buttonDisabled: { opacity: 0.5 },
-  primaryButtonText: { color: PALETTE.card, fontSize: 14, fontWeight: "600" },
-  linkText: { color: PALETTE.accent, fontSize: 13, textAlign: "center", fontWeight: "600" },
-  manualWrap: { gap: 12 },
+  steps: { flexDirection: "row", alignItems: "center", gap: 9 }, step: { width: 22, height: 2 },
+  title: { marginTop: 16 }, intro: { marginTop: 10, lineHeight: 24 },
+  cameraStack: { flex: 1, minHeight: 0, marginTop: 24, gap: 13 },
+  cameraFrame: { flex: 1, minHeight: 260, borderRadius: 18, overflow: "hidden", backgroundColor: "transparent" },
+  camera: { position: "absolute", inset: 0 }, brackets: { position: "absolute", inset: 0 },
+  corner: { position: "absolute", width: 38, height: 38, borderWidth: 3 },
+  tl: { left: 44, top: 44, borderRightWidth: 0, borderBottomWidth: 0 },
+  tr: { right: 44, top: 44, borderLeftWidth: 0, borderBottomWidth: 0 },
+  bl: { left: 44, bottom: 44, borderRightWidth: 0, borderTopWidth: 0 },
+  br: { right: 44, bottom: 44, borderLeftWidth: 0, borderTopWidth: 0 },
+  scanning: { ...TYPE.meta, position: "absolute", bottom: 18, left: 0, right: 0, textAlign: "center" },
+  explainer: { ...TYPE.bodySmall, textAlign: "center" },
+  errorText: { ...TYPE.bodySmall, textAlign: "center" },
+  linkText: { ...TYPE.bodySmallStrong, textAlign: "center", minHeight: 44, textAlignVertical: "center" },
+  manualWrap: { marginTop: SPACE.s6, gap: 12 },
   input: {
-    borderWidth: 1, borderColor: PALETTE.border, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, color: PALETTE.ink,
-    fontFamily: "monospace", backgroundColor: PALETTE.card,
+    borderWidth: 1, borderRadius: RADIUS.lg, paddingHorizontal: 12, paddingVertical: 12,
   },
+  shield: { flexDirection: "row", alignItems: "flex-start", gap: 9, padding: 12, borderRadius: RADIUS.lg, marginTop: 13 },
+  shieldCopy: { flex: 1, lineHeight: 16 },
 });

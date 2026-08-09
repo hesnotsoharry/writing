@@ -6,6 +6,7 @@ import { BookSpine, Card, Icon, IconButton, Screen } from "../../components";
 import { getBinderStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import { mobileEngine, subscribeMobileStructureChanged } from "../../sync/mobileEngine";
+import { getPairedDeviceName } from "../../sync/pairedDevice";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
@@ -57,11 +58,13 @@ function ProjectsContent(props: { projects: ProjectCardModel[]; onOpen: (item: P
 function PairedFooter() {
   const theme = useTheme();
   const [connected, setConnected] = useState(mobileEngine.status().state === "connected");
+  const [deviceName, setDeviceName] = useState("Desktop");
   useEffect(() => mobileEngine.subscribe((status) => setConnected(status.state === "connected")), []);
+  useEffect(() => { void getPairedDeviceName().then(setDeviceName); }, []);
   return (
     <View style={styles.footer}>
       <Icon color={connected ? theme.colors.good : theme.colors.ink3} name="cloud" size={16} />
-      <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>Paired with <Text style={{ color: theme.colors.ink2 }}>desktop</Text> · {connected ? "live" : "offline"}</Text>
+      <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>Paired with <Text style={{ color: theme.colors.ink2 }}>{deviceName}</Text> · {connected ? "live" : "offline"}</Text>
     </View>
   );
 }

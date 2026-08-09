@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 
 import type { EditorUiCommand, NativeEditorUiMessage } from "../../src/features/editor/editorUiProtocol";
 import type { BridgeClient } from "./bridgeClient";
+import { focusDecorationKey, focusDecorationPlugin, type FocusDecorationState } from "./focusDecoration";
 
 const ENTITY_LINK_ORIGIN = "https://entity.writersnook.app";
 type Editor = Parameters<NonNullable<ComponentProps<typeof MobileEditorCore>["onReady"]>>[0];
@@ -70,15 +71,25 @@ function applyTheme(colors: Record<string, string>): void {
   }
 }
 
+function applyFocus(editor: Editor, focus: FocusDecorationState): void {
+  document.documentElement.classList.toggle("focus-mode", focus.enabled && focus.dimParagraphs);
+  editor.view.dispatch(editor.state.tr.setMeta(focusDecorationKey, focus));
+  if (focus.enabled && focus.typewriter) requestAnimationFrame(() => {
+    document.querySelector(".focus-active-paragraph")?.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
+}
+
 export function attachEditorUi(editor: Editor, client: BridgeClient): () => void {
+  editor.registerPlugin(focusDecorationPlugin());
   const onSelection = (): void => { reportSelection(editor, client); };
   const unbind = client.bindEditorUi((message: NativeEditorUiMessage) => {
     if (message.type === "editor-command") runCommand(editor, message);
     else if (message.type === "editor-theme") applyTheme(message.colors);
+    else if (message.type === "editor-focus") applyFocus(editor, message);
     reportSelection(editor, client);
   });
   editor.on("selectionUpdate", onSelection);
   editor.on("transaction", onSelection);
   reportSelection(editor, client);
-  return () => { unbind(); editor.off("selectionUpdate", onSelection); editor.off("transaction", onSelection); };
+  return () => { document.documentElement.classList.remove("focus-mode"); unbind(); editor.unregisterPlugin(focusDecorationKey); editor.off("selectionUpdate", onSelection); editor.off("transaction", onSelection); };
 }
