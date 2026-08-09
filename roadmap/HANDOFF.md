@@ -36,30 +36,32 @@ binder reorder was 63 s.
 | Bible engine push -> SQL | 1.48 s |
 | All LWW domains incl. an AI message body | 2.36 s |
 
-### BLOCKING DEFECT — the editor never becomes editable
-Opening any scene shows "Couldn't load the editor — read-only". A writing app that will not
-let you write.
+### The editor defect is FIXED (4c64d86) — verified on device
+Scenes now open **editable**: the drop cap renders (that is the editor core, not the reader),
+the format bar is live, and typing inserts text at the caret.
 
-Established on device, so do not re-derive:
-- The editor asset resolves in **46-104 ms**. Not the asset.
-- `port.start()` never rejects. Not the port.
-- WebView `loadEnd` fires and navigation is not blocked. The HTML loads.
-- The bundle mounts cleanly in a **real browser** (`editor-page--waiting`, `aria-busy="true"`),
-  and `BridgeClient`'s constructor is what posts `ready` — so editor-web is healthy.
-- `NativeEditorUiController.receive()` correctly returns false before `start()`, so it is not
-  swallowing the ready message.
-- Initial `loadToken` is 1 and the host dispatches token 1, so the asset-loaded guard matches.
-- Raising the boot budget from 5 s to 30 s changed only how long the failure takes.
+Root cause was a one-shot handshake. `createBridgeClient()` runs at module scope and announced
+`ready` exactly once through `window.ReactNativeWebView?.postMessage`. If that object was not
+attached yet the optional chain dropped it silently, with no retry — so the host sat in
+`waiting-ready` until its boot budget expired and dropped the writer into a read-only view of
+their own scene. `ReadyAnnouncer` now repeats every 250 ms until the host answers (bounded at
+40 attempts); repeats are safe because the host ignores `ready` outside `waiting-ready`.
 
-So: editor-web posts `ready`, the host never transitions out of `waiting-ready`. The next step
-is the forwarded WebView error channel added in a00ca52 (`__editor-diag`) — get a device run
-with it live, which needs Metro to actually rebundle (see the trap below).
+Two things found on the way, both fixed: the boot budget was reusing the 5 s bridge-ACK
+constant for "parse 1.8 MB and boot ProseMirror", and the read-only reader was rendered as an
+unconditional sibling of the editor so both drew the same scene stacked.
 
-### Emulator verification: 4 of 28 checks passed
-`roadmap/mobile/EMULATOR-MATRIX.md` is the checklist. Passed: cold boot with fonts loaded,
-Projects, Hub (live tile counts, goal ring, streak, trial pill), and the editor chrome +
-format bar rendering. Everything downstream of opening a scene is blocked by the defect above.
-Pairing and clone were inherited from the prior session's rig, not re-run clean.
+**Caveat**: the reader-stacking fix and an overlay extraction landed *after* the on-device
+confirmation. They are gate-verified but not device-verified — the emulator began ANR-ing
+under load (Metro bundling on an already-loaded host). Re-confirm on a quiet machine.
+
+### Emulator verification: 6 of 28 checks passed
+`roadmap/mobile/EMULATOR-MATRIX.md` is the checklist. Passed: cold boot with fonts loaded, Projects, Hub (live tile counts, goal ring, streak,
+trial pill), the editor chrome + format bar, the editor loading through the WebView bundle,
+and typing into it. The remaining 22 are unblocked now and simply not yet run — the keyboard
+caret check, the left-edge drawer gesture, share-sheet capture, offline queue depth and the
+behind-state catch-up are the ones only a device can answer. Pairing and clone were inherited
+from the prior session's rig, not re-run clean.
 
 ### Two defects found ONLY by running on a device
 Both had every gate green — this is the "green tests != working app" trap, twice.
@@ -79,8 +81,8 @@ Both had every gate green — this is the "green tests != working app" trap, twi
   the dev client dies with `ConnectException: Failed to connect to localhost/127.0.0.1:8081`.
 
 ## What's next
-1. **Fix the editor handshake.** Everything needed is in the section above.
-2. Then run the remaining 24 matrix checks — especially the ones only a device can answer:
+1. Re-confirm the two post-verification editor changes on a quiet machine (see the caveat above).
+2. Run the remaining 22 matrix checks — especially the ones only a device can answer:
    caret visibility under the Android keyboard split, the left-edge drawer gesture,
    share-sheet capture, offline queue depth, and the behind-state catch-up.
 3. `roadmap/mobile/PENDING-HOOKS.md` still lists the AI-conversation consent control.
