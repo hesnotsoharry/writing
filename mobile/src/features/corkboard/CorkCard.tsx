@@ -92,7 +92,7 @@ export function CorkCard(props: CorkCardProps) {
           accessibilityLabel={`Synopsis for ${props.scene.title}`}
           multiline
           onEndEditing={(event) => props.onSynopsis(event.nativeEvent.text.trim())}
-          placeholder="Add a synopsisâ€¦"
+          placeholder="Add a synopsis…"
           placeholderTextColor={theme.colors.ink4}
           style={[styles.synopsis, { color: theme.colors.ink2 }]}
           defaultValue={props.scene.synopsis ?? ""}

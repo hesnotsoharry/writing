@@ -33,8 +33,8 @@ export function extractSnippet(text: string, query: string, offset: number, radi
   const local = offset - paragraph.start;
   const start = Math.max(0, local - radius);
   const end = Math.min(paragraph.text.length, local + query.length + radius);
-  const before = `${start > 0 ? "â€¦" : ""}${paragraph.text.slice(start, local)}`;
-  const after = `${paragraph.text.slice(local + query.length, end)}${end < paragraph.text.length ? "â€¦" : ""}`;
+  const before = `${start > 0 ? "…" : ""}${paragraph.text.slice(start, local)}`;
+  const after = `${paragraph.text.slice(local + query.length, end)}${end < paragraph.text.length ? "…" : ""}`;
   return { before, match: paragraph.text.slice(local, local + query.length), after, offset };
 }
 

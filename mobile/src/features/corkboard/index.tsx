@@ -91,7 +91,7 @@ function CorkboardBody({ navigation, projectId }: Pick<Props, "navigation"> & { 
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.parchmentDeep }]}>
       <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Corkboard" trailing={<View style={styles.segment}><Segmented onChange={setColumnsValue} options={COLUMN_OPTIONS} value={columnsValue} /></View>} />
       {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <ScrollView contentContainerStyle={styles.scroll}>
-        {!data.bibleAvailable && <View style={[styles.bibleUnavailable, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink3} name="info" size={16} /><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>Story Bible unavailable â€” entity chips are hidden.</Text></View>}
+        {!data.bibleAvailable && <View style={[styles.bibleUnavailable, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink3} name="info" size={16} /><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>Story Bible unavailable — entity chips are hidden.</Text></View>}
         {groups.map((group) => <CorkGroupView activeId={activeId} cardWidth={layout.cardWidth} columns={columns} entities={data.entities} group={group} key={group.id ?? "short"} onActivate={setActiveId} onReload={data.reload} />)}
       </ScrollView>}
       <Footer onNew={onNew} />
