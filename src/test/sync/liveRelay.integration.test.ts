@@ -12,9 +12,11 @@ import { InMemorySnapshotStore } from "../../db/inMemorySnapshotStore";
 import type {
   PendingReplacement, PendingReplacementStore,
 } from "../../db/pendingReplacementStore";
+import type { ProjectDomainDoc, ProjectDomainDocStore } from "../../db/projectDomainDocStore";
 import { InMemoryProjectMetaDocStore } from "../../db/projectMetaDocStore";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import type { AppliedEpochStore } from "../../db/syncEpochStore";
+import { buildBibleFromSql, readBibleDoc } from "../../sync/bible/bibleDoc";
 import { SyncEngine } from "../../sync/engine";
 import { generateMasterKey } from "../../sync/keys";
 import type { MetaApplyTarget } from "../../sync/meta/applyExec";
@@ -47,6 +49,19 @@ class MemoryDocStore implements SceneDocStore, BoardDocStore {
   async listAll(): Promise<Array<{ id: string; stateBase64: string; updatedAt: string | null }>> {
     return [...this.rows.entries()].map(([id, r]) => ({ id, ...r }));
   }
+}
+
+class MemoryDomainDocStore implements ProjectDomainDocStore {
+  readonly rows = new Map<string, ProjectDomainDoc>();
+  async load(domain: string, projectId: string): Promise<string | null> {
+    return this.rows.get(`${domain}:${projectId}`)?.stateBase64 ?? null;
+  }
+  async save(domain: string, projectId: string, stateBase64: string): Promise<void> {
+    this.rows.set(`${domain}:${projectId}`, {
+      domain, projectId, stateBase64, updatedAt: new Date().toISOString(),
+    });
+  }
+  async listAll(): Promise<ProjectDomainDoc[]> { return [...this.rows.values()]; }
 }
 
 class MemoryEpochStore implements AppliedEpochStore {
@@ -125,6 +140,7 @@ interface EngineMemory {
   sweepMs?: number;
   pending?: PendingReplacementStore;
   epochAcceptance?: "automatic" | "manual";
+  domainStore?: ProjectDomainDocStore;
 }
 
 function makeEngine(
@@ -135,6 +151,7 @@ function makeEngine(
     relayUrl: RELAY_URL as string,
     sceneStore,
     boardStore: new MemoryDocStore(),
+    domainDocStore: memory.domainStore,
     metaStore: memory.metaStore,
     metaApplyTarget: memory.metaTarget,
     snapshotStore: memory.snapshots,
@@ -164,6 +181,25 @@ async function until(check: () => boolean | Promise<boolean>, ms = 15_000): Prom
 }
 
 describe.runIf(RELAY_URL)("live relay end-to-end", () => {
+  it("clones a Bible domain doc through the live relay", async () => {
+    const masterKey = generateMasterKey();
+    const domainA = new MemoryDomainDocStore(); const domainB = new MemoryDomainDocStore();
+    const bible = buildBibleFromSql({
+      entities: [{ id: "c1", projectId: "p1", storage: "character", entityType: "character",
+        name: "Ada", notes: "Relay notes", aliases: null, excludeFromAi: false }],
+      entityTypes: [], fields: [], sceneLinks: [], entityLinks: [], relations: [],
+    });
+    await domainA.save("bible", "p1", encodeDoc(bible));
+    const engineA = makeEngine("bible-A", masterKey, new MemoryDocStore(), { domainStore: domainA });
+    const engineB = makeEngine("bible-B", masterKey, new MemoryDocStore(), { domainStore: domainB });
+    try {
+      await engineA.start(); await engineB.start();
+      await until(() => domainB.load("bible", "p1").then((value) => value !== null));
+      const received = new Y.Doc(); applyEncoded(received, (await domainB.load("bible", "p1"))!);
+      expect(readBibleDoc(received).entities[0]).toMatchObject({ name: "Ada", notes: "Relay notes" });
+    } finally { engineA.stop(); engineB.stop(); }
+  }, 30_000);
+
   it("converges a fresh peer and streams live edits", async () => {
     const masterKey = generateMasterKey();
     const storeA = new MemoryDocStore();
