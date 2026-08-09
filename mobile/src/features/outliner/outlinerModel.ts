@@ -17,6 +17,10 @@ export interface OutlineSummary {
   status: Record<SceneStatus, number>;
 }
 
+/** Base rendered row height: 16px vertical row padding plus three 44px
+ * interactive bands (title, synopsis, labels). */
+export const OUTLINER_ROW_HEIGHT = 148;
+
 export function buildOutlineGroups(folders: readonly Folder[], scenes: readonly Scene[]): OutlineGroup[] {
   const groups = folders.map((folder) => {
     const rows = scenes.filter((scene) => scene.folder_id === folder.id);
@@ -46,7 +50,6 @@ export function summarizeOutline(scenes: readonly Scene[]): OutlineSummary {
   return { sceneCount: scenes.length, wordTotal: scenes.reduce((sum, scene) => sum + scene.word_count, 0), status };
 }
 
-export function outlinerDropIndex(fromIndex: number, translationY: number, count: number, rowHeight = 102): number {
+export function outlinerDropIndex(fromIndex: number, translationY: number, count: number, rowHeight = OUTLINER_ROW_HEIGHT): number {
   return Math.max(0, Math.min(count - 1, fromIndex + Math.round(translationY / rowHeight)));
 }
-

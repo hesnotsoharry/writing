@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { Icon, IconButton, Screen, StatusDot, Topbar } from "../../components";
 import { getBinderStore, getLabelStore } from "../../db/stores";
@@ -12,7 +13,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import { buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, outlinerDropIndex, summarizeOutline } from "./outlinerModel";
-import { OutlinerRow } from "./OutlinerRow";
+import { type OutlinerDrop, OutlinerRow } from "./OutlinerRow";
 import { useOutlinerData } from "./useOutlinerData";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Outliner">;
@@ -26,7 +27,7 @@ function ChapterHeader({ group, reload }: { group: ReturnType<typeof buildOutlin
   return (
     <View style={[styles.chapter, { backgroundColor: theme.colors.parchment, borderColor: theme.colors.line }]}>
       <TextInput editable={group.id !== null} defaultValue={group.title} onEndEditing={(event) => rename(event.nativeEvent.text.trim())} style={[styles.chapterTitle, { color: theme.colors.ink3 }]} />
-      <Text style={[styles.chapterMeta, { color: theme.colors.ink3 }]}>{group.scenes.length} {group.scenes.length === 1 ? "scene" : "scenes"} Â· {group.wordTotal.toLocaleString()}w</Text>
+      <Text style={[styles.chapterMeta, { color: theme.colors.ink3 }]}>{group.scenes.length} {group.scenes.length === 1 ? "scene" : "scenes"} · {group.wordTotal.toLocaleString()}w</Text>
     </View>
   );
 }
@@ -62,28 +63,32 @@ function OutlinerBody({ navigation, projectId }: Pick<Props, "navigation"> & { p
   const groups = useMemo(() => buildOutlineGroups(data.folders, data.scenes), [data.folders, data.scenes]);
   const items = useMemo(() => flattenOutline(groups), [groups]);
   const sticky = useMemo(() => deriveStickyHeaderIndices(items), [items]);
+  const scrollGesture = useMemo(() => Gesture.Native(), []);
+  const drop = useCallback(({ sceneId, groupId, fromIndex, count, translationY }: OutlinerDrop) => {
+    const toIndex = outlinerDropIndex(fromIndex, translationY, count);
+    if (toIndex === fromIndex) return;
+    void getBinderStore().then((store) => store.moveScene(sceneId, groupId, toIndex)).then(data.reload);
+  }, [data.reload]);
   const create = () => {
     void getBinderStore().then((store) => store.createScene({ projectId, folderId: data.folders[0]?.id ?? null, title: "Untitled scene" })).then(data.reload);
   };
   const renderItem = ({ item }: { item: (typeof items)[number] }) => {
     if (item.kind === "header") return <ChapterHeader group={item.group} reload={data.reload} />;
     const group = groups.find(({ id }) => id === item.groupId);
-    const drop = (translationY: number) => {
-      const toIndex = outlinerDropIndex(item.indexInGroup, translationY, group?.scenes.length ?? 1);
-      if (toIndex === item.indexInGroup) return;
-      void getBinderStore().then((store) => store.moveScene(item.scene.id, item.groupId, toIndex)).then(data.reload);
-    };
-    return <OutlinerRow active={activeId === item.scene.id} availableLabels={data.labels} labels={data.sceneLabels[item.scene.id] ?? []}
+    return <OutlinerRow active={activeId === item.scene.id} availableLabels={data.labels} groupCount={group?.scenes.length ?? 1}
+      groupId={item.groupId} indexInGroup={item.indexInGroup} labels={data.sceneLabels[item.scene.id] ?? []}
       onActivate={() => setActiveId(item.scene.id)} onDrop={drop}
       onRename={(value) => commitSceneField("rename", item.scene.id, value, data.reload)}
       onStatus={(status: SceneStatus) => void getBinderStore().then((store) => store.setSceneStatus(item.scene.id, status)).then(data.reload)}
       onSynopsis={(value) => commitSceneField("synopsis", item.scene.id, value, data.reload)}
-      onToggleLabel={(label, assigned) => toggleLabel(item.scene.id, label, assigned, data.reload)} scene={item.scene} />;
+      onToggleLabel={(label, assigned) => toggleLabel(item.scene.id, label, assigned, data.reload)} scene={item.scene} scrollGesture={scrollGesture} />;
   };
   return (
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Outliner" trailing={<Pressable accessibilityLabel="Column options" style={[styles.columns, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Columns</Text><Icon color={theme.colors.ink2} name="chevDown" size={13} /></Pressable>} />
-      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <FlatList data={items} keyExtractor={({ key }) => key} renderItem={renderItem} stickyHeaderIndices={sticky} />}
+      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <GestureDetector gesture={scrollGesture}>
+        <FlatList data={items} keyExtractor={({ key }) => key} renderItem={renderItem} stickyHeaderIndices={sticky} />
+      </GestureDetector>}
       <View style={styles.bottom}><Pressable onPress={create} style={styles.newScene}><Icon color={theme.colors.accent} name="plus" size={16} /><Text style={[TYPE.bodySmallStrong, { color: theme.colors.accent }]}>New scene</Text></Pressable><StatusSummary scenes={data.scenes} /></View>
     </Screen>
   );

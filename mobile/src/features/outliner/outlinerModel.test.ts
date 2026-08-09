@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Folder, Scene } from "../../shared/binderStore";
-import { buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, summarizeOutline } from "./outlinerModel";
+import { buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, OUTLINER_ROW_HEIGHT, outlinerDropIndex, summarizeOutline } from "./outlinerModel";
 
 const folders: Folder[] = [
   { id: "c1", project_id: "p", title: "Chapter 1", sort_order: 1 },
@@ -29,5 +29,11 @@ describe("outliner grouping", () => {
     expect(deriveStickyHeaderIndices(flattenOutline(groups))).toEqual([0, 2, 4]);
     groups[0].scenes.reverse();
     expect(deriveStickyHeaderIndices(flattenOutline(groups))).toEqual([0, 2, 4]);
+  });
+
+  it("maps drag distance to rendered row steps and clamps group bounds", () => {
+    expect(outlinerDropIndex(1, OUTLINER_ROW_HEIGHT, 4)).toBe(2);
+    expect(outlinerDropIndex(1, -OUTLINER_ROW_HEIGHT * 3, 4)).toBe(0);
+    expect(outlinerDropIndex(1, OUTLINER_ROW_HEIGHT * 6, 4)).toBe(3);
   });
 });
