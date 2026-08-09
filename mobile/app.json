@@ -19,7 +19,9 @@
           "cameraPermission": "WritersNook uses your camera to scan a pairing QR code from your other device.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-font",
+      "expo-status-bar"
     ],
     "android": {
       "package": "com.coles.writersnook",

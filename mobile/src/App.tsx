@@ -1,8 +1,11 @@
 import { NavigationContainer } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
+import { useAppFonts } from "./components/useAppFonts";
 import { assertDbReady } from "./db/database";
 import { AppNavigator } from "./navigation/AppNavigator";
 import type { SyncStatus } from "./shared/engine";
@@ -10,9 +13,16 @@ import { SyncEngine } from "./shared/engine";
 import { mobileEngine, startMobileEngine } from "./sync/mobileEngine";
 import { hasSyncMasterKey } from "./sync/mobileKeyStorage";
 import { isDeviceJoined } from "./sync/mobileSyncRole";
-import { PALETTE } from "./theme/palette";
+import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
 
-const OFF_STATUS: SyncStatus = { state: "off", peerSeen: false, lastSyncAt: null };
+const OFF_STATUS: SyncStatus = {
+  state: "off",
+  peerSeen: false,
+  lastSyncAt: null,
+  lastPeerSeenAt: null,
+  queue: { scenes: 0, notes: 0, boards: 0, rows: 0 },
+  behind: [],
+};
 
 function syncStatusLine(status: SyncStatus): string {
   const peer = status.peerSeen ? "seen" : "none";
@@ -23,6 +33,7 @@ function syncStatusLine(status: SyncStatus): string {
 export default function App() {
   const [dbLine, setDbLine] = useState("opening database…");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(OFF_STATUS);
+  const fontsLoaded = useAppFonts();
 
   useEffect(() => {
     assertDbReady()
@@ -52,46 +63,55 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <View style={styles.root}>
-        <NavigationContainer>
-          <AppNavigator onPairedSuccessfully={handlePaired} />
-        </NavigationContainer>
-        {/*
-          Dev-status footer — the S4b/c scaffold's "WRITERSNOOK MOBILE"
-          status card, kept reachable (not deleted) per the S4 step-3 brief.
-          The db-ready line is the emulator smoke gate's oracle: it must stay
-          visible without navigating anywhere, so it lives as a persistent
-          footer under the stack navigator rather than its own screen. The
-          sync line is S4 step 5's engine-status oracle (state · peerSeen ·
-          lastSyncAt) for the same reason.
-        */}
-        <SafeAreaView edges={["bottom"]} style={styles.devFooter}>
-          <Text style={styles.devFooterText}>
-            WRITERSNOOK MOBILE · {SyncEngine.name} loaded · {dbLine}
-          </Text>
-          <Text style={styles.devFooterText}>{syncStatusLine(syncStatus)}</Text>
-        </SafeAreaView>
-      </View>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AppTree dbLine={dbLine} fontsLoaded={fontsLoaded} onPaired={handlePaired} syncStatus={syncStatus} />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+interface AppTreeProps {
+  dbLine: string;
+  fontsLoaded: boolean;
+  onPaired: () => void;
+  syncStatus: SyncStatus;
+}
+
+function AppTree({ dbLine, fontsLoaded, onPaired, syncStatus }: AppTreeProps) {
+  const theme = useTheme();
+  const statusStyle = theme.name === "dark" ? "light" : "dark";
+  const background = { backgroundColor: theme.colors.parchment };
+  if (!fontsLoaded) {
+    return <><StatusBar style={statusStyle} /><View style={[styles.root, background]} /></>;
+  }
+  return (
+    <View style={[styles.root, background]}>
+      <StatusBar style={statusStyle} />
+      <NavigationContainer><AppNavigator onPairedSuccessfully={onPaired} /></NavigationContainer>
+      <DevFooter dbLine={dbLine} status={syncStatus} />
+    </View>
+  );
+}
+
+function DevFooter({ dbLine, status }: { dbLine: string; status: SyncStatus }) {
+  const theme = useTheme();
+  const footer = { backgroundColor: theme.colors.paper, borderTopColor: theme.colors.parchmentEdge };
+  const text = { color: theme.colors.ink3 };
+  return (
+    <SafeAreaView edges={["bottom"]} style={[styles.devFooter, footer]}>
+      <Text style={[styles.devFooterText, text]}>WRITERSNOOK MOBILE · {SyncEngine.name} loaded · {dbLine}</Text>
+      <Text style={[styles.devFooterText, text]}>{syncStatusLine(status)}</Text>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: PALETTE.bg,
-  },
+  root: { flex: 1 },
   devFooter: {
-    borderTopWidth: 1,
-    borderTopColor: PALETTE.border,
-    backgroundColor: PALETTE.card,
-    paddingHorizontal: 14,
-    paddingTop: 6,
-    paddingBottom: 6,
+    borderTopWidth: 1, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 6,
   },
-  devFooterText: {
-    color: PALETTE.inkMuted,
-    fontSize: 11,
-  },
+  devFooterText: { fontSize: 11 },
 });
