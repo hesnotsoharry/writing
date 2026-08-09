@@ -8,6 +8,8 @@ import type { EditorCommandName } from "./editorUiProtocol";
 import type { FormatBarState } from "./formatBarState";
 import { KeyboardTrackedFormatBar } from "./keyboardFormatBar";
 
+export const FORMAT_BAR_HEIGHT = 54;
+
 interface FormatAction {
   command: EditorCommandName;
   icon: IconName;
@@ -72,7 +74,7 @@ export function FormatBar(props: FormatBarProps) {
 
 const styles = StyleSheet.create({
   root: {
-    minHeight: 54, borderTopWidth: 1, flexDirection: "row", alignItems: "center",
+    minHeight: FORMAT_BAR_HEIGHT, borderTopWidth: 1, flexDirection: "row", alignItems: "center",
     paddingHorizontal: 8,
   },
   actions: { alignItems: "center", gap: 2 },

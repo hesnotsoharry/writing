@@ -13,6 +13,7 @@ import { TYPE } from "../../theme/typography";
 import { registerAiSelection } from "../ai/selectionBridge";
 import { BinderDrawer, useBinderDrawerState } from "../binder/BinderDrawer";
 import { FocusHud, useFocusSettings } from "../focus";
+import { FORMAT_BAR_HEIGHT } from "./FormatBar";
 import { InspectorSheet } from "./InspectorSheet";
 import { SceneEditorHost, type SceneEditorHostProps } from "./SceneEditorHost";
 import { SceneReader } from "./SceneReader";
@@ -116,7 +117,7 @@ export function SceneScreen({ navigation, route }: Props) {
     {projectId && <InspectorSheet open={inspectorOpen} projectId={projectId} sceneId={sceneId}
       onDismiss={() => { setInspectorOpen(false); }} onOpenEntity={connections.openEntity}
       onOpenStoryBible={() => { navigation.navigate("BibleList", { projectId, projectTitle: projectTitle ?? "" }); }} onOpenSnapshots={() => { navigation.navigate("SceneVersionHistory", { projectId, sceneId }); }} />}
-    {focusMode && <FocusHud sceneTitle={sceneTitle} settings={focus.settings} wordCount={wordCount}
+    {focusMode && <FocusHud bottomInset={FORMAT_BAR_HEIGHT} sceneTitle={sceneTitle} settings={focus.settings} wordCount={wordCount}
       onExit={() => { setFocusMode(false); }} onUpdate={focus.update} />}
   </View>;
 }

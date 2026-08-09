@@ -1,6 +1,7 @@
 import { BlurView } from "expo-blur";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
 
 import { Icon, Ring, Toggle } from "../../components";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -15,16 +16,21 @@ function useMinutes(): number {
   return minutes;
 }
 
-export function FocusHud({ onExit, onUpdate, sceneTitle, settings, wordCount }: {
+export function FocusHud({ bottomInset = 0, onExit, onUpdate, sceneTitle, settings, wordCount }: {
+  bottomInset?: number;
   onExit(): void; onUpdate<K extends keyof FocusSettings>(key: K, value: FocusSettings[K]): void;
   sceneTitle: string; settings: FocusSettings; wordCount: number;
 }) {
   const theme = useTheme(); const minutes = useMinutes();
+  const keyboard = useAnimatedKeyboard();
+  const avoidBottomBars = useAnimatedStyle(() => ({
+    transform: [{ translateY: -(keyboard.height.value + bottomInset) }],
+  }), [bottomInset]);
   useEffect(() => {
     void setFocusKeepAwake(settings.keepAwake);
     return () => { if (settings.keepAwake) void setFocusKeepAwake(false); };
   }, [settings.keepAwake]);
-  return <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+  return <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, avoidBottomBars]}>
     <BlurView intensity={72} tint={theme.name} style={[styles.panel, theme.shadow.raised, { borderColor: theme.colors.parchmentEdge }]}>
       <Toggle label="Dim other paragraphs" value={settings.dimParagraphs} onChange={(value) => onUpdate("dimParagraphs", value)} />
       <Toggle label="Typewriter scroll" value={settings.typewriter} onChange={(value) => onUpdate("typewriter", value)} />
@@ -39,7 +45,7 @@ export function FocusHud({ onExit, onUpdate, sceneTitle, settings, wordCount }: 
       <View style={[styles.separator, { backgroundColor: theme.colors.line }]} /><Icon color={theme.colors.ink3} name="focus" size={13} />
       <Text numberOfLines={1} style={[TYPE.microLabel, styles.scene, { color: theme.colors.ink3 }]}>Focus · {sceneTitle}</Text>
     </BlurView></Pressable>
-  </View>;
+  </Animated.View>;
 }
 
 const styles = StyleSheet.create({
