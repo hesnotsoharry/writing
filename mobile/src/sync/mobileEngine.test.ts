@@ -5,11 +5,14 @@ import type { EngineOptions } from "../shared/engine";
 import {
   mobileEngine,
   setMobileAiConversationsSyncEnabled,
+  subscribeMobileStructureChanged,
 } from "./mobileEngine";
 
 const engineCapture = vi.hoisted(() => ({
   options: undefined as EngineOptions | undefined,
   publishRow: vi.fn(async () => true),
+  metaSaveListeners: new Set<(projectId: string) => void>(),
+  structureChanged: undefined as (() => void) | undefined,
   credentialOffer: undefined as ((offer: { t: "credential-offer"; id: string;
     managed: { aiLicenseKey: string; aiModel: string; aiEnabled: boolean } }) => Promise<unknown>) | undefined,
   consumeCredentialOffer: vi.fn(async (offer: { id: string }) => ({
@@ -18,6 +21,12 @@ const engineCapture = vi.hoisted(() => ({
 }));
 
 vi.mock("../db/database", () => ({ getMobileDb: vi.fn() }));
+vi.mock("../db/mobileMetaBridge", () => ({
+  subscribeMobileMetaSaves: (listener: (projectId: string) => void) => {
+    engineCapture.metaSaveListeners.add(listener);
+    return () => engineCapture.metaSaveListeners.delete(listener);
+  },
+}));
 vi.mock("../shared/provider", () => ({ RelayProvider: class {} }));
 vi.mock("./mobileKeyStorage", () => ({ getSyncMasterKey: vi.fn() }));
 vi.mock("./mobileDeviceId", () => ({ getOrCreateMobileDeviceId: vi.fn() }));
@@ -28,7 +37,7 @@ vi.mock("../shared/engine", () => ({
   SyncEngine: class {
     publishRow = engineCapture.publishRow;
     constructor(options: EngineOptions) { engineCapture.options = options; }
-    onStructureChanged(): void {}
+    onStructureChanged(callback: () => void): void { engineCapture.structureChanged = callback; }
     onDocReplaced(): void {}
     onCredentialOffer(callback: NonNullable<typeof engineCapture.credentialOffer>): void {
       engineCapture.credentialOffer = callback;
@@ -71,6 +80,19 @@ describe("mobile engine replication wiring", () => {
 
   it("constructs the exported singleton", () => {
     expect(mobileEngine).toBeDefined();
+  });
+
+  it("fans local saves and remote merges out as structure changes", () => {
+    const changed = vi.fn();
+    const unsubscribe = subscribeMobileStructureChanged(changed);
+    engineCapture.metaSaveListeners.forEach((listener) => listener("project-1"));
+    engineCapture.structureChanged?.();
+    expect(changed).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+    engineCapture.metaSaveListeners.forEach((listener) => listener("project-1"));
+    engineCapture.structureChanged?.();
+    expect(changed).toHaveBeenCalledTimes(2);
   });
 
   it("routes credential offers to the secure mobile consumer and returns its ACK", async () => {

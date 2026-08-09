@@ -156,18 +156,22 @@ async function restoreAiConversationSyncSetting(): Promise<void> {
 
 // ── Structure-changed fan-out ────────────────────────────────────────────
 // `SyncEngine.onStructureChanged` holds a single callback slot (one desktop
-// window assumed one listener); mobile has two screens (ProjectList,
-// ProjectBinder) that may independently want to refetch when a remote meta
-// doc lands, so this module owns the slot and fans out to a Set instead.
+// window assumed one listener); mobile has multiple screens that may
+// independently want to refetch when project meta changes, so this module
+// combines remote merges and local saves behind one subscription.
 const structureListeners = new Set<() => void>();
 mobileEngine.onStructureChanged(() => {
   structureListeners.forEach((listener) => listener());
 });
 
-/** Subscribe to "some project's structure changed" (remote meta merge landed). */
+/** Subscribe to "some project's structure changed" (local save or remote merge). */
 export function subscribeMobileStructureChanged(listener: () => void): () => void {
   structureListeners.add(listener);
-  return () => structureListeners.delete(listener);
+  const unsubscribeLocal = subscribeMobileMetaSaves(listener);
+  return () => {
+    structureListeners.delete(listener);
+    unsubscribeLocal();
+  };
 }
 
 // ── Doc-replaced fan-out ─────────────────────────────────────────────────
