@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "../theme/ThemeProvider";
 import { RADIUS } from "../theme/tokens";
-import { resolveSheetHeight } from "./Sheet.logic";
+import { resolveSheetLayout } from "./Sheet.logic";
 
 export interface SheetProps {
   children: ReactNode;
@@ -32,18 +32,19 @@ function SheetSurface({ children, designHeight, onDismiss }: Omit<SheetProps, "o
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const handleChange = useCallback((index: number) => { if (index < 0) onDismiss(); }, [onDismiss]);
-  const fixedHeight = designHeight === undefined ? undefined : resolveSheetHeight(designHeight, height);
+  const layout = resolveSheetLayout(designHeight, height);
   return (
     <BottomSheet
       backgroundStyle={[styles.background, theme.shadow.sheet, { backgroundColor: theme.colors.paper }]}
-      enableDynamicSizing={fixedHeight === undefined}
+      enableDynamicSizing={layout.fixedHeight === undefined}
       enablePanDownToClose
       handleIndicatorStyle={{ backgroundColor: theme.colors.ink4 }}
       index={0}
       onChange={handleChange}
-      snapPoints={fixedHeight === undefined ? undefined : [fixedHeight]}
+      snapPoints={layout.fixedHeight === undefined ? undefined : [layout.fixedHeight]}
     >
-      <View style={[styles.content, { paddingBottom: Math.max(16, insets.bottom) }]}>{children}</View>
+      <View style={[styles.content, layout.contentFillsAvailableHeight && styles.fixedContent,
+        { paddingBottom: Math.max(16, insets.bottom) }]}>{children}</View>
     </BottomSheet>
   );
 }
@@ -62,4 +63,5 @@ const styles = StyleSheet.create({
   overlay: { position: "absolute", inset: 0, zIndex: 100 },
   background: { borderTopLeftRadius: RADIUS.sheet, borderTopRightRadius: RADIUS.sheet },
   content: { paddingHorizontal: 20 },
+  fixedContent: { flex: 1 },
 });

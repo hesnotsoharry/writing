@@ -1,5 +1,6 @@
+import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon, LabelPill, ListRow, Sheet, StatusPillRow, TextField } from "../../components";
 import { getBinderStore, getLabelStore } from "../../db/stores";
@@ -83,7 +84,7 @@ export function SceneActionsSheet(props: SceneActionsSheetProps) {
     ]),
   });
   return <Sheet open={props.open} onDismiss={props.onDismiss} designHeight={620}>
-    <ScrollView contentContainerStyle={styles.content}>
+    <BottomSheetScrollView contentContainerStyle={styles.content}>
       <Text style={[TYPE.bodyStrong, { color: theme.colors.ink }]}>{scene.title}</Text>
       <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>{scene.word_count.toLocaleString()} words</Text>
       <Text style={[styles.section, { color: theme.colors.ink3 }]}>Status</Text>
@@ -95,7 +96,7 @@ export function SceneActionsSheet(props: SceneActionsSheetProps) {
         setRenaming(false); props.onChanged();
       }} />}
       <ActionRows items={items} />
-    </ScrollView>
+    </BottomSheetScrollView>
   </Sheet>;
 }
 

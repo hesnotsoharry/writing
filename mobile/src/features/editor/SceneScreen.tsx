@@ -115,7 +115,7 @@ export function SceneScreen({ navigation, route }: Props) {
       onOpenArchive={() => { navigation.navigate("Archive", { projectId }); }} />}
     {projectId && <InspectorSheet open={inspectorOpen} projectId={projectId} sceneId={sceneId}
       onDismiss={() => { setInspectorOpen(false); }} onOpenEntity={connections.openEntity}
-      onOpenSnapshots={() => { navigation.navigate("SceneVersionHistory", { projectId, sceneId }); }} />}
+      onOpenStoryBible={() => { navigation.navigate("BibleList", { projectId, projectTitle: projectTitle ?? "" }); }} onOpenSnapshots={() => { navigation.navigate("SceneVersionHistory", { projectId, sceneId }); }} />}
     {focusMode && <FocusHud sceneTitle={sceneTitle} settings={focus.settings} wordCount={wordCount}
       onExit={() => { setFocusMode(false); }} onUpdate={focus.update} />}
   </View>;

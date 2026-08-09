@@ -15,3 +15,21 @@ export function resolveSheetHeight(
 ): number {
   return screenHeight * resolveSheetFraction(designHeight, designFrameHeight);
 }
+
+export interface SheetLayout {
+  contentFillsAvailableHeight: boolean;
+  fixedHeight: number | undefined;
+}
+
+export function resolveSheetLayout(
+  designHeight: number | undefined,
+  screenHeight: number,
+): SheetLayout {
+  if (designHeight === undefined) {
+    return { contentFillsAvailableHeight: false, fixedHeight: undefined };
+  }
+  return {
+    contentFillsAvailableHeight: true,
+    fixedHeight: resolveSheetHeight(designHeight, screenHeight),
+  };
+}

@@ -1,6 +1,7 @@
+import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   Avatar, EmptyState, Icon, LabelPill, ListRow, SectionLabel, Sheet, StatusPillRow, TextField,
@@ -70,11 +71,13 @@ function LabelPicker({ data, onChanged }: { data: InspectorData; onChanged(): vo
   })}</View>;
 }
 
-function EntityRows({ groups, onOpen }: { groups: SceneEntityGroup[]; onOpen(entity: Entity): void }) {
+function EntityRows({ groups, onOpen, onOpenStoryBible }: {
+  groups: SceneEntityGroup[]; onOpen(entity: Entity): void; onOpenStoryBible(): void;
+}) {
   const entities = groups.flatMap(({ entities: values }) => values);
   if (entities.length === 0) return <EmptyState icon="users" headline="No linked entries"
     reassurance="Entity links from the Story Bible will appear here."
-    actionLabel="Open Story Bible" onAction={() => undefined} />;
+    actionLabel="Open Story Bible" onAction={onOpenStoryBible} />;
   return <View>{entities.map((entity) => <ListRow key={entity.id} title={entity.name}
     meta={entity.type} onPress={() => { onOpen(entity); }}
     leading={<Avatar name={entity.name} entityType={entity.type} size={30} />}
@@ -95,13 +98,14 @@ interface InspectorSheetProps {
   sceneId: string;
   onDismiss(): void;
   onOpenEntity(entity: Entity): void;
+  onOpenStoryBible?(): void;
   onOpenSnapshots(): void;
 }
 
-function InspectorBody({ data, onDismiss, onOpenEntity, onOpenSnapshots, pickingLabels,
+function InspectorBody({ data, onDismiss, onOpenEntity, onOpenSnapshots, onOpenStoryBible, pickingLabels,
   reload, setPickingLabels, setStatus }: {
   data: InspectorData; onDismiss(): void; onOpenEntity(entity: Entity): void;
-  onOpenSnapshots(): void; pickingLabels: boolean; reload(): void;
+  onOpenSnapshots(): void; onOpenStoryBible(): void; pickingLabels: boolean; reload(): void;
   setPickingLabels: Dispatch<SetStateAction<boolean>>;
   setStatus(status: SceneStatus): void;
 }) {
@@ -126,7 +130,8 @@ function InspectorBody({ data, onDismiss, onOpenEntity, onOpenSnapshots, picking
       </Pressable></View>
     <AssignedLabels assigned={data.assigned} />
     {pickingLabels && <LabelPicker data={data} onChanged={reload} />}
-    <SectionLabel>In this scene</SectionLabel><EntityRows groups={data.entities} onOpen={onOpenEntity} />
+    <SectionLabel>In this scene</SectionLabel><EntityRows groups={data.entities}
+      onOpen={onOpenEntity} onOpenStoryBible={onOpenStoryBible} />
     <Pressable onPress={onOpenSnapshots}
       style={[styles.snapshots, { backgroundColor: theme.colors.paper, borderColor: theme.colors.line }]}>
       <Icon name="clock" size={18} color={theme.colors.ink3} /><View style={styles.headingCopy}>
@@ -145,11 +150,12 @@ export function InspectorSheet(props: InspectorSheetProps) {
     if (scene) void getBinderStore().then((store) => store.setSceneStatus(scene.id, status)).then(reload);
   };
   return <Sheet open={props.open} onDismiss={props.onDismiss} designHeight={648}>
-    <ScrollView contentContainerStyle={styles.content}>
+    <BottomSheetScrollView contentContainerStyle={styles.content}>
       <InspectorBody data={data} onDismiss={props.onDismiss} onOpenEntity={props.onOpenEntity}
-        onOpenSnapshots={props.onOpenSnapshots} pickingLabels={pickingLabels}
+        onOpenSnapshots={props.onOpenSnapshots} onOpenStoryBible={props.onOpenStoryBible ?? (() => undefined)}
+        pickingLabels={pickingLabels}
         reload={reload} setPickingLabels={setPickingLabels} setStatus={setStatus} />
-    </ScrollView>
+    </BottomSheetScrollView>
   </Sheet>;
 }
 
