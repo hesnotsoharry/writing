@@ -82,7 +82,8 @@ function wrapQuote(editor: Editor): void {
 
 function applyTheme(colors: Record<string, string>): void {
   for (const [name, color] of Object.entries(colors)) {
-    if (name === "theme") document.documentElement.dataset.theme = color;
+    if (name === "theme" && color === "dark") document.documentElement.dataset.theme = color;
+    else if (name === "theme") delete document.documentElement.dataset.theme;
     else document.documentElement.style.setProperty(
       `--entity-${name === "themeType" ? "theme" : name}`, color,
     );

@@ -15,6 +15,17 @@ import {
 interface EditorUiTransport { postMessage(message: string): void }
 interface QueuedMessage { message: Exclude<NativeEditorUiMessage, EditorUiAck>; raw: string }
 
+export function createEditorThemeBootstrap(themeName: string): string {
+  const theme = JSON.stringify(themeName === "dark" ? "dark" : "");
+  return `(function () {
+    var root = document.documentElement;
+    if (!root) return;
+    var theme = ${theme};
+    if (theme) root.dataset.theme = theme;
+    else delete root.dataset.theme;
+  })();`;
+}
+
 export class NativeEditorUiController {
   private sessionId: string | null = null;
   private nextNativeSeq = 1;
@@ -38,6 +49,10 @@ export class NativeEditorUiController {
     this.queue = [];
     this.enqueue({ type: "editor-theme", colors });
     if (this.pendingFocus) this.enqueue({ type: "editor-focus", ...this.pendingFocus });
+  }
+
+  theme(colors: Record<string, string>): void {
+    this.enqueue({ type: "editor-theme", colors });
   }
 
   command(command: EditorCommandName, entity?: EntityLinkPayload): void {

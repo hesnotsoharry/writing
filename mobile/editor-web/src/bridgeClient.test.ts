@@ -93,6 +93,24 @@ describe("createBridgeClient", () => {
     expect(messages[messages.length - 1]).toMatchObject({ type: "ack", ackType: "hydrate" });
   });
 
+  it("retains the initial theme when it arrives before the editor UI binds", () => {
+    client.receive(serializeBridgeMessage(hydrate()));
+    post.mockClear();
+    const theme = {
+      v: EDITOR_UI_VERSION, type: "editor-theme" as const, sessionId: SESSION_ID,
+      sceneId: SCENE_ID, seq: 1, colors: { theme: "dark", character: "#cf7853" },
+    };
+
+    client.receive(serializeEditorUiMessage(theme));
+
+    expect(parseWebEditorUiMessage(post.mock.calls[0][0] as string))
+      .toMatchObject({ type: "editor-ui-ack", ackType: "theme", seq: 1 });
+    const handler = vi.fn();
+    client.bindEditorUi(handler);
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler).toHaveBeenCalledWith(theme);
+  });
+
   it("merges a 500 ms batch and holds the next batch behind one in-flight update", () => {
     client.receive(serializeBridgeMessage(hydrate()));
     post.mockClear();

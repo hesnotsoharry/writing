@@ -6,6 +6,7 @@ import {
 export class WebEditorUiChannel {
   private sceneId: string | null = null;
   private handler: ((message: NativeEditorUiMessage) => void) | null = null;
+  private pendingNative: Exclude<NativeEditorUiMessage, EditorUiAck>[] = [];
   private nextNativeSeq = 1;
   private nextWebSeq = 1;
   private inFlightWeb: { seq: number; ackType: "selection" | "autolink" } | null = null;
@@ -18,6 +19,9 @@ export class WebEditorUiChannel {
 
   bind(handler: (message: NativeEditorUiMessage) => void): () => void {
     this.handler = handler;
+    const pending = this.pendingNative;
+    this.pendingNative = [];
+    for (const message of pending) handler(message);
     return () => { if (this.handler === handler) this.handler = null; };
   }
 
@@ -43,12 +47,14 @@ export class WebEditorUiChannel {
     if (verdict === "replay") this.postAck(message);
     if (verdict !== "accept") return;
     this.nextNativeSeq += 1;
-    this.handler?.(message);
+    if (this.handler) this.handler(message);
+    else this.pendingNative.push(message);
     this.postAck(message);
   }
 
   destroy(): void {
     this.handler = null;
+    this.pendingNative = [];
     this.pendingSelection = null;
     this.inFlightWeb = null;
     this.pendingAutoLink = null;

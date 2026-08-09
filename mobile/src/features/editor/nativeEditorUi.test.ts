@@ -42,6 +42,23 @@ describe("NativeEditorUiController", () => {
     });
   });
 
+  it("delivers a live theme change through the active ACK queue", () => {
+    const messages: string[] = [];
+    const controller = new NativeEditorUiController(
+      "scene", { postMessage: (raw) => messages.push(raw) }, vi.fn(),
+    );
+    controller.start("session", { theme: "light" });
+    controller.theme({ theme: "dark" });
+    expect(messages).toHaveLength(1);
+    controller.receive(serializeEditorUiMessage({
+      v: EDITOR_UI_VERSION, type: "editor-ui-ack", sessionId: "session",
+      sceneId: "scene", seq: 1, ackType: "theme",
+    }));
+    expect(parseNativeEditorUiMessage(messages[1])).toMatchObject({
+      type: "editor-theme", seq: 2, colors: { theme: "dark" },
+    });
+  });
+
   it("accepts one ordered selection, re-ACKs replay, and rejects gaps and wrong sessions", () => {
     const messages: string[] = [];
     const onSelection = vi.fn();

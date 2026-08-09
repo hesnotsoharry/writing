@@ -24,7 +24,7 @@ import type {
 import { getEditorWebAssetUri } from "./editorWebAsset";
 import { FormatBar } from "./FormatBar";
 import { deriveFormatBarState } from "./formatBarState";
-import { NativeEditorUiController } from "./nativeEditorUi";
+import { createEditorThemeBootstrap, NativeEditorUiController } from "./nativeEditorUi";
 import { createSceneEditorState, reduceSceneEditor, type SceneEditorAction } from "./sceneEditorState";
 import { useSceneExitGuard } from "./useSceneExitGuard";
 
@@ -156,14 +156,14 @@ function EditorSurface({
 }: EditorSurfaceProps) {
   const theme = useTheme();
   const opening = !["editable", "saving", "save-blocked"].includes(phase);
+  const injectedJavaScript = `${createEditorThemeBootstrap(theme.name)}\n${EDITOR_ERROR_FORWARDER}`;
   return <View style={styles.host}>
     <WebView key={webViewKey} ref={bindWebView} source={{ uri: localUri }}
       allowFileAccess originWhitelist={["file://*"]}
       onShouldStartLoadWithRequest={(request) => isLocalNavigation(request, localUri)}
-      // A JS error inside the WebView is otherwise completely invisible from
-      // the device — the editor just never answers the handshake and silently
-      // degrades to read-only. Forward it out so the failure is diagnosable.
-      injectedJavaScriptBeforeContentLoaded={EDITOR_ERROR_FORWARDER}
+      // Seed the theme before the first paint, and forward otherwise invisible
+      // WebView errors so a broken handshake remains diagnosable from a device.
+      injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
       onHttpError={(event) => {
         console.error("[editor] webview httpError", JSON.stringify(event.nativeEvent));
       }}
@@ -237,6 +237,10 @@ function useFocusUi({ activeParagraph, focus, onWordCountChange, ui, wordCount }
   }); }, [activeParagraph, focus, ui]);
 }
 
+function useEditorTheme(ui: NativeEditorUiController, colors: Record<string, string>): void {
+  useEffect(() => { ui.theme(colors); }, [colors, ui]);
+}
+
 function useNativeEditorUi({ onAutoLinkTap, onSelectionChange, sceneId, transport }: {
   onAutoLinkTap: SceneEditorHostProps["onAutoLinkTap"];
   onSelectionChange: SceneEditorHostProps["onSelectionChange"];
@@ -283,6 +287,7 @@ export function SceneEditorHost({
   });
   const localUri = useEditorAsset(dispatch);
   const [wordCount, refresh] = useWordCount(projectId, sceneId);
+  useEditorTheme(ui, colors);
   useFocusUi({ ui, focus, activeParagraph: selection?.from, wordCount, onWordCountChange });
   usePortLifecycle(port, localUri, dispatch);
   useHandshakeTimeout(state.phase, dispatch);
