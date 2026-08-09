@@ -1,10 +1,10 @@
 import type { ManuscriptAbout } from "../features/ai/ai.types";
 import type { BibleLocalWriteDependencies } from "../sync/bible/bibleLocalBridge";
-import { bridgeBibleLocalWrite } from "../sync/bible/desktopBibleBridge";
 import {
   findEntityLinkProjectId, findEntityProjectId, findEntityTypeProjectId,
   findFieldProjectId, findRelationProjectId, findSceneProjectId,
 } from "../sync/bible/bibleMutationContext";
+import { bridgeBibleLocalWrite } from "../sync/bible/desktopBibleBridge";
 import { bridgeManuscriptAboutWrite } from "../sync/desktopLwwBridges";
 import { EntityChangeEmitter } from "./entityChangeEmitter";
 import { type DbClient, getDb } from "./schema";
