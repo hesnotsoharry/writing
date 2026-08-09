@@ -6,9 +6,14 @@ import { getMobileDb } from "../db/database";
 import { MobileMetaApplyTarget } from "../db/mobileMetaApplyTarget";
 import { MobileBoardDocStore } from "../db/syncStores/mobileBoardDocStore";
 import { MobileEpochStore } from "../db/syncStores/mobileEpochStore";
+import { MobilePendingReplacementStore } from "../db/syncStores/mobilePendingReplacementStore";
+import { MobileProjectDomainDocStore } from "../db/syncStores/mobileProjectDomainDocStore";
 import { MobileProjectMetaDocStore } from "../db/syncStores/mobileProjectMetaDocStore";
 import { MobileSceneDocStore } from "../db/syncStores/mobileSceneDocStore";
 import { MobileSnapshotStore } from "../db/syncStores/mobileSnapshotStore";
+import { MobileSyncLwwStore } from "../db/syncStores/mobileSyncLwwStore";
+import { MobileSyncOutboxStore } from "../db/syncStores/mobileSyncOutboxStore";
+import type { DbClient } from "../shared/dbClient";
 import type { EngineOptions } from "../shared/engine";
 import { SyncEngine } from "../shared/engine";
 import { RelayProvider } from "../shared/provider";
@@ -37,6 +42,7 @@ async function updateSceneWordCount(sceneId: string, count: number): Promise<voi
 }
 
 function buildMobileEngineOptions(): EngineOptions {
+  const db = deferredMobileDbClient();
   return {
     relayUrl: DEFAULT_RELAY_URL,
     sceneStore: mobileSceneStore,
@@ -45,6 +51,12 @@ function buildMobileEngineOptions(): EngineOptions {
     metaApplyTarget: new MobileMetaApplyTarget(),
     snapshotStore: new MobileSnapshotStore(),
     epochStore: new MobileEpochStore(),
+    domainDocStore: new MobileProjectDomainDocStore(db),
+    lwwStore: new MobileSyncLwwStore(db), outboxStore: new MobileSyncOutboxStore(db),
+    pendingReplacementStore: new MobilePendingReplacementStore(db),
+    epochAcceptance: "manual",
+    loadLastPeerSeenAt: () => readLastPeerSeenAt(db),
+    saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(db, value),
     // No `ensureProjectMetas`/`subscribeMetaSaves`: those bootstrap/notify
     // *local* project-meta edits, which only happen on the desktop authoring
     // side. Mobile is always the "joined" (scanning) side per the S4
@@ -55,6 +67,29 @@ function buildMobileEngineOptions(): EngineOptions {
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),
     updateWordCount: updateSceneWordCount,
   };
+}
+
+function deferredMobileDbClient(): DbClient {
+  return {
+    async select<T>(sql: string, params?: unknown[]): Promise<T> {
+      return (await getMobileDb()).select<T>(sql, params);
+    },
+    async execute(sql: string, params?: unknown[]) {
+      return (await getMobileDb()).execute(sql, params);
+    },
+  };
+}
+
+async function readLastPeerSeenAt(db: DbClient): Promise<string | null> {
+  const rows = await db.select<Array<{ value: string }>>(
+    "SELECT value FROM app_meta WHERE key = ?", ["sync_last_peer_seen_at"],
+  );
+  return rows[0]?.value ?? null;
+}
+async function writeLastPeerSeenAt(db: DbClient, value: string): Promise<void> {
+  await db.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
+    "sync_last_peer_seen_at", value,
+  ]);
 }
 
 /** The mobile SyncEngine singleton. Call `.start()` after pairing / on app

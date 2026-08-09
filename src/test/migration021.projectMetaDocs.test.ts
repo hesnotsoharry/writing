@@ -17,7 +17,7 @@ describe("migration 21 — project meta docs", () => {
         { name: "updated_at", type: "TEXT", notnull: 0 },
       ]);
       expect((await db.select<{ user_version: number }[]>("PRAGMA user_version"))[0].user_version)
-        .toBe(21);
+        .toBe(22);
     } finally {
       db.close();
     }

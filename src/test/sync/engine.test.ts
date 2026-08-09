@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
 import type { BoardDocStore } from "../../db/boardDocStore";
+import { InMemoryProjectMetaDocStore } from "../../db/projectMetaDocStore";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import { SyncEngine, type SyncProvider } from "../../sync/engine";
 import { openMessage, sealMessage } from "../../sync/frameCodec";
 import { deriveKeys } from "../../sync/keys";
 import type { InnerMessage } from "../../sync/messages";
+import { buildFromSql, getScenes } from "../../sync/meta/metaDoc";
 import type { ConnectionState } from "../../sync/provider";
 import { SYNC_ORIGIN } from "../../yjs/bindPersistence";
 import { encodeDoc, extractPlainText } from "../../yjs/serialize";
@@ -125,6 +127,27 @@ describe("SyncEngine sweeps and live updates", () => {
     engine.stop();
   });
 
+  it("loads and persists last-peer-seen when a hello proves presence", async () => {
+    const provider = new FakeProvider(); const saveSeen = vi.fn().mockResolvedValue(undefined);
+    const engine = new SyncEngine({
+      relayUrl: "wss://relay.test", sceneStore: new MemorySceneStore(),
+      boardStore: new MemoryBoardStore(), readMasterKey: () => Promise.resolve(MASTER_KEY),
+      getDeviceId: () => Promise.resolve("device-a"), providerFactory: () => provider,
+      updateWordCount: () => Promise.resolve(),
+      loadLastPeerSeenAt: () => Promise.resolve("2026-01-01T00:00:00.000Z"),
+      saveLastPeerSeenAt: saveSeen,
+    });
+    await engine.start(); await waitForSent(provider);
+    expect(engine.status()).toMatchObject({
+      lastPeerSeenAt: "2026-01-01T00:00:00.000Z",
+      queue: { scenes: 0, notes: 0, boards: 0, rows: 0 }, behind: [],
+    });
+    await deliver(provider, { t: "hello", device: "device-b", docs: [] });
+    await vi.waitFor(() => expect(saveSeen).toHaveBeenCalledOnce());
+    expect(engine.status().peerSeen).toBe(true);
+    engine.stop();
+  });
+
   it("converges bidirectional divergence after hello and diff exchange", async () => {
     const base = textDoc("base");
     const leftDoc = new Y.Doc(); Y.applyUpdate(leftDoc, Y.encodeStateAsUpdate(base));
@@ -147,6 +170,36 @@ describe("SyncEngine sweeps and live updates", () => {
 
     expect(await left.sceneStore.load("shared")).toBe(await right.sceneStore.load("shared"));
     left.engine.stop(); right.engine.stop();
+  });
+
+  it("keeps scene and meta convergence with a v1.2-shaped peer", async () => {
+    const provider = new FakeProvider(); const scenes = new MemorySceneStore();
+    const metas = new InMemoryProjectMetaDocStore();
+    seed(scenes, "s1", textDoc("v1.3 scene"));
+    await metas.save("p1", encodeDoc(buildFromSql({
+      project: { id: "p1", title: "Compatible", type: "novel" }, folders: [],
+      scenes: [{ id: "s1", project_id: "p1", folder_id: null, title: "Opening",
+        synopsis: null, status: "draft", sort_order: 1000 }], labels: [], sceneLabels: [],
+    })));
+    const engine = new SyncEngine({
+      relayUrl: "wss://relay.test", sceneStore: scenes, boardStore: new MemoryBoardStore(),
+      metaStore: metas, readMasterKey: () => Promise.resolve(MASTER_KEY),
+      getDeviceId: () => Promise.resolve("v13"), providerFactory: () => provider,
+      updateWordCount: () => Promise.resolve(),
+    });
+    await engine.start(); await waitForSent(provider); provider.sent.length = 0;
+    // No capabilities field: exactly the hello shape emitted by v1.2.
+    await deliver(provider, { t: "hello", device: "v12", docs: [] });
+    await vi.waitFor(async () => expect((await decodeSent(provider)).length).toBe(2));
+    const v12Scene = new Y.Doc(); const v12Meta = new Y.Doc();
+    for (const message of await decodeSent(provider)) {
+      if (message.t !== "diff") continue;
+      if (message.c === "scene:s1") Y.applyUpdate(v12Scene, toUpdate(message.u));
+      if (message.c === "meta:p1") Y.applyUpdate(v12Meta, toUpdate(message.u));
+    }
+    expect(extractPlainText(v12Scene)).toBe("v1.3 scene");
+    expect(getScenes(v12Meta)[0]).toMatchObject({ id: "s1", title: "Opening" });
+    engine.stop();
   });
 
   it("applies a live update to the open doc with SYNC_ORIGIN", async () => {

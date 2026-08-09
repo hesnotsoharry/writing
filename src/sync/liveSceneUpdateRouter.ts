@@ -38,7 +38,9 @@ export class LiveSceneUpdateRouter {
     openDoc: Y.Doc | null,
     livePort: EngineLiveScenePort | null,
   ): Promise<boolean> {
-    if (livePort && this.epochs.isBehind(sceneId)) await flushPort(livePort);
+    if (livePort && this.epochs.isBehind(sceneId) && this.epochs.appliesAutomatically()) {
+      await flushPort(livePort);
+    }
     const result = await this.epochs.handleBehindFrame(sceneId, message, openDoc);
     if (result !== "replaced") return result !== "none";
     if (livePort) await livePort.replaceFromState(message.u);

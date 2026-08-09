@@ -1,59 +1,33 @@
-import { fromUint8Array, toUint8Array } from "js-base64";
+import { fromUint8Array } from "js-base64";
 import * as Y from "yjs";
 
-import type { BoardDocStore } from "../db/boardDocStore";
-import type { ProjectMetaDocStore } from "../db/projectMetaDocStore";
-import type { SceneDocStore } from "../db/sceneDocStore";
-import type { SnapshotStore } from "../db/snapshotStore";
-import type { AppliedEpochs, AppliedEpochStore } from "../db/syncEpochStore";
+import type { AppliedEpochs } from "../db/syncEpochStore";
+import { CatchUpCoordinator,type CatchUpResult } from "./catchUpCoordinator";
+import { type ChannelDoc,EngineDocRepository } from "./engineDocRepository";
+import { prepareSession } from "./engineSession";
+import type { EngineOptions, SyncProvider } from "./engineTypes";
 import { answerFrame, helloDoc, targetedSaveFrame } from "./epochFrames";
-import { EpochManager } from "./epochManager";
+import { EpochManager, type SnapshotRef } from "./epochManager";
 import { openMessage, sealMessage } from "./frameCodec";
-import { deriveKeys } from "./keys";
 import { type EngineLiveScenePort, LiveSceneBindings } from "./liveSceneBindings";
 import { LiveSceneUpdateRouter } from "./liveSceneUpdateRouter";
+import { type LocalRowMutation, LwwPublisher } from "./lww/publisher";
+import { LwwReconciler } from "./lww/reconciler";
+import { LwwDomainRegistry } from "./lww/registry";
 import {
-  boardChannel, type HelloMessage, type InnerMessage,
-  isInnerMessage, metaChannel, parseChannel, sceneChannel,
+  type HelloMessage, type InnerMessage, isInnerMessage, metaChannel, parseChannel, sceneChannel,
 } from "./messages";
-import { applyMetaDoc, type MetaApplyTarget } from "./meta/applyExec";
+import { DurableOutbox } from "./outbox";
 import type { ConnectionState } from "./provider";
-import { StatusEmitter, type SyncStatus } from "./statusEmitter";
-import { mergeStoredBoard } from "./storedDocMerge";
+import { RemoteUpdateRouter } from "./remoteUpdateRouter";
+import {
+  type BehindScene, StatusEmitter, type SyncQueueDepth, type SyncStatus,
+} from "./statusEmitter";
 
+export type { EngineOptions, SyncProvider } from "./engineTypes";
 export type { EngineLiveScenePort, LiveSceneFlushResult } from "./liveSceneBindings";
-export type { SyncState, SyncStatus } from "./statusEmitter";
+export type { BehindScene, SyncQueueDepth, SyncState, SyncStatus } from "./statusEmitter";
 import { ReplacementQueue } from "./replacementQueue";
-
-export interface SyncProvider {
-  connect(): void;
-  destroy(): void;
-  send(blob: Uint8Array): void;
-  subscribeConnection(cb: (state: ConnectionState) => void): () => void;
-  subscribeFrames(cb: (blob: Uint8Array) => void): () => void;
-}
-
-interface StoredDoc { id: string; stateBase64: string; updatedAt: string | null }
-export interface EngineOptions {
-  relayUrl: string;
-  sceneStore: SceneDocStore;
-  boardStore: BoardDocStore;
-  metaStore?: ProjectMetaDocStore;
-  metaApplyTarget?: MetaApplyTarget;
-  snapshotStore?: SnapshotStore;
-  epochStore?: AppliedEpochStore;
-  ensureProjectMetas?: () => Promise<void>;
-  subscribeMetaSaves?: (
-    cb: (projectId: string, epochs: AppliedEpochs) => void
-  ) => () => void;
-  subscribeSceneWrites?: (cb: (sceneId: string) => void) => () => void;
-  readMasterKey: () => Promise<Uint8Array | null>;
-  getDeviceId: () => Promise<string>;
-  providerFactory: (relayUrl: string, roomId: string, deviceId: string) => SyncProvider;
-  updateWordCount: (sceneId: string, wordCount: number) => Promise<void>;
-  sweepMs?: number;
-  saveDebounceMs?: number;
-}
 
 export class SyncEngine {
   private readonly options: EngineOptions;
@@ -65,38 +39,62 @@ export class SyncEngine {
   private readonly saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly liveScenes = new LiveSceneBindings();
   private readonly sceneUpdates: LiveSceneUpdateRouter;
+  private readonly docs: EngineDocRepository;
   private pauseDepth = 0;
   private readonly epochs: EpochManager;
   private readonly replacements = new ReplacementQueue();
+  private readonly outbox: DurableOutbox | null;
+  private readonly lww: LwwReconciler | null;
+  private readonly rowPublisher: LwwPublisher | null;
+  private readonly catchUp: CatchUpCoordinator;
+  private readonly remoteUpdates: RemoteUpdateRouter;
   private inbound: Promise<void> = Promise.resolve();
   private unsubscribeMetaSaves: (() => void) | null = null;
   private unsubscribeSceneWrites: (() => void) | null = null;
+  private unsubscribeOutbox: (() => void) | null = null;
   private structureChanged: (() => void) | null = null;
   private docReplaced: ((sceneId: string) => void) | null = null;
 
   constructor(options: EngineOptions) {
     this.options = options;
+    this.docs = new EngineDocRepository(options);
     this.epochs = new EpochManager(options);
+    this.outbox = options.outboxStore ? new DurableOutbox(options.outboxStore) : null;
+    const registry = options.lwwRegistry ?? new LwwDomainRegistry();
+    this.rowPublisher = options.lwwStore && this.outbox
+      ? new LwwPublisher({ store: options.lwwStore, registry, outbox: this.outbox,
+        send: (message) => this.sendMessage(message), deviceId: () => this.deviceId }) : null;
+    this.lww = options.lwwStore
+      ? new LwwReconciler(options.lwwStore, registry,
+        (message) => this.sendMessage(message),
+        { onConverged: (domain, rowId) => this.outbox?.acknowledgeItem(domain, rowId)
+          ?? Promise.resolve(), onObserved: (hlc) => this.rowPublisher?.observe(hlc) })
+      : null;
+    this.catchUp = new CatchUpCoordinator(
+      this.epochs, this.liveScenes, this.outbox, (sceneId) => this.docReplaced?.(sceneId),
+    );
     this.sceneUpdates = new LiveSceneUpdateRouter(
       options, this.epochs, this.liveScenes, (sceneId) => this.docReplaced?.(sceneId),
     );
+    this.remoteUpdates = new RemoteUpdateRouter({
+      options, epochs: this.epochs, docs: this.docs, scenes: this.sceneUpdates,
+      requestScene: (channel) => this.sendTargetedHello(channel),
+      notifyStructure: () => this.structureChanged?.(),
+    });
   }
 
   /** `relayUrlOverride` lets callers honor the `syncRelayUrl` tweak without
    *  rebuilding the engine (the default URL is fixed at construction). */
   async start(relayUrlOverride?: string): Promise<void> {
     if (this.provider) return;
-    await this.options.ensureProjectMetas?.();
-    const masterKey = await this.options.readMasterKey();
-    if (!masterKey) { this.setStatus({ state: "off" }); return; }
-    const [{ roomId, encKey }, deviceId] = await Promise.all([
-      deriveKeys(masterKey), this.options.getDeviceId(),
-    ]);
-    this.encKey = encKey;
-    this.deviceId = deviceId;
-    await this.epochs.initialize(deviceId, this.options.metaStore);
-    const relayUrl = relayUrlOverride?.trim() ? relayUrlOverride.trim() : this.options.relayUrl;
-    const provider = this.options.providerFactory(relayUrl, roomId, deviceId);
+    const session = await prepareSession(this.options, this.epochs, this.outbox, relayUrlOverride);
+    if (!session) { this.setStatus({ state: "off" }); return; }
+    this.encKey = session.encKey;
+    this.deviceId = session.deviceId;
+    this.setStatus({ lastPeerSeenAt: session.lastPeerSeenAt,
+      queue: session.queue, behind: this.epochs.listBehind() });
+    this.unsubscribeOutbox = this.outbox?.subscribe((queue) => this.setStatus({ queue })) ?? null;
+    const provider = session.provider;
     this.provider = provider;
     this.unsubscribeMetaSaves = this.options.subscribeMetaSaves?.(
       (projectId, epochs) => this.notifyLocalMetaSave(projectId, epochs)
@@ -124,14 +122,35 @@ export class SyncEngine {
     // Drop the old session's inbound chain: a handler still pending from it would
     // otherwise serialize ahead of (or stall) every frame of the next session.
     this.inbound = Promise.resolve();
-    this.unsubscribeMetaSaves?.();
-    this.unsubscribeMetaSaves = null;
-    this.unsubscribeSceneWrites?.();
-    this.unsubscribeSceneWrites = null;
+    this.unsubscribeMetaSaves?.(); this.unsubscribeMetaSaves = null;
+    this.unsubscribeSceneWrites?.(); this.unsubscribeSceneWrites = null;
+    this.unsubscribeOutbox?.(); this.unsubscribeOutbox = null;
     this.setStatus({ state: "off", peerSeen: false });
   }
 
   subscribe(cb: (status: SyncStatus) => void): () => void { return this.statusEmitter.subscribe(cb); }
+  status(): SyncStatus { return this.statusEmitter.current(); }
+  listBehind(): readonly BehindScene[] { return this.epochs.listBehind(); }
+  subscribeQueue(listener: (queue: SyncQueueDepth) => void): () => void {
+    return this.outbox?.subscribe(listener) ?? (() => undefined);
+  }
+  async syncNow(): Promise<void> {
+    if (this.isPaused() || this.statusEmitter.current().state !== "connected") return;
+    await this.outbox?.flush((message) => this.sendMessage(message));
+    await this.sendHello();
+    await this.lww?.sendAllSummaries();
+  }
+  async publishRow(mutation: LocalRowMutation): Promise<boolean> {
+    return this.rowPublisher?.publish(mutation) ?? false;
+  }
+  async prepareCatchUp(sceneIds?: readonly string[]): Promise<{ snapshots: SnapshotRef[] }> {
+    return this.catchUp.prepare(sceneIds);
+  }
+  async catchUpNow(sceneIds?: readonly string[]): Promise<CatchUpResult> {
+    const result = await this.catchUp.apply(sceneIds);
+    this.setStatus({ behind: this.epochs.listBehind() });
+    return result;
+  }
 
   onStructureChanged(callback: (() => void) | null): void { this.structureChanged = callback; }
   onDocReplaced(callback: ((sceneId: string) => void) | null): void { this.docReplaced = callback; }
@@ -218,8 +237,10 @@ export class SyncEngine {
     this.setStatus({ state });
     if (state !== "connected") { this.stopSweep(); return; }
     if (this.isPaused()) return;
-    if (this.replacements.hasPending()) void this.flushReplacements();
-    else void this.sendHello();
+    void this.syncNow().then(() => {
+      if (this.replacements.hasPending()) return this.flushReplacements();
+      return undefined;
+    });
     this.startSweep();
   }
 
@@ -231,30 +252,35 @@ export class SyncEngine {
   }
 
   private async handleMessage(message: InnerMessage): Promise<void> {
+    if (await this.handleControlMessage(message)) return;
+    if (message.t !== "diff" && message.t !== "live") return;
+    await this.remoteUpdates.apply(message);
+    this.setStatus({ lastSyncAt: new Date().toISOString(), behind: this.epochs.listBehind() });
+  }
+
+  private async handleControlMessage(message: InnerMessage): Promise<boolean> {
     if (message.t === "hello") {
-      this.setStatus({ peerSeen: true });
+      const lastPeerSeenAt = new Date().toISOString();
+      this.setStatus({ peerSeen: true, lastPeerSeenAt });
+      await this.options.saveLastPeerSeenAt?.(lastPeerSeenAt);
       await this.answerHello(message);
-      return;
+      return true;
     }
-    await this.applyRemoteUpdate(message);
-    this.setStatus({ lastSyncAt: new Date().toISOString() });
+    if (message.t === "row-hello") { await this.lww?.receiveSummary(message); return true; }
+    if (message.t === "row") {
+      const ack = await this.lww?.receiveRow(message);
+      if (ack) await this.sendMessage(ack);
+      return true;
+    }
+    if (message.t === "row-ack") { await this.outbox?.acknowledge(message.id); return true; }
+    return isCredentialMessage(message);
   }
 
-  private async listDocs(): Promise<Array<StoredDoc & { channel: string }>> {
-    const [scenes, boards, metas] = await Promise.all([
-      this.options.sceneStore.listAll(), this.options.boardStore.listAll(),
-      this.options.metaStore?.listAll() ?? Promise.resolve([]),
-    ]);
-    return [
-      ...metas.map((doc) => ({ ...doc, channel: metaChannel(doc.id) })),
-      ...scenes.map((doc) => ({ ...doc, channel: sceneChannel(doc.id) })),
-      ...boards.map((doc) => ({ ...doc, channel: boardChannel(doc.id) })),
-    ];
-  }
-
-  private async makeHello(docs?: Array<StoredDoc & { channel: string }>): Promise<HelloMessage> {
-    const stored = docs ?? await this.listDocs();
-    return { t: "hello", device: this.deviceId, docs: stored.map((d) => helloDoc(d, this.epochs)) };
+  private async makeHello(docs?: ChannelDoc[]): Promise<HelloMessage> {
+    const stored = docs ?? await this.docs.listAll();
+    return { t: "hello", device: this.deviceId,
+      capabilities: ["domain-docs", "row-lww", "manual-epochs", "managed-credential-schema"],
+      docs: stored.map((d) => helloDoc(d, this.epochs)) };
   }
 
   private async sendHello(): Promise<void> {
@@ -264,9 +290,8 @@ export class SyncEngine {
   private async sendTargetedHello(channelName: string): Promise<void> {
     const channel = parseChannel(channelName);
     if (!channel) return;
-    const store = channel.kind === "scene" ? this.options.sceneStore
-      : channel.kind === "board" ? this.options.boardStore : this.options.metaStore;
-    const doc = (await store?.listAll() ?? []).find((item) => item.id === channel.id);
+    const docs = await this.docs.forChannel(channel);
+    const doc = docs.find((item) => item.id === channel.id);
     if (!doc) return;
     await this.sendMessage(await this.makeHello([{ ...doc, channel: channelName }]));
     // A hello only ADVERTISES a state vector, and answerHello replies with what the
@@ -279,44 +304,31 @@ export class SyncEngine {
     const frame = targetedSaveFrame(
       { ...doc, channel: channelName }, this.epochs, this.liveScenes.activeSceneId()
     );
+    const durableFrame = targetedSaveFrame({ ...doc, channel: channelName }, this.epochs, null);
+    if (durableFrame) {
+      await this.outbox?.enqueue({ domain: channel.kind, projectId: null,
+        itemId: channel.id, kind: "doc", message: durableFrame });
+    }
     if (frame) await this.sendMessage(frame);
   }
 
   private async answerHello(hello: HelloMessage): Promise<void> {
     const peerVectors = new Map(hello.docs.map((doc) => [doc.c, doc.sv]));
-    for (const doc of await this.listDocs()) {
+    for (const doc of await this.docs.listAll()) {
       const frame = answerFrame(doc, peerVectors.get(doc.channel), this.epochs);
       if (frame) await this.sendMessage(frame);
+      else await this.acknowledgeDoc(doc.channel);
     }
   }
 
-  private async applyRemoteUpdate(message: Exclude<InnerMessage, HelloMessage>): Promise<void> {
-    const channel = parseChannel(message.c);
-    if (!channel) return;
-    const update = toUint8Array(message.u);
-    if (channel.kind === "meta") { await this.mergeMeta(channel.id, update); return; }
-    if (channel.kind === "board") {
-      await mergeStoredBoard(this.options.boardStore, channel.id, update); return;
-    }
-    await this.sceneUpdates.apply(channel.id, message, update);
-  }
-
-  private async mergeMeta(projectId: string, incoming: Uint8Array): Promise<void> {
-    if (!this.options.metaStore) return;
-    const stored = await this.options.metaStore.load(projectId);
-    const merged = stored ? Y.mergeUpdates([toUint8Array(stored), incoming]) : incoming;
-    await this.options.metaStore.save(projectId, fromUint8Array(merged));
     // Learn the epochs in the SAME continuation as the save, before the SQL apply
     // below awaits. Otherwise a local structure edit landing in that window reads
     // the already-persisted remote bump, recordLocal() sees epoch > known and
     // misreads a REMOTE restore as a local one — marking it applied and pushing
     // our stale scene at the new epoch, which is the resurrection bug again.
-    const newlyBehind = this.epochs.readMetaUpdate(merged);
-    await Promise.all(newlyBehind.map((sceneId) => this.sendTargetedHello(sceneChannel(sceneId))));
-    const doc = new Y.Doc();
-    Y.applyUpdate(doc, merged);
-    if (this.options.metaApplyTarget) await applyMetaDoc(projectId, doc, this.options.metaApplyTarget);
-    this.structureChanged?.();
+  private async acknowledgeDoc(channelName: string): Promise<void> {
+    const channel = parseChannel(channelName);
+    if (channel) await this.outbox?.acknowledgeItem(channel.kind, channel.id);
   }
 
   private async sendMessage(message: InnerMessage): Promise<void> {
@@ -343,4 +355,8 @@ export class SyncEngine {
   private isPaused(): boolean { return this.pauseDepth > 0; }
 
   private setStatus(patch: Partial<SyncStatus>): void { this.statusEmitter.patch(patch); }
+}
+
+function isCredentialMessage(message: InnerMessage): boolean {
+  return message.t === "credential-offer" || message.t === "credential-ack";
 }

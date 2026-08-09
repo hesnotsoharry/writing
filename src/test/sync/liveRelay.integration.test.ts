@@ -9,6 +9,9 @@ import * as Y from "yjs";
 
 import type { BoardDocStore } from "../../db/boardDocStore";
 import { InMemorySnapshotStore } from "../../db/inMemorySnapshotStore";
+import type {
+  PendingReplacement, PendingReplacementStore,
+} from "../../db/pendingReplacementStore";
 import { InMemoryProjectMetaDocStore } from "../../db/projectMetaDocStore";
 import type { SceneDocStore } from "../../db/sceneDocStore";
 import type { AppliedEpochStore } from "../../db/syncEpochStore";
@@ -50,6 +53,19 @@ class MemoryEpochStore implements AppliedEpochStore {
   value: Record<string, EpochStamp> = {};
   async load(): Promise<Record<string, EpochStamp>> { return { ...this.value }; }
   async save(value: Record<string, EpochStamp>): Promise<void> { this.value = { ...value }; }
+}
+
+class MemoryPendingStore implements PendingReplacementStore {
+  readonly rows = new Map<string, PendingReplacement>();
+  async list(): Promise<PendingReplacement[]> { return [...this.rows.values()].map(copyPending); }
+  async stage(value: PendingReplacement): Promise<void> { this.rows.set(value.sceneId, copyPending(value)); }
+  async setSnapshotId(sceneId: string, snapshotId: string): Promise<void> {
+    const row = this.rows.get(sceneId); if (row) row.snapshotId = snapshotId;
+  }
+  async remove(sceneId: string): Promise<void> { this.rows.delete(sceneId); }
+}
+function copyPending(value: PendingReplacement): PendingReplacement {
+  return { ...value, epoch: { ...value.epoch } };
 }
 
 function replaceById<T extends { id: string }>(rows: T[], row: T): void {
@@ -107,6 +123,8 @@ interface EngineMemory {
   metaSaves?: { listener: MetaSaveListener | null };
   /** Long value = "if this converges, it was pushed, not swept". */
   sweepMs?: number;
+  pending?: PendingReplacementStore;
+  epochAcceptance?: "automatic" | "manual";
 }
 
 function makeEngine(
@@ -121,6 +139,8 @@ function makeEngine(
     metaApplyTarget: memory.metaTarget,
     snapshotStore: memory.snapshots,
     epochStore: memory.epochs,
+    pendingReplacementStore: memory.pending,
+    epochAcceptance: memory.epochAcceptance,
     subscribeMetaSaves: memory.metaSaves ? (listener) => {
       memory.metaSaves!.listener = listener;
       return () => { memory.metaSaves!.listener = null; };
@@ -313,6 +333,43 @@ describe.runIf(RELAY_URL)("live relay end-to-end", () => {
       engineA.stop();
       engineB.stop();
     }
+  }, 40_000);
+
+  it("stages a mobile manual catch-up until catchUpNow snapshots and applies it", async () => {
+    const masterKey = generateMasterKey();
+    const storeA = new MemoryDocStore(); const storeB = new MemoryDocStore();
+    const metaA = new InMemoryProjectMetaDocStore(); const metaB = new InMemoryProjectMetaDocStore();
+    const epochsA = new MemoryEpochStore(); const epochsB = new MemoryEpochStore();
+    const snapshotsB = new InMemorySnapshotStore(); const pendingB = new MemoryPendingStore();
+    await metaA.save("p1", encodeDoc(buildFromSql({
+      project: { id: "p1", title: "Manual Epoch", type: "novel" },
+      folders: [], scenes: [], labels: [], sceneLabels: [],
+    })));
+    await storeA.save("s1", encodeDoc(sceneDocWithText("shared beginning")));
+    let engineA = makeEngine("manual-A", masterKey, storeA, { metaStore: metaA, epochs: epochsA });
+    const engineB = makeEngine("manual-B", masterKey, storeB, {
+      metaStore: metaB, metaTarget: new MemoryMetaTarget(), snapshots: snapshotsB,
+      epochs: epochsB, pending: pendingB, epochAcceptance: "manual",
+    });
+    try {
+      await engineA.start(); await engineB.start();
+      await until(() => storeB.rows.has("s1") && metaB.load("p1") !== null);
+      await storeB.save("s1", encodeDoc(sceneDocWithText("mobile divergence")));
+      const restoredMeta = new Y.Doc(); applyEncoded(restoredMeta, (await metaA.load("p1"))!);
+      bumpEpoch(restoredMeta, "s1", "manual-A"); await metaA.save("p1", encodeDoc(restoredMeta));
+      await storeA.save("s1", encodeDoc(sceneDocWithText("authoritative restore")));
+      epochsA.value = { s1: { n: 1, d: "manual-A" } };
+      engineA.stop();
+      engineA = makeEngine("manual-A", masterKey, storeA, { metaStore: metaA, epochs: epochsA });
+      await engineA.start();
+      await until(() => engineB.listBehind()[0]?.replacementReady === true);
+      const before = new Y.Doc(); applyEncoded(before, (await storeB.load("s1"))!);
+      expect(extractPlainText(before)).toBe("mobile divergence");
+      expect(await engineB.catchUpNow()).toEqual({ replaced: ["s1"], waitingForOwner: [] });
+      const after = new Y.Doc(); applyEncoded(after, (await storeB.load("s1"))!);
+      expect(extractPlainText(after)).toBe("authoritative restore");
+      expect(await snapshotsB.listSnapshots("s1")).toHaveLength(1);
+    } finally { engineA.stop(); engineB.stop(); }
   }, 40_000);
 
   it("converges concurrent restores on the epoch owner without waiting for a sweep", async () => {

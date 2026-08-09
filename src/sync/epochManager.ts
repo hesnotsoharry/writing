@@ -1,6 +1,7 @@
 import { fromUint8Array, toUint8Array } from "js-base64";
 import * as Y from "yjs";
 
+import type { PendingReplacement, PendingReplacementStore } from "../db/pendingReplacementStore";
 import type { ProjectMetaDocStore } from "../db/projectMetaDocStore";
 import type { SceneDocStore } from "../db/sceneDocStore";
 import type { SnapshotStore } from "../db/snapshotStore";
@@ -8,59 +9,73 @@ import type { AppliedEpochStore } from "../db/syncEpochStore";
 import { extractPlainText } from "../yjs/serialize";
 import type { DiffMessage, LiveMessage } from "./messages";
 import { type EpochStamp, getDocEpochs } from "./meta/metaDoc";
+import type { BehindScene } from "./statusEmitter";
 
 interface EpochManagerOptions {
   sceneStore: SceneDocStore;
   snapshotStore?: SnapshotStore;
   epochStore?: AppliedEpochStore;
+  pendingReplacementStore?: PendingReplacementStore;
+  epochAcceptance?: "automatic" | "manual";
   updateWordCount: (sceneId: string, count: number) => Promise<void>;
 }
-
-function countWords(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
-}
+export interface SnapshotRef { sceneId: string; snapshotId: string }
 
 export class EpochManager {
   private applied: Record<string, EpochStamp> = {};
   private readonly known = new Map<string, EpochStamp>();
+  private readonly projects = new Map<string, string>();
+  private readonly pending = new Map<string, PendingReplacement>();
   private deviceId = "";
-
   constructor(private readonly options: EpochManagerOptions) {}
 
   async initialize(deviceId: string, metaStore?: ProjectMetaDocStore): Promise<void> {
     this.deviceId = deviceId;
     this.applied = await this.options.epochStore?.load() ?? {};
+    for (const item of await this.options.pendingReplacementStore?.list() ?? []) {
+      this.pending.set(item.sceneId, item);
+    }
     if (!metaStore) return;
-    for (const row of await metaStore.listAll()) this.readMetaUpdate(toUint8Array(row.stateBase64));
+    for (const row of await metaStore.listAll()) {
+      this.readMetaUpdate(toUint8Array(row.stateBase64), row.id);
+    }
   }
 
   epoch(sceneId: string): number { return this.knownStamp(sceneId).n; }
-
   isBehind(sceneId: string): boolean {
     return !matches(this.knownStamp(sceneId), this.applied[sceneId] ?? EMPTY_EPOCH);
   }
-
   accepts(sceneId: string, epoch: number | undefined): boolean {
     const known = this.epoch(sceneId);
     if (known > 0 && epoch !== known) return false;
     if (epoch !== undefined && epoch < known) return false;
     return !this.isBehind(sceneId) || epoch === known;
   }
+  appliesAutomatically(): boolean { return this.options.epochAcceptance !== "manual"; }
 
-  readMetaUpdate(update: Uint8Array): string[] {
+  listBehind(): BehindScene[] {
+    return [...this.known.entries()].filter(([sceneId]) => this.isBehind(sceneId))
+      .map(([sceneId, known]) => ({
+        projectId: this.projects.get(sceneId) ?? "", sceneId, known: { ...known },
+        applied: { ...(this.applied[sceneId] ?? EMPTY_EPOCH) },
+        replacementReady: this.pending.has(sceneId)
+          && this.pending.get(sceneId)?.stateBase64 !== null,
+      }));
+  }
+
+  readMetaUpdate(update: Uint8Array, projectId = ""): string[] {
     const doc = new Y.Doc();
     Y.applyUpdate(doc, update);
     const newlyBehind: string[] = [];
     for (const [sceneId, epoch] of Object.entries(getDocEpochs(doc))) {
       const wasBehind = this.isBehind(sceneId);
       this.known.set(sceneId, epoch);
+      if (projectId) this.projects.set(sceneId, projectId);
       if (!wasBehind && this.isBehind(sceneId)) newlyBehind.push(sceneId);
     }
     return newlyBehind;
   }
 
-  /** Returns the scenes whose epoch this call advanced — i.e. what a local
-   *  restore just replaced, and therefore what peers still need pushed to them. */
   async recordLocal(epochs: Record<string, EpochStamp>): Promise<string[]> {
     const advanced: string[] = [];
     for (const [sceneId, epoch] of Object.entries(epochs)) {
@@ -75,10 +90,11 @@ export class EpochManager {
   }
 
   async handleBehindFrame(
-    sceneId: string, message: DiffMessage | LiveMessage, liveDoc: Y.Doc | null
-  ): Promise<"none" | "ignored" | "replaced"> {
+    sceneId: string, message: DiffMessage | LiveMessage, liveDoc: Y.Doc | null,
+  ): Promise<"none" | "ignored" | "staged" | "replaced"> {
     if (!this.isBehind(sceneId)) return "none";
     if (message.t !== "diff" || message.e !== this.epoch(sceneId)) return "ignored";
+    if (!this.appliesAutomatically()) { await this.stageReplacement(sceneId, message); return "staged"; }
     await this.snapshotLocal(sceneId, liveDoc);
     await this.saveReplacement(sceneId, toUint8Array(message.u));
     this.applied = { ...this.applied, [sceneId]: this.knownStamp(sceneId) };
@@ -86,26 +102,65 @@ export class EpochManager {
     return "replaced";
   }
 
-  private knownStamp(sceneId: string): EpochStamp {
-    return this.known.get(sceneId) ?? EMPTY_EPOCH;
+  async stageReplacement(sceneId: string, message: DiffMessage): Promise<void> {
+    const replacement: PendingReplacement = {
+      sceneId, projectId: this.projects.get(sceneId) ?? "",
+      epoch: { ...this.knownStamp(sceneId) }, stateBase64: message.u,
+      receivedAt: new Date().toISOString(), snapshotId: null,
+    };
+    await this.options.pendingReplacementStore?.stage(replacement);
+    this.pending.set(sceneId, replacement);
   }
 
-  private async snapshotLocal(sceneId: string, liveDoc: Y.Doc | null): Promise<void> {
-    const stored = liveDoc
-      ? fromUint8Array(Y.encodeStateAsUpdate(liveDoc))
+  async snapshotPending(sceneIds?: readonly string[]): Promise<SnapshotRef[]> {
+    const snapshots: SnapshotRef[] = [];
+    for (const item of this.selectedPending(sceneIds)) {
+      if (item.snapshotId) { snapshots.push({ sceneId: item.sceneId, snapshotId: item.snapshotId }); continue; }
+      const snapshotId = await this.snapshotLocal(item.sceneId, null);
+      if (!snapshotId) continue;
+      item.snapshotId = snapshotId;
+      await this.options.pendingReplacementStore?.setSnapshotId(item.sceneId, snapshotId);
+      snapshots.push({ sceneId: item.sceneId, snapshotId });
+    }
+    return snapshots;
+  }
+
+  async applyPending(sceneIds?: readonly string[]): Promise<string[]> {
+    const replaced: string[] = [];
+    for (const item of this.selectedPending(sceneIds)) {
+      if (!item.stateBase64) continue;
+      const localState = await this.options.sceneStore.load(item.sceneId);
+      if (localState !== null && this.options.snapshotStore && !item.snapshotId) {
+        throw new Error(`Pending replacement must be snapshotted first: ${item.sceneId}`);
+      }
+      await this.saveReplacement(item.sceneId, toUint8Array(item.stateBase64));
+      this.applied[item.sceneId] = { ...item.epoch };
+      await this.options.epochStore?.save(this.applied);
+      await this.options.pendingReplacementStore?.remove(item.sceneId);
+      this.pending.delete(item.sceneId);
+      replaced.push(item.sceneId);
+    }
+    return replaced;
+  }
+
+  private selectedPending(sceneIds?: readonly string[]): PendingReplacement[] {
+    const selected = sceneIds ? new Set(sceneIds) : null;
+    return [...this.pending.values()].filter((item) => !selected || selected.has(item.sceneId));
+  }
+  private knownStamp(sceneId: string): EpochStamp { return this.known.get(sceneId) ?? EMPTY_EPOCH; }
+  private async snapshotLocal(sceneId: string, liveDoc: Y.Doc | null): Promise<string | null> {
+    const stored = liveDoc ? fromUint8Array(Y.encodeStateAsUpdate(liveDoc))
       : await this.options.sceneStore.load(sceneId);
-    if (stored === null || !this.options.snapshotStore) return;
-    const doc = new Y.Doc();
-    Y.applyUpdate(doc, toUint8Array(stored));
-    await this.options.snapshotStore.takeSnapshot({
+    if (stored === null || !this.options.snapshotStore) return null;
+    const doc = new Y.Doc(); Y.applyUpdate(doc, toUint8Array(stored));
+    const snapshot = await this.options.snapshotStore.takeSnapshot({
       sceneId, label: null, stateBase64: stored,
       wordCount: countWords(extractPlainText(doc)), kind: "auto",
     });
+    return snapshot.id;
   }
-
   private async saveReplacement(sceneId: string, update: Uint8Array): Promise<void> {
-    const doc = new Y.Doc();
-    Y.applyUpdate(doc, update);
+    const doc = new Y.Doc(); Y.applyUpdate(doc, update);
     const plaintext = extractPlainText(doc);
     await this.options.sceneStore.save(sceneId, fromUint8Array(update), plaintext || null);
     await this.options.updateWordCount(sceneId, countWords(plaintext));
@@ -113,7 +168,9 @@ export class EpochManager {
 }
 
 const EMPTY_EPOCH: EpochStamp = { n: 0, d: "" };
-
+function countWords(text: string): number {
+  return text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+}
 function matches(left: EpochStamp, right: EpochStamp): boolean {
   return left.n === right.n && (left.d === "" || right.d === "" || left.d === right.d);
 }

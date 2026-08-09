@@ -64,6 +64,15 @@ export class LiveSceneBindings {
     return this.liveDoc?.id ?? this.livePort?.id ?? null;
   }
 
+  async flushAndClose(sceneIds: readonly string[]): Promise<void> {
+    const selected = new Set(sceneIds);
+    if (this.livePort && selected.has(this.livePort.id)) {
+      try { await this.livePort.port.flushLocal(); } catch { /* SQLite remains the boundary. */ }
+      this.livePort = null;
+    }
+    if (this.liveDoc && selected.has(this.liveDoc.id)) this.detachDoc();
+  }
+
   clear(): void {
     this.detachDoc();
     this.livePort = null;

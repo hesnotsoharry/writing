@@ -123,3 +123,59 @@ in either an on-disk v1.1 meta doc or the JSON applied-epoch store normalizes to
 `{n, d: ""}`. Live wire compatibility with v1.1 peers is not provided. During
 concurrent restores Yjs selects one owned entry, the losing restorer becomes behind,
 withholds its scene, and requests the owner's full state for wholesale adoption.
+
+## v1.3 additions (domain docs, row replication, durable delivery, mobile catch-up)
+
+The encrypted outer frame remains `{ "v": 1, ... }`. All v1.3 changes are additive
+inner-message fields/types or a new channel. A v1.2 receiver ignores `bible:*` because
+it does not recognise that channel and drops the new inner-message types. Scene,
+board, and meta traffic therefore continues to converge between v1.2 and v1.3 peers.
+
+**Capabilities.** `hello` may carry `capabilities: string[]`. v1.3 sends
+`["domain-docs", "row-lww", "manual-epochs", "managed-credential-schema"]`.
+Absence means the v1.2 baseline. Capabilities are advisory UI information only; they
+never grant access and do not change how known scene/meta/board frames are handled.
+
+**Generic domain docs.** `bible:<projectId>` is a recognised Yjs channel stored in
+`project_domain_docs` under domain `bible`. It uses the existing hello/diff/live
+flow. Its schema and SQL projection are specified by the later Bible phase.
+
+**Row LWW messages.** Row-shaped domains use a hybrid logical clock (HLC) and the
+persistent device id as a deterministic final tie-break. A version compares by HLC
+first and device id second. Tombstones live in the shared shadow table, independently
+of feature rows, so deleting a feature row never forgets its version.
+
+| t | Fields | Meaning |
+|---|---|---|
+| `row-hello` | `domain`, `project`, `rows: [{id, hlc, device, deleted}]`, `cursor?`, `more` | One bounded page of the sender's durable version summary. `project` is a project id or null. Rows are ordered by row id. `cursor` is the last row id in this page when `more` is true. |
+| `row` | `id`, `domain`, `project`, `row`, `hlc`, `device`, `deleted`, `payload` | One complete semantic row mutation. `id` is the coalescing outbox item id; `payload` is JSON text or null. Receivers persist the winning shadow version before projecting or tombstoning the feature row. |
+| `row-ack` | `id`, `domain`, `row`, `hlc`, `device` | Semantic acknowledgement that the receiver durably accepted this version. It clears the matching row outbox item; handing bytes to a WebSocket never does. |
+
+Each `row-hello` page contains at most **512 rows**. A receiver requests/answers the
+next lexicographic page using the cursor until `more` is false. On reconnect, each
+side sends rows absent from the peer summary or newer than its advertised version.
+An equal/newer peer summary also proves convergence and may clear the corresponding
+row outbox entry. All inbound row frames run through the same arrival-order promise
+chain as document frames. A local mutation enqueues and immediately sends the full
+`row`, not merely a summary.
+
+**Durable document delivery.** Scene, board, meta, and domain-doc local writes have
+one coalescing `sync_outbox` item per `(domain, item_id)`. Document entries clear
+when a peer `hello` state vector proves that item converged. Row entries clear on
+`row-ack` or an equal/newer `row-hello` summary. Reconnect flushes the durable outbox
+in creation order before the normal hello/reconciliation sweep.
+
+**Managed credential schema.** These messages define the later consented managed-AI
+handoff; v1.3 does not initiate or store the exchange.
+
+| t | Fields | Meaning |
+|---|---|---|
+| `credential-offer` | `id`, `managed: {aiLicenseKey?, aiTrialKey?, aiModel, aiEnabled}` | One encrypted, explicitly consented offer. Exactly one managed entitlement key may be present. BYOK keys, provider secrets, local endpoints, activation records, and short-lived session tokens are forbidden. |
+| `credential-ack` | `id`, `accepted` | Confirms or declines that offer without echoing credential material. |
+
+**Manual epoch acceptance.** Desktop retains automatic v1.2 replacement behaviour.
+Mobile stages an authoritative epoch replacement durably and reports the scene as
+behind. Catch-up stops publishing the scene, flushes and closes its editor bridge,
+persists one safety snapshot, applies the staged owner state wholesale, persists the
+exact `{n,d}` ownership stamp, notifies the editor, clears pending/outbox state, and
+then resumes publishing. There is no merge-anyway path.

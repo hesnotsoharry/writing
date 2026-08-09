@@ -14,7 +14,7 @@ describe("migration 20 — document sync timestamps", () => {
   it("registers migration 20 and reaches the new latest version", async () => {
     const migration = MIGRATIONS.find(({ version }) => version === 20);
     expect(migration?.name).toBe("doc-updated-at");
-    expect(LATEST).toBe(21);
+      expect(LATEST).toBe(22);
   });
 
   it("adds nullable updated_at columns without backfilling existing rows", async () => {
