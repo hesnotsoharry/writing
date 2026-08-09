@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#cfc6b4; }
+  body { font-family:"Hanken Grotesk", system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#99492b; text-decoration:none; border-bottom:1px solid rgba(178,90,56,.35); }
+  a:hover { color:#b25a38; border-bottom-color:#b25a38; }
+  * { box-sizing:border-box; }
+</style>
+</helmet>
+
+<section style="padding:64px 56px 40px; display:flex; flex-direction:column; gap:40px">
+
+  <div style="max-width:1100px; display:flex; flex-direction:column; gap:22px">
+    <div style="display:flex; align-items:baseline; gap:14px">
+      <div style="font-family:'Literata',Georgia,serif; font-size:40px; font-weight:600; color:#2a251d; letter-spacing:-0.015em">WritersNook on a phone</div>
+      <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#5c5446; letter-spacing:.08em; text-transform:uppercase">Turn 1 · three directions</div>
+    </div>
+    <div style="font-size:17px; line-height:1.65; color:#3f3931; max-width:74ch; text-wrap:pretty">The desktop is three panes and a segmented view switch. A phone gets one pane at a time, so the real question is what replaces that switch. Below are three answers to it, plus my read on which desktop features survive the trip.</div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:8px">
+      <div style="background:#fcfaf5; border:1px solid #e3d9c6; border-radius:16px; padding:22px 24px; box-shadow:0 1px 2px rgba(58,46,28,.05), 0 6px 16px rgba(58,46,28,.07)">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#4e7c6b; margin-bottom:14px">Comes over cleanly</div>
+        <div style="display:flex; flex-direction:column; gap:9px; font-size:14px; line-height:1.45; color:#5c5446">
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Binder</b><span>Already there. Gains reorder, status, new scene.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Editor</b><span>Format bar over keyboard, focus mode, typewriter.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Story Bible</b><span>Characters, places, lore, custom types. Lists and text fields — native fit.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Corkboard</b><span>One or two columns, long-press to drag. Reads better than desktop on a small screen.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Outliner</b><span>Columns collapse into a row + expandable meta. Labels and status stay tappable.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Goals</b><span>Rings, streak, heat-map. Arguably better here than on desktop.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Quick capture</b><span>The strongest mobile-native case in the whole app.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Search</b><span>Find across manuscript, jump to hit.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Snapshots</b><span>Browse, read, restore. Diff view is a scroll.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">AI assistant</b><span>Chat is a phone-native form. Verbs run off a selection.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Inspector</b><span>Becomes a bottom sheet: synopsis, status, labels, linked entities.</span></div>
+        </div>
+      </div>
+      <div style="background:#fcfaf5; border:1px solid #e3d9c6; border-radius:16px; padding:22px 24px; box-shadow:0 1px 2px rgba(58,46,28,.05), 0 6px 16px rgba(58,46,28,.07)">
+        <div style="font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#b07d2e; margin-bottom:14px">View-only, or stays on desktop</div>
+        <div style="display:flex; flex-direction:column; gap:9px; font-size:14px; line-height:1.45; color:#5c5446">
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Brainstorm boards</b><span>Pan/zoom viewer, tap a card to read it. Authoring a node graph with a thumb is a bad trade.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Relationship map</b><span>Same: view and tap through to the entity, don't re-lay-out edges.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Replace-all</b><span>Search yes, destructive bulk replace no.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Compile / export</b><span>Share a scene, yes. Full manuscript compile belongs where the filesystem is.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">Label &amp; type manager</b><span>Apply on mobile, define on desktop.</span></div>
+          <div style="display:flex; gap:10px"><b style="color:#2a251d; min-width:118px; font-weight:600">BYOK / endpoints</b><span>Key entry stays desktop; mobile inherits the paired config.</span></div>
+        </div>
+        <div style="margin-top:18px; padding-top:16px; border-top:1px solid #efe8db; font-size:13px; line-height:1.55; color:#8a8071; font-style:italic">Everything above assumes the pairing model you already have: desktop is the source of truth, mobile is a joined device.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:44px; align-items:flex-start">
+
+    <div id="1a" style="display:flex; flex-direction:column; gap:18px">
+      <div style="display:flex; align-items:center; gap:12px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; color:#fcfaf5; background:#b25a38; padding:4px 10px; border-radius:999px">1a</div>
+        <div style="font-family:'Literata',Georgia,serif; font-size:24px; font-weight:600; color:#2a251d">The Shelf</div>
+      </div>
+      <div style="max-width:820px; font-size:15px; line-height:1.6; color:#5c5446">Bottom tab bar. The desktop's segmented switch becomes five persistent tabs — Write, Binder, Bible, Goals, More. Every view is one tap from every other view, and the tab you're on is always legible. Costs 56px of vertical space on the editor.</div>
+      <div style="display:flex; gap:26px; flex-wrap:wrap">
+
+        <div data-screen-label="1a Binder" style="width:390px; height:844px; border-radius:44px; background:#f4eee2; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="display:flex; align-items:center; gap:6px">
+              <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+            </div>
+          </div>
+          <div style="flex:none; padding:6px 20px 12px; display:flex; align-items:center; gap:12px; background:#f4eee2; border-bottom:1px solid #e6ddcd">
+            <div style="width:34px; height:43px; flex:none; border-radius:3px; background:linear-gradient(150deg,#b25a38,#99492b); box-shadow:0 1px 2px rgba(58,46,28,.06), inset 2px 0 0 rgba(255,255,255,.18), inset -1px 0 0 rgba(0,0,0,.12); position:relative"><div style="position:absolute; left:5px; top:6px; bottom:6px; width:1px; background:rgba(255,255,255,.25)"></div></div>
+            <div style="flex:1; min-width:0">
+              <div style="font-family:'Literata',Georgia,serif; font-size:19px; font-weight:600; color:#2a251d; line-height:1.2">The Salt Road</div>
+              <div style="font-size:12px; color:#8a8071; margin-top:2px">Novel · 41,208 words · synced 2m ago</div>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:14px 14px 0; display:flex; flex-direction:column; gap:2px">
+            <div style="display:flex; align-items:center; gap:6px; padding:8px 8px 6px; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071">Manuscript <span style="color:#b3a892; font-weight:600">6</span>
+              <div style="margin-left:auto; display:flex; gap:2px">
+                <div style="width:30px; height:30px; border-radius:8px; display:grid; place-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+                <div style="width:30px; height:30px; border-radius:8px; display:grid; place-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><polyline points="6 9 12 15 18 9"/></svg>
+              <div style="font-size:15px; font-weight:600; color:#5c5446; flex:1">Chapter 1</div>
+              <div style="font-size:12px; color:#b3a892; font-variant-numeric:tabular-nums">3</div>
+            </div>
+            <div style="padding-left:14px; position:relative">
+              <div style="position:absolute; left:18px; top:2px; bottom:6px; width:1px; background:#e6ddcd"></div>
+              <div style="display:flex; align-items:flex-start; gap:11px; padding:12px 12px 12px 18px; border-radius:10px; background:#fcfaf5; margin-bottom:6px; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+                <div style="width:9px; height:9px; border-radius:50%; background:#4e7c6b; margin-top:5px; flex:none"></div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:600; color:#2a251d">Opening</div>
+                  <div style="font-size:13px; line-height:1.45; color:#5c5446; margin-top:3px">Maren watches the tide go out further than it should.</div>
+                  <div style="font-size:11px; font-weight:600; color:#b3a892; margin-top:5px">Final</div>
+                </div>
+                <div style="font-size:12px; color:#b3a892; font-variant-numeric:tabular-nums">1,240w</div>
+              </div>
+              <div style="display:flex; align-items:flex-start; gap:11px; padding:12px 12px 12px 18px; border-radius:10px; background:#fcfaf5; margin-bottom:6px; box-shadow:0 1px 2px rgba(58,46,28,.05); position:relative">
+                <div style="position:absolute; left:4px; top:8px; bottom:8px; width:3px; border-radius:3px; background:#b25a38"></div>
+                <div style="width:9px; height:9px; border-radius:50%; background:#b25a38; margin-top:5px; flex:none"></div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:600; color:#2a251d">The river</div>
+                  <div style="font-size:13px; line-height:1.45; color:#5c5446; margin-top:3px">Aldis refuses the crossing. She walks instead.</div>
+                  <div style="font-size:11px; font-weight:600; color:#b3a892; margin-top:5px">Drafting</div>
+                </div>
+                <div style="font-size:12px; color:#b3a892; font-variant-numeric:tabular-nums">860w</div>
+              </div>
+              <div style="display:flex; align-items:flex-start; gap:11px; padding:12px 12px 12px 18px; border-radius:10px; background:#fcfaf5; margin-bottom:6px; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+                <div style="width:9px; height:9px; border-radius:50%; background:#b3a892; margin-top:5px; flex:none"></div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:600; color:#2a251d">The salt road</div>
+                  <div style="font-size:11px; font-weight:600; color:#b3a892; margin-top:5px">To write</div>
+                </div>
+                <div style="font-size:12px; color:#b3a892; font-variant-numeric:tabular-nums">0w</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; padding:9px 10px; border-radius:8px; margin-top:4px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><polyline points="6 9 12 15 18 9"/></svg>
+              <div style="font-size:15px; font-weight:600; color:#5c5446; flex:1">Chapter 2</div>
+              <div style="font-size:12px; color:#b3a892; font-variant-numeric:tabular-nums">2</div>
+            </div>
+            <div style="padding-left:14px; position:relative">
+              <div style="position:absolute; left:18px; top:2px; bottom:6px; width:1px; background:#e6ddcd"></div>
+              <div style="display:flex; align-items:flex-start; gap:11px; padding:12px 12px 12px 18px; border-radius:10px; background:#fcfaf5; margin-bottom:6px; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+                <div style="width:9px; height:9px; border-radius:50%; background:#6a86a8; margin-top:5px; flex:none"></div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:600; color:#2a251d">Arrival</div>
+                  <div style="font-size:13px; line-height:1.45; color:#5c5446; margin-top:3px">Ossen Light, and the charter that isn't there.</div>
+                  <div style="font-size:11px; font-weight:600; color:#b3a892; margin-top:5px">Revising</div>
+                </div>
+                <div style="font-size:12px; color:#b3a892; font-variant-numeric:tabular-nums">2,105w</div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:none; height:82px; background:#fcfaf5; border-top:1px solid #e6ddcd; display:flex; align-items:flex-start; padding:9px 6px 0">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><div style="font-size:10.5px; font-weight:600">Write</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#b25a38"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><div style="font-size:10.5px; font-weight:700">Binder</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><div style="font-size:10.5px; font-weight:600">Bible</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><div style="font-size:10.5px; font-weight:600">Goals</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg><div style="font-size:10.5px; font-weight:600">More</div></div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+        <div data-screen-label="1a Write" style="width:390px; height:844px; border-radius:44px; background:#fcfaf5; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:none; height:48px; display:flex; align-items:center; gap:10px; padding:0 10px 0 8px; border-bottom:1px solid #efe8db">
+            <div style="width:36px; height:36px; display:grid; place-items:center; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><polyline points="15 18 9 12 15 6"/></svg></div>
+            <div style="flex:1; min-width:0; text-align:center">
+              <div style="font-size:14px; font-weight:600; color:#2a251d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">The river</div>
+              <div style="font-size:11px; color:#8a8071">Chapter 1 · saved</div>
+            </div>
+            <div style="width:36px; height:36px; display:grid; place-items:center; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg></div>
+            <div style="width:36px; height:36px; display:grid; place-items:center; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg></div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:26px 24px 0">
+            <div style="display:flex; align-items:center; gap:8px; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#8a8071; margin-bottom:10px">Chapter 1 <span style="width:3px;height:3px;border-radius:50%;background:#b3a892"></span> Scene 2</div>
+            <div style="font-family:'Literata',Georgia,serif; font-size:29px; font-weight:600; line-height:1.15; color:#2a251d; letter-spacing:-.01em; margin-bottom:22px">The river</div>
+            <div style="font-family:'Literata',Georgia,serif; font-size:18px; line-height:1.75; color:#2a251d">
+              <p style="margin:0 0 1.15em">The tide went out further than it had any right to, and the road showed itself: a pale seam of packed sand running toward the islands, there for six hours and then gone.</p>
+              <p style="margin:0 0 1.15em"><span style="border-bottom:1.5px solid rgba(178,90,56,.3)">Aldis</span> would not take the boat. He gave no reason worth the name, only stood at the top of the slip with his hands behind him and looked at the water the way a man looks at a debt.</p>
+              <p style="margin:0 0 1.15em">So she walked. The sand held. Behind her, <span style="border-bottom:1.5px solid #4e7c6b">Hallow Quay</span> shrank to a line of grey teeth and the gulls stopped following<span style="display:inline-block; width:2px; height:.95em; background:#b25a38; vertical-align:-.14em; margin-left:2px"></span></p>
+            </div>
+          </div>
+          <div style="flex:none; background:#f4eee2; border-top:1px solid #e6ddcd; padding:8px 10px; display:flex; align-items:center; gap:4px">
+            <div style="width:38px; height:38px; border-radius:8px; display:grid; place-items:center; color:#5c5446"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg></div>
+            <div style="width:38px; height:38px; border-radius:8px; display:grid; place-items:center; color:#5c5446"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></div>
+            <div style="width:38px; height:38px; border-radius:8px; display:grid; place-items:center; color:#5c5446"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M6 12h12"/><path d="M6 20V4"/><path d="M18 20V4"/></svg></div>
+            <div style="width:38px; height:38px; border-radius:8px; display:grid; place-items:center; color:#5c5446"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg></div>
+            <div style="width:1px; height:22px; background:#e3d9c6; margin:0 4px"></div>
+            <div style="width:38px; height:38px; border-radius:8px; display:grid; place-items:center; color:#5c5446"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+            <div style="width:38px; height:38px; border-radius:8px; display:grid; place-items:center; color:#b25a38; background:rgba(178,90,56,.1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg></div>
+            <div style="margin-left:auto; font-size:12px; color:#8a8071; font-variant-numeric:tabular-nums; padding-right:6px">860</div>
+          </div>
+          <div style="flex:none; height:262px; background:#d6d1c9; border-top:1px solid #c4bdb2; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:10px; color:#7d766c">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase">system keyboard</div>
+            <div style="display:flex; flex-direction:column; gap:8px; opacity:.5">
+              <div style="display:flex; gap:6px">
+                <div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div>
+              </div>
+              <div style="display:flex; gap:6px; padding-left:18px">
+                <div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <div style="width:42px;height:36px;border-radius:5px;background:#c9c3ba"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:30px;height:36px;border-radius:5px;background:#fcfaf5"></div><div style="width:42px;height:36px;border-radius:5px;background:#c9c3ba"></div>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+        <div data-screen-label="1a Bible" style="width:390px; height:844px; border-radius:44px; background:#f4eee2; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:none; padding:4px 20px 14px">
+            <div style="display:flex; align-items:flex-end; justify-content:space-between">
+              <div style="font-family:'Literata',Georgia,serif; font-size:30px; font-weight:600; color:#2a251d; letter-spacing:-.01em">Story Bible</div>
+              <div style="width:34px; height:34px; border-radius:10px; display:grid; place-items:center; color:#b25a38; background:#f1e2d8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+            </div>
+            <div style="margin-top:12px; display:flex; align-items:center; gap:9px; background:#ece4d4; border-radius:10px; padding:9px 12px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <div style="font-size:14px; color:#b3a892">Search the bible</div>
+            </div>
+            <div style="margin-top:12px; display:flex; gap:7px; overflow:hidden">
+              <div style="font-size:13px; font-weight:600; padding:6px 13px; border-radius:999px; background:#b25a38; color:#fcfaf5; white-space:nowrap">All 21</div>
+              <div style="font-size:13px; font-weight:600; padding:6px 13px; border-radius:999px; background:#fcfaf5; color:#5c5446; border:1px solid #e6ddcd; white-space:nowrap">People 8</div>
+              <div style="font-size:13px; font-weight:600; padding:6px 13px; border-radius:999px; background:#fcfaf5; color:#5c5446; border:1px solid #e6ddcd; white-space:nowrap">Places 6</div>
+              <div style="font-size:13px; font-weight:600; padding:6px 13px; border-radius:999px; background:#fcfaf5; color:#5c5446; border:1px solid #e6ddcd; white-space:nowrap">Lore 7</div>
+            </div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:0 16px">
+            <div style="display:flex; align-items:center; gap:10px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8a8071; margin:4px 0 10px">People &amp; groups<div style="flex:1; height:1px; background:#e6ddcd"></div></div>
+            <div style="display:flex; flex-direction:column; gap:8px">
+              <div style="display:flex; gap:12px; padding:12px; border-radius:10px; border:1px solid #e6ddcd; background:#fcfaf5; box-shadow:0 1px 2px rgba(58,46,28,.05), 0 6px 16px rgba(58,46,28,.05)">
+                <div style="width:40px; height:40px; border-radius:50%; flex:none; display:grid; place-items:center; background:#f1e2d8; color:#b25a38; font-size:15px; font-weight:700">MV</div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:700; color:#2a251d">Maren Voss</div>
+                  <div style="font-size:11px; font-weight:600; color:#99492b; text-transform:uppercase; letter-spacing:.04em; margin:1px 0 5px">Protagonist</div>
+                  <div style="font-size:12.5px; line-height:1.5; color:#5c5446">Cartographer's daughter. Reads water the way other people read faces. Will not be told a thing twice.</div>
+                  <div style="display:flex; gap:5px; margin-top:8px; flex-wrap:wrap">
+                    <div style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:999px; background:#ece4d4; color:#8a8071">14 scenes</div>
+                    <div style="font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:999px; background:#ece4d4; color:#8a8071">6 links</div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; gap:12px; padding:12px; border-radius:10px; border:1px solid #e6ddcd; background:#fcfaf5; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+                <div style="width:40px; height:40px; border-radius:50%; flex:none; display:grid; place-items:center; background:#f1e2d8; color:#b25a38; font-size:15px; font-weight:700">AK</div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:700; color:#2a251d">Aldis Kerr</div>
+                  <div style="font-size:11px; font-weight:600; color:#99492b; text-transform:uppercase; letter-spacing:.04em; margin:1px 0 5px">Ferryman</div>
+                  <div style="font-size:12.5px; line-height:1.5; color:#5c5446">Owes the quay more than he can say out loud.</div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8a8071; margin:20px 0 10px">Places<div style="flex:1; height:1px; background:#e6ddcd"></div></div>
+            <div style="display:flex; flex-direction:column; gap:8px">
+              <div style="display:flex; gap:12px; padding:12px; border-radius:10px; border:1px solid #e6ddcd; background:#fcfaf5; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+                <div style="width:40px; height:40px; border-radius:6px; flex:none; display:grid; place-items:center; background:#dfe9e3; color:#4e7c6b; font-size:15px; font-weight:700">HQ</div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:700; color:#2a251d">Hallow Quay</div>
+                  <div style="font-size:11px; font-weight:600; color:#4e7c6b; text-transform:uppercase; letter-spacing:.04em; margin:1px 0 5px">Harbour town</div>
+                  <div style="font-size:12.5px; line-height:1.5; color:#5c5446">Grey teeth of a skyline. Everyone there is waiting for the tide to decide something.</div>
+                </div>
+              </div>
+              <div style="display:flex; gap:12px; padding:12px; border-radius:10px; border:1px solid #e6ddcd; background:#fcfaf5; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+                <div style="width:40px; height:40px; border-radius:6px; flex:none; display:grid; place-items:center; background:#dfe9e3; color:#4e7c6b; font-size:15px; font-weight:700">OL</div>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:15px; font-weight:700; color:#2a251d">Ossen Light</div>
+                  <div style="font-size:11px; font-weight:600; color:#4e7c6b; text-transform:uppercase; letter-spacing:.04em; margin:1px 0 5px">Lighthouse</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:none; height:82px; background:#fcfaf5; border-top:1px solid #e6ddcd; display:flex; align-items:flex-start; padding:9px 6px 0">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><div style="font-size:10.5px; font-weight:600">Write</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><div style="font-size:10.5px; font-weight:600">Binder</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#b25a38"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><div style="font-size:10.5px; font-weight:700">Bible</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><div style="font-size:10.5px; font-weight:600">Goals</div></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:23px;height:23px"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg><div style="font-size:10.5px; font-weight:600">More</div></div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="1b" style="display:flex; flex-direction:column; gap:18px">
+      <div style="display:flex; align-items:center; gap:12px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; color:#fcfaf5; background:#b25a38; padding:4px 10px; border-radius:999px">1b</div>
+        <div style="font-family:'Literata',Georgia,serif; font-size:24px; font-weight:600; color:#2a251d">The Desk</div>
+      </div>
+      <div style="max-width:820px; font-size:15px; line-height:1.6; color:#5c5446">No persistent chrome. Every project opens onto a hub — where you left off, then the rest of the desk laid out beneath it. You go in, you come back out. The editor gets the whole screen, and the hub is the only place that has to be memorised.</div>
+      <div style="display:flex; gap:26px; flex-wrap:wrap">
+
+        <div data-screen-label="1b Hub" style="width:390px; height:844px; border-radius:44px; background:#f4eee2; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:6px 20px 0">
+            <div style="display:flex; align-items:center; justify-content:space-between">
+              <div>
+                <div style="font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#8a8071">The Salt Road</div>
+                <div style="font-family:'Literata',Georgia,serif; font-size:28px; font-weight:600; color:#2a251d; letter-spacing:-.01em; margin-top:2px">Good evening</div>
+              </div>
+              <div style="width:36px; height:36px; border-radius:10px; display:grid; place-items:center; color:#8a8071; background:#ece4d4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            </div>
+
+            <div style="margin-top:18px; background:#fcfaf5; border:1px solid #e6ddcd; border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(58,46,28,.05), 0 6px 16px rgba(58,46,28,.07)">
+              <div style="display:flex; align-items:center; gap:7px; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8a8071"><span style="width:8px;height:8px;border-radius:50%;background:#b25a38"></span>Where you left off</div>
+              <div style="font-family:'Literata',Georgia,serif; font-size:22px; font-weight:600; color:#2a251d; margin:10px 0 4px">The river</div>
+              <div style="font-size:13px; color:#8a8071">Chapter 1 · 860 words · yesterday, 11:04pm</div>
+              <div style="font-family:'Literata',Georgia,serif; font-size:15px; line-height:1.6; color:#5c5446; margin-top:12px; padding-left:12px; border-left:2px solid #e3d9c6; font-style:italic">…the sand held. Behind her, Hallow Quay shrank to a line of grey teeth</div>
+              <div style="margin-top:16px; display:flex; align-items:center; justify-content:center; gap:8px; background:#b25a38; color:#fcfaf5; font-size:15px; font-weight:600; padding:13px; border-radius:12px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                Keep writing
+              </div>
+            </div>
+
+            <div style="margin-top:16px; display:flex; gap:12px">
+              <div style="flex:1; background:#fcfaf5; border:1px solid #e6ddcd; border-radius:14px; padding:14px; display:flex; align-items:center; gap:12px">
+                <div style="width:44px; height:44px; flex:none; border-radius:50%; background:conic-gradient(#b25a38 0 82%, #ece4d4 82% 100%); display:grid; place-items:center"><div style="width:33px; height:33px; border-radius:50%; background:#fcfaf5; display:grid; place-items:center; font-size:11px; font-weight:700; color:#2a251d">82%</div></div>
+                <div>
+                  <div style="font-size:16px; font-weight:700; color:#2a251d; font-variant-numeric:tabular-nums">612<span style="font-size:11px; color:#8a8071; font-weight:500"> / 750</span></div>
+                  <div style="font-size:11px; color:#8a8071; margin-top:1px">today</div>
+                </div>
+              </div>
+              <div style="flex:1; background:#fcfaf5; border:1px solid #e6ddcd; border-radius:14px; padding:14px; display:flex; align-items:center; gap:10px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#b25a38" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px;flex:none"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                <div>
+                  <div style="font-size:20px; font-weight:700; color:#2a251d; font-variant-numeric:tabular-nums">14</div>
+                  <div style="font-size:11px; color:#8a8071; margin-top:1px">day streak</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:22px; font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#8a8071; margin-bottom:10px">The desk</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+              <div style="background:#fcfaf5; border:1px solid #e6ddcd; border-radius:14px; padding:14px 14px 13px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#b25a38" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg>
+                <div style="font-size:14.5px; font-weight:600; color:#2a251d; margin-top:9px">Binder</div>
+                <div style="font-size:11.5px; color:#8a8071; margin-top:1px">6 scenes · 2 chapters</div>
+              </div>
+              <div style="background:#fcfaf5; border:1px solid #e6ddcd; border-radius:14px; padding:14px 14px 13px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#4e7c6b" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <div style="font-size:14.5px; font-weight:600; color:#2a251d; margin-top:9px">Story Bible</div>
+                <div style="font-size:11.5px; color:#8a8071; margin-top:1px">21 entries</div>
+              </div>
+              <div style="background:#fcfaf5; border:1px solid #e6ddcd; border-radius:14px; padding:14px 14px 13px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#9a7b3f" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                <div style="font-size:14.5px; font-weight:600; color:#2a251d; margin-top:9px">Corkboard</div>
+                <div style="font-size:11.5px; color:#8a8071; margin-top:1px">Cards &amp; outline</div>
+              </div>
+              <div style="background:#fcfaf5; border:1px solid #e6ddcd; border-radius:14px; padding:14px 14px 13px; position:relative">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#5f6b72" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                <div style="font-size:14.5px; font-weight:600; color:#2a251d; margin-top:9px">Inbox</div>
+                <div style="font-size:11.5px; color:#8a8071; margin-top:1px">3 unsorted notes</div>
+                <div style="position:absolute; top:13px; right:13px; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:#b25a38; color:#fff; font-size:11px; font-weight:700; display:grid; place-items:center">3</div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:none; padding:14px 20px 26px; display:flex; align-items:center; gap:12px">
+            <div style="flex:1; display:flex; align-items:center; gap:10px; background:#fcfaf5; border:1px solid #e3d9c6; border-radius:999px; padding:12px 18px; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#b3a892" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+              <div style="font-size:14.5px; color:#b3a892">Jot something down…</div>
+            </div>
+            <div style="width:48px; height:48px; flex:none; border-radius:50%; background:#b25a38; display:grid; place-items:center; box-shadow:0 4px 14px rgba(58,46,28,.18)"><svg viewBox="0 0 24 24" fill="none" stroke="#fcfaf5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:21px;height:21px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+        <div data-screen-label="1b Write full-bleed" style="width:390px; height:844px; border-radius:44px; background:#fcfaf5; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#b3a892">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #b3a892; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#b3a892; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:62px 26px 0">
+            <div style="font-family:'Literata',Georgia,serif; font-size:19px; line-height:1.8; color:#2a251d">
+              <p style="margin:0 0 1.15em; opacity:.35">The tide went out further than it had any right to, and the road showed itself: a pale seam of packed sand running toward the islands, there for six hours and then gone.</p>
+              <p style="margin:0 0 1.15em; opacity:.35">Aldis would not take the boat. He gave no reason worth the name, only stood at the top of the slip with his hands behind him and looked at the water the way a man looks at a debt.</p>
+              <p style="margin:0 0 1.15em">So she walked. The sand held under her boots, wet and grainy and colder than she expected, and for a long while there was nothing to think about but the placing of one foot and then the other.</p>
+              <p style="margin:0 0 1.15em; opacity:.35">Behind her, Hallow Quay shrank to a line of grey teeth. The gulls stopped following at the half-mile mark, which she took as advice.</p>
+              <p style="margin:0 0 1.15em; opacity:.35">By the third hour the light had gone flat and the islands were no closer.</p>
+            </div>
+          </div>
+          <div style="position:absolute; left:50%; transform:translateX(-50%); bottom:34px; display:flex; align-items:center; gap:10px; padding:9px 14px; background:rgba(252,250,245,.86); backdrop-filter:blur(8px); border:1px solid #e3d9c6; border-radius:12px; box-shadow:0 4px 14px rgba(58,46,28,.12); font-size:12.5px; color:#5c5446">
+            <span style="font-variant-numeric:tabular-nums"><b style="color:#2a251d">612</b> today</span>
+            <div style="width:1px; height:14px; background:#e6ddcd"></div>
+            <span style="font-variant-numeric:tabular-nums">41m</span>
+            <div style="width:1px; height:14px; background:#e6ddcd"></div>
+            <div style="width:16px; height:16px; border-radius:50%; background:conic-gradient(#b25a38 0 82%, #ece4d4 82% 100%)"></div>
+            <div style="width:1px; height:14px; background:#e6ddcd"></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </div>
+          <div style="position:absolute; top:60px; left:0; right:0; height:36px; display:flex; align-items:center; justify-content:space-between; padding:0 20px; opacity:.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><polyline points="15 18 9 12 15 6"/></svg>
+            <div style="font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:#8a8071">Focus · The river</div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+        <div data-screen-label="1b Goals" style="width:390px; height:844px; border-radius:44px; background:#f4eee2; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:none; height:44px; display:flex; align-items:center; gap:10px; padding:0 14px">
+            <div style="width:34px; height:34px; display:grid; place-items:center; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><polyline points="15 18 9 12 15 6"/></svg></div>
+            <div style="flex:1; font-size:15px; font-weight:600; color:#2a251d">Goals</div>
+            <div style="width:34px; height:34px; display:grid; place-items:center; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:8px 18px 0">
+            <div style="background:#fcfaf5; border:1px solid #e6ddcd; border-radius:16px; padding:22px 20px; box-shadow:0 1px 2px rgba(58,46,28,.05), 0 6px 16px rgba(58,46,28,.07); display:flex; align-items:center; gap:20px">
+              <div style="width:104px; height:104px; flex:none; border-radius:50%; background:conic-gradient(#b25a38 0 82%, #ece4d4 82% 100%); display:grid; place-items:center">
+                <div style="width:82px; height:82px; border-radius:50%; background:#fcfaf5; display:grid; place-items:center">
+                  <div style="text-align:center">
+                    <div style="font-size:22px; font-weight:700; color:#2a251d; font-variant-numeric:tabular-nums; line-height:1">82%</div>
+                    <div style="font-size:10px; color:#8a8071; margin-top:2px">of daily</div>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1; min-width:0">
+                <div style="font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071">Daily words</div>
+                <div style="font-size:27px; font-weight:700; color:#2a251d; font-variant-numeric:tabular-nums; margin-top:5px; line-height:1">612<span style="font-size:14px; color:#8a8071; font-weight:500"> / 750</span></div>
+                <div style="font-size:13px; color:#5c5446; margin-top:6px; line-height:1.4">138 to go. About 12 minutes at your pace.</div>
+              </div>
+            </div>
+
+            <div style="margin-top:14px; background:#fcfaf5; border:1px solid #e6ddcd; border-radius:16px; padding:18px 20px; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px">
+                <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071">First draft by 1 Dec</div>
+                <div style="font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:rgba(78,124,107,.18); color:#4e7c6b">On track</div>
+              </div>
+              <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px">
+                <div style="font-size:14px; color:#5c5446"><b style="color:#2a251d; font-weight:700">115</b> days left</div>
+                <div style="font-size:13px; color:#5c5446; font-variant-numeric:tabular-nums">41,208 / 90,000</div>
+              </div>
+              <div style="position:relative; height:6px; background:#e3d9c6; border-radius:999px">
+                <div style="position:absolute; inset:0 auto 0 0; width:46%; background:#b25a38; border-radius:999px"></div>
+                <div style="position:absolute; top:-3px; left:43%; width:2px; height:12px; background:#8a8071; border-radius:1px"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#8a8071"><span>424/day needed</span><span>you average 508</span></div>
+            </div>
+
+            <div style="margin-top:14px; background:#fcfaf5; border:1px solid #e6ddcd; border-radius:16px; padding:18px 20px; box-shadow:0 1px 2px rgba(58,46,28,.05)">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#b25a38" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px;flex:none"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                <div style="font-size:24px; font-weight:700; color:#2a251d; font-variant-numeric:tabular-nums">14</div>
+                <div style="font-size:13px; color:#5c5446">day streak · best 31</div>
+              </div>
+              <div style="font-size:10px; font-weight:600; color:#b3a892; letter-spacing:.04em; display:grid; grid-template-columns:repeat(7,1fr); text-align:center; margin-bottom:5px"><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div><div>S</div></div>
+              <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px">
+                <div style="aspect-ratio:1; border-radius:4px; background:#e3d9c6"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#e3d9c6"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div>
+                <div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div>
+                <div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#b25a38; opacity:.85"></div><div style="aspect-ratio:1; border-radius:4px; background:#e3d9c6; outline:2px solid #b25a38; outline-offset:-2px"></div><div style="aspect-ratio:1; border-radius:4px; background:#e3d9c6; opacity:.25"></div><div style="aspect-ratio:1; border-radius:4px; background:#e3d9c6; opacity:.25"></div>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="1c" style="display:flex; flex-direction:column; gap:18px">
+      <div style="display:flex; align-items:center; gap:12px">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; color:#fcfaf5; background:#b25a38; padding:4px 10px; border-radius:999px">1c</div>
+        <div style="font-family:'Literata',Georgia,serif; font-size:24px; font-weight:600; color:#2a251d">The Sleeve</div>
+      </div>
+      <div style="max-width:820px; font-size:15px; line-height:1.6; color:#5c5446">The desktop's three panes, folded. The app opens straight into the scene you were writing; the binder slides in from the left edge, the inspector pulls up from the bottom, and a single pill in the header swaps the centre pane between Editor, Cork, Outline and Bible. Fewest taps for a returning writer, most to learn cold.</div>
+      <div style="display:flex; gap:26px; flex-wrap:wrap">
+
+        <div data-screen-label="1c Editor" style="width:390px; height:844px; border-radius:44px; background:#fcfaf5; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:none; height:50px; display:flex; align-items:center; gap:8px; padding:0 12px; border-bottom:1px solid #efe8db">
+            <div style="width:34px; height:34px; display:grid; place-items:center; color:#5c5446"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+            <div style="flex:1; display:flex; justify-content:center">
+              <div style="display:inline-flex; background:#ece4d4; border-radius:9px; padding:3px; gap:2px">
+                <div style="padding:6px 12px; border-radius:6px; background:#fcfaf5; box-shadow:0 1px 2px rgba(58,46,28,.06); color:#2a251d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
+                <div style="padding:6px 12px; border-radius:6px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+                <div style="padding:6px 12px; border-radius:6px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+                <div style="padding:6px 12px; border-radius:6px; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+              </div>
+            </div>
+            <div style="width:34px; height:34px; display:grid; place-items:center; color:#5c5446"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:22px 24px 0; position:relative">
+            <div style="display:flex; align-items:center; gap:8px; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#8a8071; margin-bottom:10px">Chapter 1 <span style="width:3px;height:3px;border-radius:50%;background:#b3a892"></span> The river</div>
+            <div style="font-family:'Literata',Georgia,serif; font-size:18.5px; line-height:1.75; color:#2a251d">
+              <p style="margin:0 0 1.15em"><span style="float:left; font-size:62px; line-height:.78; font-weight:700; color:#b25a38; margin-right:10px; padding-top:.04em">T</span>he tide went out further than it had any right to, and the road showed itself: a pale seam of packed sand running toward the islands, there for six hours and then gone.</p>
+              <p style="margin:0 0 1.15em">Aldis would not take the boat. He gave no reason worth the name, only stood at the top of the slip with his hands behind him and looked at the water the way a man looks at a debt.</p>
+              <p style="margin:0 0 1.15em">So she walked. The sand held under her boots, wet and grainy and colder than she expected.</p>
+            </div>
+            <div style="position:absolute; left:0; top:0; bottom:0; width:14px; background:linear-gradient(90deg, rgba(178,90,56,.14), rgba(178,90,56,0))"></div>
+          </div>
+          <div style="flex:none; border-top:1px solid #efe8db; padding:10px 16px 12px; display:flex; align-items:center; gap:12px; background:#fcfaf5">
+            <div style="flex:1; display:flex; align-items:center; gap:9px">
+              <div style="width:9px; height:9px; border-radius:50%; background:#b25a38"></div>
+              <div style="font-size:13px; font-weight:600; color:#5c5446">Drafting</div>
+              <div style="font-size:12px; color:#b3a892; font-variant-numeric:tabular-nums">· 860w</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:#8a8071; padding:6px 12px; border-radius:999px; background:#f4eee2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="18 15 12 9 6 15"/></svg>
+              Inspector
+            </div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+        <div data-screen-label="1c Binder drawer" style="width:390px; height:844px; border-radius:44px; background:#fcfaf5; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:22px 24px 0">
+            <div style="font-family:'Literata',Georgia,serif; font-size:18.5px; line-height:1.75; color:#2a251d">
+              <p style="margin:0 0 1.15em">The tide went out further than it had any right to, and the road showed itself: a pale seam of packed sand running toward the islands.</p>
+              <p style="margin:0 0 1.15em">Aldis would not take the boat.</p>
+            </div>
+          </div>
+          <div style="position:absolute; inset:0; background:rgba(42,33,18,.34); backdrop-filter:blur(2px)"></div>
+          <div style="position:absolute; top:0; bottom:0; left:0; width:314px; background:#f4eee2; border-right:1px solid #e3d9c6; box-shadow:0 16px 44px rgba(42,33,18,.28); display:flex; flex-direction:column">
+            <div style="height:52px; flex:none"></div>
+            <div style="flex:none; padding:2px 14px 12px; display:flex; align-items:center; gap:11px; border-bottom:1px solid #e6ddcd">
+              <div style="width:30px; height:38px; flex:none; border-radius:3px; background:linear-gradient(150deg,#b25a38,#99492b); box-shadow:inset 2px 0 0 rgba(255,255,255,.18)"></div>
+              <div style="flex:1; min-width:0">
+                <div style="font-size:14.5px; font-weight:600; color:#2a251d">The Salt Road</div>
+                <div style="font-size:11px; color:#8a8071; margin-top:1px">41,208 words</div>
+              </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div style="flex:1; min-height:0; overflow:hidden; padding:8px 8px 0">
+              <div style="display:flex; align-items:center; gap:6px; padding:10px 8px 4px; font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071">Manuscript <span style="color:#b3a892">6</span><div style="margin-left:auto; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div></div>
+              <div style="display:flex; align-items:center; gap:6px; padding:8px 8px; border-radius:6px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="6 9 12 15 18 9"/></svg>
+                <div style="font-size:13.5px; font-weight:600; color:#5c5446; flex:1">Chapter 1</div>
+                <div style="font-size:11px; color:#b3a892">3</div>
+              </div>
+              <div style="padding-left:12px; position:relative">
+                <div style="position:absolute; left:15px; top:2px; bottom:4px; width:1px; background:#e6ddcd"></div>
+                <div style="display:flex; align-items:center; gap:9px; padding:8px 9px 8px 16px; border-radius:6px">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#4e7c6b;flex:none"></div>
+                  <div style="flex:1; font-size:13.5px; color:#5c5446">Opening</div>
+                  <div style="font-size:10px; color:#b3a892; font-variant-numeric:tabular-nums">1,240</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:9px; padding:8px 9px 8px 16px; border-radius:6px; background:#f1e2d8; position:relative">
+                  <div style="position:absolute; left:3px; top:6px; bottom:6px; width:3px; border-radius:3px; background:#b25a38"></div>
+                  <div style="width:8px;height:8px;border-radius:50%;background:#b25a38;flex:none"></div>
+                  <div style="flex:1; font-size:13.5px; color:#2a251d; font-weight:500">The river</div>
+                  <div style="font-size:10px; color:#b3a892; font-variant-numeric:tabular-nums">860</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:9px; padding:8px 9px 8px 16px; border-radius:6px">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#b3a892;flex:none"></div>
+                  <div style="flex:1; font-size:13.5px; color:#5c5446">The salt road</div>
+                  <div style="font-size:10px; color:#b3a892; font-variant-numeric:tabular-nums">0</div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; padding:8px 8px; border-radius:6px; margin-top:2px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="6 9 12 15 18 9"/></svg>
+                <div style="font-size:13.5px; font-weight:600; color:#5c5446; flex:1">Chapter 2</div>
+                <div style="font-size:11px; color:#b3a892">2</div>
+              </div>
+              <div style="padding-left:12px; position:relative">
+                <div style="position:absolute; left:15px; top:2px; bottom:4px; width:1px; background:#e6ddcd"></div>
+                <div style="display:flex; align-items:center; gap:9px; padding:8px 9px 8px 16px; border-radius:6px">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#6a86a8;flex:none"></div>
+                  <div style="flex:1; font-size:13.5px; color:#5c5446">Arrival</div>
+                  <div style="font-size:10px; color:#b3a892; font-variant-numeric:tabular-nums">2,105</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:9px; padding:8px 9px 8px 16px; border-radius:6px">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#9a7b3f;flex:none"></div>
+                  <div style="flex:1; font-size:13.5px; color:#5c5446">What Maren kept</div>
+                  <div style="font-size:10px; color:#b3a892; font-variant-numeric:tabular-nums">120</div>
+                </div>
+              </div>
+              <div style="margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px; padding:8px; border-radius:6px; border:1px dashed #e3d9c6; color:#8a8071; font-size:12px; font-weight:500">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New chapter
+              </div>
+            </div>
+            <div style="flex:none; border-top:1px solid #efe8db; padding:10px">
+              <div style="display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:8px; color:#5c5446">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                <div style="font-size:13.5px; font-weight:500; flex:1">Quick notes</div>
+                <div style="min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#b25a38; color:#fff; font-size:10px; font-weight:700; display:grid; place-items:center">3</div>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+        <div data-screen-label="1c Inspector sheet" style="width:390px; height:844px; border-radius:44px; background:#fcfaf5; box-shadow:0 24px 60px rgba(42,33,18,.24), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative">
+          <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2a251d">
+            <div>9:41</div>
+            <div style="width:17px; height:11px; border:1.5px solid #2a251d; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2a251d; border-radius:1px"></div></div>
+          </div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:22px 24px 0">
+            <div style="font-family:'Literata',Georgia,serif; font-size:18.5px; line-height:1.75; color:#2a251d">
+              <p style="margin:0 0 1.15em">The tide went out further than it had any right to, and the road showed itself: a pale seam of packed sand running toward the islands, there for six hours and then gone.</p>
+            </div>
+          </div>
+          <div style="position:absolute; inset:0; background:rgba(42,33,18,.30); backdrop-filter:blur(2px)"></div>
+          <div style="position:absolute; left:0; right:0; bottom:0; height:640px; background:#f4eee2; border-top-left-radius:20px; border-top-right-radius:20px; box-shadow:0 -8px 44px rgba(42,33,18,.24); display:flex; flex-direction:column">
+            <div style="flex:none; padding:10px 0 4px; display:flex; justify-content:center"><div style="width:38px; height:4px; border-radius:2px; background:#d5cab5"></div></div>
+            <div style="flex:none; padding:6px 20px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #e6ddcd">
+              <div style="flex:1; min-width:0">
+                <div style="font-family:'Literata',Georgia,serif; font-size:20px; font-weight:600; color:#2a251d">The river</div>
+                <div style="font-size:11.5px; color:#8a8071; margin-top:2px">Chapter 1 · 860 words · edited 2m ago</div>
+              </div>
+              <div style="width:30px; height:30px; border-radius:8px; display:grid; place-items:center; color:#8a8071; background:#ece4d4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+            </div>
+            <div style="flex:1; min-height:0; overflow:hidden; padding:18px 20px 28px">
+              <div style="font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071; margin-bottom:10px">Status</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px">
+                <div style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:999px; background:#fcfaf5; border:1px solid #e6ddcd; color:#8a8071"><span style="width:8px;height:8px;border-radius:50%;background:#b3a892"></span>To write</div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:999px; background:#fcfaf5; border:1px solid #e6ddcd; color:#8a8071"><span style="width:8px;height:8px;border-radius:50%;background:#9a7b3f"></span>Outlined</div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:999px; background:#b25a38; border:1px solid #b25a38; color:#fcfaf5"><span style="width:8px;height:8px;border-radius:50%;background:#fcfaf5"></span>Drafting</div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:999px; background:#fcfaf5; border:1px solid #e6ddcd; color:#8a8071"><span style="width:8px;height:8px;border-radius:50%;background:#6a86a8"></span>Revising</div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:8px 12px; border-radius:999px; background:#fcfaf5; border:1px solid #e6ddcd; color:#8a8071"><span style="width:8px;height:8px;border-radius:50%;background:#4e7c6b"></span>Final</div>
+              </div>
+              <div style="font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071; margin-bottom:10px">Synopsis</div>
+              <div style="font-family:'Literata',Georgia,serif; font-size:15px; line-height:1.55; color:#5c5446; background:#fcfaf5; border:1px solid #e6ddcd; border-radius:8px; padding:12px; font-style:italic; margin-bottom:20px">Aldis refuses the crossing, so Maren takes the salt road on foot. First sight of the islands; first hint the tide is not keeping to its hours.</div>
+              <div style="display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071; margin-bottom:10px">In this scene <div style="margin-left:auto; color:#8a8071"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div></div>
+              <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:20px">
+                <div style="display:flex; align-items:center; gap:10px; padding:8px 6px; border-radius:8px">
+                  <div style="width:30px; height:30px; border-radius:50%; background:#f1e2d8; color:#b25a38; display:grid; place-items:center; font-size:12px; font-weight:700; flex:none">MV</div>
+                  <div style="flex:1; min-width:0"><div style="font-size:13.5px; font-weight:600; color:#2a251d">Maren Voss</div><div style="font-size:11px; color:#8a8071">Protagonist</div></div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#b3a892" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="9 6 15 12 9 18"/></svg>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; padding:8px 6px; border-radius:8px">
+                  <div style="width:30px; height:30px; border-radius:50%; background:#f1e2d8; color:#b25a38; display:grid; place-items:center; font-size:12px; font-weight:700; flex:none">AK</div>
+                  <div style="flex:1; min-width:0"><div style="font-size:13.5px; font-weight:600; color:#2a251d">Aldis Kerr</div><div style="font-size:11px; color:#8a8071">Ferryman</div></div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#b3a892" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="9 6 15 12 9 18"/></svg>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; padding:8px 6px; border-radius:8px">
+                  <div style="width:30px; height:30px; border-radius:6px; background:#dfe9e3; color:#4e7c6b; display:grid; place-items:center; font-size:12px; font-weight:700; flex:none">HQ</div>
+                  <div style="flex:1; min-width:0"><div style="font-size:13.5px; font-weight:600; color:#2a251d">Hallow Quay</div><div style="font-size:11px; color:#8a8071">Harbour town</div></div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#b3a892" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="9 6 15 12 9 18"/></svg>
+                </div>
+              </div>
+              <div style="font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8a8071; margin-bottom:10px">History</div>
+              <div style="display:flex; gap:10px; align-items:center; background:#fcfaf5; border:1px solid #e6ddcd; border-radius:10px; padding:12px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#8a8071" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <div style="flex:1"><div style="font-size:13px; font-weight:600; color:#2a251d">4 snapshots</div><div style="font-size:11px; color:#8a8071">last taken yesterday, 11:04pm</div></div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#b3a892" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="9 6 15 12 9 18"/></svg>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2a251d; opacity:.28"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:0 56px 90px; display:flex; flex-direction:column; gap:20px">
+  <div style="display:flex; align-items:center; gap:12px">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; color:#5c5446; background:#e3d9c6; padding:4px 10px; border-radius:999px">baseline</div>
+    <div style="font-family:'Literata',Georgia,serif; font-size:24px; font-weight:600; color:#2a251d">What ships today</div>
+  </div>
+  <div style="max-width:820px; font-size:15px; line-height:1.6; color:#5c5446">Recreated from <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">mobile/src</span> — the four screens currently in <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">AppNavigator</span>, at the palette values in <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">theme/palette.ts</span>. Note the drift: mobile's parchment is <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">#F4EFE6</span> against desktop's <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">#f4eee2</span>, mobile ink <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">#2F2925</span> against <span style="font-family:'IBM Plex Mono',monospace; font-size:13px">#2a251d</span>, and the system sans instead of Hanken Grotesk / Literata. The directions above are drawn at desktop token values.</div>
+  <div style="display:flex; gap:26px; flex-wrap:wrap">
+
+    <div data-screen-label="Baseline project list" style="width:390px; height:844px; border-radius:44px; background:#F4EFE6; box-shadow:0 24px 60px rgba(42,33,18,.2), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative; font-family:system-ui, -apple-system, sans-serif">
+      <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2F2925">
+        <div>9:41</div>
+        <div style="width:17px; height:11px; border:1.5px solid #2F2925; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2F2925; border-radius:1px"></div></div>
+      </div>
+      <div style="flex:none; height:44px; display:flex; align-items:center; padding:0 16px; background:#F4EFE6">
+        <div style="flex:1; font-size:17px; font-weight:600; color:#2F2925">Your writing</div>
+        <div style="color:#87614A; font-size:20px; padding:4px 6px">⚙</div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:16px; display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:center; gap:10px; padding:16px; border-radius:14px; background:#FFFCF7">
+          <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="color:#2F2925; font-size:17px; font-weight:600">The Salt Road</div>
+            <div style="color:#655B54; font-size:13px">Novel · 41,208 words</div>
+          </div>
+          <div style="color:#4E7C6B; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px">synced</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; padding:16px; border-radius:14px; background:#FFFCF7">
+          <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="color:#2F2925; font-size:17px; font-weight:600">Nine Small Fires</div>
+            <div style="color:#655B54; font-size:13px">Collection · 8,940 words</div>
+          </div>
+          <div style="color:#B3A892; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px">this device only</div>
+        </div>
+      </div>
+      <div style="flex:none; border-top:1px solid #E3D9C8; background:#FFFCF7; padding:6px 14px; display:flex; flex-direction:column">
+        <div style="color:#655B54; font-size:11px">WRITERSNOOK MOBILE · SyncEngine loaded · db ready · schema v9 · 14 tables</div>
+        <div style="color:#655B54; font-size:11px">sync live · peer seen · last 2026-08-08T21:04:11Z</div>
+      </div>
+      <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2F2925; opacity:.28"></div>
+    </div>
+
+    <div data-screen-label="Baseline binder" style="width:390px; height:844px; border-radius:44px; background:#F4EFE6; box-shadow:0 24px 60px rgba(42,33,18,.2), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative; font-family:system-ui, -apple-system, sans-serif">
+      <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2F2925">
+        <div>9:41</div>
+        <div style="width:17px; height:11px; border:1.5px solid #2F2925; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2F2925; border-radius:1px"></div></div>
+      </div>
+      <div style="flex:none; height:44px; display:flex; align-items:center; gap:6px; padding:0 12px">
+        <div style="color:#87614A; font-size:17px; display:flex; align-items:center; gap:3px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><polyline points="15 18 9 12 15 6"/></svg>Your writing</div>
+        <div style="position:absolute; left:50%; transform:translateX(-50%); font-size:17px; font-weight:600; color:#2F2925">The Salt Road</div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:16px">
+        <div style="color:#87614A; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin:0 0 8px">Chapter 1</div>
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:14px; border-radius:12px; background:#FFFCF7; margin-bottom:8px">
+          <div style="width:9px; height:9px; border-radius:5px; background:#4E7C6B; margin-top:5px"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="color:#2F2925; font-size:15px; font-weight:600">Opening</div>
+            <div style="color:#655B54; font-size:13px; line-height:18px">Maren watches the tide go out further than it should.</div>
+            <div style="color:#B3A892; font-size:11px; font-weight:600">Final</div>
+          </div>
+          <div style="color:#B3A892; font-size:12px; font-variant-numeric:tabular-nums">1,240w</div>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:14px; border-radius:12px; background:#FFFCF7; margin-bottom:8px">
+          <div style="width:9px; height:9px; border-radius:5px; background:#B25A38; margin-top:5px"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="color:#2F2925; font-size:15px; font-weight:600">The river</div>
+            <div style="color:#655B54; font-size:13px; line-height:18px">Aldis refuses the crossing. She walks instead.</div>
+            <div style="color:#B3A892; font-size:11px; font-weight:600">Drafting</div>
+          </div>
+          <div style="color:#B3A892; font-size:12px; font-variant-numeric:tabular-nums">860w</div>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:14px; border-radius:12px; background:#FFFCF7; margin-bottom:8px">
+          <div style="width:9px; height:9px; border-radius:5px; background:#B3A892; margin-top:5px"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="color:#2F2925; font-size:15px; font-weight:600">The salt road</div>
+            <div style="color:#B3A892; font-size:11px; font-weight:600">To write</div>
+          </div>
+          <div style="color:#B3A892; font-size:12px; font-variant-numeric:tabular-nums">0w</div>
+        </div>
+        <div style="color:#87614A; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin:18px 0 8px">Chapter 2</div>
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:14px; border-radius:12px; background:#FFFCF7; margin-bottom:8px">
+          <div style="width:9px; height:9px; border-radius:5px; background:#6A86A8; margin-top:5px"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="color:#2F2925; font-size:15px; font-weight:600">Arrival</div>
+            <div style="color:#655B54; font-size:13px; line-height:18px">Ossen Light, and the charter that isn't there.</div>
+            <div style="color:#B3A892; font-size:11px; font-weight:600">Revising</div>
+          </div>
+          <div style="color:#B3A892; font-size:12px; font-variant-numeric:tabular-nums">2,105w</div>
+        </div>
+        <div style="color:#87614A; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin:18px 0 8px">Short pieces</div>
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:14px; border-radius:12px; background:#FFFCF7">
+          <div style="width:9px; height:9px; border-radius:5px; background:#B25A38; margin-top:5px"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:3px">
+            <div style="color:#2F2925; font-size:15px; font-weight:600">A stray idea</div>
+            <div style="color:#B3A892; font-size:11px; font-weight:600">Drafting</div>
+          </div>
+          <div style="color:#B3A892; font-size:12px; font-variant-numeric:tabular-nums">310w</div>
+        </div>
+      </div>
+      <div style="flex:none; border-top:1px solid #E3D9C8; background:#FFFCF7; padding:6px 14px; display:flex; flex-direction:column">
+        <div style="color:#655B54; font-size:11px">WRITERSNOOK MOBILE · SyncEngine loaded · db ready · schema v9 · 14 tables</div>
+        <div style="color:#655B54; font-size:11px">sync live · peer seen · last 2026-08-08T21:04:11Z</div>
+      </div>
+      <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2F2925; opacity:.28"></div>
+    </div>
+
+    <div data-screen-label="Baseline pair" style="width:390px; height:844px; border-radius:44px; background:#F4EFE6; box-shadow:0 24px 60px rgba(42,33,18,.2), 0 0 0 9px #1e1a15, 0 0 0 10px #4a4238; overflow:hidden; display:flex; flex-direction:column; position:relative; font-family:system-ui, -apple-system, sans-serif">
+      <div style="height:52px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 32px 0 34px; font-size:15px; font-weight:600; color:#2F2925">
+        <div>9:41</div>
+        <div style="width:17px; height:11px; border:1.5px solid #2F2925; border-radius:3px; position:relative"><div style="position:absolute; inset:1.5px; right:5px; background:#2F2925; border-radius:1px"></div></div>
+      </div>
+      <div style="flex:none; height:44px; display:flex; align-items:center; gap:6px; padding:0 12px">
+        <div style="color:#87614A; font-size:17px; display:flex; align-items:center; gap:3px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><polyline points="15 18 9 12 15 6"/></svg>Back</div>
+        <div style="position:absolute; left:50%; transform:translateX(-50%); font-size:17px; font-weight:600; color:#2F2925">Pair with desktop</div>
+      </div>
+      <div style="flex:1; min-height:0; padding:20px; display:flex; flex-direction:column; gap:14px">
+        <div style="flex:1; border-radius:16px; background:#2a2622; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden">
+          <div style="width:190px; height:190px; border-radius:8px; background:repeating-linear-gradient(90deg,#3a352f 0 8px,#2a2622 8px 16px), repeating-linear-gradient(0deg,#3a352f 0 8px,transparent 8px 16px); opacity:.55"></div>
+          <div style="position:absolute; width:214px; height:214px; border:3px solid rgba(252,250,245,.55); border-radius:14px"></div>
+        </div>
+        <div style="color:#655B54; font-size:14px; text-align:center; line-height:20px">Point your camera at the QR code on your desktop.</div>
+        <div style="color:#87614A; font-size:13px; text-align:center; font-weight:600">Enter pairing code manually instead</div>
+      </div>
+      <div style="flex:none; border-top:1px solid #E3D9C8; background:#FFFCF7; padding:6px 14px; display:flex; flex-direction:column">
+        <div style="color:#655B54; font-size:11px">WRITERSNOOK MOBILE · SyncEngine loaded · db ready · schema v9 · 14 tables</div>
+        <div style="color:#655B54; font-size:11px">sync off · peer none · last never</div>
+      </div>
+      <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:140px; height:5px; border-radius:3px; background:#2F2925; opacity:.28"></div>
+    </div>
+
+  </div>
+</section>
+
+</x-dc>
+</body>
+</html>

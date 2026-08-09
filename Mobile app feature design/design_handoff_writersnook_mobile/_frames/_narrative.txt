@@ -1,0 +1,210 @@
+The Desk
+Full screen set · light + dark
+Every project opens onto a hub. The editor takes the whole screen with no permanent chrome, and the binder swipes in from the left edge so scene-to-scene movement never routes back through the hub. Everything else is a tile you go into and come back out of.
+One gesture to learn.
+Left-edge swipe opens the binder, anywhere in the editor. Nothing else is hidden behind a gesture.
+Hub is per-project.
+The project switcher lives in the hub header, so changing books is one tap, not a trip back up the stack.
+Capture reaches out.
+The hub bar, plus a share-sheet target so a thought caught in another app lands in the inbox.
+A
+The spine
+Launch → hub → write, and the two panes that fold into it
+[FRAME: Projects]
+Projects
+[FRAME: Hub]
+Hub
+[FRAME: Editor]
+Editor
+[FRAME: Binder drawer]
+Binder drawer · edge swipe
+[FRAME: Inspector]
+Inspector sheet
+B
+Structure
+Seeing the shape of the manuscript, and finding your way back into it
+[FRAME: Corkboard]
+Corkboard
+[FRAME: Outliner]
+Outliner
+[FRAME: Search]
+Search
+C
+Story Bible
+Two screens you edit, two you read
+[FRAME: Bible list]
+Bible list
+[FRAME: Bible entry]
+Bible entry
+[FRAME: Bible entry · scrolled]
+Bible entry · scrolled
+[FRAME: Bible entry · Location]
+Bible entry · Location
+[FRAME: AutoLink peek]
+AutoLink peek
+[FRAME: Relationship map]
+Relationship map · viewer
+[FRAME: Board viewer]
+Brainstorm board · viewer
+D
+Craft & tools
+The parts of the app that do work for you
+[FRAME: Goals]
+Goals
+[FRAME: Version history · empty]
+Version history · empty
+[FRAME: Inbox]
+Inbox · quick capture
+[FRAME: AI assistant]
+AI assistant
+E
+System
+Getting in, and the settings that matter on a phone
+[FRAME: Pairing]
+Pairing
+[FRAME: Settings]
+Settings + sync
+[FRAME: Focus HUD]
+Focus mode + HUD settings
+Quiet Study at night
+Same set, dark tokens
+Every screen above at the
+[data-theme="dark"]
+values from tokens.css. Nothing is re-laid-out — only the ramp changes, so a single theme switch covers the whole app.
+A
+The spine
+Launch → hub → write, and the two panes that fold into it
+[FRAME: Projects (dark)]
+Projects
+[FRAME: Hub (dark)]
+Hub
+[FRAME: Editor (dark)]
+Editor
+[FRAME: Binder drawer (dark)]
+Binder drawer · edge swipe
+[FRAME: Inspector (dark)]
+Inspector sheet
+B
+Structure
+Seeing the shape of the manuscript, and finding your way back into it
+[FRAME: Corkboard (dark)]
+Corkboard
+[FRAME: Outliner (dark)]
+Outliner
+[FRAME: Search (dark)]
+Search
+C
+Story Bible
+Two screens you edit, two you read
+[FRAME: Bible list (dark)]
+Bible list
+[FRAME: Bible entry (dark)]
+Bible entry
+[FRAME: Bible entry · scrolled (dark)]
+Bible entry · scrolled (dark)
+[FRAME: Bible entry · Location (dark)]
+Bible entry · Location (dark)
+[FRAME: AutoLink peek (dark)]
+AutoLink peek (dark)
+[FRAME: Relationship map (dark)]
+Relationship map · viewer
+[FRAME: Board viewer (dark)]
+Brainstorm board · viewer
+D
+Craft & tools
+The parts of the app that do work for you
+[FRAME: Goals (dark)]
+Goals
+[FRAME: Version history · empty (dark)]
+Version history · empty (dark)
+[FRAME: Inbox (dark)]
+Inbox · quick capture
+[FRAME: AI assistant (dark)]
+AI assistant
+E
+System
+Getting in, and the settings that matter on a phone
+[FRAME: Pairing (dark)]
+Pairing
+[FRAME: Settings (dark)]
+Settings + sync
+[FRAME: Focus HUD (dark)]
+Focus mode + HUD settings
+F
+The assistant, in depth
+Selection, context, models, and every privacy gate
+[FRAME: Selection actions]
+Selection actions
+[FRAME: Context]
+Context
+[FRAME: Model]
+Model
+[FRAME: Hidden from AI]
+Hidden from AI
+[FRAME: Limits]
+Limits
+F
+The assistant, in depth
+Selection, context, models, and every privacy gate
+[FRAME: Selection actions (dark)]
+Selection actions
+[FRAME: Context (dark)]
+Context
+[FRAME: Model (dark)]
+Model
+[FRAME: Hidden from AI (dark)]
+Hidden from AI
+[FRAME: Limits (dark)]
+Limits
+G
+The gaps
+Scene actions, all six goal types, archive, empty state, offline & conflicts
+[FRAME: Scene actions]
+Scene actions
+[FRAME: New goal]
+New goal
+[FRAME: Archive]
+Archive
+[FRAME: Empty project]
+Empty project
+[FRAME: Offline & catch-up]
+Offline & catch-up
+G
+The gaps
+Scene actions, all six goal types, archive, empty state, offline & conflicts
+[FRAME: Scene actions (dark)]
+Scene actions
+[FRAME: New goal (dark)]
+New goal
+[FRAME: Archive (dark)]
+Archive
+[FRAME: Empty project (dark)]
+Empty project
+[FRAME: Offline & catch-up (dark)]
+Offline & catch-up (dark)
+H
+Licensing & bible authoring
+Licensing, entity authoring, and the real snapshot model
+[FRAME: Activation]
+Activation
+[FRAME: Trial]
+Trial
+[FRAME: New entry]
+New entry
+[FRAME: Custom type]
+Custom type
+[FRAME: Scene version history]
+Scene version history
+H
+Licensing & bible authoring
+Licensing, entity authoring, and the real snapshot model
+[FRAME: Activation (dark)]
+Activation
+[FRAME: Trial (dark)]
+Trial
+[FRAME: New entry (dark)]
+New entry
+[FRAME: Custom type (dark)]
+Custom type
+[FRAME: Scene version history (dark)]
+Entry history
