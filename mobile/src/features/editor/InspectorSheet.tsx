@@ -1,5 +1,6 @@
+import { useFocusEffect } from "@react-navigation/native";
 import type { Dispatch, SetStateAction } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -12,6 +13,7 @@ import type { Entity, SceneEntityGroup } from "../../shared/storyBibleStore";
 import { useTheme } from "../../theme/ThemeProvider";
 import { RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import { refreshOpenInspector } from "./inspectorRefresh";
 
 interface InspectorData {
   scene: Scene | null;
@@ -40,12 +42,12 @@ async function loadInspector(projectId: string, sceneId: string): Promise<Inspec
   };
 }
 
-function useInspectorData(projectId: string, sceneId: string) {
+function useInspectorData(projectId: string, sceneId: string, open: boolean) {
   const [data, setData] = useState(EMPTY);
   const reload = useCallback(() => {
     void loadInspector(projectId, sceneId).then(setData).catch(() => { setData(EMPTY); });
   }, [projectId, sceneId]);
-  useEffect(reload, [reload]);
+  useFocusEffect(useCallback(() => { refreshOpenInspector(open, reload); }, [open, reload]));
   return { data, reload };
 }
 
@@ -142,7 +144,7 @@ function InspectorBody({ data, onDismiss, onOpenEntity, onOpenSnapshots, onOpenS
 }
 
 export function InspectorSheet(props: InspectorSheetProps) {
-  const { data, reload } = useInspectorData(props.projectId, props.sceneId);
+  const { data, reload } = useInspectorData(props.projectId, props.sceneId, props.open);
   const [pickingLabels, setPickingLabels] = useState(false);
   const scene = data.scene;
   const setStatus = (status: SceneStatus): void => {
