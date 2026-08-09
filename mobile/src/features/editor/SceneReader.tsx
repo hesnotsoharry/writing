@@ -2,14 +2,15 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import * as Y from "yjs";
 
 import { MobileSceneDocStore } from "../../db/syncStores/mobileSceneDocStore";
 import { applyEncoded, extractPlainText } from "../../shared/serialize";
 import { subscribeMobileDocReplaced } from "../../sync/mobileEngine";
-import { PALETTE } from "../../theme/palette";
+import { useTheme } from "../../theme/ThemeProvider";
+import { TYPE } from "../../theme/typography";
 
 type LoadState = "loading" | "ready" | "error";
 const sceneStore = new MobileSceneDocStore();
@@ -34,13 +35,17 @@ function CenteredMessage({ children }: { children: ReactNode }) {
 }
 
 function ScenePage({ content }: { content: SceneContent }) {
-  if (content.paragraphs.length === 0) return <Text style={styles.emptyText}>{EMPTY_COPY}</Text>;
+  const theme = useTheme();
+  if (content.paragraphs.length === 0) {
+    return <Text style={[styles.emptyText, { color: theme.colors.ink3 }]}>{EMPTY_COPY}</Text>;
+  }
   return <>{content.paragraphs.map((paragraph, index) => (
-    <Text key={index} style={styles.paragraph}>{paragraph || " "}</Text>
+    <Text key={index} style={[styles.paragraph, { color: theme.colors.ink }]}>{paragraph || " "}</Text>
   ))}</>;
 }
 
 export function SceneReader({ sceneId }: SceneReaderProps) {
+  const theme = useTheme();
   const [state, setState] = useState<LoadState>("loading");
   const [content, setContent] = useState<SceneContent>({ paragraphs: [], wordCount: 0 });
   const load = useCallback(() => {
@@ -54,41 +59,40 @@ export function SceneReader({ sceneId }: SceneReaderProps) {
     if (changedId === sceneId) load();
   }), [sceneId, load]);
   if (state === "loading") {
-    return <CenteredMessage><ActivityIndicator color={PALETTE.accent} /></CenteredMessage>;
+    return <CenteredMessage><ActivityIndicator color={theme.colors.accent} /></CenteredMessage>;
   }
   if (state === "error") {
-    return <CenteredMessage><Text style={styles.errorText}>{"Couldn't load this scene."}</Text></CenteredMessage>;
+    return <CenteredMessage><Text style={[styles.errorText, { color: theme.colors.ink }]}>{"Couldn't load this scene."}</Text></CenteredMessage>;
   }
   return <ReaderContent content={content} />;
 }
 
 function ReaderContent({ content }: { content: SceneContent }) {
+  const theme = useTheme();
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <ScenePage content={content} />
       </ScrollView>
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>{content.wordCount.toLocaleString()} words</Text>
+      <View style={[styles.footer, { borderColor: theme.colors.line, backgroundColor: theme.colors.paper }]}>
+        <Text style={[styles.footerText, { color: theme.colors.ink4 }]}>{content.wordCount.toLocaleString()} words</Text>
       </View>
     </View>
   );
 }
 
-const READING_FONT = Platform.select({ ios: "Georgia", android: "serif", default: "serif" });
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: PALETTE.card },
+  screen: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 12 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   paragraph: {
-    color: PALETTE.ink, fontFamily: READING_FONT, fontSize: 17,
+    ...TYPE.prose,
     lineHeight: 26, marginBottom: 14,
   },
-  emptyText: { color: PALETTE.inkMuted, fontSize: 15, textAlign: "center", lineHeight: 22 },
-  errorText: { color: PALETTE.ink, fontSize: 16, fontWeight: "600" },
+  emptyText: { ...TYPE.proseBody, textAlign: "center" },
+  errorText: { ...TYPE.bodyStrong },
   footer: {
-    borderTopWidth: 1, borderTopColor: PALETTE.border,
-    paddingHorizontal: 20, paddingVertical: 10, backgroundColor: PALETTE.card,
+    borderTopWidth: 1, paddingHorizontal: 20, paddingVertical: 10,
   },
-  footerText: { color: PALETTE.inkFaint, fontSize: 12, fontVariant: ["tabular-nums"] },
+  footerText: { ...TYPE.meta, fontVariant: ["tabular-nums"] },
 });

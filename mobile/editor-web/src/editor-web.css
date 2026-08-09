@@ -1,9 +1,39 @@
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 400;
+  src: url("../../node_modules/@expo-google-fonts/literata/400Regular/Literata_400Regular.ttf");
+}
+
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 600;
+  src: url("../../node_modules/@expo-google-fonts/literata/600SemiBold/Literata_600SemiBold.ttf");
+}
+
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 700;
+  src: url("../../node_modules/@expo-google-fonts/literata/700Bold/Literata_700Bold.ttf");
+}
+
 :root {
   color: var(--ink);
   background: var(--paper);
   color-scheme: light;
   font-family: Georgia, "Times New Roman", serif;
   --editor-bottom-inset: max(18vh, 7rem);
+}
+
+:root {
+  --entity-character: var(--label-clay);
+  --entity-location: var(--label-moss);
+  --entity-item: var(--label-gold);
+  --entity-faction: var(--label-plum);
+  --entity-lore: var(--label-sea);
+  --entity-theme: var(--label-slate);
 }
 
 * {
@@ -44,8 +74,9 @@ body {
   padding: max(2rem, env(safe-area-inset-top)) 1.35rem
     calc(var(--editor-bottom-inset) + env(safe-area-inset-bottom));
   outline: none;
-  font-size: 1.125rem;
-  line-height: 1.75;
+  font-family: Literata, Georgia, serif;
+  font-size: 18.5px;
+  line-height: 1.78;
   caret-color: var(--ink);
 }
 
@@ -67,6 +98,20 @@ body {
   font-size: 3.2em;
   line-height: 0.8;
 }
+
+.prose a[href^="https://entity.writersnook.app/"] {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.prose a[href*="/character/"] { text-decoration-color: var(--entity-character); }
+.prose a[href*="/location/"] { text-decoration-color: var(--entity-location); }
+.prose a[href*="/item/"] { text-decoration-color: var(--entity-item); }
+.prose a[href*="/faction/"] { text-decoration-color: var(--entity-faction); }
+.prose a[href*="/lore/"] { text-decoration-color: var(--entity-lore); }
+.prose a[href*="/theme/"] { text-decoration-color: var(--entity-theme); }
 
 mark {
   padding: 0 0.08em;

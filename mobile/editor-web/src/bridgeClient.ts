@@ -11,6 +11,11 @@ import {
 import { SYNC_ORIGIN } from "@writersnook/yjs/bindPersistence";
 import * as Y from "yjs";
 
+import {
+  type EditorSelectionState, type NativeEditorUiMessage, parseNativeEditorUiMessage,
+} from "../../src/features/editor/editorUiProtocol";
+import { WebEditorUiChannel } from "./webEditorUiChannel";
+
 export const LOCAL_UPDATE_BATCH_MS = 500;
 export const BRIDGE_ACK_TIMEOUT_MS = 5_000;
 
@@ -22,7 +27,10 @@ export interface BridgeSnapshot {
 
 export interface BridgeClient {
   getSnapshot: () => BridgeSnapshot;
+  getSessionId: () => string;
   subscribe: (listener: () => void) => () => void;
+  bindEditorUi: (handler: (message: NativeEditorUiMessage) => void) => () => void;
+  reportSelection: (selection: EditorSelectionState) => void;
   receive: (raw: string) => void;
   destroy: () => void;
 }
@@ -76,12 +84,14 @@ class WebViewBridgeClient implements BridgeClient {
   private inFlightSeq: number | null = null;
   private ackTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingFlushSeq: number | null = null;
+  private readonly uiChannel: WebEditorUiChannel;
 
   constructor(options: BridgeClientOptions) {
     this.sessionId = options.sessionId ?? createSessionId();
     this.postRaw = options.postMessage ?? defaultPostMessage;
     this.batchMs = options.batchMs ?? LOCAL_UPDATE_BATCH_MS;
     this.ackTimeoutMs = options.ackTimeoutMs ?? BRIDGE_ACK_TIMEOUT_MS;
+    this.uiChannel = new WebEditorUiChannel(this.sessionId, this.postRaw);
     window.addEventListener("message", this.onWindowMessage);
     document.addEventListener("message", this.onDocumentMessage);
     this.post({ v: MOBILE_EDITOR_BRIDGE_VERSION, type: "ready", sessionId: this.sessionId });
@@ -89,12 +99,27 @@ class WebViewBridgeClient implements BridgeClient {
 
   getSnapshot = (): BridgeSnapshot => this.snapshot;
 
+  getSessionId = (): string => this.sessionId;
+
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
 
+  bindEditorUi = (handler: (message: NativeEditorUiMessage) => void): (() => void) => {
+    return this.uiChannel.bind(handler);
+  };
+
+  reportSelection = (selection: EditorSelectionState): void => {
+    this.uiChannel.report(selection);
+  };
+
   receive = (raw: string): void => {
+    const uiMessage = parseNativeEditorUiMessage(raw);
+    if (uiMessage) {
+      this.uiChannel.receive(uiMessage);
+      return;
+    }
     const message = parseNativeMessage(raw);
     if (!message) {
       this.postError("invalid-message");
@@ -121,12 +146,14 @@ class WebViewBridgeClient implements BridgeClient {
     document.removeEventListener("message", this.onDocumentMessage);
     this.snapshot.doc.off("update", this.onLocalUpdate);
     this.snapshot.doc.destroy();
+    this.uiChannel.destroy();
     this.listeners.clear();
   };
 
   private post(message: WebViewToNativeMessage): void {
     this.postRaw(serializeBridgeMessage(message));
   }
+
 
   private postError(code: BridgeErrorCode, seq?: number): void {
     this.post({
@@ -231,6 +258,7 @@ class WebViewBridgeClient implements BridgeClient {
       Y.applyUpdate(this.snapshot.doc, decodeUpdate(message.update), SYNC_ORIGIN);
       this.attachDoc(this.snapshot.doc);
       this.sceneId = message.sceneId;
+      this.uiChannel.setScene(message.sceneId);
       this.snapshot = { ...this.snapshot, hydrated: true };
       this.notify();
       this.sendAck(message.seq, "hydrate");

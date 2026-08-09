@@ -133,8 +133,8 @@ export function ProjectBinderScreen({ navigation, route }: Props) {
   useEffect(() => subscribeMobileStructureChanged(load), [load]);
 
   const onOpenScene = useCallback((scene: BinderSceneItem) => {
-    navigation.navigate("Scene", { sceneId: scene.id, sceneTitle: scene.title });
-  }, [navigation]);
+    navigation.navigate("Scene", { projectId, sceneId: scene.id, sceneTitle: scene.title });
+  }, [navigation, projectId]);
 
   return <BinderContent {...{ errorMessage, load, onOpenScene, rows, state }} />;
 }

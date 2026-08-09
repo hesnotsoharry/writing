@@ -9,6 +9,10 @@ import {
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import * as Y from "yjs";
 
+import {
+  EDITOR_UI_VERSION,   type EditorSelectionState,
+parseWebEditorUiMessage, serializeEditorUiMessage,
+} from "../../src/features/editor/editorUiProtocol";
 import { type BridgeClient,createBridgeClient } from "./bridgeClient";
 
 const SESSION_ID = "test-session";
@@ -167,5 +171,48 @@ describe("createBridgeClient", () => {
     expect(after.doc).not.toBe(before.doc);
     expect(after.editorKey).toBe(before.editorKey + 1);
     expect(after.doc.getText("test").toString()).toBe("new");
+  });
+
+  it("keeps selection reports behind one in-flight UI ACK", () => {
+    client.receive(serializeBridgeMessage(hydrate()));
+    post.mockClear();
+    const selection: EditorSelectionState = {
+      bold: false, italic: false, blockquote: false, aiExcluded: false,
+      collapsed: false, from: 1, to: 2, aiSafeText: "a", rect: null,
+    };
+    client.reportSelection(selection);
+    client.reportSelection({ ...selection, bold: true });
+    expect(post).toHaveBeenCalledTimes(1);
+    const first = parseWebEditorUiMessage(post.mock.calls[0][0] as string);
+    expect(first).toMatchObject({ type: "selection-state", seq: 1, bold: false });
+
+    client.receive(serializeEditorUiMessage({
+      v: EDITOR_UI_VERSION, type: "editor-ui-ack", sessionId: SESSION_ID,
+      sceneId: SCENE_ID, seq: 1, ackType: "selection",
+    }));
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(parseWebEditorUiMessage(post.mock.calls[1][0] as string))
+      .toMatchObject({ type: "selection-state", seq: 2, bold: true });
+  });
+
+  it("ACKs ordered UI commands and rejects gaps and wrong sessions", () => {
+    client.receive(serializeBridgeMessage(hydrate()));
+    post.mockClear();
+    const handler = vi.fn();
+    client.bindEditorUi(handler);
+    const command = {
+      v: EDITOR_UI_VERSION, type: "editor-command" as const, sessionId: SESSION_ID,
+      sceneId: SCENE_ID, seq: 1, command: "toggle-bold" as const,
+    };
+    client.receive(serializeEditorUiMessage({ ...command, seq: 2 }));
+    client.receive(serializeEditorUiMessage({ ...command, sessionId: "stale" }));
+    expect(handler).not.toHaveBeenCalled();
+    client.receive(serializeEditorUiMessage(command));
+    expect(handler).toHaveBeenCalledOnce();
+    expect(parseWebEditorUiMessage(post.mock.calls[0][0] as string))
+      .toMatchObject({ type: "editor-ui-ack", ackType: "command", seq: 1 });
+    client.receive(serializeEditorUiMessage(command));
+    expect(handler).toHaveBeenCalledOnce();
+    expect(post).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,7 +1,11 @@
 import { MobileEditorCore } from "@writersnook/editor/MobileEditorCore";
-import { useEffect, useSyncExternalStore } from "react";
+import type { ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import type { BridgeClient } from "./bridgeClient";
+import { attachEditorUi } from "./editorUiBridge";
+
+type Editor = Parameters<NonNullable<ComponentProps<typeof MobileEditorCore>["onReady"]>>[0];
 
 function bindViewportHeight(): () => void {
   const viewport = window.visualViewport;
@@ -20,7 +24,13 @@ function bindViewportHeight(): () => void {
 
 export function EditorWebApp({ client }: { client: BridgeClient }) {
   const snapshot = useSyncExternalStore(client.subscribe, client.getSnapshot);
+  const detachUi = useRef<(() => void) | null>(null);
   useEffect(bindViewportHeight, []);
+  useEffect(() => () => { detachUi.current?.(); }, []);
+  const onReady = useCallback((editor: Editor) => {
+    detachUi.current?.();
+    detachUi.current = attachEditorUi(editor, client);
+  }, [client]);
 
   if (!snapshot.hydrated) {
     return <main className="editor-page editor-page--waiting" aria-busy="true" />;
@@ -32,6 +42,8 @@ export function EditorWebApp({ client }: { client: BridgeClient }) {
         key={snapshot.editorKey}
         doc={snapshot.doc}
         editable
+        onReady={onReady}
+        onDestroy={() => { detachUi.current?.(); detachUi.current = null; }}
       />
     </main>
   );
