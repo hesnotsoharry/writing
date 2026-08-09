@@ -254,3 +254,37 @@ manuscripts or the license/`app_meta` row (SQLite).
 
 **Assert:** never mutate `writing.db` directly for a smoke test without the copy-aside step; if
 only `localStorage` is involved, the DB-swap is unnecessary overhead.
+
+## registered-does-not-mean-reachable
+
+**Symptom:** a fully built mobile feature works, is registered in `AppNavigator`, has passing
+tests — and no writer can ever open it. Found three times now across two sessions: the Archive
+screen (59abd32), then `Goals` and `OfflineCatchUp`, plus a version-history row that exists,
+is correctly wired, and sits below an unscrollable fold.
+
+**Why it keeps happening:** every check in the loop is blind to it. Vitest cannot render a
+navigator; a screenshot proves a control is *drawn*, not that a finger can reach it; and
+`<Stack.Screen>` registration looks like wiring but only declares a destination. Nothing fails.
+
+**Detection — run after adding any screen:**
+
+```bash
+for r in $(grep -oP '^\s+\K\w+(?=:)' mobile/src/navigation/routes.ts); do n=$(grep -rn "navigate(\"$r\"\|replace(\"$r\"\|push(\"$r\"" mobile/src --include=*.tsx --include=*.ts | wc -l); [ "$n" -eq 0 ] && echo "ORPHAN: $r"; done
+```
+
+Triage the hits: some are legitimately reached via a computed route-name union (the
+`BibleEntry*` variants) or render inline as sheets rather than routes (`SceneActions`,
+`FocusHud`). A real orphan is a finished screen with no inline surface either.
+
+**The reachability sweep does not stop at navigation.** Three claims are distinct and only the
+third is the one that matters: "the handler is wired", "the control is on screen", "a finger
+can reach it". On Android a child laid out past its parent's bounds *draws normally and never
+receives touch* — so a screenshot showing a button proves nothing. Test by contrast: tap a
+control high in the container and one low in it; if the high one responds and the low one does
+not, the container is the bug, not the handler.
+
+**Pointer:** `roadmap/mobile/EMULATOR-MATRIX.md` (the sweep table + per-check verdicts),
+`mobile/src/navigation/routes.ts`, `mobile/src/components/Sheet.tsx`.
+
+**Assert:** never record a check as PASS on the strength of a screenshot alone — press the
+control and confirm the effect (navigation happened, DB row changed).
