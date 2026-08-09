@@ -81,13 +81,14 @@ bug:
    **Fixed**; the CTA now navigates, device-verified.
 2. The CTA's handler was literally `onAction={() => undefined}`. **Fixed.**
 
-**A third cause is still open:** the sheet does not scroll, so the version
-history row below the CTA is never laid into view. `InspectorSheet` and
-`SceneActionsSheet` were passing React Native's plain `ScrollView` inside
-`@gorhom/bottom-sheet` v5, which requires its own `BottomSheetScrollView` for
-inner scrolling; both were switched over, and that is the correct API either
-way, **but it did not restore scrolling on its own** — something else in the
-`Sheet` composition is still preventing it. Next session starts here.
+3. The sheet did not scroll, so the version history row below the CTA was never
+   laid into view. `InspectorSheet` and `SceneActionsSheet` were passing React
+   Native's plain `ScrollView` inside `@gorhom/bottom-sheet` v5, which requires
+   its own `BottomSheetScrollView` for inner scrolling. Switching the API over
+   was necessary but not sufficient on its own; `Sheet` now takes an explicit
+   `scrollable` prop that renders a `BottomSheetScrollView` with `flex: 1` under
+   a fixed snap point, and both sheets pass it. **Fixed** — row #11 is
+   device-verified with both below-fold affordances navigating.
 
 When checking reachability, "the handler is wired", "the control is on screen"
 and "a finger can reach it" are three different claims. Screenshots prove the
