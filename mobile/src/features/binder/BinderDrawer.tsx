@@ -24,6 +24,7 @@ interface BinderDrawerProps {
   dispatch: (action: DrawerAction) => void;
   onOpenScene(scene: Scene): void;
   onOpenInbox(): void;
+  onOpenArchive(): void;
 }
 
 interface DragGripProps { onDrop(delta: number): void }
@@ -164,7 +165,7 @@ function BinderList(props: BinderListProps) {
 interface DrawerPanelProps {
   data: BinderDrawerData; insetsTop: number; state: DrawerState;
   activeSceneId: string; projectId: string;
-  onActions(scene: Scene): void; onInbox(): void;
+  onActions(scene: Scene): void; onInbox(): void; onArchive(): void;
   onReorder(scene: Scene, delta: number): void; onOpenScene(scene: Scene): void;
 }
 function DrawerPanel(props: DrawerPanelProps) {
@@ -181,6 +182,15 @@ function DrawerPanel(props: DrawerPanelProps) {
       <Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink2 }]}>Quick notes</Text>
       {props.data.quickNotes > 0 && <Badge count={props.data.quickNotes} />}
     </Pressable>
+    {/* The archived foot from the design canon (binder.jsx): visible only when
+        something is archived — the restore path must be reachable from the
+        same surface that offered Archive. */}
+    {props.data.archived > 0 && <Pressable onPress={props.onArchive}
+      style={[styles.footer, { borderColor: theme.colors.lineSoft }]}>
+      <Icon name="archive" size={17} color={theme.colors.ink3} />
+      <Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink2 }]}>Archived</Text>
+      <Badge count={props.data.archived} />
+    </Pressable>}
   </View>;
 }
 
@@ -209,7 +219,7 @@ export function BinderDrawer(props: BinderDrawerProps) {
       style={[styles.scrim, { left: props.state.offset, backgroundColor: theme.colors.scrimStrong }]} />}
     <DrawerPanel data={data} insetsTop={insets.top} state={props.state}
       activeSceneId={props.activeSceneId} projectId={props.projectId}
-      onActions={setActionScene} onInbox={props.onOpenInbox}
+      onActions={setActionScene} onInbox={props.onOpenInbox} onArchive={props.onOpenArchive}
       onReorder={moveScene} onOpenScene={props.onOpenScene} />
     <View pointerEvents={props.state.offset === 0 ? "auto" : "none"} style={styles.edge} />
     <SceneActionsSheet key={actionScene?.id ?? "none"} open={actionScene !== null}

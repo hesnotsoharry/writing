@@ -111,7 +111,8 @@ export function SceneScreen({ navigation, route }: Props) {
     </View>
     {projectId && <BinderDrawer projectId={projectId} activeSceneId={sceneId}
       state={drawer} dispatch={drawerDispatch} onOpenScene={connections.openScene}
-      onOpenInbox={() => { navigation.navigate("Inbox", { projectId }); }} />}
+      onOpenInbox={() => { navigation.navigate("Inbox", { projectId }); }}
+      onOpenArchive={() => { navigation.navigate("Archive", { projectId }); }} />}
     {projectId && <InspectorSheet open={inspectorOpen} projectId={projectId} sceneId={sceneId}
       onDismiss={() => { setInspectorOpen(false); }} onOpenEntity={connections.openEntity}
       onOpenSnapshots={() => { navigation.navigate("SceneVersionHistory", { projectId, sceneId }); }} />}
