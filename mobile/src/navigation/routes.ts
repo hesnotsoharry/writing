@@ -10,7 +10,7 @@ export type EntityTypeParam =
 export type RootStackParamList = {
   ProjectList: undefined;
   Hub: { projectId: string; projectTitle: string };
-  Scene: { sceneId: string; sceneTitle: string; projectId?: string };
+  Scene: { sceneId: string; sceneTitle: string; projectId?: string; projectTitle?: string };
   ProjectBinder: { projectId: string; projectTitle: string };
   Inspector: { projectId: string; sceneId: string; sceneTitle: string };
   Corkboard: { projectId: string; projectTitle: string };

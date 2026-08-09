@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Badge, Card, Icon, PrimaryButton, Ring, Screen, SectionLabel } from "../../components";
 import type { IconName } from "../../components/Icon";
 import type { RootStackParamList } from "../../navigation/routes";
+import { sceneStackReset } from "../../navigation/sceneStack";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
@@ -90,10 +91,11 @@ function DeskGrid({ model, navigation, projectId, projectTitle }: { model: HubMo
   );
 }
 
-function openEditor(navigation: Props["navigation"], projectId: string, scene: HubSceneModel) {
-  // The editor must be root-of-stack so iOS interactive-pop cannot compete
-  // with P4's left-edge binder drawer gesture.
-  navigation.reset({ index: 0, routes: [{ name: "Scene", params: { projectId, sceneId: scene.id, sceneTitle: scene.title } }] });
+function openEditor(navigation: Props["navigation"], projectId: string, projectTitle: string, scene: HubSceneModel) {
+  // iOS interactive-pop stays disabled via the Scene screen's
+  // gestureEnabled: false; the seeded parents exist so Android back pops
+  // to the Hub instead of finishing the activity (see sceneStackReset).
+  navigation.reset(sceneStackReset({ projectId, projectTitle, sceneId: scene.id, sceneTitle: scene.title }));
 }
 
 function HubContent({ model, navigation, projectId, projectTitle }: { model: HubModel; navigation: Props["navigation"]; projectId: string; projectTitle: string }) {
@@ -102,7 +104,7 @@ function HubContent({ model, navigation, projectId, projectTitle }: { model: Hub
     <>
       <ScrollView contentContainerStyle={styles.scroll}>
         <HubHeader onSettings={() => navigation.navigate("Settings", { projectId })} onSwitchProject={() => navigation.navigate("ProjectList")} projectTitle={projectTitle} subtitle={`${model.totalWords.toLocaleString()} words · synced`} trialStatusSlot={daysLeft === null ? undefined : <TrialStatusPill daysLeft={daysLeft} onPress={() => navigation.navigate("Trial", { projectId, projectTitle })} />} />
-        {model.primaryScene && <ResumeCard onOpen={(scene) => openEditor(navigation, projectId, scene)} primary={model.primaryScene} recent={model.recentScenes} />}
+        {model.primaryScene && <ResumeCard onOpen={(scene) => openEditor(navigation, projectId, projectTitle, scene)} primary={model.primaryScene} recent={model.recentScenes} />}
         <GoalCards goal={model.goal} />
         <View style={styles.desk}><SectionLabel>The desk</SectionLabel><DeskGrid model={model} navigation={navigation} projectId={projectId} projectTitle={projectTitle} /></View>
       </ScrollView>

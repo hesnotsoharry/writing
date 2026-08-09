@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "../../components";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import { sceneStackReset } from "../../navigation/sceneStack";
 import type { Scene } from "../../shared/binderStore";
 import type { Entity } from "../../shared/storyBibleStore";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -39,9 +40,9 @@ function EditorHeader({ onBinder, onFocus, onInspector, title }: {
   </View>;
 }
 
-function useSceneConnections({ focusMode, navigation, projectId, sceneId }: {
+function useSceneConnections({ focusMode, navigation, projectId, projectTitle, sceneId }: {
   focusMode: boolean; navigation: Props["navigation"];
-  projectId?: string; sceneId: string;
+  projectId?: string; projectTitle?: string; sceneId: string;
 }): SceneConnections {
   const clearAiSelection = useRef<(() => void) | null>(null);
   const focusModeRef = useRef(focusMode);
@@ -49,10 +50,10 @@ function useSceneConnections({ focusMode, navigation, projectId, sceneId }: {
   useEffect(() => () => { clearAiSelection.current?.(); }, []);
   const openScene = useCallback((scene: Scene): void => {
     if (!projectId) return;
-    navigation.reset({ index: 0, routes: [{
-      name: "Scene", params: { projectId, sceneId: scene.id, sceneTitle: scene.title },
-    }] });
-  }, [navigation, projectId]);
+    navigation.reset(sceneStackReset({
+      projectId, projectTitle, sceneId: scene.id, sceneTitle: scene.title,
+    }));
+  }, [navigation, projectId, projectTitle]);
   const openEntity = useCallback((entity: Entity): void => {
     if (projectId) navigation.navigate("BibleEntry", {
       projectId, entityId: entity.id, entityType: entity.type,
@@ -82,14 +83,14 @@ function countWords(text: string): number {
 export function SceneScreen({ navigation, route }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { projectId, sceneId, sceneTitle } = route.params;
+  const { projectId, projectTitle, sceneId, sceneTitle } = route.params;
   const [drawer, drawerDispatch] = useBinderDrawerState();
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [editorFailed, setEditorFailed] = useState(false);
   const focus = useFocusSettings();
-  const connections = useSceneConnections({ focusMode, navigation, projectId, sceneId });
+  const connections = useSceneConnections({ focusMode, navigation, projectId, projectTitle, sceneId });
   return <View style={[styles.screen, { backgroundColor: theme.colors.paper, paddingTop: insets.top }]}>
     {!focusMode && <EditorHeader title={sceneTitle} onBinder={() => { drawerDispatch({ type: "open" }); }}
       onFocus={() => { setFocusMode(true); }} onInspector={() => { setInspectorOpen(true); }} />}
