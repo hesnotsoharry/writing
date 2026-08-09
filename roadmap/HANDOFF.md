@@ -42,14 +42,19 @@ budget; sceneStack chain has its own test).
 5. **device_name command (848306d).** Registered the orphaned Tauri command
    the desktop pairing screen already invokes.
 
-### Matrix: 12 of 28 verified (roadmap/mobile/EMULATOR-MATRIX.md)
+### Matrix: 14 of 28 verified (roadmap/mobile/EMULATOR-MATRIX.md)
 
 New passes today: #5 editor loads clean (deduped bundle), #6 caret vs
 keyboard, #7 format bar above keyboard + bold applies, #9 scene actions
-status persists, #11 inspector sheet, #28 force-stop rehydrate. Re-confirmed:
-#1, #4. Findings: #8 — gesture nav owns the left edge (drawer via header
-button works; design call open on fighting the OS); scene-actions sheet has
-a cosmetic stale-highlight bug (inspector tracks correctly).
+status persists, #11 inspector sheet, #16 search (mojibake snippet ellipsis
+found & fixed, ae66a15), #20 archive/restore (TWO defects found & fixed:
+ArchiveScreen was orphaned — binder foot now links it, 59abd32; restore
+dropped folder_id — scenes came back loose, c44f2d2), #28 force-stop
+rehydrate. Re-confirmed: #1, #4. Findings: #8 — gesture nav owns the left
+edge (drawer via header button works; design call open on fighting the OS);
+scene-actions sheet has a cosmetic stale-highlight bug (inspector tracks
+correctly); Projects-list card goes stale after archive/restore until an
+app restart (Hub refreshes fine).
 
 ### Dev-loop trap (cost real time twice today)
 
@@ -61,11 +66,13 @@ sessions (kill it), `adb reverse` drops on force-stop (re-add).
 
 ## What's next
 
-1. Remaining 16 matrix checks. Device-only ones: #14/15 corkboard/outliner
-   drags, #16 search, #17 goals, #19 snapshots, #20 archive/restore, #24
-   theme switch, #27 focus mode. Need desktop running: #2/3 pairing + clone,
-   #10 reorder convergence, #13 entity to desktop, #23 behind-state catch-up.
-   Need emulator tricks: #18 share-sheet, #21/22 airplane-mode queue.
+1. Remaining 14 matrix checks. Device-only ones: #14/15 corkboard/outliner
+   drags, #17 goals, #19 snapshots, #24 theme switch, #27 focus mode. Need
+   desktop running: #2/3 pairing + clone, #10 reorder convergence, #13
+   entity to desktop, #23 behind-state catch-up. Need emulator tricks: #18
+   share-sheet, #21/22 airplane-mode queue. Also: Projects-list card stale
+   after archive/restore (Hub is fine) — likely a missing structure-change
+   subscription on ProjectsScreen.
 2. Decide #8: accept button-only drawer under gesture nav (recommended — the
    OS fights back and Material moved away from edge-swipe drawers) or add
    gesture-exclusion rects.

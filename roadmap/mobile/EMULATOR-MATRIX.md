@@ -32,11 +32,11 @@ clipboard and keep-awake are native and require it).
 | 13 | Create an entity on mobile; it appears on desktop | | |
 | 14 | Corkboard long-press drag reorder | | |
 | 15 | Outliner sticky headers correct during a drag | | |
-| 16 | Search: manuscript / bible / notes scopes return results | | |
+| 16 | Search: manuscript / bible / notes scopes return results | | **PASS** (manuscript scope live w/ highlight + snippet; bible/notes correctly 0 — re-verify once entities exist. Mojibake ellipsis in snippets found & fixed, ae66a15) |
 | 17 | Goals ring + streak heat map; today outlined at the right weekday | | |
 | 18 | Inbox capture; **share text from another app → note with provenance** | Share intent cannot be exercised off-device | |
 | 19 | Snapshot take → list → diff → restore | | |
-| 20 | Archive a scene → restore it; content intact | The highest-risk operation in the build | |
+| 20 | Archive a scene → restore it; content intact | The highest-risk operation in the build | **PASS w/ 2 fixes** (words + status survive, archive table drains). Found & fixed: ArchiveScreen was ORPHANED — binder foot now links it (59abd32); restore dropped folder_id — scenes came back loose, manifest now round-trips it (c44f2d2, gate-verified; device re-check on next archive round-trip). Note: The River on the emulator ended up in Short pieces from the pre-fix restore |
 | 21 | **Airplane mode: edit offline, queue depth shows real counts** | | |
 | 22 | Reconnect: queue drains, edits converge | | |
 | 23 | **Restore on desktop → mobile shows "This device is behind" → Catch up now** | The manual-epoch path, and the reason it exists | |
