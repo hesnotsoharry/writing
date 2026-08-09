@@ -15,6 +15,7 @@ import {
   type EditorAutoLinkTapState, type EditorSelectionState,
   type NativeEditorUiMessage, parseNativeEditorUiMessage,
 } from "../../src/features/editor/editorUiProtocol";
+import { ReadyAnnouncer } from "./readyAnnouncer";
 import { WebEditorUiChannel } from "./webEditorUiChannel";
 
 export const LOCAL_UPDATE_BATCH_MS = 500;
@@ -87,6 +88,7 @@ class WebViewBridgeClient implements BridgeClient {
   private ackTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingFlushSeq: number | null = null;
   private readonly uiChannel: WebEditorUiChannel;
+  private readonly ready: ReadyAnnouncer;
 
   constructor(options: BridgeClientOptions) {
     this.sessionId = options.sessionId ?? createSessionId();
@@ -96,7 +98,10 @@ class WebViewBridgeClient implements BridgeClient {
     this.uiChannel = new WebEditorUiChannel(this.sessionId, this.postRaw);
     window.addEventListener("message", this.onWindowMessage);
     document.addEventListener("message", this.onDocumentMessage);
-    this.post({ v: MOBILE_EDITOR_BRIDGE_VERSION, type: "ready", sessionId: this.sessionId });
+    this.ready = new ReadyAnnouncer(() => {
+      this.post({ v: MOBILE_EDITOR_BRIDGE_VERSION, type: "ready", sessionId: this.sessionId });
+    });
+    this.ready.start();
   }
 
   getSnapshot = (): BridgeSnapshot => this.snapshot;
@@ -121,6 +126,9 @@ class WebViewBridgeClient implements BridgeClient {
   };
 
   receive = (raw: string): void => {
+    // Anything at all from the host proves the channel is live, so the ready
+    // announcement has been heard and can stop.
+    this.ready.stop();
     const uiMessage = parseNativeEditorUiMessage(raw);
     if (uiMessage) {
       this.uiChannel.receive(uiMessage);
@@ -147,6 +155,7 @@ class WebViewBridgeClient implements BridgeClient {
 
   destroy = (): void => {
     if (this.batchTimer) clearTimeout(this.batchTimer);
+    this.ready.stop();
     this.clearAckTimer();
     window.removeEventListener("message", this.onWindowMessage);
     document.removeEventListener("message", this.onDocumentMessage);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
 
 import { getBinderStore } from "../../db/stores";
@@ -17,6 +17,7 @@ import type { AutoLinkTapPayload } from "../storybible";
 import {
   EDITOR_ASSET_TIMEOUT_MS, EDITOR_BOOT_TIMEOUT_MS, EDITOR_DIAG_TAG, EDITOR_ERROR_FORWARDER,
 } from "./editorBootBudget";
+import { FallbackNotice, OpeningOverlay } from "./editorOverlays";
 import type {
   EditorCommandName, EditorSelectionMessage, EditorSelectionState,
 } from "./editorUiProtocol";
@@ -39,6 +40,8 @@ export interface SceneEditorHostProps {
   focus?: { enabled: boolean; settings: FocusSettings };
   onWordCountChange?: (wordCount: number) => void;
   onAutoLinkTap?: (payload: AutoLinkTapPayload) => void;
+  /** Fires when the editor gives up and the read-only reader should take over. */
+  onFallbackChange?: (isFallback: boolean) => void;
 }
 
 type Dispatch = (action: SceneEditorAction) => void;
@@ -111,27 +114,9 @@ function usePortLifecycle(port: MobileLiveScenePort, uri: string | null, dispatc
 function useHandshakeTimeout(phase: string, dispatch: Dispatch): void {
   useEffect(() => {
     if (!["waiting-ready", "hydrating"].includes(phase)) return undefined;
-    const timer = setTimeout(() => { dispatch({ type: "editor-failed" }); },
-      EDITOR_BOOT_TIMEOUT_MS);
+    const timer = setTimeout(() => { dispatch({ type: "editor-failed" }); }, EDITOR_BOOT_TIMEOUT_MS);
     return () => { clearTimeout(timer); };
   }, [dispatch, phase]);
-}
-
-function FallbackNotice() {
-  const theme = useTheme();
-  return <View pointerEvents="box-none" style={styles.fallbackLayer}>
-    <View style={[styles.notice, { backgroundColor: theme.colors.parchment }]}>
-      <Text style={[styles.noticeText, { color: theme.colors.ink2 }]}>Couldn&apos;t load the editor — read-only</Text>
-    </View>
-  </View>;
-}
-
-function OpeningOverlay() {
-  const theme = useTheme();
-  return <View style={[styles.opening, { backgroundColor: theme.colors.paper }]}>
-    <ActivityIndicator color={theme.colors.accent} />
-    <Text style={[styles.noticeText, { color: theme.colors.ink2 }]}>Opening editor…</Text>
-  </View>;
 }
 
 interface SaveFooterProps { phase: string; onRetry(): void; onStay(): void }
@@ -286,8 +271,8 @@ function useSelectionCommand(
 }
 
 export function SceneEditorHost({
-  focus, onAutoLinkTap, onRequestEntityLink, onRequestSelectionActions, onSelectionChange,
-  onWordCountChange, projectId, sceneId,
+  focus, onAutoLinkTap, onFallbackChange, onRequestEntityLink, onRequestSelectionActions,
+  onSelectionChange, onWordCountChange, projectId, sceneId,
 }: SceneEditorHostProps) {
   const [state, dispatch] = useReducer(reduceSceneEditor, undefined, createSceneEditorState);
   const [{ port, transport }] = useState(() => createHostPort(sceneId));
@@ -300,6 +285,10 @@ export function SceneEditorHost({
   usePortLifecycle(port, localUri, dispatch);
   useHandshakeTimeout(state.phase, dispatch);
   useEffect(() => { if (state.phase === "fallback") void port.close(); }, [port, state.phase]);
+  // Tell the screen whether the editor gave up, so it can show the read-only
+  // reader INSTEAD of the editor rather than stacked above it.
+  const isFallback = state.phase === "fallback";
+  useEffect(() => { onFallbackChange?.(isFallback); }, [isFallback, onFallbackChange]);
   const { guard, stay } = useExitState(port, state, dispatch);
   const onMessage = useBridgeMessage({ port, ui, uiColors: colors, dispatch, refresh });
   const selectionCommand = useSelectionCommand(ui, selection, onRequestEntityLink);

@@ -87,14 +87,18 @@ export function SceneScreen({ navigation, route }: Props) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [wordCount, setWordCount] = useState(0);
+  const [editorFailed, setEditorFailed] = useState(false);
   const focus = useFocusSettings();
   const connections = useSceneConnections({ focusMode, navigation, projectId, sceneId });
   return <View style={[styles.screen, { backgroundColor: theme.colors.paper, paddingTop: insets.top }]}>
     {!focusMode && <EditorHeader title={sceneTitle} onBinder={() => { drawerDispatch({ type: "open" }); }}
       onFocus={() => { setFocusMode(true); }} onInspector={() => { setInspectorOpen(true); }} />}
     <View style={styles.editor}>
-      <SceneReader sceneId={sceneId} />
+      {/* The reader REPLACES the editor when it cannot load — it is not a
+          companion to it. Rendering both stacked the same scene twice. */}
+      {editorFailed && <SceneReader sceneId={sceneId} />}
       <SceneEditorHost key={sceneId} sceneId={sceneId} projectId={projectId}
+        onFallbackChange={setEditorFailed}
         focus={{ enabled: focusMode, settings: focus.settings }} onWordCountChange={setWordCount}
         onAutoLinkTap={connections.onAutoLinkTap}
         onRequestSelectionActions={connections.onRequestSelectionActions} />
