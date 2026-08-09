@@ -1,3 +1,1 @@
-import { PlaceholderScreen } from "../PlaceholderScreen";
-
-export function InboxScreen() { return <PlaceholderScreen headline="Inbox" />; }
+export { InboxScreen } from "./InboxScreen";

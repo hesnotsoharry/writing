@@ -1,0 +1,43 @@
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+
+import { Card, Icon, type IconName, Screen, Segmented, TextField, Toggle, Topbar } from "../../components";
+import { getBinderStore, getGoalsStore } from "../../db/stores";
+import type { RootStackParamList } from "../../navigation/routes";
+import { type GoalDraft,STREAK_QUALIFIERS } from "../../shared/goalsEditorHelpers";
+import { GOAL_META, GOAL_TYPES, type GoalTypeId } from "../../shared/goalTypes";
+import { useTheme } from "../../theme/ThemeProvider";
+import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
+import { TYPE } from "../../theme/typography";
+import { goalWrite, makeDraft, targetSectionFor } from "./newGoalModel";
+
+type Props = NativeStackScreenProps<RootStackParamList, "NewGoal">;
+
+function GoalTypePicker({ selected, onSelect }: { selected: GoalTypeId; onSelect: (type: GoalTypeId) => void }) {
+  const theme = useTheme();
+  return <View style={styles.typeList}>{GOAL_TYPES.map((type) => { const active = type.id === selected; return <Pressable accessibilityState={{ selected: active }} key={type.id} onPress={() => onSelect(type.id)} style={[styles.typeRow, { backgroundColor: theme.colors.paper, borderColor: active ? theme.colors.accent : theme.colors.line }]}><Icon color={active ? theme.colors.accent : theme.colors.ink2} name={type.ic as IconName} size={19} /><View style={styles.flex}><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink }]}>{GOAL_META[type.id].name}</Text><Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>{GOAL_META[type.id].blurb}</Text></View>{active && <View style={[styles.check, { backgroundColor: theme.colors.accent }]}><Icon color={theme.colors.paper} name="check" size={11} strokeWidth={3} /></View>}</Pressable>; })}</View>;
+}
+
+function Presets({ values, selected, onSelect }: { values: readonly number[]; selected: number; onSelect: (value: number) => void }) {
+  const theme = useTheme();
+  return <View style={styles.presets}>{values.map((value) => { const active = value === selected; const label = value >= 1_000 ? `${value / 1_000}k` : String(value); return <Pressable key={value} onPress={() => onSelect(value)} style={[styles.preset, { backgroundColor: active ? theme.colors.accent : theme.colors.parchment }]}><Text style={[TYPE.meta, { color: active ? theme.colors.paper : theme.colors.ink2 }]}>{label}</Text></Pressable>; })}</View>;
+}
+
+function TargetCard(props: { type: GoalTypeId; draft: GoalDraft; setDraft: (draft: GoalDraft) => void; countDaysOff: boolean; onDaysOff: (value: boolean) => void }) {
+  const theme = useTheme(); const model = targetSectionFor(props.type);
+  const value = model.family === "deadline" ? props.draft.finalWords : model.family === "streak" ? props.draft.milestone : props.draft.amount;
+  const setValue = (next: number) => props.setDraft(model.family === "deadline" ? { ...props.draft, finalWords: next } : model.family === "streak" ? { ...props.draft, milestone: next } : { ...props.draft, amount: next });
+  return <Card radius="medium" style={styles.targetCard}><View style={styles.numberRow}><Text style={[styles.targetNumber, { color: theme.colors.ink }]}>{value.toLocaleString()}</Text><Text style={[TYPE.body, { color: theme.colors.ink3 }]}>{model.unit}</Text></View><Presets onSelect={setValue} selected={value} values={model.presets} />{model.showDate && <TextField label="Finish date" onChangeText={(date) => props.setDraft({ ...props.draft, date })} placeholder="YYYY-MM-DD" value={props.draft.date} />}{model.showQualifiers && <Segmented onChange={(qualifies) => props.setDraft({ ...props.draft, qualifies })} options={STREAK_QUALIFIERS.map(({ id, title }) => ({ value: id, label: title }))} value={props.draft.qualifies} />}{model.showCountDaysOff && <View style={[styles.daysOff, { borderColor: theme.colors.lineSoft }]}><Toggle description="Weekends won't break a streak" label="Count days off" onChange={props.onDaysOff} value={props.countDaysOff} /></View>}</Card>;
+}
+
+export function NewGoalScreen({ navigation, route }: Props) {
+  const theme = useTheme(); const projectId = route.params.projectId;
+  const initial = GOAL_TYPES.some(({ id }) => id === route.params.initialType) ? route.params.initialType as GoalTypeId : "daily";
+  const [type, setType] = useState<GoalTypeId>(initial); const [draft, setDraft] = useState(() => makeDraft(initial, 0)); const [countDaysOff, setCountDaysOff] = useState(false); const [saving, setSaving] = useState(false);
+  const selectType = (next: GoalTypeId) => { setType(next); setDraft(makeDraft(next, draft.current)); };
+  const save = async () => { if (saving) return; setSaving(true); try { const binder = await getBinderStore(); const project = await binder.loadProject(projectId); const words = project.scenes.reduce((sum, scene) => sum + scene.word_count, 0); const write = goalWrite(type, { ...draft, current: words, startWords: words }, words, countDaysOff); const store = await getGoalsStore(); await store.upsertGoal({ projectId, goalType: write.goalType, target: write.target, enabled: true, config: write.config }); navigation.goBack(); } finally { setSaving(false); } };
+  return <Screen contentStyle={styles.screen}><Topbar leading={<Pressable onPress={navigation.goBack} style={styles.topAction}><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink3 }]}>Cancel</Text></Pressable>} title="New goal" trailing={<Pressable disabled={saving} onPress={() => { void save(); }} style={styles.topAction}><Text style={[TYPE.bodySmallStrong, { color: saving ? theme.colors.ink4 : theme.colors.accent }]}>Save</Text></Pressable>} /><ScrollView contentContainerStyle={styles.content}><Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>What are you tracking?</Text><GoalTypePicker onSelect={selectType} selected={type} /><Text style={[TYPE.sectionLabel, styles.targetLabel, { color: theme.colors.ink3 }]}>Target</Text><TargetCard countDaysOff={countDaysOff} draft={draft} onDaysOff={setCountDaysOff} setDraft={setDraft} type={type} /><Text style={[TYPE.meta, styles.footer, { color: theme.colors.ink3 }]}>You can run several goals at once — a daily count and a deadline pace work well together.</Text></ScrollView></Screen>;
+}
+
+const styles = StyleSheet.create({ screen: { flex: 1 }, topAction: { minWidth: 52, minHeight: HIT_SLOP_MIN, alignItems: "center", justifyContent: "center" }, content: { padding: 16, paddingBottom: 30 }, typeList: { gap: 5, marginTop: 10 }, typeRow: { minHeight: 58, borderWidth: 1, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }, flex: { flex: 1 }, check: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" }, targetLabel: { marginTop: 22, marginBottom: 10 }, targetCard: { gap: 14 }, numberRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", gap: 8 }, targetNumber: { ...TYPE.cardTitle, fontSize: 40, lineHeight: 46, fontVariant: ["tabular-nums"] }, presets: { flexDirection: "row", gap: 7 }, preset: { flex: 1, minHeight: HIT_SLOP_MIN, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" }, daysOff: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 }, footer: { marginTop: 14, lineHeight: 17 }, });
