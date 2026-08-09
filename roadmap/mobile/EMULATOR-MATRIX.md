@@ -27,20 +27,20 @@ clipboard and keep-awake are native and require it).
 | 8 | **Drawer opens from the header button; the system back gesture is never impaired** (reworded — see below) | Gesture conflict is invisible outside a real touch surface | **PASS — accepted behaviour, decision 0016.** Under gesture navigation Android owns the left edge and the app never receives the swipe at all; there is no event to handle. Cole accepted button-only rather than claiming the edge with gesture-exclusion rects — taking Back away inside the editor is a worse trade than losing a hidden affordance. Drawer via header hamburger is device-verified. Back-exits-app defect found & fixed (8c87a9d) |
 | 9 | Long-press a binder row → scene actions sheet; status change persists | | **PASS** (status persisted to DB + binder row live; cosmetic: the sheet's own pill highlight doesn't move after tap — inspector tracks correctly, so it's isolated to this sheet) |
 | 10 | Reorder a scene; desktop sees it in seconds, not a sweep | | |
-| 11 | Inspector sheet: status, synopsis, labels, entities | | **PASS above the fold, FAIL below it** (2026-08-09 re-check). Status pills, synopsis and labels work — tapping Drafting → Revising updated the pill and the sheet's word count live. But the sheet's lower content is **rendered and inert**: it does not scroll, and taps there do nothing. The "Open Story Bible" CTA and the "Open version history" row are both dead. Last session's PASS confirmed the CTA *renders* — not that it works |
+| 11 | Inspector sheet: status, synopsis, labels, entities | | **PASS** (after 3 fixes). Status pills, synopsis and labels all work — Drafting → Revising updated the pill and the word count live. The sheet's lower half was rendered-but-inert (no scroll, no touches) and both affordances below the fold were dead; it now scrolls and both the "Open Story Bible" CTA and the "Open version history" row navigate. Last session's PASS had confirmed the CTA *renders* — not that it works |
 | 12 | Story Bible: list → entry; facts grid does not wrap at 9.5px labels | The 2x2 grid constraint is a rendering fact | |
 | 13 | Create an entity on mobile; it appears on desktop | | |
 | 14 | Corkboard long-press drag reorder | | **PASS** (long-press drag moved a card above its sibling; `sort_order` re-verified in the pulled device DB, so it persisted rather than only reordering on screen) |
 | 15 | Outliner sticky headers correct during a drag | | **SPLIT**: sticky headers **PASS** (header pins while its section scrolls, hands over correctly to the next). Drag reorder **FAIL** — see the reachability/defect notes below |
 | 16 | Search: manuscript / bible / notes scopes return results | | **PASS** (manuscript scope live w/ highlight + snippet; bible/notes correctly 0 — re-verify once entities exist. Mojibake ellipsis in snippets found & fixed, ae66a15) |
-| 17 | Goals ring + streak heat map; today outlined at the right weekday | | **BLOCKED — GoalsScreen is orphaned.** Registered at AppNavigator.tsx:51, but nothing anywhere navigates to `"Goals"`. The Hub's goal ring is not a link. Same defect class as the Archive screen (59abd32) |
+| 17 | Goals ring + streak heat map; today outlined at the right weekday | | **PASS (ring); heat map not exercised.** Was BLOCKED — `GoalsScreen` was orphaned, nothing navigated to `"Goals"` and the Hub's goal ring was inert decoration. Both the ring and streak tiles now open it. Verified on device: created a 250 words/day goal, the screen shows the ring at 0% with "0 / 250 · 250 words to go", and the Hub tile updated to "250 word goal". The streak heat map needs a *streak-type* goal — not run. Cosmetic: the Hub tile still reads "Progress unavailable" under the target while the Goals screen shows real progress |
 | 18 | Inbox capture; **share text from another app → note with provenance** | Share intent cannot be exercised off-device | |
-| 19 | Snapshot take → list → diff → restore | | **STILL BLOCKED — partially repaired.** The only route into `SceneVersionHistory` is the "N snapshots / Open version history" row at the bottom of the inspector sheet (InspectorSheet.tsx:135). Touch dispatch to the sheet's lower half is now fixed (the sibling "Open Story Bible" CTA below the fold navigates correctly — device-verified), **but the sheet still does not scroll**, so that row is never laid into view and version history remains unopenable. Four swipe attempts across two gesture shapes, before and after the fix; `uiautomator dump` confirms the row is not laid out. The other caller, OfflineCatchUpScreen, is itself orphaned |
+| 19 | Snapshot take → list → diff → restore | | **REACHABLE now; take/list/diff PASS; RESTORE IS BROKEN.** The entry point was unreachable behind an unscrollable sheet — fixed, the row now opens. Verified on device: "Take first snapshot" created `Manual · 10w`; after typing ` PROSEDELTA` the diff pane correctly read `+1 / −1` and rendered a real word-level diff (`PROSEDELTAclone` struck through vs `clone` underlined); restore prompts "your current draft is saved to history first" and does create the auto-save. **But the restore does not stick** — the open editor never updates, and after force-stop + cold relaunch the prose still contains PROSEDELTA. History bookkeeping happens; the scene's Yjs doc is never durably replaced. Also: the confirm card stays open after restoring and swallows Back |
 | 20 | Archive a scene → restore it; content intact | The highest-risk operation in the build | **PASS w/ 2 fixes** (words + status survive, archive table drains). Found & fixed: ArchiveScreen was ORPHANED — binder foot now links it (59abd32); restore dropped folder_id — scenes came back loose, manifest now round-trips it (c44f2d2, gate-verified; device re-check on next archive round-trip). Note: The River on the emulator ended up in Short pieces from the pre-fix restore |
 | 21 | **Airplane mode: edit offline, queue depth shows real counts** | | |
 | 22 | Reconnect: queue drains, edits converge | | |
-| 23 | **Restore on desktop → mobile shows "This device is behind" → Catch up now** | The manual-epoch path, and the reason it exists | **BLOCKED — OfflineCatchUp is orphaned.** The screen and its `CatchUpFlow` exist and are registered, but nothing navigates to `"OfflineCatchUp"`, so the behind-state can never surface |
-| 24 | Settings: theme switch light/dark across every screen | Both themes were only verified structurally | **FAIL — 3 theme-blind surfaces found.** The switch itself works and persists across a cold relaunch; Settings, Projects, Hub, corkboard, outliner, inspector sheet, editor chrome, format bar and the editor fallback all theme correctly. Broken: (a) **ProjectBinderScreen** (Hub → Binder) rendered light parchment scene cards on dark — it read the static `PALETTE` instead of `useTheme()`. **FIXED and re-verified on device**; (b) **the editor's writing surface itself** stays cream-on-black while its chrome, format bar and fallback are all dark — the WebView never receives the theme. **STILL OPEN** — this is the one that matters most, since it is the screen a writer actually stares at |
+| 23 | **Restore on desktop → mobile shows "This device is behind" → Catch up now** | The manual-epoch path, and the reason it exists | **ENTRY POINT BUILT; end-to-end still needs a desktop.** Was BLOCKED — `OfflineCatchUp` was orphaned so the behind-state could never surface. A persistent banner now consumes the engine's existing epoch-mismatch signal and opens the screen ("Catch up now" when a replacement is staged, "Review status" when the owner is absent). The signal is real, not stubbed. Cannot be exercised without a paired desktop producing a restore — see the sync note below |
+| 24 | Settings: theme switch light/dark across every screen | Both themes were only verified structurally | **FAIL — 3 theme-blind surfaces found.** The switch itself works and persists across a cold relaunch; Settings, Projects, Hub, corkboard, outliner, inspector sheet, editor chrome, format bar and the editor fallback all theme correctly. Two defects found, **both now fixed and device-verified**: (a) **ProjectBinderScreen** (Hub → Binder) rendered light parchment scene cards on dark — it read the static `PALETTE` instead of `useTheme()`; (b) **the editor's writing surface** stayed cream-on-black while its chrome was dark — the theme message was ACKed by the web channel before TipTap bound its handler, so the one-in-flight queue dropped it permanently. Pre-bind messages are now buffered, and dark is seeded before first paint so there is no cream flash. Dark now verified across Settings, Projects, Hub, binder, corkboard, outliner, inspector, Goals, Archive, Boards, version history and the editor itself |
 | 25 | AI assistant sends and streams a reply (managed credential shared) | | |
 | 26 | Selection → AI verbs sheet; "Hide this from AI" marks the run | | |
 | 27 | Focus mode dims non-active paragraphs; keep-awake holds the screen | ProseMirror decoration — must be seen | **PASS w/ layout defect.** Dimming verified with three paragraphs: the two inactive ones render grey, the caret's paragraph stays full-contrast, and the decoration follows the caret. Header hides, HUD counts live (words/minutes/percent), exit chip works. Keep-awake is wired correctly (`expo-keep-awake`, tagged, cleaned up on unmount) but could NOT be independently confirmed — the dev client holds `KEEP_SCREEN_ON` on the same window either way. Defect: the focus settings panel clips its "Session goal / 500 words" row, and the HUD strip renders behind the format bar |
@@ -95,13 +95,46 @@ second, not the third.
 for r in $(grep -oP '^\s+\K\w+(?=:)' mobile/src/navigation/routes.ts); do n=$(grep -rn "navigate(\"$r\"\|replace(\"$r\"\|push(\"$r\"" mobile/src --include=*.tsx --include=*.ts | wc -l); [ "$n" -eq 0 ] && echo "ORPHAN: $r"; done
 ```
 
-## Capability gap: the binder screen is not the binder drawer
+## The sweep does not catch a wrong import — the Boards case
 
-`ProjectBinderScreen` (Hub → Binder tile) has **no long-press and no scene
-actions at all** — no archive, no status change. Only `BinderDrawer` (opened
-from the editor) has them. Same screen is the one that ignores the theme, which
-suggests it simply never got the drawer's treatment. Product call for Cole:
-should the full binder screen have parity, or should the tile open the drawer?
+`BoardViewer` never appeared in the orphan sweep, because the route *does* have a
+caller: the Hub's Boards tile. But two modules exported a `BoardViewerScreen` —
+a finished 123-line viewer in `features/storybible` and a three-line
+`PlaceholderScreen` in `features/boards` — and `AppNavigator` imported the
+placeholder. So the tile led to "This screen is not built yet" while the real
+viewer sat unused. Fixed, device-verified, and the stub is deleted so the name
+cannot be imported by accident again.
+
+The lesson generalises: the sweep proves a route has *a* caller, not that the
+caller resolves to the *right component*. When two barrels export the same
+screen name, only opening the screen tells you which one you got.
+
+## Desktop-dependent checks need Cole (unchanged)
+
+#2/3 pairing + clone, #10 reorder convergence, #13 entity to desktop, #22
+convergence and the end-to-end half of #23 all need a desktop peer. Running the
+desktop app touches Cole's live manuscripts at
+`%APPDATA%\com.coles.writing\writing.db`, and the DB-swap smoke protocol in
+`.claude/known-issues.md` explicitly requires his authorisation and that he not
+open the app during the run. **Not done unilaterally.** Mobile-side sync health
+is confirmed as far as it can be alone: the relay connects
+(`wss://sync.writersnook.app`, footer reads "sync connected") and the pairing
+record survives restarts.
+
+## Capability gap: the binder screen is not the binder drawer — CLOSED
+
+`ProjectBinderScreen` (Hub → Binder tile) had **no long-press and no scene
+actions at all** — no archive, no status change — while `BinderDrawer` (from the
+editor) had the full set. So what a writer was allowed to do depended on which
+binder they happened to open. Same screen was also the one ignoring the theme,
+which is consistent with it simply never having got the drawer's treatment.
+
+Cole chose parity. It now shares the drawer's `SceneActionsSheet` on the same
+360 ms long-press contract and grows the same "Archived ①" foot. Device-verified:
+long-press opens the sheet, a status change applies and the row updates in place,
+and the Archived foot opens the Archive screen — from which a restore put
+"Opening" back into Chapter One (`folder_id = gate-f1`), re-confirming the
+c44f2d2 round-trip fix on device.
 
 ## Dev-loop trap found 2026-08-09
 
