@@ -1,8 +1,9 @@
-import { PlaceholderScreen } from "../PlaceholderScreen";
-
-export function BibleListScreen() { return <PlaceholderScreen headline="Story Bible" />; }
-export function BibleEntryScreen() { return <PlaceholderScreen headline="Bible entry" />; }
-export function AutoLinkPeekScreen() { return <PlaceholderScreen headline="AutoLink peek" />; }
-export function RelationshipMapScreen() { return <PlaceholderScreen headline="Relationship map" />; }
-export function NewEntryScreen() { return <PlaceholderScreen headline="New entry" />; }
-export function CustomTypeScreen() { return <PlaceholderScreen headline="Custom type" />; }
+export { AutoLinkPeek, type AutoLinkPeekProps } from "./AutoLinkPeek";
+export { AutoLinkPeekScreen } from "./AutoLinkPeekScreen";
+export type { AutoLinkTapPayload } from "./autolinkPlacement";
+export { BibleEntryScreen } from "./BibleEntryScreen";
+export { BibleListScreen } from "./BibleListScreen";
+export { BoardViewerScreen } from "./BoardViewerScreen";
+export { CustomTypeScreen } from "./CustomTypeScreen";
+export { NewEntryScreen } from "./NewEntryScreen";
+export { RelationshipMapScreen } from "./RelationshipMapScreen";
