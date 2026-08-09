@@ -5,86 +5,114 @@ updated: 2026-08-09
 
 ## Current state
 
-**The mobile editor is now trustworthy: it opens editable, persists every
-keystroke batch to SQLite, survives force-stop, and handles the Android
-keyboard.** A critical silent data-loss defect was found and fixed today.
+**The mobile build has a reachability problem, not a correctness problem.** The
+features are built and they work; several of them simply cannot be reached by a
+finger. Today's session found and fixed three separate ways that happens, and
+one class of it is still open.
 
-Desktop unaffected: v0.12.7 shipped, working version 0.12.8. Mobile gates:
-lint 0, typecheck 0, 198 tests + 2 new (portable-boundary got a real timeout
-budget; sceneStack chain has its own test).
+Desktop unaffected: v0.12.7 shipped, working version 0.12.8.
 
-### Today's session (5 commits, 848306d..c474a98)
+### Today's second session
 
-1. **CRITICAL data-loss fix (0436b1c, diagnosed with a codex dispatch).** The
-   editor-web bundle carried TWO prosemirror-view copies (root 3.24.0 vs
-   mobile 3.29.2). A foreign DecorationSet failed `instanceof` inside
-   prosemirror-view, threw during decoration drawing — and because
-   y-prosemirror's PM→Yjs sync runs after drawing, the throw severed the
-   entire persistence chain. **Everything typed on mobile existed only in
-   ProseMirror state and vanished on WebView teardown** — including last
-   session's device-verified typing (scene_docs.updated_at was a day stale).
-   Every editor-web module now resolves from mobile/node_modules
-   (vite dedupe + tsconfig alignment). Verified: word count live, marker text
-   in scene_docs (pulled the device DB), text + bold mark survive force-stop.
-2. **Android 15+ keyboard fix (0436b1c).** Edge-to-edge enforcement voids
-   adjustResize, so the keyboard overlaid the WebView (caret clipped under
-   it) and hid the format bar. An animated keyboard-height spacer in the
-   editor column now shrinks the WebView and floats the bar. Minor: the
-   spacer slightly overshoots (nav-bar inset) leaving a small dead strip —
-   cosmetic, not blocking.
-3. **Back-gesture fix (8c87a9d).** Both editor reset sites built one-route
-   stacks, so system back finished the activity from the writing screen.
-   `sceneStackReset` seeds ProjectList → Hub → Scene; back now pops to Hub
-   (device-verified). iOS interactive-pop stays disabled via
-   gestureEnabled:false.
-4. **Fallback retry (c474a98).** The read-only fallback was terminal; it now
-   offers "Try again" (full host remount). Exercised live on device.
-5. **device_name command (848306d).** Registered the orphaned Tauri command
-   the desktop pairing screen already invokes.
+Four fixes landed, all device-verified on `Medium_Phone_API_36.1`:
 
-### Matrix: 14 of 28 verified (roadmap/mobile/EMULATOR-MATRIX.md)
+1. **The Projects card went stale after archive/restore.**
+   `subscribeMobileStructureChanged` only forwarded *remote* sync-engine merges,
+   so a local archive saved project meta without ever waking the Projects list —
+   the card kept pre-archive counts until a full restart. Local meta saves now
+   fan out through the same subscription. Verified on device: archiving a scene
+   dropped the card from "49 words · 8 scenes" to "10 words · 7 scenes"
+   immediately.
+2. **The inspector sheet's lower half was rendered but inert** — it would not
+   scroll and would not accept taps, killing two finished features at once
+   (version history has *no* other entry point). This turned out to be **three
+   causes wearing one symptom**, and only two are fixed:
+   - `Sheet`'s content `View` had no `flex: 1`, so under a fixed snap point it
+     sized to its content instead of to the sheet; the overflow fell outside the
+     parent's bounds, and on Android that renders but never receives touch.
+     **Fixed** — the CTA below the fold now navigates, device-verified. Applies
+     to every `Sheet` consumer.
+   - The "Open Story Bible" CTA was wired to `onAction={() => undefined}` — a
+     literal no-op. **Fixed.**
+   - **Still open:** the sheet does not scroll, so the version-history row below
+     the CTA is never laid into view. `InspectorSheet` and `SceneActionsSheet`
+     were passing a plain RN `ScrollView` inside `@gorhom/bottom-sheet` v5,
+     which needs its own `BottomSheetScrollView`; I switched both (correct API
+     regardless) but **that alone did not restore scrolling**. #19 stays blocked.
+3. **Outliner drag-to-reorder never reordered.** The row's pan gesture competed
+   with the FlatList's scroll view, which claimed the touch and *cancelled* the
+   pan — `onFinalize` fired with success=false and `onEnd`, the only place the
+   drop is applied, never ran. Instrumented on device to prove it. Fixed with
+   `blocksExternalGesture`, a success-guarded `onEnd`, and a stable gesture
+   identity. `rowHeight` was also wrong (102 vs a real 148), which would have
+   landed drops on the wrong index even once the gesture fired.
+4. **A theme-blind screen.** `ProjectBinderScreen` read the static `PALETTE`
+   instead of `useTheme()`, so the binder rendered light parchment cards on a
+   dark background. Light appearance is unchanged by construction. Also swept
+   the remaining `Â·` mojibake out of mobile/src.
+   (I had also suspected `CustomTypeScreen`; that was my misread — its
+   `CT_PALETTE` is the user-pickable entity-colour swatch list, unrelated to the
+   theme palette. That screen was already theme-aware.)
 
-New passes today: #5 editor loads clean (deduped bundle), #6 caret vs
-keyboard, #7 format bar above keyboard + bold applies, #9 scene actions
-status persists, #11 inspector sheet, #16 search (mojibake snippet ellipsis
-found & fixed, ae66a15), #20 archive/restore (TWO defects found & fixed:
-ArchiveScreen was orphaned — binder foot now links it, 59abd32; restore
-dropped folder_id — scenes came back loose, c44f2d2), #28 force-stop
-rehydrate. Re-confirmed: #1, #4. Findings: #8 — gesture nav owns the left
-edge (drawer via header button works; design call open on fighting the OS);
-scene-actions sheet has a cosmetic stale-highlight bug (inspector tracks
-correctly); Projects-list card goes stale after archive/restore until an
-app restart (Hub refreshes fine).
+### Matrix: see roadmap/mobile/EMULATOR-MATRIX.md
 
-### Dev-loop trap (cost real time twice today)
+New this session: **#14 corkboard drag PASS** (reorder persisted, verified in the
+pulled device DB), **#15 sticky headers PASS + drag fixed**, **#27 focus mode
+PASS** (dimming confirmed with three paragraphs — inactive grey, caret paragraph
+full contrast), **#24 theme FAIL** — the binder screen is fixed, the editor's
+writing surface is still light in dark mode.
 
-**Fast Refresh touching the editor tree wedges the WebView handshake** —
-post-refresh boots fail silently into the fallback (3/3), clean launches
-always boot (5/5). Force-stop + relaunch before debugging the editor. Full
-note in EMULATOR-MATRIX.md. Also still true: Metro squats 8081 across
-sessions (kill it), `adb reverse` drops on force-stop (re-add).
+Still **blocked, and these are the headline**: #17 (Goals) and #23 (catch-up)
+are unreachable orphan routes; #19 (snapshots) was blocked by the sheet bug and
+now needs a re-run.
+
+### The systemic finding
+
+The Archive screen being orphaned last session was not a one-off. A sweep of
+every route for a matching `navigate()` call found **`Goals` and
+`OfflineCatchUp` are real orphans** — finished features with no way in — plus
+six dead placeholder routes. The sweep one-liner is recorded in the matrix; run
+it after adding any screen. Registering a screen in `AppNavigator` and having a
+green test suite both prove nothing about whether a writer can reach it.
 
 ## What's next
 
-1. Remaining 14 matrix checks. Device-only ones: #14/15 corkboard/outliner
-   drags, #17 goals, #19 snapshots, #24 theme switch, #27 focus mode. Need
-   desktop running: #2/3 pairing + clone, #10 reorder convergence, #13
-   entity to desktop, #23 behind-state catch-up. Need emulator tricks: #18
-   share-sheet, #21/22 airplane-mode queue. Also: Projects-list card stale
-   after archive/restore (Hub is fine) — likely a missing structure-change
-   subscription on ProjectsScreen.
-2. Decide #8: accept button-only drawer under gesture nav (recommended — the
-   OS fights back and Material moved away from edge-swipe drawers) or add
-   gesture-exclusion rects.
-3. Cosmetic: scene-actions sheet stale status highlight; keyboard spacer
-   nav-bar overshoot; `useAnimatedKeyboard` is deprecated in reanimated 4.5
-   (works; durable path is react-native-keyboard-controller — a native module
-   + dev-client rebuild, batch it with the next native change).
-4. Cole-hands: real-device QR scan, iOS leg (`useAnimatedKeyboard` iOS path
-   untested on device).
+1. **Wire up the orphans.** `Goals` (the Hub's goal ring is the obvious link)
+   and `OfflineCatchUp` (needs a behind-state trigger — `App.tsx` already
+   carries `behind: []` and `CatchUpFlow` exists). That unblocks #17 and #23.
+2. **The editor's writing surface ignores dark mode** — still open, and it is
+   the worst of the theme bugs because it is the screen a writer stares at. The
+   chrome, format bar and fallback all go dark correctly; the WebView stays
+   cream-on-black. There *is* a theme message to the editor
+   (`nativeEditorUi.test.ts` covers queueing it behind an ACK), so the likely
+   fault is that it is never sent on initial load, only on change. Worth
+   confirming by toggling the theme with the editor already open.
+3. **Finish the sheet scroll fix**, then run #19. The remaining question is
+   narrow: with `flex: 1` on the wrapper and `BottomSheetScrollView` in place,
+   why does gorhom still not scroll? Suspect the custom absolute-positioned
+   overlay wrapper in `Sheet.tsx`, or the fixed snap point interacting with
+   `enableDynamicSizing`. Reproduce with a scene that has no linked entities —
+   the empty state is what pushes the content past the fold.
+4. **Decide the binder-screen scope question.** `ProjectBinderScreen`
+   (Hub → Binder) has *no* long-press and *no* scene actions — no archive, no
+   status change. Only `BinderDrawer` (from the editor) has them. Parity, or
+   should the tile just open the drawer? Cole's call.
+5. Remaining matrix: #12 Story Bible facts grid, #13 entity to desktop,
+   #2/3 pairing + clone, #10 reorder convergence, #18 share-sheet,
+   #21/22 airplane-mode, #25/26 AI.
+6. **Decide #8** (unchanged): accept button-only drawer under gesture nav
+   (recommended) or add gesture-exclusion rects.
+7. Cosmetic: the focus-mode settings panel clips its "Session goal" row and the
+   HUD strip renders behind the format bar; keyboard spacer nav-bar overshoot;
+   `useAnimatedKeyboard` deprecated in reanimated 4.5.
+8. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
+   (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
+   on device — the dev client holds `KEEP_SCREEN_ON` on the same window either
+   way. Needs a release build or Cole's eyes.
+9. Cole-hands: real-device QR scan, iOS leg.
 
 ## Reference index
-- [roadmap/mobile/EMULATOR-MATRIX.md](mobile/EMULATOR-MATRIX.md) — the checklist + dev-loop traps.
+- [roadmap/mobile/EMULATOR-MATRIX.md](mobile/EMULATOR-MATRIX.md) — the checklist, the orphan sweep, dev-loop traps.
 - [roadmap/coordination/mac-day-runbook.md](coordination/mac-day-runbook.md) — Mac-day execution script.
 - [.claude/known-issues.md](../.claude/known-issues.md) — verified fixes for recurring traps.
 - [.claude/vendor-gotchas/tauri.md](../.claude/vendor-gotchas/tauri.md) — Tauri traps.
