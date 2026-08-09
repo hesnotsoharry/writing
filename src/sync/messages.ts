@@ -68,12 +68,15 @@ export function isLiveMessage(value: unknown): value is LiveMessage {
   return isUpdateMessage(value, "live");
 }
 function isRowSummary(value: unknown): value is RowVersionSummary {
-  return isRecord(value) && typeof value.id === "string" && typeof value.hlc === "string"
+  return isRecord(value) && typeof value.id === "string" && isHlc(value.hlc)
     && typeof value.device === "string" && typeof value.deleted === "boolean";
 }
 function hasDomainProject(value: Record<string, unknown>): boolean {
   return typeof value.domain === "string"
     && (typeof value.project === "string" || value.project === null);
+}
+function isHlc(value: unknown): value is string {
+  return typeof value === "string" && /^\d{15}-\d{6}$/.test(value);
 }
 export function isRowHelloMessage(value: unknown): value is RowHelloMessage {
   return isRecord(value) && value.t === "row-hello" && hasDomainProject(value)
@@ -84,29 +87,39 @@ export function isRowHelloMessage(value: unknown): value is RowHelloMessage {
 export function isRowMessage(value: unknown): value is RowMessage {
   return isRecord(value) && value.t === "row" && hasDomainProject(value)
     && typeof value.id === "string" && typeof value.row === "string"
-    && typeof value.hlc === "string" && typeof value.device === "string"
+    && isHlc(value.hlc) && typeof value.device === "string"
     && typeof value.deleted === "boolean"
-    && (typeof value.payload === "string" || value.payload === null);
+    && validRowPayload(value.deleted, value.payload);
 }
 export function isRowAckMessage(value: unknown): value is RowAckMessage {
   return isRecord(value) && value.t === "row-ack" && typeof value.id === "string"
     && typeof value.domain === "string" && typeof value.row === "string"
-    && typeof value.hlc === "string" && typeof value.device === "string";
+    && isHlc(value.hlc) && typeof value.device === "string";
 }
 function isManagedState(value: unknown): value is ManagedCredentialState {
   if (!isRecord(value) || typeof value.aiModel !== "string"
     || typeof value.aiEnabled !== "boolean") return false;
+  if (!hasOnlyKeys(value, ["aiLicenseKey", "aiTrialKey", "aiModel", "aiEnabled"])) return false;
   if (value.aiLicenseKey !== undefined && typeof value.aiLicenseKey !== "string") return false;
   if (value.aiTrialKey !== undefined && typeof value.aiTrialKey !== "string") return false;
-  return !(value.aiLicenseKey !== undefined && value.aiTrialKey !== undefined);
+  return Number(value.aiLicenseKey !== undefined) + Number(value.aiTrialKey !== undefined) === 1;
+}
+
+function validRowPayload(deleted: boolean, payload: unknown): boolean {
+  if (deleted) return payload === null;
+  if (typeof payload !== "string") return false;
+  try { JSON.parse(payload); return true; } catch { return false; }
+}
+function hasOnlyKeys(value: Record<string, unknown>, allowed: string[]): boolean {
+  const keys = new Set(allowed); return Object.keys(value).every((key) => keys.has(key));
 }
 export function isCredentialOfferMessage(value: unknown): value is CredentialOfferMessage {
   return isRecord(value) && value.t === "credential-offer" && typeof value.id === "string"
-    && isManagedState(value.managed);
+    && hasOnlyKeys(value, ["t", "id", "managed"]) && isManagedState(value.managed);
 }
 export function isCredentialAckMessage(value: unknown): value is CredentialAckMessage {
   return isRecord(value) && value.t === "credential-ack" && typeof value.id === "string"
-    && typeof value.accepted === "boolean";
+    && hasOnlyKeys(value, ["t", "id", "accepted"]) && typeof value.accepted === "boolean";
 }
 export function isInnerMessage(value: unknown): value is InnerMessage {
   return isHelloMessage(value) || isDiffMessage(value) || isLiveMessage(value)

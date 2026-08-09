@@ -39,6 +39,9 @@ describe("sync inner messages", () => {
     expect(isInnerMessage({ t: "credential-offer", id: "bad", managed: {
       aiLicenseKey: "license", aiTrialKey: "trial", aiModel: "model", aiEnabled: true,
     } })).toBe(false);
+    expect(isInnerMessage({ t: "credential-offer", id: "bad", managed: {
+      aiLicenseKey: "license", aiModel: "model", aiEnabled: true, byokApiKey: "secret",
+    } })).toBe(false);
   });
 });
 

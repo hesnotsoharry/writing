@@ -170,7 +170,7 @@ handoff; v1.3 does not initiate or store the exchange.
 
 | t | Fields | Meaning |
 |---|---|---|
-| `credential-offer` | `id`, `managed: {aiLicenseKey?, aiTrialKey?, aiModel, aiEnabled}` | One encrypted, explicitly consented offer. Exactly one managed entitlement key may be present. BYOK keys, provider secrets, local endpoints, activation records, and short-lived session tokens are forbidden. |
+| `credential-offer` | `id`, `managed: {aiLicenseKey?, aiTrialKey?, aiModel, aiEnabled}` | One encrypted, explicitly consented offer. Exactly one managed entitlement key is present. BYOK keys, provider secrets, local endpoints, activation records, and short-lived session tokens are forbidden. |
 | `credential-ack` | `id`, `accepted` | Confirms or declines that offer without echoing credential material. |
 
 **Manual epoch acceptance.** Desktop retains automatic v1.2 replacement behaviour.
