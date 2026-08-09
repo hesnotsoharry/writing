@@ -106,3 +106,13 @@ Source: wave-52, commits 4fdf4c3..35d561b
 
 **Why:** TipTap's Collaboration extension binds editor marks to Yjs delta attributes at the Y.XmlText level. The serialize path reads the Y.Doc snapshot (what is persisted to storage), not the editor's live state. The selection path reads the editor's current state. The two are different sources and must both be checked. Code that only redacts the Yjs path (or only the selection path) will have one unredacted path that leaks to the AI — a privacy/security hole. See `src/yjs/serialize.ts:62-68` (Yjs path) and `src/editor/aiSafeSelection.ts:39-56` (selection path) for the two implementations.
 
+
+## Two ProseMirror copies in one bundle = silent data loss (2026-08-09)
+
+**Symptom:** uncaught `TypeError: Cannot read properties of undefined (reading 'localsInner')` (or `'eq'`) from inside prosemirror-view, editor still LOOKS fine — but no update ever leaves the editor: word count frozen, nothing persisted, all typing lost on teardown.
+
+**Cause:** the bundle resolved `@tiptap/pm`/prosemirror-* from TWO physical `node_modules` (repo root and `mobile/`, different versions). A DecorationSet created by one copy fails `instanceof` in the other, prosemirror-view throws during decoration drawing — and because y-prosemirror's PM→Yjs sync runs in the view-update phase AFTER drawing, the throw severs PM→Yjs entirely. The editor renders and accepts input (PM state updates), but the Y.Doc never hears about it: no bridge updates, no persistence, no sync. Failure is total and silent.
+
+**Fix:** `resolve.dedupe` in `mobile/editor-web/vite.config.ts` lists `@tiptap/pm` AND the direct `prosemirror-*` packages; every editor-web import resolves from `mobile/node_modules`; tsconfig paths aligned to the same tree. Detection: `grep -c localsInner mobile/editor-web/dist/index.html` — must be 1 (one prosemirror-view implementation), was 6.
+
+**Rule:** any bundle that reuses the frozen desktop editor core from a second package root MUST dedupe the whole prosemirror family, and a decoration error in the editor is never cosmetic — treat it as a persistence outage until proven otherwise.
