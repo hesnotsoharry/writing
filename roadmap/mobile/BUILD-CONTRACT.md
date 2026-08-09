@@ -106,7 +106,11 @@ phase; if you need a change there, state it in your final message instead.
 | Phase | Owns |
 |---|---|
 | P1 Foundation | `mobile/src/components/**`, `mobile/src/App.tsx` (provider wiring only), `mobile/app.json`, `mobile/package.json`, `mobile/babel.config.*`, `mobile/metro.config.cjs` |
-| P2 Data layer | `mobile/src/db/**`, `mobile/src/shared/**`, `mobile/src/sync/**`, `src/sync/**`, `src/db/**` |
+| P1b Extractions | `src/**` (the modules named in RECON-portability.md), `mobile/src/shared/**` |
+| P2a Sync infra | `src/sync/*.ts`, `src/sync/lww/**`, `src/db/migrations*.ts` + the new sync store files, `mobile/src/db/syncStores/**`, `mobile/src/sync/**`, the protocol spec |
+| P2b Bible doc | `src/sync/bible/**`, `mobile/src/db/mobileBible*.ts` |
+| P2c LWW domains | `src/sync/lwwDomains/**` and each domain's desktop bridge |
+| P2d Mobile stores | `mobile/src/db/mobile*Store.ts` |
 | P3 Shell | `mobile/src/navigation/**`, `mobile/src/features/hub/**`, `mobile/src/features/projects/**` |
 | P4 Editor | `mobile/src/features/editor/**`, `mobile/src/features/binder/**`, `mobile/editor-web/**` |
 | P5 Story Bible | `mobile/src/features/storybible/**` |
