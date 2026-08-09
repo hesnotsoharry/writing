@@ -58,4 +58,24 @@ describe("NativeEditorUiController", () => {
     expect(onSelection).toHaveBeenCalledOnce();
     expect(messages).toHaveLength(2);
   });
+
+  it("delivers a validated AutoLink tap once and ACKs it on the same UI sequence", () => {
+    const messages: string[] = [];
+    const onTap = vi.fn();
+    const controller = new NativeEditorUiController(
+      "scene", { postMessage: (raw) => messages.push(raw) }, vi.fn(), onTap,
+    );
+    controller.start("session", {}); messages.length = 0;
+    const tap = { v: EDITOR_UI_VERSION, type: "auto-link-tap" as const,
+      sessionId: "session", sceneId: "scene", seq: 1, entityId: "entity-1",
+      entityType: "character", rect: { x: 10, y: 20, width: 30, height: 12 } };
+    controller.receive(serializeEditorUiMessage(tap));
+    controller.receive(serializeEditorUiMessage(tap));
+    expect(onTap).toHaveBeenCalledOnce();
+    expect(onTap).toHaveBeenCalledWith(tap);
+    expect(parseNativeEditorUiMessage(messages[0])).toMatchObject({
+      type: "editor-ui-ack", ackType: "autolink", seq: 1,
+    });
+    expect(messages).toHaveLength(2);
+  });
 });

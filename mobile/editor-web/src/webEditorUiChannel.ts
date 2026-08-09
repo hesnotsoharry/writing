@@ -1,5 +1,5 @@
 import {
-  classifyUiSequence, EDITOR_UI_VERSION, type EditorSelectionState,
+  classifyUiSequence, EDITOR_UI_VERSION, type EditorAutoLinkTapState, type EditorSelectionState,
   type EditorUiAck, type NativeEditorUiMessage, serializeEditorUiMessage,
 } from "../../src/features/editor/editorUiProtocol";
 
@@ -8,8 +8,9 @@ export class WebEditorUiChannel {
   private handler: ((message: NativeEditorUiMessage) => void) | null = null;
   private nextNativeSeq = 1;
   private nextWebSeq = 1;
-  private inFlightSelection: number | null = null;
+  private inFlightWeb: { seq: number; ackType: "selection" | "autolink" } | null = null;
   private pendingSelection: EditorSelectionState | null = null;
+  private pendingAutoLink: EditorAutoLinkTapState | null = null;
 
   constructor(private readonly sessionId: string, private readonly postRaw: (raw: string) => void) {}
 
@@ -22,12 +23,17 @@ export class WebEditorUiChannel {
 
   report(selection: EditorSelectionState): void {
     this.pendingSelection = selection;
-    this.sendPendingSelection();
+    this.sendPendingWebEvent();
+  }
+
+  reportAutoLinkTap(tap: EditorAutoLinkTapState): void {
+    this.pendingAutoLink = tap;
+    this.sendPendingWebEvent();
   }
 
   receive(message: NativeEditorUiMessage): void {
     if (message.type === "editor-ui-ack") {
-      this.receiveSelectionAck(message);
+      this.receiveWebAck(message);
       return;
     }
     if (!this.sceneId) return;
@@ -44,7 +50,8 @@ export class WebEditorUiChannel {
   destroy(): void {
     this.handler = null;
     this.pendingSelection = null;
-    this.inFlightSelection = null;
+    this.inFlightWeb = null;
+    this.pendingAutoLink = null;
   }
 
   private postAck(message: Exclude<NativeEditorUiMessage, EditorUiAck>): void {
@@ -56,23 +63,28 @@ export class WebEditorUiChannel {
     }));
   }
 
-  private sendPendingSelection(): void {
-    if (!this.pendingSelection || this.inFlightSelection !== null || !this.sceneId) return;
-    const selection = this.pendingSelection;
-    this.pendingSelection = null;
+  private sendPendingWebEvent(): void {
+    if (this.inFlightWeb || !this.sceneId) return;
+    const event = this.pendingAutoLink ?? this.pendingSelection;
+    if (!event) return;
+    const isAutoLink = this.pendingAutoLink !== null;
+    if (isAutoLink) this.pendingAutoLink = null;
+    else this.pendingSelection = null;
     const seq = this.nextWebSeq;
     this.nextWebSeq += 1;
-    this.inFlightSelection = seq;
-    this.postRaw(serializeEditorUiMessage({
-      v: EDITOR_UI_VERSION, type: "selection-state", sessionId: this.sessionId,
-      sceneId: this.sceneId, seq, ...selection,
-    }));
+    this.inFlightWeb = { seq, ackType: isAutoLink ? "autolink" : "selection" };
+    const envelope = { v: EDITOR_UI_VERSION, sessionId: this.sessionId,
+      sceneId: this.sceneId, seq } as const;
+    this.postRaw(serializeEditorUiMessage(isAutoLink
+      ? { ...envelope, type: "auto-link-tap", ...event as EditorAutoLinkTapState }
+      : { ...envelope, type: "selection-state", ...event as EditorSelectionState }));
   }
 
-  private receiveSelectionAck(message: EditorUiAck): void {
-    if (message.ackType !== "selection" || message.sessionId !== this.sessionId) return;
-    if (message.sceneId !== this.sceneId || message.seq !== this.inFlightSelection) return;
-    this.inFlightSelection = null;
-    this.sendPendingSelection();
+  private receiveWebAck(message: EditorUiAck): void {
+    if (!this.inFlightWeb || message.sessionId !== this.sessionId) return;
+    if (message.sceneId !== this.sceneId || message.seq !== this.inFlightWeb.seq) return;
+    if (message.ackType !== this.inFlightWeb.ackType) return;
+    this.inFlightWeb = null;
+    this.sendPendingWebEvent();
   }
 }

@@ -5,11 +5,8 @@ import { getQuickNoteStore } from "../../db/stores";
 import { useTheme } from "../../theme/ThemeProvider";
 import { RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import { copyText } from "./mobileClipboard";
 import type { AssistantMessage } from "./useAssistantConversation";
-
-function copyUnavailable(): void {
-  Alert.alert("Clipboard support required", "The mobile shell does not yet include a clipboard module. The reply has not been copied.");
-}
 
 function MessageAction({ icon, label, onPress }: {
   icon: "copy" | "inbox"; label: string; onPress(): void;
@@ -34,12 +31,17 @@ export function AssistantMessageCard({ message, projectId }: {
     await store.create(projectId, message.body);
     Alert.alert("Added to inbox", "The assistant reply is now a quick note.");
   };
+  const copy = async (): Promise<void> => {
+    const copied = await copyText(message.body);
+    Alert.alert(copied ? "Copied" : "Couldn’t copy", copied
+      ? "The assistant reply is on your clipboard." : "The assistant reply was not copied.");
+  };
   return <View style={[styles.assistant, theme.shadow.resting, {
     backgroundColor: theme.colors.paper, borderColor: theme.colors.line,
   }]}> 
     <Text style={[TYPE.proseBody, { color: theme.colors.ink }]}>{message.body || "Thinking…"}</Text>
     {!message.streaming ? <View style={[styles.actions, { borderTopColor: theme.colors.lineSoft }]}> 
-      <MessageAction icon="copy" label="Copy" onPress={copyUnavailable} />
+      <MessageAction icon="copy" label="Copy" onPress={() => { void copy(); }} />
       <MessageAction icon="inbox" label="To inbox" onPress={() => { void toInbox(); }} />
     </View> : null}
   </View>;

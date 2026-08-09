@@ -3,6 +3,10 @@ import * as Y from "yjs";
 
 import type { AppliedEpochs } from "../db/syncEpochStore";
 import { CatchUpCoordinator,type CatchUpResult } from "./catchUpCoordinator";
+import {
+  type CredentialAckHandler, CredentialExchange, type CredentialOfferHandler,
+  type ManagedCredentialState,
+} from "./credentialExchange";
 import { type ChannelDoc,EngineDocRepository } from "./engineDocRepository";
 import { publishBibleSave, sendEligibleOutboxMessage } from "./engineOutbound";
 import { prepareSession } from "./engineSession";
@@ -54,9 +58,12 @@ export class SyncEngine {
   private unsubscribeOutbox: (() => void) | null = null;
   private structureChanged: (() => void) | null = null;
   private docReplaced: ((sceneId: string) => void) | null = null;
+  private readonly credentials: CredentialExchange;
 
   constructor(options: EngineOptions) {
     this.options = options;
+    this.credentials = new CredentialExchange((message) => this.sendMessage(message),
+      () => !this.isPaused() && this.statusEmitter.current().state === "connected");
     this.docs = new EngineDocRepository(options);
     this.epochs = new EpochManager(options);
     this.outbox = options.outboxStore ? new DurableOutbox(options.outboxStore) : null;
@@ -154,22 +161,15 @@ export class SyncEngine {
 
   onStructureChanged(callback: (() => void) | null): void { this.structureChanged = callback; }
   onDocReplaced(callback: ((sceneId: string) => void) | null): void { this.docReplaced = callback; }
+  onCredentialOffer(callback: CredentialOfferHandler | null): void { this.credentials.onOffer(callback); }
+  onCredentialAck(callback: CredentialAckHandler | null): void { this.credentials.onAck(callback); }
 
-  attachLiveDoc(sceneId: string, doc: Y.Doc): void {
-    this.liveScenes.attachDoc(sceneId, doc, (update) => { void this.publishLiveUpdate(sceneId, update); });
-  }
+  async sendCredentialOffer(managed: ManagedCredentialState, id = crypto.randomUUID()): Promise<string | null> { return this.credentials.sendOffer(managed, id); }
 
-  detachLiveDoc(): void {
-    this.liveScenes.detachDoc();
-  }
-
-  attachLiveScenePort(sceneId: string, port: EngineLiveScenePort): void {
-    this.liveScenes.attachPort(sceneId, port);
-  }
-
-  detachLiveScenePort(port: EngineLiveScenePort): void {
-    this.liveScenes.detachPort(port);
-  }
+  attachLiveDoc(sceneId: string, doc: Y.Doc): void { this.liveScenes.attachDoc(sceneId, doc, (update) => { void this.publishLiveUpdate(sceneId, update); }); }
+  detachLiveDoc(): void { this.liveScenes.detachDoc(); }
+  attachLiveScenePort(sceneId: string, port: EngineLiveScenePort): void { this.liveScenes.attachPort(sceneId, port); }
+  detachLiveScenePort(port: EngineLiveScenePort): void { this.liveScenes.detachPort(port); }
 
   async publishLiveUpdate(sceneId: string, update: Uint8Array): Promise<void> {
     if (this.liveScenes.activeSceneId() !== sceneId || this.isPaused()) return;
@@ -273,7 +273,7 @@ export class SyncEngine {
       return true;
     }
     if (message.t === "row-ack") { await this.outbox?.acknowledge(message.id); return true; }
-    return isCredentialMessage(message);
+    return this.credentials.receive(message);
   }
 
   private async makeHello(docs?: ChannelDoc[]): Promise<HelloMessage> {
@@ -355,8 +355,4 @@ export class SyncEngine {
   private isPaused(): boolean { return this.pauseDepth > 0; }
 
   private setStatus(patch: Partial<SyncStatus>): void { this.statusEmitter.patch(patch); }
-}
-
-function isCredentialMessage(message: InnerMessage): boolean {
-  return message.t === "credential-offer" || message.t === "credential-ack";
 }

@@ -20,7 +20,8 @@ export type RootStackParamList = {
   BibleEntry: { projectId: string; entityId: string; entityType: EntityTypeParam };
   BibleEntryScrolled: { projectId: string; entityId: string; entityType: EntityTypeParam };
   BibleEntryLocation: { projectId: string; entityId: string };
-  AutoLinkPeek: { projectId: string; sceneId: string; entityId: string; entityType: EntityTypeParam };
+  AutoLinkPeek: { projectId: string; sceneId: string; entityId: string;
+    entityType: EntityTypeParam; anchor?: { x: number; y: number; width: number; height: number } };
   RelationshipMap: { projectId: string; selectedEntityId?: string };
   BoardViewer: { projectId: string; boardId?: string };
   Goals: { projectId: string };

@@ -1,12 +1,13 @@
 import { BlurView } from "expo-blur";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon, Ring, Toggle } from "../../components";
 import { useTheme } from "../../theme/ThemeProvider";
 import { RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import type { FocusSettings } from "./focusSettings";
+import { setFocusKeepAwake } from "./keepAwake";
 
 function useMinutes(): number {
   const [minutes, setMinutes] = useState(0);
@@ -19,11 +20,16 @@ export function FocusHud({ onExit, onUpdate, sceneTitle, settings, wordCount }: 
   sceneTitle: string; settings: FocusSettings; wordCount: number;
 }) {
   const theme = useTheme(); const minutes = useMinutes();
+  useEffect(() => {
+    void setFocusKeepAwake(settings.keepAwake);
+    return () => { if (settings.keepAwake) void setFocusKeepAwake(false); };
+  }, [settings.keepAwake]);
   return <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
     <BlurView intensity={72} tint={theme.name} style={[styles.panel, theme.shadow.raised, { borderColor: theme.colors.parchmentEdge }]}>
       <Toggle label="Dim other paragraphs" value={settings.dimParagraphs} onChange={(value) => onUpdate("dimParagraphs", value)} />
       <Toggle label="Typewriter scroll" value={settings.typewriter} onChange={(value) => onUpdate("typewriter", value)} />
-      <Toggle label="Keep screen awake" description="Not available in this build." value={false} onChange={() => Alert.alert("Keep screen awake isn’t wired", "This build does not include the required device API.")} />
+      <Toggle label="Keep screen awake" value={settings.keepAwake}
+        onChange={(value) => onUpdate("keepAwake", value)} />
       <Pressable onPress={() => onUpdate("sessionGoal", settings.sessionGoal === 500 ? 1000 : 500)} style={styles.goalRow}><Text style={[TYPE.bodySmall, { color: theme.colors.ink2 }]}>Session goal</Text><Text style={[TYPE.bodySmallStrong, { color: theme.colors.accent }]}>{settings.sessionGoal} words</Text></Pressable>
     </BlurView>
     <Pressable onPress={onExit} style={styles.statsPress}><BlurView intensity={72} tint={theme.name} style={[styles.stats, theme.shadow.raised, { borderColor: theme.colors.parchmentEdge }]}>

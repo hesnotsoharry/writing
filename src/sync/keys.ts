@@ -72,6 +72,7 @@ const INVALID_PAIR_PAYLOAD = "Invalid pairing code";
 export interface PairPayload {
   masterKey: Uint8Array;
   relayUrl: string;
+  deviceName?: string;
 }
 
 function assertRelayProtocol(relayUrl: string): void {
@@ -81,13 +82,17 @@ function assertRelayProtocol(relayUrl: string): void {
 }
 
 /** Builds the desktop-rendered QR payload string for mobile pairing. */
-export function buildPairPayload(masterKey: Uint8Array, relayUrl: string): string {
+export function buildPairPayload(
+  masterKey: Uint8Array, relayUrl: string, deviceName?: string,
+): string {
   assertRelayProtocol(relayUrl);
   const params = new URLSearchParams({
     v: PAIR_VERSION,
     key: encodeMasterKey(masterKey),
     relay: relayUrl,
   });
+  const normalizedDevice = deviceName?.trim();
+  if (normalizedDevice) params.set("device", normalizedDevice);
   return `${PAIR_PROTOCOL}//${PAIR_HOST}?${params.toString()}`;
 }
 
@@ -98,6 +103,17 @@ export function buildPairPayload(masterKey: Uint8Array, relayUrl: string): strin
  * raw scanned payload back into an error, log, or UI string.
  */
 export function parsePairPayload(payload: string): PairPayload {
+  const url = parsePairUrl(payload);
+  const { deviceName, key, relayUrl } = readPairParams(url);
+  try {
+    return { masterKey: decodeMasterKey(key), relayUrl,
+      ...(deviceName ? { deviceName } : {}) };
+  } catch {
+    throw new Error(INVALID_PAIR_PAYLOAD);
+  }
+}
+
+function parsePairUrl(payload: string): URL {
   let url: URL;
   try {
     url = new URL(payload);
@@ -110,16 +126,17 @@ export function parsePairPayload(payload: string): PairPayload {
   if (url.searchParams.get("v") !== PAIR_VERSION) {
     throw new Error(INVALID_PAIR_PAYLOAD);
   }
+  return url;
+}
+
+function readPairParams(url: URL): { key: string; relayUrl: string; deviceName?: string } {
   const key = url.searchParams.get("key");
   const relayUrl = url.searchParams.get("relay");
+  const deviceName = url.searchParams.get("device")?.trim();
   if (!key || !relayUrl || !RELAY_PROTOCOL_RE.test(relayUrl)) {
     throw new Error(INVALID_PAIR_PAYLOAD);
   }
-  try {
-    return { masterKey: decodeMasterKey(key), relayUrl };
-  } catch {
-    throw new Error(INVALID_PAIR_PAYLOAD);
-  }
+  return { key, relayUrl, ...(deviceName ? { deviceName } : {}) };
 }
 
 export async function deriveKeys(masterKey: Uint8Array): Promise<DerivedKeys> {

@@ -20,6 +20,7 @@ import { MobileSceneDocStore } from "../db/syncStores/mobileSceneDocStore";
 import { MobileSnapshotStore } from "../db/syncStores/mobileSnapshotStore";
 import { MobileSyncLwwStore } from "../db/syncStores/mobileSyncLwwStore";
 import { MobileSyncOutboxStore } from "../db/syncStores/mobileSyncOutboxStore";
+import { consumeCredentialOffer } from "../features/ai/credentialHandoff";
 import type { DbClient } from "../shared/dbClient";
 import type { EngineOptions } from "../shared/engine";
 import { SyncEngine } from "../shared/engine";
@@ -107,6 +108,10 @@ async function writeLastPeerSeenAt(db: DbClient, value: string): Promise<void> {
  *  boot when a key + joined role already exist; `.stop()`/`.subscribe()`/
  *  `.pause()`/`.resume()` are the same public surface as desktop's. */
 export const mobileEngine = new SyncEngine(buildMobileEngineOptions());
+mobileEngine.onCredentialOffer(async (offer) => {
+  const result = await consumeCredentialOffer(offer);
+  return result.ack;
+});
 mobileLocalWrites.subscribe((mutation) => {
   if (mutation.domain === "ai_conversations" && !mobileLwwDomains.aiConversationsEnabled()) return;
   void mobileEngine.publishRow(mutation).catch((error: unknown) => {

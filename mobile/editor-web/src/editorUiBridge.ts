@@ -33,6 +33,24 @@ function reportSelection(editor: Editor, client: BridgeClient): void {
   });
 }
 
+function linkedEntity(target: EventTarget | null): HTMLAnchorElement | null {
+  return target instanceof Element
+    ? target.closest<HTMLAnchorElement>(`a[href^="${ENTITY_LINK_ORIGIN}/"]`) : null;
+}
+
+function reportAutoLinkTap(event: MouseEvent, client: BridgeClient): void {
+  const anchor = linkedEntity(event.target);
+  if (!anchor) return;
+  const parts = new URL(anchor.href).pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  if (parts.length !== 2) return;
+  event.preventDefault();
+  const rect = anchor.getBoundingClientRect();
+  client.reportAutoLinkTap({
+    entityType: parts[0], entityId: parts[1],
+    rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+  });
+}
+
 function entityHref(command: EditorUiCommand): string | null {
   if (command.command !== "link-entity" || !command.entity) return null;
   const type = encodeURIComponent(command.entity.entityType);
@@ -82,6 +100,7 @@ function applyFocus(editor: Editor, focus: FocusDecorationState): void {
 export function attachEditorUi(editor: Editor, client: BridgeClient): () => void {
   editor.registerPlugin(focusDecorationPlugin());
   const onSelection = (): void => { reportSelection(editor, client); };
+  const onClick = (event: MouseEvent): void => { reportAutoLinkTap(event, client); };
   const unbind = client.bindEditorUi((message: NativeEditorUiMessage) => {
     if (message.type === "editor-command") runCommand(editor, message);
     else if (message.type === "editor-theme") applyTheme(message.colors);
@@ -90,6 +109,7 @@ export function attachEditorUi(editor: Editor, client: BridgeClient): () => void
   });
   editor.on("selectionUpdate", onSelection);
   editor.on("transaction", onSelection);
+  editor.view.dom.addEventListener("click", onClick);
   reportSelection(editor, client);
-  return () => { document.documentElement.classList.remove("focus-mode"); unbind(); editor.unregisterPlugin(focusDecorationKey); editor.off("selectionUpdate", onSelection); editor.off("transaction", onSelection); };
+  return () => { document.documentElement.classList.remove("focus-mode"); unbind(); editor.unregisterPlugin(focusDecorationKey); editor.off("selectionUpdate", onSelection); editor.off("transaction", onSelection); editor.view.dom.removeEventListener("click", onClick); };
 }

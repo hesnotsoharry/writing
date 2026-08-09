@@ -10,11 +10,17 @@ const mocks = vi.hoisted(() => ({
   clearRole: vi.fn<() => Promise<void>>(),
   start: vi.fn<(relayUrl?: string) => Promise<void>>(),
   stop: vi.fn<() => void>(),
+  sendCredentialOffer: vi.fn(),
+  onCredentialAck: vi.fn(),
   status: {
     state: "disconnected" as "off" | "connecting" | "connected" | "disconnected",
     peerSeen: false,
     lastSyncAt: null as string | null,
   },
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(async (command: string) => command === "device_name" ? "Cole-PC" : null),
 }));
 
 vi.mock("../sync/keyStorage", () => ({
@@ -31,6 +37,8 @@ vi.mock("../sync/desktopEngine", () => ({
       callback({ ...mocks.status });
       return vi.fn();
     }),
+    sendCredentialOffer: mocks.sendCredentialOffer,
+    onCredentialAck: mocks.onCredentialAck,
   },
 }));
 
@@ -69,6 +77,7 @@ beforeEach(() => {
   mocks.start.mockResolvedValue(undefined);
   mocks.setRole.mockResolvedValue(undefined);
   mocks.clearRole.mockResolvedValue(undefined);
+  mocks.sendCredentialOffer.mockImplementation(async (_managed: unknown, id: string) => id);
   mocks.status.state = "disconnected";
   mocks.status.peerSeen = false;
   mocks.status.lastSyncAt = null;
@@ -129,6 +138,35 @@ describe("SyncSection", () => {
     const parsed = parsePairPayload(readQrPayload());
     expect(parsed.masterKey).toEqual(mocks.setKey.mock.calls[0][0]);
     expect(parsed.relayUrl).toBe(DEFAULT_RELAY_URL);
+    expect(parsed.deviceName).toBe("Cole-PC");
+  });
+
+  it("requires confirmation and transports only the managed credential fields", async () => {
+    mocks.getKey.mockResolvedValue(MASTER_KEY);
+    renderSection({
+      aiLicenseKey: "managed-license", aiTrialKey: "trial-that-must-not-win",
+      aiModel: "claude-haiku-4-5-20251001", aiEnabled: true,
+    });
+    const share = await screen.findByRole("button", { name: "Share access…" });
+    fireEvent.click(share);
+    expect(mocks.sendCredentialOffer).not.toHaveBeenCalled();
+    expect(screen.getByText(/Provider API keys and local model endpoints are not shared/i))
+      .toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm share" }));
+    await waitFor(() => expect(mocks.sendCredentialOffer).toHaveBeenCalledOnce());
+    expect(mocks.sendCredentialOffer.mock.calls[0][0]).toEqual({
+      aiLicenseKey: "managed-license", aiModel: "claude-haiku-4-5-20251001",
+      aiEnabled: true,
+    });
+  });
+
+  it("sends nothing and explains the managed-AI requirement for BYOK-only setup", async () => {
+    mocks.getKey.mockResolvedValue(MASTER_KEY);
+    renderSection({ aiLicenseKey: "", aiTrialKey: "" });
+    expect(await screen.findByText(/Set up managed AI on desktop to share access/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share access…" })).toBeNull();
+    expect(mocks.sendCredentialOffer).not.toHaveBeenCalled();
   });
 
   it("encodes a custom relay tweak into the pairing QR instead of the default", async () => {

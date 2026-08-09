@@ -12,7 +12,8 @@ import { SYNC_ORIGIN } from "@writersnook/yjs/bindPersistence";
 import * as Y from "yjs";
 
 import {
-  type EditorSelectionState, type NativeEditorUiMessage, parseNativeEditorUiMessage,
+  type EditorAutoLinkTapState, type EditorSelectionState,
+  type NativeEditorUiMessage, parseNativeEditorUiMessage,
 } from "../../src/features/editor/editorUiProtocol";
 import { WebEditorUiChannel } from "./webEditorUiChannel";
 
@@ -31,6 +32,7 @@ export interface BridgeClient {
   subscribe: (listener: () => void) => () => void;
   bindEditorUi: (handler: (message: NativeEditorUiMessage) => void) => () => void;
   reportSelection: (selection: EditorSelectionState) => void;
+  reportAutoLinkTap: (tap: EditorAutoLinkTapState) => void;
   receive: (raw: string) => void;
   destroy: () => void;
 }
@@ -112,6 +114,10 @@ class WebViewBridgeClient implements BridgeClient {
 
   reportSelection = (selection: EditorSelectionState): void => {
     this.uiChannel.report(selection);
+  };
+
+  reportAutoLinkTap = (tap: EditorAutoLinkTapState): void => {
+    this.uiChannel.reportAutoLinkTap(tap);
   };
 
   receive = (raw: string): void => {

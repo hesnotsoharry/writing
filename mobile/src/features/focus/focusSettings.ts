@@ -13,7 +13,7 @@ export interface FocusSettings {
 const DEFAULTS: FocusSettings = {
   dimParagraphs: DEVICE_SETTINGS_DEFAULTS.focusDimParagraphs,
   typewriter: DEVICE_SETTINGS_DEFAULTS.focusTypewriter,
-  keepAwake: false,
+  keepAwake: DEVICE_SETTINGS_DEFAULTS.focusKeepAwake,
   sessionGoal: DEVICE_SETTINGS_DEFAULTS.focusSessionGoal,
 };
 
@@ -21,7 +21,7 @@ export function useFocusSettings() {
   const [settings, setSettings] = useState<FocusSettings>(DEFAULTS);
   useEffect(() => { void getDeviceSettingsStore().then((store) => store.read()).then((value) => setSettings({
     dimParagraphs: value.focusDimParagraphs, typewriter: value.focusTypewriter,
-    keepAwake: false, sessionGoal: value.focusSessionGoal,
+    keepAwake: value.focusKeepAwake, sessionGoal: value.focusSessionGoal,
   })); }, []);
   const update = useCallback(<K extends keyof FocusSettings>(key: K, value: FocusSettings[K]) => {
     setSettings((current) => {
@@ -29,7 +29,8 @@ export function useFocusSettings() {
       void getDeviceSettingsStore().then(async (store) => {
         const device = await store.read();
         await store.write({ ...device, focusDimParagraphs: next.dimParagraphs,
-          focusTypewriter: next.typewriter, focusKeepAwake: false, focusSessionGoal: next.sessionGoal });
+          focusTypewriter: next.typewriter, focusKeepAwake: next.keepAwake,
+          focusSessionGoal: next.sessionGoal });
       });
       return next;
     });

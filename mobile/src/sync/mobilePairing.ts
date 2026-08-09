@@ -11,10 +11,8 @@ export function parseMobilePairingInput(value: string): MobilePairingInput {
   const trimmed = value.trim();
   if (trimmed.startsWith("writersnook:")) {
     const parsed = parsePairPayload(trimmed);
-    const url = new URL(trimmed);
-    const deviceName = url.searchParams.get("device")?.trim();
     return { masterKey: parsed.masterKey, relayUrl: parsed.relayUrl,
-      ...(deviceName ? { deviceName } : {}) };
+      ...(parsed.deviceName ? { deviceName: parsed.deviceName } : {}) };
   }
   return { masterKey: decodeMasterKey(trimmed), relayUrl: null };
 }

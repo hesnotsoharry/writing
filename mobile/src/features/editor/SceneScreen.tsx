@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -9,13 +9,17 @@ import type { Scene } from "../../shared/binderStore";
 import type { Entity } from "../../shared/storyBibleStore";
 import { useTheme } from "../../theme/ThemeProvider";
 import { TYPE } from "../../theme/typography";
+import { registerAiSelection } from "../ai/selectionBridge";
 import { BinderDrawer, useBinderDrawerState } from "../binder/BinderDrawer";
 import { FocusHud, useFocusSettings } from "../focus";
 import { InspectorSheet } from "./InspectorSheet";
-import { SceneEditorHost } from "./SceneEditorHost";
+import { SceneEditorHost, type SceneEditorHostProps } from "./SceneEditorHost";
 import { SceneReader } from "./SceneReader";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Scene">;
+type SceneConnections = Pick<SceneEditorHostProps, "onAutoLinkTap" | "onRequestSelectionActions"> & {
+  openScene(scene: Scene): void; openEntity(entity: Entity): void;
+};
 
 function EditorHeader({ onBinder, onFocus, onInspector, title }: {
   title: string; onBinder(): void; onFocus(): void; onInspector(): void;
@@ -35,6 +39,46 @@ function EditorHeader({ onBinder, onFocus, onInspector, title }: {
   </View>;
 }
 
+function useSceneConnections({ focusMode, navigation, projectId, sceneId }: {
+  focusMode: boolean; navigation: Props["navigation"];
+  projectId?: string; sceneId: string;
+}): SceneConnections {
+  const clearAiSelection = useRef<(() => void) | null>(null);
+  const focusModeRef = useRef(focusMode);
+  useEffect(() => { focusModeRef.current = focusMode; }, [focusMode]);
+  useEffect(() => () => { clearAiSelection.current?.(); }, []);
+  const openScene = useCallback((scene: Scene): void => {
+    if (!projectId) return;
+    navigation.reset({ index: 0, routes: [{
+      name: "Scene", params: { projectId, sceneId: scene.id, sceneTitle: scene.title },
+    }] });
+  }, [navigation, projectId]);
+  const openEntity = useCallback((entity: Entity): void => {
+    if (projectId) navigation.navigate("BibleEntry", {
+      projectId, entityId: entity.id, entityType: entity.type,
+    });
+  }, [navigation, projectId]);
+  const onAutoLinkTap = useCallback<NonNullable<SceneEditorHostProps["onAutoLinkTap"]>>((tap) => {
+    if (!projectId) return;
+    navigation.navigate("AutoLinkPeek", { projectId, sceneId: tap.sceneId,
+      entityId: tap.entityId, entityType: tap.entityType,
+      anchor: { ...tap.anchor, y: tap.anchor.y + (focusModeRef.current ? 0 : 46) } });
+  }, [navigation, projectId]);
+  const onRequestSelectionActions = useCallback<NonNullable<SceneEditorHostProps["onRequestSelectionActions"]>>((selection, command) => {
+    if (!projectId || !selection || selection.collapsed) return;
+    clearAiSelection.current?.();
+    clearAiSelection.current = registerAiSelection({ sceneId,
+      aiSafeText: selection.aiSafeText, wordCount: countWords(selection.aiSafeText),
+      aiExcluded: selection.aiExcluded, rect: selection.rect }, command);
+    navigation.navigate("SelectionActions", { projectId, sceneId });
+  }, [navigation, projectId, sceneId]);
+  return { onAutoLinkTap, onRequestSelectionActions, openEntity, openScene };
+}
+
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
 export function SceneScreen({ navigation, route }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -44,30 +88,22 @@ export function SceneScreen({ navigation, route }: Props) {
   const [focusMode, setFocusMode] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const focus = useFocusSettings();
-  const openScene = (scene: Scene): void => {
-    if (!projectId) return;
-    navigation.reset({ index: 0, routes: [{
-      name: "Scene", params: { projectId, sceneId: scene.id, sceneTitle: scene.title },
-    }] });
-  };
-  const openEntity = (entity: Entity): void => {
-    if (projectId) navigation.navigate("BibleEntry", {
-      projectId, entityId: entity.id, entityType: entity.type,
-    });
-  };
+  const connections = useSceneConnections({ focusMode, navigation, projectId, sceneId });
   return <View style={[styles.screen, { backgroundColor: theme.colors.paper, paddingTop: insets.top }]}>
     {!focusMode && <EditorHeader title={sceneTitle} onBinder={() => { drawerDispatch({ type: "open" }); }}
       onFocus={() => { setFocusMode(true); }} onInspector={() => { setInspectorOpen(true); }} />}
     <View style={styles.editor}>
       <SceneReader sceneId={sceneId} />
       <SceneEditorHost key={sceneId} sceneId={sceneId} projectId={projectId}
-        focus={{ enabled: focusMode, settings: focus.settings }} onWordCountChange={setWordCount} />
+        focus={{ enabled: focusMode, settings: focus.settings }} onWordCountChange={setWordCount}
+        onAutoLinkTap={connections.onAutoLinkTap}
+        onRequestSelectionActions={connections.onRequestSelectionActions} />
     </View>
     {projectId && <BinderDrawer projectId={projectId} activeSceneId={sceneId}
-      state={drawer} dispatch={drawerDispatch} onOpenScene={openScene}
+      state={drawer} dispatch={drawerDispatch} onOpenScene={connections.openScene}
       onOpenInbox={() => { navigation.navigate("Inbox", { projectId }); }} />}
     {projectId && <InspectorSheet open={inspectorOpen} projectId={projectId} sceneId={sceneId}
-      onDismiss={() => { setInspectorOpen(false); }} onOpenEntity={openEntity}
+      onDismiss={() => { setInspectorOpen(false); }} onOpenEntity={connections.openEntity}
       onOpenSnapshots={() => { navigation.navigate("SceneVersionHistory", { projectId, sceneId }); }} />}
     {focusMode && <FocusHud sceneTitle={sceneTitle} settings={focus.settings} wordCount={wordCount}
       onExit={() => { setFocusMode(false); }} onUpdate={focus.update} />}

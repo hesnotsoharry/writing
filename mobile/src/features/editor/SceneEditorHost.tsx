@@ -10,7 +10,10 @@ import {
   MOBILE_LIVE_SCENE_ACK_TIMEOUT_MS, type MobileLiveScenePort,
 } from "../../sync/mobileLiveScenePort";
 import { useTheme } from "../../theme/ThemeProvider";
+import { copyText } from "../ai/mobileClipboard";
+import type { SelectionCommand } from "../ai/selectionBridge";
 import type { FocusSettings } from "../focus/focusSettings";
+import type { AutoLinkTapPayload } from "../storybible";
 import type {
   EditorCommandName, EditorSelectionMessage, EditorSelectionState,
 } from "./editorUiProtocol";
@@ -27,9 +30,12 @@ export interface SceneEditorHostProps {
   projectId?: string;
   onSelectionChange?: (selection: SceneEditorSelection) => void;
   onRequestEntityLink?: (selection: SceneEditorSelection | null) => void;
-  onRequestSelectionActions?: (selection: SceneEditorSelection | null) => void;
+  onRequestSelectionActions?: (
+    selection: SceneEditorSelection | null, command: (command: SelectionCommand) => void,
+  ) => void;
   focus?: { enabled: boolean; settings: FocusSettings };
   onWordCountChange?: (wordCount: number) => void;
+  onAutoLinkTap?: (payload: AutoLinkTapPayload) => void;
 }
 
 type Dispatch = (action: SceneEditorAction) => void;
@@ -221,24 +227,50 @@ function useFocusUi({ activeParagraph, focus, onWordCountChange, ui, wordCount }
   }); }, [activeParagraph, focus, ui]);
 }
 
-export function SceneEditorHost({
-  focus, onRequestEntityLink, onRequestSelectionActions, onSelectionChange,
-  onWordCountChange, projectId, sceneId,
-}: SceneEditorHostProps) {
+function useNativeEditorUi({ onAutoLinkTap, onSelectionChange, sceneId, transport }: {
+  onAutoLinkTap: SceneEditorHostProps["onAutoLinkTap"];
+  onSelectionChange: SceneEditorHostProps["onSelectionChange"];
+  sceneId: string; transport: WebViewTransport;
+}) {
   const theme = useTheme();
-  const [state, dispatch] = useReducer(reduceSceneEditor, undefined, createSceneEditorState);
-  const [{ port, transport }] = useState(() => createHostPort(sceneId));
   const [selection, setSelection] = useState<EditorSelectionMessage | null>(null);
   const onSelection = useCallback((next: EditorSelectionMessage) => {
     setSelection(next); onSelectionChange?.(next);
   }, [onSelectionChange]);
-  const ui = useMemo(() => new NativeEditorUiController(sceneId, transport, onSelection),
-    [onSelection, sceneId, transport]);
+  const ui = useMemo(() => new NativeEditorUiController(
+    sceneId, transport, onSelection,
+    (tap) => onAutoLinkTap?.({
+      sceneId, entityId: tap.entityId, entityType: tap.entityType, anchor: tap.rect,
+    }),
+  ), [onAutoLinkTap, onSelection, sceneId, transport]);
   const colors = useMemo(() => ({
     theme: theme.name, character: theme.label.clay, location: theme.label.moss,
     item: theme.label.gold, faction: theme.label.plum, lore: theme.label.sea,
     themeType: theme.label.slate,
   }), [theme]);
+  return { colors, selection, ui };
+}
+
+function useSelectionCommand(
+  ui: NativeEditorUiController, selection: EditorSelectionMessage | null,
+  onRequestEntityLink: SceneEditorHostProps["onRequestEntityLink"],
+) {
+  return useCallback((command: SelectionCommand): void => {
+    if (command === "copy") { void copyText(selection?.aiSafeText ?? ""); return; }
+    if (command === "link-entity") { onRequestEntityLink?.(selection); return; }
+    ui.command(command);
+  }, [onRequestEntityLink, selection, ui]);
+}
+
+export function SceneEditorHost({
+  focus, onAutoLinkTap, onRequestEntityLink, onRequestSelectionActions, onSelectionChange,
+  onWordCountChange, projectId, sceneId,
+}: SceneEditorHostProps) {
+  const [state, dispatch] = useReducer(reduceSceneEditor, undefined, createSceneEditorState);
+  const [{ port, transport }] = useState(() => createHostPort(sceneId));
+  const { colors, selection, ui } = useNativeEditorUi({
+    onAutoLinkTap, onSelectionChange, sceneId, transport,
+  });
   const localUri = useEditorAsset(dispatch);
   const [wordCount, refresh] = useWordCount(projectId, sceneId);
   useFocusUi({ ui, focus, activeParagraph: selection?.from, wordCount, onWordCountChange });
@@ -247,6 +279,7 @@ export function SceneEditorHost({
   useEffect(() => { if (state.phase === "fallback") void port.close(); }, [port, state.phase]);
   const { guard, stay } = useExitState(port, state, dispatch);
   const onMessage = useBridgeMessage({ port, ui, uiColors: colors, dispatch, refresh });
+  const selectionCommand = useSelectionCommand(ui, selection, onRequestEntityLink);
   if (state.phase === "fallback") return <FallbackNotice />;
   if (!localUri) return <View style={styles.host}><OpeningOverlay /></View>;
   return <EditorSurface localUri={localUri} webViewKey={state.webViewKey} phase={state.phase}
@@ -255,7 +288,7 @@ export function SceneEditorHost({
     onRequestEntityLink={onRequestEntityLink
       ? () => { onRequestEntityLink(selection); } : undefined}
     onRequestAi={onRequestSelectionActions
-      ? () => { onRequestSelectionActions(selection); } : undefined}
+      ? () => { onRequestSelectionActions(selection, selectionCommand); } : undefined}
     onFailed={() => { dispatch({ type: "editor-failed" }); }}
     onTerminated={() => { dispatch({ type: "process-terminated" }); }}
     onRetry={() => { void guard.retry(); }} onStay={stay} />;

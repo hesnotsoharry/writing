@@ -21,7 +21,8 @@ export function AutoLinkPeekScreen({ navigation, route }: Props) {
     if (loaded) setEntity({ ...loaded, type: entityType }); setCustomTypes(customs);
   }); }, [entityId, entityType, projectId]);
   if (!entity) return <Screen contentStyle={styles.center}><ActivityIndicator color={theme.colors.accent} /></Screen>;
-  const anchor = { x: 96, y: Math.min(360, viewport.height * 0.46), width: 88, height: 28 };
+  const anchor = route.params.anchor
+    ?? { x: 96, y: Math.min(360, viewport.height * 0.46), width: 88, height: 28 };
   return <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.paper }]}>
     <View style={styles.prose}><Text style={[TYPE.prose, { color: theme.colors.ink }]}>Tap a linked name to peek without leaving the scene.</Text></View>
     <AutoLinkPeek anchor={anchor} customTypes={customTypes} entity={entity} onDismiss={() => navigation.goBack()}

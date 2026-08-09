@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 
 import { syncEngine } from "../../sync/desktopEngine";
@@ -15,6 +16,7 @@ import {
   setSyncMasterKey,
 } from "../../sync/keyStorage";
 import { clearSyncRole, setSyncRole, type SyncRole } from "../../sync/syncRole";
+import { CredentialShareRow } from "./Settings.credentialShare";
 import { SetRow } from "./Settings.primitives";
 import { getTweak, type Tweaks } from "./settings.store";
 import { SyncQr } from "./SyncQr";
@@ -205,9 +207,9 @@ function useSyncActions(
   setters: ActionSetters,
 ) {
   const [busy, setBusy] = useState(false);
-  function showKeyAsPairing(key: Uint8Array): void {
+  async function showKeyAsPairing(key: Uint8Array): Promise<void> {
     setters.setPairingString(encodeMasterKey(key));
-    setters.setPairingPayload(buildPairPayload(key, relayUrl));
+    setters.setPairingPayload(buildPairPayload(key, relayUrl, await readDeviceName()));
   }
   async function activate(key: Uint8Array, role: SyncRole): Promise<void> {
     setBusy(true);
@@ -215,14 +217,14 @@ function useSyncActions(
     await setSyncRole(role);
     setTweak("syncExperimental", "on");
     await startSync();
-    showKeyAsPairing(key);
+    await showKeyAsPairing(key);
     setters.setKeyState("ready");
     setters.setJoinOpen(false);
     setBusy(false);
   }
   async function showPairing(): Promise<void> {
     const key = await getSyncMasterKey();
-    if (key) showKeyAsPairing(key);
+    if (key) await showKeyAsPairing(key);
   }
   async function turnOff(): Promise<void> {
     syncEngine.stop();
@@ -235,6 +237,13 @@ function useSyncActions(
     setters.setKeyState("missing");
   }
   return { activate, busy, showPairing, turnOff };
+}
+
+async function readDeviceName(): Promise<string | undefined> {
+  try {
+    const value = (await invoke<string>("device_name")).trim();
+    return value || undefined;
+  } catch { return undefined; }
 }
 
 export function SyncSection({ tweaks, setTweak }: SyncSectionProps) {
@@ -264,6 +273,7 @@ export function SyncSection({ tweaks, setTweak }: SyncSectionProps) {
         <h2 className="sync-heading">Sync between your devices (experimental)</h2>
         {keyState === "loading" ? <div className="sync-status">Checking sync setup…</div> : body}
       </div>
+      {keyState === "ready" && <CredentialShareRow tweaks={tweaks} />}
       <RelayUrlRow tweaks={tweaks} setTweak={setTweak} />
     </>
   );

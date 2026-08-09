@@ -154,6 +154,51 @@ describe("SyncEngine sweeps and live updates", () => {
     engine.stop();
   });
 
+  it("routes an encrypted credential offer to mobile and returns its ACK", async () => {
+    const { engine, provider } = makeEngine();
+    const consume = vi.fn(async (offer: Extract<InnerMessage, { t: "credential-offer" }>) => ({
+      t: "credential-ack" as const, id: offer.id, accepted: true,
+    }));
+    engine.onCredentialOffer(consume);
+    await engine.start(); await waitForSent(provider); provider.sent.length = 0;
+
+    const offer: Extract<InnerMessage, { t: "credential-offer" }> = {
+      t: "credential-offer", id: "offer-1", managed: {
+        aiLicenseKey: "managed-license", aiModel: "model", aiEnabled: true,
+      },
+    };
+    await deliver(provider, offer);
+    await waitForSent(provider);
+
+    expect(consume).toHaveBeenCalledWith(offer);
+    expect(await decodeSent(provider)).toEqual([
+      { t: "credential-ack", id: "offer-1", accepted: true },
+    ]);
+    engine.stop();
+  });
+
+  it("sends exactly one encrypted managed credential offer and reports its ACK", async () => {
+    const { engine, provider } = makeEngine();
+    const receiveAck = vi.fn();
+    engine.onCredentialAck(receiveAck);
+    await engine.start(); await waitForSent(provider); provider.sent.length = 0;
+
+    const id = await engine.sendCredentialOffer({
+      aiTrialKey: "managed-trial", aiModel: "model", aiEnabled: false,
+    });
+    await waitForSent(provider);
+    const sent = await decodeSent(provider);
+    expect(sent).toEqual([{ t: "credential-offer", id, managed: {
+      aiTrialKey: "managed-trial", aiModel: "model", aiEnabled: false,
+    } }]);
+
+    await deliver(provider, { t: "credential-ack", id: id!, accepted: true });
+    await vi.waitFor(() => expect(receiveAck).toHaveBeenCalledWith({
+      t: "credential-ack", id, accepted: true,
+    }));
+    engine.stop();
+  });
+
   it("bootstraps meta and Bible docs before reading the master key", async () => {
     const ready = new Set<string>();
     const engine = new SyncEngine({

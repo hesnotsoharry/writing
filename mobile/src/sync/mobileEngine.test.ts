@@ -10,18 +10,29 @@ import {
 const engineCapture = vi.hoisted(() => ({
   options: undefined as EngineOptions | undefined,
   publishRow: vi.fn(async () => true),
+  credentialOffer: undefined as ((offer: { t: "credential-offer"; id: string;
+    managed: { aiLicenseKey: string; aiModel: string; aiEnabled: boolean } }) => Promise<unknown>) | undefined,
+  consumeCredentialOffer: vi.fn(async (offer: { id: string }) => ({
+    ack: { t: "credential-ack" as const, id: offer.id, accepted: true },
+  })),
 }));
 
 vi.mock("../db/database", () => ({ getMobileDb: vi.fn() }));
 vi.mock("../shared/provider", () => ({ RelayProvider: class {} }));
 vi.mock("./mobileKeyStorage", () => ({ getSyncMasterKey: vi.fn() }));
 vi.mock("./mobileDeviceId", () => ({ getOrCreateMobileDeviceId: vi.fn() }));
+vi.mock("../features/ai/credentialHandoff", () => ({
+  consumeCredentialOffer: engineCapture.consumeCredentialOffer,
+}));
 vi.mock("../shared/engine", () => ({
   SyncEngine: class {
     publishRow = engineCapture.publishRow;
     constructor(options: EngineOptions) { engineCapture.options = options; }
     onStructureChanged(): void {}
     onDocReplaced(): void {}
+    onCredentialOffer(callback: NonNullable<typeof engineCapture.credentialOffer>): void {
+      engineCapture.credentialOffer = callback;
+    }
   },
 }));
 
@@ -60,5 +71,15 @@ describe("mobile engine replication wiring", () => {
 
   it("constructs the exported singleton", () => {
     expect(mobileEngine).toBeDefined();
+  });
+
+  it("routes credential offers to the secure mobile consumer and returns its ACK", async () => {
+    const offer = { t: "credential-offer" as const, id: "offer-1", managed: {
+      aiLicenseKey: "managed", aiModel: "model", aiEnabled: true,
+    } };
+    await expect(engineCapture.credentialOffer?.(offer)).resolves.toEqual({
+      t: "credential-ack", id: "offer-1", accepted: true,
+    });
+    expect(engineCapture.consumeCredentialOffer).toHaveBeenCalledWith(offer);
   });
 });

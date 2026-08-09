@@ -73,23 +73,37 @@ export interface EditorSelectionMessage extends EditorSelectionState {
   seq: number;
 }
 
+export interface EditorAutoLinkTapState {
+  entityId: string;
+  entityType: string;
+  rect: SelectionRect;
+}
+
+export interface EditorAutoLinkTapMessage extends EditorAutoLinkTapState {
+  v: typeof EDITOR_UI_VERSION;
+  type: "auto-link-tap";
+  sessionId: string;
+  sceneId: string;
+  seq: number;
+}
+
 export interface EditorUiAck {
   v: typeof EDITOR_UI_VERSION;
   type: "editor-ui-ack";
   sessionId: string;
   sceneId: string;
   seq: number;
-  ackType: "command" | "selection" | "theme" | "focus";
+  ackType: "command" | "selection" | "autolink" | "theme" | "focus";
 }
 
 export type NativeEditorUiMessage = EditorUiCommand | EditorThemeMessage | EditorFocusMessage | EditorUiAck;
-export type WebEditorUiMessage = EditorSelectionMessage | EditorUiAck;
+export type WebEditorUiMessage = EditorSelectionMessage | EditorAutoLinkTapMessage | EditorUiAck;
 
 const COMMANDS: readonly EditorCommandName[] = [
   "toggle-bold", "toggle-italic", "toggle-blockquote", "wrap-quote",
   "link-entity", "toggle-ai-exclude",
 ];
-const ACK_TYPES = ["command", "selection", "theme", "focus"] as const;
+const ACK_TYPES = ["command", "selection", "autolink", "theme", "focus"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -170,6 +184,15 @@ function isSelection(value: unknown): value is EditorSelectionMessage {
     && (value.rect === null || isRect(value.rect));
 }
 
+function isAutoLinkTap(value: unknown): value is EditorAutoLinkTapMessage {
+  return isRecord(value)
+    && exactKeys(value, [
+      "v", "type", "sessionId", "sceneId", "seq", "entityId", "entityType", "rect",
+    ])
+    && envelope(value, "auto-link-tap") && validId(value.entityId)
+    && validId(value.entityType) && isRect(value.rect);
+}
+
 function isAck(value: unknown): value is EditorUiAck {
   return isRecord(value)
     && exactKeys(value, ["v", "type", "sessionId", "sceneId", "seq", "ackType"])
@@ -194,6 +217,7 @@ export function parseNativeEditorUiMessage(raw: string): NativeEditorUiMessage |
 export function parseWebEditorUiMessage(raw: string): WebEditorUiMessage | null {
   const value = parse(raw);
   if (isSelection(value)) return value;
+  if (isAutoLinkTap(value)) return value;
   if (isAck(value)) return value;
   return null;
 }

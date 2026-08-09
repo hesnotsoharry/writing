@@ -195,6 +195,29 @@ describe("createBridgeClient", () => {
       .toMatchObject({ type: "selection-state", seq: 2, bold: true });
   });
 
+  it("queues a linked-entity tap behind selection and releases it after the ACK", () => {
+    client.receive(serializeBridgeMessage(hydrate()));
+    post.mockClear();
+    const selection: EditorSelectionState = {
+      bold: false, italic: false, blockquote: false, aiExcluded: false,
+      collapsed: false, from: 1, to: 2, aiSafeText: "a", rect: null,
+    };
+    client.reportSelection(selection);
+    client.reportAutoLinkTap({
+      entityId: "entity-1", entityType: "character",
+      rect: { x: 10, y: 20, width: 30, height: 12 },
+    });
+    expect(post).toHaveBeenCalledOnce();
+    client.receive(serializeEditorUiMessage({
+      v: EDITOR_UI_VERSION, type: "editor-ui-ack", sessionId: SESSION_ID,
+      sceneId: SCENE_ID, seq: 1, ackType: "selection",
+    }));
+    expect(parseWebEditorUiMessage(post.mock.calls[1][0] as string)).toMatchObject({
+      type: "auto-link-tap", seq: 2, entityId: "entity-1", entityType: "character",
+      rect: { x: 10, y: 20, width: 30, height: 12 },
+    });
+  });
+
   it("ACKs ordered UI commands and rejects gaps and wrong sessions", () => {
     client.receive(serializeBridgeMessage(hydrate()));
     post.mockClear();

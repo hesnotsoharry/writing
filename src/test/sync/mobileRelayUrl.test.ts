@@ -22,6 +22,15 @@ function mockDb(): DbClient {
 
 describe("mobile pairing input", () => {
   it("parses a QR payload carrying a relay override", () => {
+    const parsed = parseMobilePairingInput(
+      buildPairPayload(MASTER_KEY, CUSTOM_RELAY_URL, "Cole-PC"),
+    );
+    expect(parsed).toEqual({
+      masterKey: MASTER_KEY, relayUrl: CUSTOM_RELAY_URL, deviceName: "Cole-PC",
+    });
+  });
+
+  it("keeps a pre-device-name QR payload compatible", () => {
     const parsed = parseMobilePairingInput(buildPairPayload(MASTER_KEY, CUSTOM_RELAY_URL));
     expect(parsed).toEqual({ masterKey: MASTER_KEY, relayUrl: CUSTOM_RELAY_URL });
   });

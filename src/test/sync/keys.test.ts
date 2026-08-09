@@ -56,6 +56,17 @@ describe("pair QR payload", () => {
     expect(parsed.relayUrl).toBe(RELAY);
   });
 
+  it("adds an optional desktop device name without breaking the older payload shape", () => {
+    const masterKey = generateMasterKey();
+    const named = buildPairPayload(masterKey, RELAY, "Cole-PC");
+    expect(parsePairPayload(named)).toEqual({
+      masterKey, relayUrl: RELAY, deviceName: "Cole-PC",
+    });
+
+    const oldPayload = buildPairPayload(masterKey, RELAY);
+    expect(parsePairPayload(oldPayload)).toEqual({ masterKey, relayUrl: RELAY });
+  });
+
   it("builds a payload against a plain ws:// relay for local/dev testing", () => {
     const masterKey = generateMasterKey();
     const payload = buildPairPayload(masterKey, "ws://localhost:8787");
