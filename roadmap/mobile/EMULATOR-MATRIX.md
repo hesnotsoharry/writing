@@ -17,13 +17,13 @@ clipboard and keep-awake are native and require it).
 
 | # | Check | Why it can only be verified here | Result |
 |---|---|---|---|
-| 1 | Cold boot to Projects, fonts loaded | A missing font family falls back silently to the system face — invisible to tests | |
-| 2 | Pair with desktop (manual string) | | |
+| 1 | Cold boot to Projects, fonts loaded | A missing font family falls back silently to the system face — invisible to tests | **PASS** |
+| 2 | Pair with desktop (manual string) | | inherited from prior rig, not re-run |
 | 3 | Clone: binder, scenes, statuses, Story Bible, goals, notes | First real exercise of the new domains end to end | |
-| 4 | Hub renders: where-you-left-off, tiles with live counts, goal ring | | |
-| 5 | Open a scene; editor loads through the WebView bundle | | |
+| 4 | Hub renders: where-you-left-off, tiles with live counts, goal ring | | **PASS** |
+| 5 | Open a scene; editor loads through the WebView bundle | | **FAIL — read-only, see HANDOFF** |
 | 6 | **Caret stays visible when the keyboard opens (Android)** | The whole reason for the adjustResize / useAnimatedKeyboard platform split. A test would pass either way | |
-| 7 | Format bar sits above the keyboard and applies bold/italic/quote | | |
+| 7 | Format bar sits above the keyboard and applies bold/italic/quote | | renders; commands blocked by #5 |
 | 8 | **Left-edge swipe opens the binder drawer; does not fight back-gesture** | Gesture conflict is invisible outside a real touch surface | |
 | 9 | Long-press a binder row → scene actions sheet; status change persists | | |
 | 10 | Reorder a scene; desktop sees it in seconds, not a sweep | | |
