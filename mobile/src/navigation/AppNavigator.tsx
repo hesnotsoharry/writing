@@ -1,59 +1,88 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import { ProjectBinderScreen } from "../features/binder/ProjectBinderScreen";
-import { ProjectListScreen } from "../features/binder/ProjectListScreen";
-import { SceneScreen } from "../features/editor/SceneScreen";
-import { PairScreen } from "../features/pairing/PairScreen";
-import { PALETTE } from "../theme/palette";
+import { AiAssistantScreen, AiContextScreen, AiLimitsScreen, AiModelScreen, HiddenFromAiScreen, SelectionActionsScreen } from "../features/ai";
+import { ArchiveScreen } from "../features/archive";
+import { ProjectBinderScreen } from "../features/binder";
+import { BoardViewerScreen } from "../features/boards";
+import { CorkboardScreen } from "../features/corkboard";
+import { SceneScreen } from "../features/editor";
+import { FocusHudScreen } from "../features/focus";
+import { GoalsScreen, NewGoalScreen } from "../features/goals";
+import { EmptyProjectScreen, HubScreen } from "../features/hub";
+import { InboxScreen } from "../features/inbox";
+import { InspectorScreen } from "../features/inspector";
+import { ActivationScreen, TrialScreen } from "../features/license";
+import { OutlinerScreen } from "../features/outliner";
+import { PairScreen } from "../features/pairing";
+import { ProjectsScreen } from "../features/projects";
+import { SceneActionsScreen } from "../features/sceneactions";
+import { SearchScreen } from "../features/search";
+import { SettingsScreen } from "../features/settings";
+import { VersionHistoryScreen } from "../features/snapshots";
+import { AutoLinkPeekScreen, BibleEntryScreen, BibleListScreen, CustomTypeScreen, NewEntryScreen, RelationshipMapScreen } from "../features/storybible";
+import { OfflineCatchUpScreen } from "../features/sync";
+import { useTheme } from "../theme/ThemeProvider";
+import type { RootStackParamList } from "./routes";
 
-export type RootStackParamList = {
-  ProjectList: undefined;
-  ProjectBinder: { projectId: string; projectTitle: string };
-  Scene: { sceneId: string; sceneTitle: string };
-  Pair: undefined;
-};
+export type { RootStackParamList } from "./routes";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-interface AppNavigatorProps {
-  /** S4 step 5: forwarded to PairScreen so App.tsx can start the mobile
-   *  SyncEngine right after a successful pair — see PairScreen's prop doc. */
-  onPairedSuccessfully?: () => void;
-}
+interface AppNavigatorProps { onPairedSuccessfully?: () => void }
 
-/**
- * S4 step 3: native-stack shell for the read-only binder browse —
- * ProjectList -> ProjectBinder -> Scene (per scene, read-only, S4 step 5).
- * No WebView yet — the real editor bridge arrives in S5. Header/background
- * styling matches the parchment palette already established in App.tsx.
- */
+const STANDARD_SCREENS = <>
+  <Stack.Screen component={ProjectsScreen} name="ProjectList" />
+  <Stack.Screen component={HubScreen} name="Hub" />
+  {/* P4 mounts the left-edge binder drawer here. Disabling interactive-pop
+      protects that gesture even when legacy callers push instead of reset. */}
+  <Stack.Screen component={SceneScreen} name="Scene" options={{ gestureEnabled: false }} />
+  <Stack.Screen component={ProjectBinderScreen} name="ProjectBinder" options={({ route }) => ({ headerShown: true, title: route.params.projectTitle })} />
+  <Stack.Screen component={InspectorScreen} name="Inspector" />
+  <Stack.Screen component={CorkboardScreen} name="Corkboard" />
+  <Stack.Screen component={OutlinerScreen} name="Outliner" />
+  <Stack.Screen component={SearchScreen} name="Search" />
+  <Stack.Screen component={BibleListScreen} name="BibleList" />
+  <Stack.Screen component={BibleEntryScreen} name="BibleEntry" />
+  <Stack.Screen component={BibleEntryScreen} name="BibleEntryScrolled" />
+  <Stack.Screen component={BibleEntryScreen} name="BibleEntryLocation" />
+  <Stack.Screen component={AutoLinkPeekScreen} name="AutoLinkPeek" />
+  <Stack.Screen component={RelationshipMapScreen} name="RelationshipMap" />
+  <Stack.Screen component={BoardViewerScreen} name="BoardViewer" />
+  <Stack.Screen component={GoalsScreen} name="Goals" />
+  <Stack.Screen component={VersionHistoryScreen} name="VersionHistoryEmpty" />
+  <Stack.Screen component={InboxScreen} name="Inbox" />
+  <Stack.Screen component={AiAssistantScreen} name="AiAssistant" />
+  <Stack.Screen component={SettingsScreen} name="Settings" />
+  <Stack.Screen component={FocusHudScreen} name="FocusHud" />
+  <Stack.Screen component={SelectionActionsScreen} name="SelectionActions" />
+  <Stack.Screen component={AiContextScreen} name="AiContext" />
+  <Stack.Screen component={AiModelScreen} name="AiModel" />
+  <Stack.Screen component={HiddenFromAiScreen} name="HiddenFromAi" />
+  <Stack.Screen component={AiLimitsScreen} name="AiLimits" />
+  <Stack.Screen component={SceneActionsScreen} name="SceneActions" />
+  <Stack.Screen component={NewGoalScreen} name="NewGoal" />
+  <Stack.Screen component={ArchiveScreen} name="Archive" />
+  <Stack.Screen component={EmptyProjectScreen} name="EmptyProject" />
+  <Stack.Screen component={OfflineCatchUpScreen} name="OfflineCatchUp" />
+  <Stack.Screen component={ActivationScreen} name="Activation" />
+  <Stack.Screen component={TrialScreen} name="Trial" />
+  <Stack.Screen component={NewEntryScreen} name="NewEntry" />
+  <Stack.Screen component={CustomTypeScreen} name="CustomType" />
+  <Stack.Screen component={VersionHistoryScreen} name="SceneVersionHistory" />
+</>;
+
 export function AppNavigator({ onPairedSuccessfully }: AppNavigatorProps) {
+  const theme = useTheme();
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: PALETTE.bg },
-        headerTintColor: PALETTE.accent,
-        headerTitleStyle: { color: PALETTE.ink, fontWeight: "600" },
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: PALETTE.bg },
-      }}
-    >
-      <Stack.Screen
-        name="ProjectList"
-        component={ProjectListScreen}
-        options={{ title: "Your writing" }}
-      />
-      <Stack.Screen
-        name="ProjectBinder"
-        component={ProjectBinderScreen}
-        options={({ route }) => ({ title: route.params.projectTitle })}
-      />
-      <Stack.Screen
-        name="Scene"
-        component={SceneScreen}
-        options={({ route }) => ({ title: route.params.sceneTitle })}
-      />
-      <Stack.Screen name="Pair" options={{ title: "Pair with desktop" }}>
+    <Stack.Navigator initialRouteName="ProjectList" screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: theme.colors.parchment },
+      headerStyle: { backgroundColor: theme.colors.parchment },
+      headerTintColor: theme.colors.accent,
+      headerShadowVisible: false,
+    }}>
+      {STANDARD_SCREENS}
+      <Stack.Screen name="Pair" options={{ headerShown: true, title: "Pair with desktop" }}>
         {(props) => <PairScreen {...props} onPairedSuccessfully={onPairedSuccessfully} />}
       </Stack.Screen>
     </Stack.Navigator>
