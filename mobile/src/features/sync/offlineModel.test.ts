@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { BehindScene } from "../../shared/engine";
-import { behindCardModel, countDistinctQueueItems, formatLastSeen, formatQueueDepth } from "./offlineModel";
+import { behindCardModel, behindEntryModel, countDistinctQueueItems, formatLastSeen, formatQueueDepth } from "./offlineModel";
 
 const stamp = { n: 1, d: "device" };
 function behind(replacementReady: boolean): BehindScene {
@@ -34,5 +34,17 @@ describe("offline diagnostics", () => {
     expect(behindCardModel([])).toEqual({ kind: "not-behind", actions: [] });
     expect(behindCardModel([behind(true)])).toEqual({ kind: "staged-replacement", actions: ["catch-up", "review"] });
     expect(behindCardModel([behind(false)])).toEqual({ kind: "owner-absent", actions: [] });
+  });
+
+  it("routes the global entry point to a ready project when one exists", () => {
+    const waiting = { ...behind(false), projectId: "waiting", sceneId: "waiting-scene" };
+    const ready = { ...behind(true), projectId: "ready", sceneId: "ready-scene" };
+    expect(behindEntryModel([])).toBeNull();
+    expect(behindEntryModel([waiting, ready])).toEqual({
+      projectId: "ready", sceneCount: 1, actionLabel: "Catch up now",
+    });
+    expect(behindEntryModel([waiting])).toEqual({
+      projectId: "waiting", sceneCount: 1, actionLabel: "Review status",
+    });
   });
 });

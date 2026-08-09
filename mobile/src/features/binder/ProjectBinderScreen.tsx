@@ -3,13 +3,18 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { Badge, Icon } from "../../components";
+import { getBinderStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import type { Scene } from "../../shared/binderStore";
 import { STATUS_META } from "../../shared/status";
 import { subscribeMobileStructureChanged } from "../../sync/mobileEngine";
 import { PALETTE } from "../../theme/palette";
 import { useTheme } from "../../theme/ThemeProvider";
 import type { BinderChapter, BinderSceneItem } from "./binderQueries";
 import { listBinder } from "./binderQueries";
+import { SceneActionsSheet } from "./SceneActionsSheet";
+import { useBinderDrawerData } from "./useBinderDrawerData";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectBinder">;
 type LoadState = "loading" | "ready" | "error";
@@ -69,12 +74,16 @@ function ChapterHeader({ title }: { title: string }) {
   return <Text style={[styles.chapterHeader, { color: colors.accent }]}>{title}</Text>;
 }
 
-function SceneRow({ scene, onPress }: { scene: BinderSceneItem; onPress: () => void }) {
+function SceneRow({ scene, onLongPress, onPress }: {
+  scene: BinderSceneItem; onLongPress: () => void; onPress: () => void;
+}) {
   const colors = useBinderColors();
   const theme = useTheme();
   const meta = STATUS_META[scene.status];
   return (
-    <Pressable style={[styles.sceneRow, { backgroundColor: colors.card }]} onPress={onPress}>
+    <Pressable accessibilityLabel={scene.title} accessibilityRole="button" delayLongPress={360}
+      onLongPress={onLongPress} onPress={onPress}
+      style={({ pressed }) => [styles.sceneRow, { backgroundColor: colors.card }, pressed && styles.pressed]}>
       <View style={[styles.statusDot, { backgroundColor: theme.statusDot[scene.status] }]} />
       <View style={styles.sceneMain}>
         <Text style={[styles.sceneTitle, { color: colors.ink }]}>{scene.title}</Text>
@@ -93,47 +102,55 @@ function CenteredMessage({ children }: { children: ReactNode }) {
 }
 
 interface BinderContentProps {
+  archived: number;
   errorMessage: string;
   load: () => void;
+  onActions: (scene: BinderSceneItem) => void;
+  onOpenArchive: () => void;
   onOpenScene: (scene: BinderSceneItem) => void;
   rows: Row[];
   state: LoadState;
 }
 
-function BinderContent({ errorMessage, load, onOpenScene, rows, state }: BinderContentProps) {
+function BinderContent(props: BinderContentProps) {
   const colors = useBinderColors();
-  if (state === "loading") {
+  if (props.state === "loading") {
     return <CenteredMessage><ActivityIndicator color={colors.accent} /></CenteredMessage>;
   }
-  if (state === "error") {
+  if (props.state === "error") {
     return (
       <CenteredMessage>
         <Text style={[styles.errorText, { color: colors.ink }]}>Couldn&apos;t load this manuscript.</Text>
-        <Text style={[styles.errorDetail, { color: colors.inkMuted }]}>{errorMessage}</Text>
-        <Pressable style={[styles.retryButton, { backgroundColor: colors.accent }]} onPress={load}>
+        <Text style={[styles.errorDetail, { color: colors.inkMuted }]}>{props.errorMessage}</Text>
+        <Pressable style={[styles.retryButton, { backgroundColor: colors.accent }]} onPress={props.load}>
           <Text style={[styles.retryText, { color: colors.card }]}>Try again</Text>
         </Pressable>
       </CenteredMessage>
     );
   }
-  if (rows.length === 0) {
-    return <CenteredMessage><Text style={[styles.emptyText, { color: colors.inkMuted }]}>{EMPTY_COPY}</Text></CenteredMessage>;
-  }
   return (
-    <FlatList contentContainerStyle={styles.listContent} data={rows} keyExtractor={(row) => row.id}
+    <FlatList contentContainerStyle={[styles.listContent, props.rows.length === 0 && styles.emptyList]}
+      data={props.rows} keyExtractor={(row) => row.id}
+      ListEmptyComponent={<CenteredMessage><Text style={[styles.emptyText, { color: colors.inkMuted }]}>{EMPTY_COPY}</Text></CenteredMessage>}
+      ListFooterComponent={props.archived > 0 ? <Pressable accessibilityLabel={`Archived, ${props.archived}`}
+        accessibilityRole="button" onPress={props.onOpenArchive}
+        style={({ pressed }) => [styles.archiveFoot, { borderColor: colors.border }, pressed && styles.pressed]}>
+        <Icon color={colors.inkMuted} name="archive" size={17} />
+        <Text style={[styles.archiveText, { color: colors.inkMuted }]}>Archived</Text>
+        <Badge count={props.archived} />
+      </Pressable> : null}
       renderItem={({ item }) => item.kind === "header"
         ? <ChapterHeader title={item.title} />
-        : <SceneRow scene={item.scene} onPress={() => onOpenScene(item.scene)} />}
+        : <SceneRow scene={item.scene} onPress={() => props.onOpenScene(item.scene)}
+          onLongPress={() => props.onActions(item.scene)} />}
     />
   );
 }
 
-export function ProjectBinderScreen({ navigation, route }: Props) {
-  const { projectId } = route.params;
+function useBinderLoad(projectId: string) {
   const [state, setState] = useState<LoadState>("loading");
   const [rows, setRows] = useState<Row[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
-
   const onSuccess = useCallback((nextRows: Row[]) => {
     setRows(nextRows);
     setState("ready");
@@ -150,19 +167,49 @@ export function ProjectBinderScreen({ navigation, route }: Props) {
   useEffect(() => {
     fetchBinder(projectId, { onSuccess, onError });
   }, [onError, onSuccess, projectId]);
-
   // S4 step 5: a remote binder change for this project refetches the tree.
   useEffect(() => subscribeMobileStructureChanged(load), [load]);
+  return { errorMessage, load, onError, onSuccess, rows, state };
+}
 
+export function ProjectBinderScreen({ navigation, route }: Props) {
+  const { projectId } = route.params;
+  const binder = useBinderLoad(projectId);
+  const [actionScene, setActionScene] = useState<Scene | null>(null);
+  const drawerData = useBinderDrawerData(projectId);
+  const reloadDrawer = drawerData.reload;
   const onOpenScene = useCallback((scene: BinderSceneItem) => {
     navigation.navigate("Scene", { projectId, sceneId: scene.id, sceneTitle: scene.title });
   }, [navigation, projectId]);
+  const refresh = useCallback(() => {
+    fetchBinder(projectId, { onSuccess: binder.onSuccess, onError: binder.onError });
+    reloadDrawer();
+  }, [binder.onError, binder.onSuccess, projectId, reloadDrawer]);
+  const onActions = useCallback((scene: BinderSceneItem) => {
+    const loaded = drawerData.scenes.find(({ id }) => id === scene.id);
+    if (loaded) { setActionScene(loaded); return; }
+    void getBinderStore().then((store) => store.loadProject(projectId))
+      .then((data) => { setActionScene(data.scenes.find(({ id }) => id === scene.id) ?? null); });
+  }, [drawerData.scenes, projectId]);
+  const afterDelete = useCallback(() => {
+    setActionScene(null);
+    refresh();
+  }, [refresh]);
 
-  return <BinderContent {...{ errorMessage, load, onOpenScene, rows, state }} />;
+  return <>
+    <BinderContent archived={drawerData.archived} errorMessage={binder.errorMessage} load={binder.load}
+      onActions={onActions} onOpenArchive={() => navigation.navigate("Archive", { projectId })}
+      onOpenScene={onOpenScene} rows={binder.rows} state={binder.state} />
+    <SceneActionsSheet key={actionScene?.id ?? "none"} open={actionScene !== null}
+      projectId={projectId} scene={actionScene} labels={drawerData.labels}
+      assigned={actionScene ? drawerData.sceneLabels[actionScene.id] ?? [] : []}
+      onDismiss={() => { setActionScene(null); }} onChanged={refresh} onDeleted={afterDelete} />
+  </>;
 }
 
 const styles = StyleSheet.create({
   listContent: { padding: 16, paddingBottom: 32 },
+  emptyList: { flexGrow: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   chapterHeader: {
     fontSize: 12,
@@ -186,6 +233,12 @@ const styles = StyleSheet.create({
   sceneSynopsis: { fontSize: 13, lineHeight: 18 },
   sceneStatusLabel: { fontSize: 11, fontWeight: "600" },
   sceneWords: { fontSize: 12, fontVariant: ["tabular-nums"] },
+  pressed: { opacity: 0.72 },
+  archiveFoot: {
+    minHeight: 64, marginTop: 16, paddingHorizontal: 14, borderTopWidth: 1,
+    flexDirection: "row", alignItems: "center", gap: 9,
+  },
+  archiveText: { flex: 1, fontSize: 14, fontWeight: "600" },
   emptyText: { fontSize: 15, textAlign: "center", lineHeight: 22 },
   errorText: { fontSize: 16, fontWeight: "600" },
   errorDetail: { fontSize: 13, textAlign: "center" },

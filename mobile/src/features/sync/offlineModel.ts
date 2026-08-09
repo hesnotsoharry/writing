@@ -65,3 +65,21 @@ export function behindCardModel(behind: readonly BehindScene[]): BehindCardModel
   }
   return { kind: "owner-absent", actions: [] };
 }
+
+export interface BehindEntryModel {
+  projectId: string;
+  sceneCount: number;
+  actionLabel: "Catch up now" | "Review status";
+}
+
+export function behindEntryModel(behind: readonly BehindScene[]): BehindEntryModel | null {
+  const target = behind.find(({ replacementReady }) => replacementReady) ?? behind[0];
+  if (!target) return null;
+  const scenes = behind.filter(({ projectId }) => projectId === target.projectId);
+  return {
+    projectId: target.projectId,
+    sceneCount: scenes.length,
+    actionLabel: scenes.some(({ replacementReady }) => replacementReady)
+      ? "Catch up now" : "Review status",
+  };
+}

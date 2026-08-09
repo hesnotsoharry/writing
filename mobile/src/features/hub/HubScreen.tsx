@@ -49,7 +49,7 @@ function ResumeCard({ primary, recent, onOpen }: { primary: HubSceneModel; recen
   );
 }
 
-function GoalCards({ goal }: { goal: HubGoalModel }) {
+function GoalCards({ goal, onPress }: { goal: HubGoalModel; onPress: () => void }) {
   const theme = useTheme();
   const progress = goal.target && goal.current !== null ? goal.current / goal.target : 0;
   const goalFigure = goal.target === null ? "No daily goal" : `${goal.target.toLocaleString()} word goal`;
@@ -57,8 +57,14 @@ function GoalCards({ goal }: { goal: HubGoalModel }) {
   const streakFigure = goal.streak === null ? "Not set" : String(goal.streak);
   return (
     <View style={styles.statsRow}>
-      <Card style={styles.statCard}><Ring progress={progress} /><View style={styles.statCopy}><Text style={[styles.goalFigure, { color: theme.colors.ink }]}>{goalFigure}</Text><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{goalCaption}</Text></View></Card>
-      <Card style={styles.statCard}><Icon color={theme.colors.accent} name="flame" size={26} /><View style={styles.statCopy}><Text style={[styles.streakFigure, { color: theme.colors.ink }]}>{streakFigure}</Text><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>streak</Text></View></Card>
+      <Pressable accessibilityLabel={`Goals: ${goalFigure}, ${goalCaption}`} accessibilityRole="button"
+        onPress={onPress} style={({ pressed }) => [styles.statPressable, pressed && styles.pressed]}>
+        <Card style={styles.statCard}><Ring progress={progress} /><View style={styles.statCopy}><Text style={[styles.goalFigure, { color: theme.colors.ink }]}>{goalFigure}</Text><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{goalCaption}</Text></View></Card>
+      </Pressable>
+      <Pressable accessibilityLabel={`Goals: ${streakFigure} streak`} accessibilityRole="button"
+        onPress={onPress} style={({ pressed }) => [styles.statPressable, pressed && styles.pressed]}>
+        <Card style={styles.statCard}><Icon color={theme.colors.accent} name="flame" size={26} /><View style={styles.statCopy}><Text style={[styles.streakFigure, { color: theme.colors.ink }]}>{streakFigure}</Text><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>streak</Text></View></Card>
+      </Pressable>
     </View>
   );
 }
@@ -68,7 +74,8 @@ interface DeskTileProps { title: string; count: string; icon: IconName; color: s
 function DeskTile(props: DeskTileProps) {
   const theme = useTheme();
   return (
-    <Pressable onPress={props.onPress} style={[styles.tile, { backgroundColor: theme.colors.paper, borderColor: theme.colors.line }]}>
+    <Pressable accessibilityLabel={props.title} accessibilityRole="button" onPress={props.onPress}
+      style={({ pressed }) => [styles.tile, { backgroundColor: theme.colors.paper, borderColor: theme.colors.line }, pressed && styles.pressed]}>
       <View style={styles.tileIcon}><Icon color={props.color} name={props.icon} size={19} />{props.badge !== undefined && props.badge > 0 && <View style={styles.badge}><Badge count={props.badge} /></View>}</View>
       <Text style={[styles.tileTitle, { color: theme.colors.ink }]}>{props.title}</Text>
       <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{props.count}</Text>
@@ -105,7 +112,7 @@ function HubContent({ model, navigation, projectId, projectTitle }: { model: Hub
       <ScrollView contentContainerStyle={styles.scroll}>
         <HubHeader onSettings={() => navigation.navigate("Settings", { projectId })} onSwitchProject={() => navigation.navigate("ProjectList")} projectTitle={projectTitle} subtitle={`${model.totalWords.toLocaleString()} words · synced`} trialStatusSlot={daysLeft === null ? undefined : <TrialStatusPill daysLeft={daysLeft} onPress={() => navigation.navigate("Trial", { projectId, projectTitle })} />} />
         {model.primaryScene && <ResumeCard onOpen={(scene) => openEditor(navigation, projectId, projectTitle, scene)} primary={model.primaryScene} recent={model.recentScenes} />}
-        <GoalCards goal={model.goal} />
+        <GoalCards goal={model.goal} onPress={() => navigation.navigate("Goals", { projectId })} />
         <View style={styles.desk}><SectionLabel>The desk</SectionLabel><DeskGrid model={model} navigation={navigation} projectId={projectId} projectTitle={projectTitle} /></View>
       </ScrollView>
       <HubFooter onCapture={() => navigation.navigate("Inbox", { projectId })} onSearch={() => navigation.navigate("Search", { projectId, projectTitle })} />
@@ -142,13 +149,15 @@ const styles = StyleSheet.create({
   sceneDot: { width: 7, height: 7, borderRadius: RADIUS.pill },
   chipText: { flex: 1 },
   statsRow: { flexDirection: "row", gap: SPACE.s3, marginTop: 14 },
-  statCard: { minHeight: 74, flex: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: SPACE.s3 },
+  statPressable: { flex: 1 },
+  statCard: { minHeight: 74, padding: 14, flexDirection: "row", alignItems: "center", gap: SPACE.s3 },
   statCopy: { flex: 1 },
   goalFigure: { ...TYPE.numeric, fontSize: 14 },
   streakFigure: { ...TYPE.numeric, fontSize: 20, lineHeight: 23 },
   desk: { marginTop: 20, gap: 10 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
   tile: { minHeight: 82, width: "31.5%", borderWidth: 1, borderRadius: 13, paddingHorizontal: 11, paddingVertical: 12 },
+  pressed: { opacity: 0.72 },
   tileIcon: { position: "relative", alignSelf: "flex-start" },
   badge: { position: "absolute", left: 14, top: -8 },
   tileTitle: { ...TYPE.bodySmallStrong, fontSize: 13, marginTop: 7 },

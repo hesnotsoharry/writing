@@ -1,4 +1,4 @@
-import { NavigationContainer } from "@react-navigation/native";
+import { createNavigationContainerRef, NavigationContainer } from "@react-navigation/native";
 import { ShareIntentProvider } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
@@ -10,7 +10,9 @@ import { useAppFonts } from "./components/useAppFonts";
 import { assertDbReady } from "./db/database";
 import { ShareIntentCapture } from "./features/inbox/ShareIntentCapture";
 import { ActivationGate, TrialDaysProvider, useMobileLicenseGate } from "./features/license";
+import { BehindSyncBanner } from "./features/sync";
 import { AppNavigator } from "./navigation/AppNavigator";
+import type { RootStackParamList } from "./navigation/routes";
 import type { SyncStatus } from "./shared/engine";
 import { SyncEngine } from "./shared/engine";
 import { mobileEngine, startMobileEngine } from "./sync/mobileEngine";
@@ -26,6 +28,7 @@ const OFF_STATUS: SyncStatus = {
   queue: { scenes: 0, notes: 0, boards: 0, rows: 0 },
   behind: [],
 };
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 function syncStatusLine(status: SyncStatus): string {
   const peer = status.peerSeen ? "seen" : "none";
@@ -106,7 +109,12 @@ function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTree
   return (
     <View style={[styles.root, background]}>
       <StatusBar style={statusStyle} />
-      <TrialDaysProvider daysLeft={gate.daysLeft}><NavigationContainer><AppNavigator onPairedSuccessfully={onPaired} /></NavigationContainer></TrialDaysProvider>
+      <TrialDaysProvider daysLeft={gate.daysLeft}>
+        <NavigationContainer ref={navigationRef}><AppNavigator onPairedSuccessfully={onPaired} /></NavigationContainer>
+        <BehindSyncBanner behind={syncStatus.behind ?? []} onOpen={(projectId) => {
+          if (navigationRef.isReady()) navigationRef.navigate("OfflineCatchUp", { projectId });
+        }} />
+      </TrialDaysProvider>
       <DevFooter dbLine={dbLine} status={syncStatus} />
     </View>
   );
