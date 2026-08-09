@@ -59,6 +59,15 @@ describe("sceneEditorState", () => {
     })).toBe(retried);
   });
 
+  it("remounts after a durable scene replacement", () => {
+    const editable = readyState("old-session");
+    const restarted = reduceSceneEditor(editable, { type: "scene-replaced" });
+    expect(restarted).toMatchObject({
+      phase: "waiting-ready", sessionId: null, invalidSessionId: "old-session",
+      webViewKey: editable.webViewKey + 1,
+    });
+  });
+
   it("allows detach after flush or proof that no local work is pending", () => {
     expect(canNavigateAfterFlush({ status: "flushed" })).toBe(true);
     expect(canNavigateAfterFlush({ status: "unavailable", pendingLocal: false })).toBe(true);

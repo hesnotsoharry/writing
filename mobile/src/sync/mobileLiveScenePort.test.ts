@@ -11,6 +11,8 @@ import type { SceneDocStore } from "../shared/sceneDocStore";
 import { encodeDoc, extractPlainText } from "../shared/serialize";
 import {
   createMobileLiveScenePort, type MobileLiveScenePort, type MobileLiveSceneTransport,
+  PendingMobileSceneChangesError, replaceActiveMobileSceneDurably,
+  subscribeMobileSceneReplaced,
 } from "./mobileLiveScenePort";
 
 const SCENE_ID = "scene-1";
@@ -249,9 +251,19 @@ describe("MobileLiveScenePort flush, close, and replacement", () => {
     await expect(flushing).resolves.toEqual({ status: "flushed" });
   });
 
-  it("times out with pending local work and keeps the port attached on close", async () => {
+  it("does not call a freshly hydrated editor dirty when a flush times out", async () => {
     vi.useFakeTimers();
     const ctx = makeHarness(); await hydrateWithTimers(ctx.port, ctx.transport);
+    const closing = ctx.port.close(); await settle();
+    await vi.advanceTimersByTimeAsync(100);
+    await expect(closing).resolves.toEqual({ status: "timed-out", pendingLocal: false });
+    expect(ctx.engine.detachLiveScenePort).toHaveBeenCalledWith(ctx.port);
+  });
+
+  it("keeps the port attached when local activity has not reached a flush ACK", async () => {
+    vi.useFakeTimers();
+    const ctx = makeHarness(); await hydrateWithTimers(ctx.port, ctx.transport);
+    await ctx.port.receive(localUpdate(1, appendUpdate(ctx.store.state!, " local")));
     const closing = ctx.port.close(); await settle();
     await vi.advanceTimersByTimeAsync(100);
     await expect(closing).resolves.toEqual({ status: "timed-out", pendingLocal: true });
@@ -285,6 +297,77 @@ describe("MobileLiveScenePort flush, close, and replacement", () => {
     const posted = ctx.transport.messages().at(-1);
     expect(posted).toMatchObject({ type: "replace", update: replacement });
     expect(ctx.transport.messages().filter((message) => message?.type === "update")).toHaveLength(1);
+  });
+
+  it("flushes pending prose before the safety write and rejects stale-doc updates during restore", async () => {
+    const ctx = makeHarness("current"); await hydrate(ctx.port, ctx.transport);
+    ctx.port.notePotentialLocalChanges();
+    const replacement = encodeDoc(textDoc("restored"));
+    let safetyText = "";
+    const restoring = replaceActiveMobileSceneDurably(SCENE_ID, replacement, async () => {
+      safetyText = extractStored(ctx.store);
+      ctx.store.state = replacement;
+      ctx.events.push("epoch");
+    });
+    await settle();
+    const flushSeq = lastStateSeq(ctx.transport);
+    await ctx.port.receive(localUpdate(1, appendUpdate(ctx.store.state!, " pending")));
+    await ctx.port.receive(ack(flushSeq, "flush"));
+    await settle();
+    expect(safetyText).toBe("current pending");
+    expect(ctx.transport.messages().at(-1)).toMatchObject({ type: "replace", update: replacement });
+    const replaceSeq = lastStateSeq(ctx.transport);
+
+    await ctx.port.receive(ack(replaceSeq, "replace"));
+    await expect(restoring).resolves.toBeUndefined();
+    await ctx.port.receive(localUpdate(2, appendUpdate(encodeDoc(textDoc("current pending")), " stale")));
+    expect(extractStored(ctx.store)).toBe("restored");
+  });
+
+  it("restores a freshly hydrated covered editor without classifying hydration as pending", async () => {
+    const ctx = makeHarness("current"); await hydrateWithTimers(ctx.port, ctx.transport);
+    ctx.transport.unavailable = true;
+    const replacement = encodeDoc(textDoc("restored"));
+    const replaced: string[] = [];
+    const unsubscribe = subscribeMobileSceneReplaced((sceneId) => replaced.push(sceneId));
+    const restoring = replaceActiveMobileSceneDurably(SCENE_ID, replacement, async () => {
+      ctx.store.state = replacement;
+    });
+    await expect(restoring).resolves.toBeUndefined();
+    expect(extractStored(ctx.store)).toBe("restored");
+    expect(replaced).toEqual([SCENE_ID]);
+
+    await ctx.port.receive(localUpdate(1, appendUpdate(encodeDoc(textDoc("current")), " stale")));
+    expect(extractStored(ctx.store)).toBe("restored");
+    ctx.transport.unavailable = false;
+    const remounting = ctx.port.receive(webMessage({ type: "ready", sessionId: "session-2" }));
+    await settle();
+    expect(ctx.transport.messages().at(-1)).toMatchObject({
+      type: "hydrate", sessionId: "session-2", update: replacement,
+    });
+    await ctx.port.receive(webMessage({
+      type: "ack", sessionId: "session-2", sceneId: SCENE_ID,
+      seq: lastStateSeq(ctx.transport), ackType: "hydrate",
+    }));
+    await remounting;
+    await ctx.port.receive(localUpdate(1, appendUpdate(replacement, " old-session")));
+    expect(extractStored(ctx.store)).toBe("restored");
+    unsubscribe();
+  });
+
+  it("blocks a timed-out restore only after actual local activity", async () => {
+    vi.useFakeTimers();
+    const ctx = makeHarness("current"); await hydrateWithTimers(ctx.port, ctx.transport);
+    await ctx.port.receive(localUpdate(1, appendUpdate(ctx.store.state!, " edit")));
+    const persist = vi.fn(async () => undefined);
+    const restoring = replaceActiveMobileSceneDurably(
+      SCENE_ID, encodeDoc(textDoc("restored")), persist,
+    );
+    const rejection = expect(restoring).rejects.toBeInstanceOf(PendingMobileSceneChangesError);
+    await settle();
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
+    expect(persist).not.toHaveBeenCalled();
   });
 });
 

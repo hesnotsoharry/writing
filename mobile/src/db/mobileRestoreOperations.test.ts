@@ -117,7 +117,9 @@ describe("mobile guarded restore operations", () => {
     const sceneId = await binder.createScene({ projectId, folderId: null, title: "Scene" });
     const docs = new MobileSceneDocStore(db); await docs.save(sceneId, sceneDoc("restored"), null);
     const owner = new MobileEpochOwner(db, docs);
-    const stamp = await owner.replaceThroughEpoch({ projectId, sceneId, stateBase64: sceneDoc("restored") });
+    const stamp = await owner.replaceThroughEpoch({
+      projectId, sceneId, stateBase64: sceneDoc("restored"), plaintext: "restored",
+    });
     const manager = new EpochManager({
       sceneStore: docs, epochStore: new MobileEpochStore(db), updateWordCount: async () => undefined,
     });
@@ -129,6 +131,7 @@ describe("mobile guarded restore operations", () => {
     expect(stamp.n).toBe(1);
     expect(manager.accepts(sceneId, 0)).toBe(false);
     expect(textOf((await docs.load(sceneId)) ?? "")).toBe("restored");
+    expect(await docs.loadProjection(sceneId)).toBe("restored");
     const outbox = await db.select<{ domain: string; item_id: string }[]>(
       "SELECT domain, item_id FROM sync_outbox ORDER BY created_at, id",
     );

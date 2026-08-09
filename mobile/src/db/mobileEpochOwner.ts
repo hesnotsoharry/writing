@@ -14,6 +14,7 @@ export interface EpochReplacement {
   projectId: string;
   sceneId: string;
   stateBase64: string | null;
+  plaintext?: string | null;
 }
 
 /** Owns the mobile side of a local restore: wholesale bytes, owned epoch, durable delivery. */
@@ -29,7 +30,7 @@ export class MobileEpochOwner {
 
   async replaceThroughEpoch(input: EpochReplacement): Promise<EpochStamp> {
     const stateBase64 = input.stateBase64 ?? encodeDoc(new Y.Doc());
-    await this.scenes.save(input.sceneId, stateBase64, null);
+    await this.scenes.save(input.sceneId, stateBase64, input.plaintext ?? null);
     const deviceId = await getOrCreateMobileDeviceId();
     let stamp: EpochStamp | null = null;
     await withMobileProjectMeta(input.projectId, (doc) => {

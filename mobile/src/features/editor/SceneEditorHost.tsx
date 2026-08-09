@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
@@ -7,7 +8,7 @@ import type { LiveSceneFlushResult } from "../../shared/engine";
 import { parseWebViewMessage } from "../../shared/mobileEditorBridgeProtocol";
 import { createMobileLiveScenePort, subscribeMobileDocReplaced } from "../../sync/mobileEngine";
 import {
-  type MobileLiveScenePort,
+  type MobileLiveScenePort, subscribeMobileSceneReplaced,
 } from "../../sync/mobileLiveScenePort";
 import { useTheme } from "../../theme/ThemeProvider";
 import { copyText } from "../ai/mobileClipboard";
@@ -140,6 +141,7 @@ interface EditorSurfaceProps {
   formatState: ReturnType<typeof deriveFormatBarState>;
   bindWebView(view: WebView | null): void;
   onMessage(event: WebViewMessageEvent): void;
+  onPotentialEdit(): void;
   onCommand(command: EditorCommandName): void;
   onRequestEntityLink?(): void;
   onRequestAi?(): void;
@@ -151,7 +153,7 @@ function isLocalNavigation(request: { url: string }, localUri: string): boolean 
 }
 
 function EditorSurface({
-  bindWebView, formatState, localUri, onCommand, onFailed, onMessage,
+  bindWebView, formatState, localUri, onCommand, onFailed, onMessage, onPotentialEdit,
   onRequestAi, onRequestEntityLink, onRetry, onStay, onTerminated, phase, webViewKey, wordCount,
 }: EditorSurfaceProps) {
   const theme = useTheme();
@@ -164,6 +166,7 @@ function EditorSurface({
       // Seed the theme before the first paint, and forward otherwise invisible
       // WebView errors so a broken handshake remains diagnosable from a device.
       injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
+      onTouchStart={onPotentialEdit}
       onHttpError={(event) => {
         console.error("[editor] webview httpError", JSON.stringify(event.nativeEvent));
       }}
@@ -290,6 +293,8 @@ export function SceneEditorHost({
   useEditorTheme(ui, colors);
   useFocusUi({ ui, focus, activeParagraph: selection?.from, wordCount, onWordCountChange });
   usePortLifecycle(port, localUri, dispatch);
+  useFocusEffect(useCallback(() => () => { void port.flushLocal(); }, [port]));
+  useEffect(() => subscribeMobileSceneReplaced((id) => { if (id === sceneId) dispatch({ type: "scene-replaced" }); }), [sceneId]);
   useHandshakeTimeout(state.phase, dispatch);
   useEffect(() => { if (state.phase === "fallback") void port.close(); }, [port, state.phase]);
   // Tell the screen whether the editor gave up, so it can show the read-only
@@ -304,6 +309,7 @@ export function SceneEditorHost({
   return <EditorSurface localUri={localUri} webViewKey={state.webViewKey} phase={state.phase}
     wordCount={wordCount} formatState={deriveFormatBarState(selection)} bindWebView={transport.bind}
     onMessage={(event) => { void onMessage(event); }} onCommand={(command) => { ui.command(command); }}
+    onPotentialEdit={() => port.notePotentialLocalChanges()}
     onRequestEntityLink={onRequestEntityLink
       ? () => { onRequestEntityLink(selection); } : undefined}
     onRequestAi={onRequestSelectionActions

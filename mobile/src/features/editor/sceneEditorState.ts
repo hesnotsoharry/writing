@@ -20,6 +20,7 @@ export type SceneEditorAction =
   | { type: "hydrate-acked"; sessionId: string }
   | { type: "editor-failed" }
   | { type: "process-terminated" }
+  | { type: "scene-replaced" }
   | { type: "save-started" }
   | { type: "save-finished"; result: LiveSceneFlushResult }
   | { type: "save-stayed" };
@@ -109,6 +110,7 @@ function reduceLifecycle(
 ): SceneEditorState {
   if (action.type === "editor-failed") return failOrRestart(state);
   if (action.type === "process-terminated") return failOrRestart(state);
+  if (action.type === "scene-replaced") return failOrRestart(state);
   if (action.type === "save-started") return { ...state, phase: "saving" };
   if (action.type === "save-finished") return finishSave(state, action.result);
   if (action.type === "save-stayed") return { ...state, phase: "editable" };

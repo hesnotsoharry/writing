@@ -34,7 +34,7 @@ export class MobileSceneDocStore implements SceneDocStore {
   async save(sceneId: string, base64: string, plaintext: string | null): Promise<void> {
     const db = await this.client();
     const updatedAt = new Date().toISOString();
-    if (plaintext !== null && plaintext.length > 0) {
+    if (plaintext !== null) {
       await db.execute(
         `INSERT INTO scene_docs (scene_id, state_base64, plaintext_projection, updated_at)
          VALUES ($1, $2, $3, $4)

@@ -1,14 +1,11 @@
 import { fromUint8Array, toUint8Array } from "js-base64";
 import * as Y from "yjs";
 
-import type {
-  EngineLiveScenePort, LiveSceneFlushResult, SyncEngine,
-} from "../shared/engine";
+import type { EngineLiveScenePort, LiveSceneFlushResult, SyncEngine } from "../shared/engine";
 import {
   type AckMessage, type BridgeAckType, type BridgeErrorCode,
   MOBILE_EDITOR_BRIDGE_VERSION, type NativeToWebViewMessage,
-  parseWebViewMessage, serializeBridgeMessage, type UpdateMessage,
-  type WebViewToNativeMessage,
+  parseWebViewMessage, serializeBridgeMessage, type UpdateMessage, type WebViewToNativeMessage,
 } from "../shared/mobileEditorBridgeProtocol";
 import type { SceneDocStore } from "../shared/sceneDocStore";
 import { encodeDoc, extractPlainText } from "../shared/serialize";
@@ -17,20 +14,13 @@ export const MOBILE_LIVE_SCENE_ACK_TIMEOUT_MS = 5_000;
 
 export interface MobileLiveSceneTransport { postMessage(message: string): void }
 
-export interface MobileLiveScenePortOptions {
-  sceneId: string; transport: MobileLiveSceneTransport;
-  ackTimeoutMs?: number;
-}
+export interface MobileLiveScenePortOptions { sceneId: string; transport: MobileLiveSceneTransport; ackTimeoutMs?: number }
 
-export interface MobileLiveScenePort extends EngineLiveScenePort {
-  start(): Promise<void>; receive(rawMessage: string): Promise<void>;
-  close(): Promise<LiveSceneFlushResult>;
-}
+export interface MobileLiveScenePort extends EngineLiveScenePort { start(): Promise<void>; receive(rawMessage: string): Promise<void>; notePotentialLocalChanges(): void; close(): Promise<LiveSceneFlushResult>; replaceDurably(stateBase64: string, persist: () => Promise<void>): Promise<void> }
 
-type PortEngine = Pick<
-  SyncEngine,
-  "attachLiveScenePort" | "detachLiveScenePort" | "notifyLocalSave" | "publishLiveUpdate"
->;
+export class PendingMobileSceneChangesError extends Error { constructor() { super("The editor still has changes to save."); this.name = "PendingMobileSceneChangesError"; } }
+
+type PortEngine = Pick<SyncEngine, "attachLiveScenePort" | "detachLiveScenePort" | "notifyLocalSave" | "publishLiveUpdate">;
 
 export interface MobileLiveSceneDependencies {
   engine: PortEngine; sceneStore: SceneDocStore;
@@ -99,14 +89,14 @@ class StateSender {
     void this.enqueue("update", encoded);
   }
 
-  enqueueReplace(stateBase64: string): void {
+  enqueueReplace(stateBase64: string): Promise<DeliveryResult> {
     for (let index = this.queued.length - 1; index >= 0; index -= 1) {
       const item = this.queued[index];
       if (item?.type !== "update") continue;
       this.queued.splice(index, 1);
       item.resolve("unavailable");
     }
-    void this.enqueue("replace", stateBase64);
+    return this.enqueue("replace", stateBase64);
   }
 
   handleAck(message: AckMessage): void {
@@ -181,7 +171,8 @@ class NativeMobileLiveScenePort implements MobileLiveScenePort {
   private sessionId: string | null = null;
   private nextWebSeq = 1;
   private readonly localResults = new Map<number, Promise<AckMessage | null>>();
-  private hydrated = false;
+  private hydrated = false; private unflushedLocal = false; private replacing = false;
+  private flushInFlight: Promise<LiveSceneFlushResult> | null = null;
 
   constructor(
     private readonly options: MobileLiveScenePortOptions,
@@ -194,6 +185,7 @@ class NativeMobileLiveScenePort implements MobileLiveScenePort {
   }
 
   async start(): Promise<void> {
+    activeMobileScene = { sceneId: this.options.sceneId, port: this };
     this.dependencies.engine.attachLiveScenePort(this.options.sceneId, this);
   }
 
@@ -222,23 +214,31 @@ class NativeMobileLiveScenePort implements MobileLiveScenePort {
     } catch { this.postError("persist-failed"); }
   }
 
+  notePotentialLocalChanges(): void { if (this.hydrated && !this.replacing) this.unflushedLocal = true; }
+
   async flushLocal(): Promise<LiveSceneFlushResult> {
-    if (!this.sender.hasSession()) return { status: "unavailable", pendingLocal: false };
-    const wrapped = await this.queue.run(() => ({ completion: this.sender.enqueue("flush") }));
-    const result = await wrapped.completion;
-    if (result === "acked") return { status: "flushed" };
-    return { status: result, pendingLocal: this.hydrated };
+    if (this.flushInFlight) return this.flushInFlight;
+    this.flushInFlight = this.performFlush();
+    try { return await this.flushInFlight; } finally { this.flushInFlight = null; }
   }
 
-  async replaceFromState(stateBase64: string): Promise<void> {
-    await this.queue.run(() => { this.sender.enqueueReplace(stateBase64); });
+  private async performFlush(): Promise<LiveSceneFlushResult> {
+    if (!this.sender.hasSession()) return { status: "unavailable", pendingLocal: this.unflushedLocal };
+    const wrapped = await this.queue.run(() => ({ completion: this.sender.enqueue("flush") }));
+    const result = await wrapped.completion;
+    if (result === "acked") { this.unflushedLocal = false; return { status: "flushed" }; }
+    return { status: result, pendingLocal: this.unflushedLocal };
   }
+
+  async replaceFromState(stateBase64: string): Promise<void> { await this.queue.run(() => { void this.sender.enqueueReplace(stateBase64); }); }
+
+  async replaceDurably(stateBase64: string, persist: () => Promise<void>): Promise<void> { if (this.unflushedLocal) { const flush = await this.flushLocal(); if (flush.status !== "flushed" && flush.pendingLocal) throw new PendingMobileSceneChangesError(); } await this.deliverReplacement(stateBase64, persist); }
 
   async close(): Promise<LiveSceneFlushResult> {
     const result = await this.flushLocal();
     await this.queue.drain();
     if (result.status === "flushed" || !result.pendingLocal) {
-      this.dependencies.engine.detachLiveScenePort(this);
+      this.dependencies.engine.detachLiveScenePort(this); if (activeMobileScene?.port === this) activeMobileScene = null;
     }
     return result;
   }
@@ -257,8 +257,11 @@ class NativeMobileLiveScenePort implements MobileLiveScenePort {
         return this.sender.enqueue("hydrate", state);
       });
       this.hydrated = await result === "acked";
+      if (this.hydrated) { this.unflushedLocal = false; this.replacing = false; }
     } catch { this.postError("persist-failed"); }
   }
+
+  private async deliverReplacement(stateBase64: string, persist: () => Promise<void>): Promise<void> { this.replacing = true; await this.queue.run(async () => { await persist(); void this.sender.enqueueReplace(stateBase64); }); }
 
   private hasMatchingEnvelope(message: Exclude<WebViewToNativeMessage, { type: "ready" }>): boolean {
     if (message.sessionId !== this.sessionId) { this.postError("session-mismatch", message.seq); return false; }
@@ -271,6 +274,8 @@ class NativeMobileLiveScenePort implements MobileLiveScenePort {
     const prior = this.localResults.get(message.seq);
     if (message.seq < this.nextWebSeq) { if (prior) await this.repeatResult(prior); return; }
     this.nextWebSeq += 1;
+    if (this.replacing) { const discarded = Promise.resolve(this.makeAck(message.seq, "update")); this.localResults.set(message.seq, discarded); await this.repeatResult(discarded); return; }
+    this.unflushedLocal = true;
     const result = this.queue.run(() => this.persistAndPublish(message));
     this.localResults.set(message.seq, result);
     const ack = await result;
@@ -338,9 +343,12 @@ function encodeBytes(update: Uint8Array): string { return fromUint8Array(update)
 
 function countWords(text: string): number { return text.trim().split(/\s+/).filter(Boolean).length; }
 
-export function createMobileLiveScenePort(
-  options: MobileLiveScenePortOptions,
-  dependencies: MobileLiveSceneDependencies,
-): MobileLiveScenePort {
-  return new NativeMobileLiveScenePort(options, dependencies);
-}
+export function createMobileLiveScenePort(options: MobileLiveScenePortOptions, dependencies: MobileLiveSceneDependencies): MobileLiveScenePort { return new NativeMobileLiveScenePort(options, dependencies); }
+
+let activeMobileScene: { sceneId: string; port: MobileLiveScenePort } | null = null;
+
+const replacementListeners = new Set<(sceneId: string) => void>();
+
+export function subscribeMobileSceneReplaced(listener: (sceneId: string) => void): () => void { replacementListeners.add(listener); return () => replacementListeners.delete(listener); }
+
+export async function replaceActiveMobileSceneDurably(sceneId: string, stateBase64: string, persist: () => Promise<void>): Promise<void> { const active = activeMobileScene; if (!active || active.sceneId !== sceneId) await persist(); else await active.port.replaceDurably(stateBase64, persist); replacementListeners.forEach((listener) => listener(sceneId)); }
