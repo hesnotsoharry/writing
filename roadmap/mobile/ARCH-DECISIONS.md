@@ -128,12 +128,12 @@ entitlement handoff, but mobile activates it itself and persists its own
 returned instance id. Trial timestamps transfer as a monotonic merge (earliest
 `trialStartedAt`, latest `lastSeenAt`) so pairing cannot reset the trial.
 
-**Two things Cole must confirm before this ships** — neither blocks
-implementation:
-1. The live Lemon Squeezy activation limit is ≥ 2. The repo's launch checklist
-   says 3 (laptop + desktop + reinstall), but the production dashboard setting
-   is not provable from code.
-2. App Store / Play policy on activating an externally purchased license.
+**Activation limit is 3** — Cole-confirmed 2026-08-08 against the live Lemon
+Squeezy product, matching the launch checklist. Desktop + phone + one reinstall
+fits, so "one license covers both devices" is honest copy.
+
+Still open, not blocking implementation: App Store / Play policy on activating
+an externally purchased license.
 
 ## D10 — Protocol v1.3; the outer frame stays `v: 1`
 
