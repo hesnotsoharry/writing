@@ -1,6 +1,6 @@
-import type { Node as ProseMirrorNode } from "../../../node_modules/@tiptap/pm/model";
-import { Plugin, PluginKey } from "../../../node_modules/@tiptap/pm/state";
-import { Decoration, DecorationSet } from "../../../node_modules/@tiptap/pm/view";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 export interface FocusDecorationState {
   enabled: boolean; dimParagraphs: boolean; typewriter: boolean; activeParagraph: number | null;

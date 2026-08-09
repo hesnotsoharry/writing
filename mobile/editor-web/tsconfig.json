@@ -16,6 +16,7 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["vite/client"],
     "paths": {
+      "@tiptap/*": ["../node_modules/@tiptap/*"],
       "@writersnook/*": ["../../src/*"]
     }
   },

@@ -109,7 +109,9 @@ function walk(entries: readonly string[] = ENTRY_POINTS): Violation[] {
 }
 
 describe("portable boundary", () => {
-  it("no module reachable from the mobile entry points imports a desktop-only package", () => {
+  // Filesystem walk over the whole import graph — slow under emulator/Metro
+  // load, so it gets a real budget instead of the 5 s default.
+  it("no module reachable from the mobile entry points imports a desktop-only package", { timeout: 30_000 }, () => {
     const violations = walk();
     const report = violations
       .map((v) => `${path.relative(REPO_ROOT, v.file)} imports ${v.specifier}\n  via ${

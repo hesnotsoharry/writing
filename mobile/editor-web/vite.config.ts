@@ -24,6 +24,9 @@ export default defineConfig({
       "@tiptap/extension-collaboration",
       "@tiptap/extension-highlight",
       "@tiptap/extensions",
+      "prosemirror-model",
+      "prosemirror-state",
+      "prosemirror-view",
     ],
   },
   build: {
