@@ -7,11 +7,11 @@ updated: 2026-08-09
 
 **The mobile app's problem was reachability, and most of it is now closed.** The
 features were built and they worked; a writer just could not get to them. Eight
-separate ways that was true have been found and fixed. What remains is one real
-data-integrity bug in snapshot restore and the sync checks that need a desktop.
+separate ways that was true have been found and fixed, along with the
+data-integrity bug that hid behind one of them. What remains needs a desktop.
 
 Desktop unaffected: v0.12.7 shipped, working version 0.12.8. Gates green
-throughout: root + mobile lint and typecheck clean, 209 mobile tests passing.
+throughout: root + mobile lint and typecheck clean, 213 mobile tests passing.
 
 ### What landed today (second session)
 
@@ -37,6 +37,16 @@ buffered and replayed, dark is seeded before first paint (no cream flash), and
 live theme changes reach an open editor. Focus dimming was retuned for dark so
 dimmed paragraphs stay legible.
 
+**Snapshot restore reported success and did nothing durable.** Three faults in
+one path: the restore replaced the stored doc but not the OPEN editor's Y.Doc,
+so the stale in-memory doc merged the reverted prose straight back; the epoch
+write left `plaintext_projection` untouched, so even a correct write looked
+lost; and the first fix then failed closed on every attempt, because
+`flushLocal()` inferred "dirty" from hydration alone and told a writer who had
+typed nothing that their edits were pending. Now device-verified end to end —
+restore applies, the open editor updates, and it survives force-stop and cold
+relaunch.
+
 **Also fixed:** the binder screen's theme-blindness, the outliner's drag (the
 FlatList was cancelling the pan, so the drop never applied), the Projects card
 going stale after archive/restore, and the last mojibake.
@@ -52,24 +62,12 @@ behaviour, not an open defect.
 #11 inspector, #12 Story Bible facts grid (2×2 holds at the small label size),
 #14 corkboard drag, #15 sticky headers, #17 Goals (created a 250 w/day goal, ring
 tracks 0/250), #20 archive round-trip (restored "Opening" back into Chapter One,
-`folder_id = gate-f1` — re-confirms c44f2d2), #24 theme across every screen
-including the editor, #27 focus mode.
+`folder_id = gate-f1` — re-confirms c44f2d2), #19 snapshots end to end,
+#24 theme across every screen including the editor, #27 focus mode.
 
 ## What's next
 
-1. **Snapshot restore — one iteration from done, and it is the priority.** Take
-   → list → diff all work and are correct (the diff renders real word-level
-   changes). Restore does not. Two causes were found and fixed — the live Y.Doc
-   was never replaced so a stale doc merged reverted text back, and
-   `plaintext_projection` was left stale so even a correct write looked lost.
-   It now **fails closed** rather than losing data: "Cannot replace a scene
-   while local editor changes are pending". But version history's only entry
-   point is inside the open editor, and that guard trips on a freshly-hydrated
-   scene with no user edit — so restore is currently blocked outright. A second
-   codex dispatch is mid-flight on exactly this. **Re-run the device repro
-   before believing it fixed:** cold launch → scene → inspector → scroll →
-   version history → restore → force-stop → relaunch → check the prose.
-2. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
+1. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
    #13 entity to desktop, #22 convergence and the end-to-end half of #23 all
    need a desktop peer. Running the desktop app touches the live manuscripts at
    `%APPDATA%\com.coles.writing\writing.db`, and the DB-swap protocol in
@@ -77,19 +75,23 @@ including the editor, #27 focus mode.
    during the run — so this was **not done unilaterally**. Mobile-side sync is
    healthy as far as it can be checked alone: the relay connects
    (`wss://sync.writersnook.app`), and the pairing record survives restarts.
-3. Remaining emulator-only: #18 share-sheet, #21 airplane-mode queue depth
+2. Remaining emulator-only: #18 share-sheet, #21 airplane-mode queue depth
    (the queue count only renders on the catch-up screen, which is now
    reachable), #25/26 AI send + verbs.
-4. Cosmetic, all small: the inspector's snapshot count is stale (it reads "0
+3. Cosmetic, all small: the inspector's snapshot count is stale (it reads "0
    snapshots" with versions present — it does not reload on return); the Hub
    goal tile says "Progress unavailable" under a target the Goals screen shows
    real progress for; the focus panel clips its "Session goal" row and the HUD
    sits behind the format bar; keyboard spacer nav-bar overshoot;
    `useAnimatedKeyboard` is deprecated in reanimated 4.5.
-5. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
+4. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
    — the dev client holds `KEEP_SCREEN_ON` on the same window either way.
-6. Cole-hands: real-device QR scan, the iOS leg.
+5. Cole-hands: real-device QR scan, the iOS leg.
+6. Watch: the editor twice fell into the read-only fallback when reopening a
+   scene right after a restore. Re-navigating loaded it fine, so it reads as the
+   known dev-only handshake transient — but it appeared twice in a row on the
+   same scene, so if it recurs in a release build it is worth a real look.
 
 ## Reference index
 - [roadmap/mobile/EMULATOR-MATRIX.md](mobile/EMULATOR-MATRIX.md) — the checklist, the orphan sweep, dev-loop traps.
