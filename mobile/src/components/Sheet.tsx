@@ -1,4 +1,4 @@
-import BottomSheet from "@gorhom/bottom-sheet";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
 import type { ReactNode } from "react";
 import { useCallback } from "react";
@@ -14,6 +14,7 @@ export interface SheetProps {
   open: boolean;
   onDismiss: () => void;
   designHeight?: number;
+  scrollable?: boolean;
 }
 
 function SheetBackdrop({ onDismiss }: { onDismiss: () => void }) {
@@ -27,7 +28,20 @@ function SheetBackdrop({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-function SheetSurface({ children, designHeight, onDismiss }: Omit<SheetProps, "open">) {
+function SheetContent({ children, fillsHeight, paddingBottom, scrollable }: {
+  children: ReactNode; fillsHeight: boolean; paddingBottom: number; scrollable?: boolean;
+}) {
+  const contentStyle = [styles.content, { paddingBottom }];
+  if (scrollable) {
+    return <BottomSheetScrollView
+      contentContainerStyle={contentStyle}
+      style={fillsHeight ? styles.fixedContent : undefined}
+    >{children}</BottomSheetScrollView>;
+  }
+  return <View style={[contentStyle, fillsHeight && styles.fixedContent]}>{children}</View>;
+}
+
+function SheetSurface({ children, designHeight, onDismiss, scrollable }: Omit<SheetProps, "open">) {
   const theme = useTheme();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -43,18 +57,22 @@ function SheetSurface({ children, designHeight, onDismiss }: Omit<SheetProps, "o
       onChange={handleChange}
       snapPoints={layout.fixedHeight === undefined ? undefined : [layout.fixedHeight]}
     >
-      <View style={[styles.content, layout.contentFillsAvailableHeight && styles.fixedContent,
-        { paddingBottom: Math.max(16, insets.bottom) }]}>{children}</View>
+      <SheetContent fillsHeight={layout.contentFillsAvailableHeight}
+        paddingBottom={Math.max(16, insets.bottom)} scrollable={scrollable}>
+        {children}
+      </SheetContent>
     </BottomSheet>
   );
 }
 
-export function Sheet({ children, designHeight, onDismiss, open }: SheetProps) {
+export function Sheet({ children, designHeight, onDismiss, open, scrollable }: SheetProps) {
   if (!open) return null;
   return (
     <View pointerEvents="box-none" style={styles.overlay}>
       <SheetBackdrop onDismiss={onDismiss} />
-      <SheetSurface designHeight={designHeight} onDismiss={onDismiss}>{children}</SheetSurface>
+      <SheetSurface designHeight={designHeight} onDismiss={onDismiss} scrollable={scrollable}>
+        {children}
+      </SheetSurface>
     </View>
   );
 }

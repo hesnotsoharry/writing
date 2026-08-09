@@ -1,6 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { type ComponentType, createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 
+import type { SheetProps } from "./Sheet";
 import { resolveSheetFraction, resolveSheetHeight, resolveSheetLayout } from "./Sheet.logic";
+
+vi.mock("@gorhom/bottom-sheet", async () => {
+  const { createElement: create } = await import("react");
+  const Host = ({ children }: { children?: ReactNode }) => create("bottom-sheet", null, children);
+  const ScrollHost = ({ children, style }: { children?: ReactNode; style?: { flex?: number } }) =>
+    create("bottom-sheet-scroll-view", { "data-flex": style?.flex }, children);
+  return { default: Host, BottomSheetScrollView: ScrollHost };
+});
+vi.mock("expo-blur", async () => {
+  const { createElement: create } = await import("react");
+  return { BlurView: ({ children }: { children?: ReactNode }) => create("blur-view", null, children) };
+});
+vi.mock("react-native", async () => {
+  const { createElement: create } = await import("react");
+  const Host = ({ children }: { children?: ReactNode }) => create("rn-view", null, children);
+  return {
+    Pressable: Host, View: Host,
+    StyleSheet: { absoluteFill: {}, create: (styles: unknown) => styles },
+    useWindowDimensions: () => ({ height: 1000, width: 500 }),
+  };
+});
+vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
+vi.mock("../theme/ThemeProvider", () => ({
+  useTheme: () => ({ colors: { ink4: "gray", paper: "white", scrim: "black" }, name: "light", shadow: { sheet: {} } }),
+}));
 
 describe("sheet sizing", () => {
   it("preserves the design height as a screen fraction", () => {
@@ -22,5 +50,19 @@ describe("sheet sizing", () => {
       contentFillsAvailableHeight: false,
       fixedHeight: undefined,
     });
+  });
+});
+
+describe("scrollable sheet structure", () => {
+  it("keeps the registered scroll view as the sheet's direct native child", async () => {
+    const { Sheet } = await import("./Sheet");
+    type RenderableSheetProps = Omit<SheetProps, "children"> & { children?: ReactNode };
+    const RenderableSheet = Sheet as ComponentType<RenderableSheetProps>;
+    const markup = renderToStaticMarkup(createElement(RenderableSheet, {
+      designHeight: 648, onDismiss: () => undefined, open: true, scrollable: true,
+    }, "content"));
+
+    expect(markup).toContain("<bottom-sheet><bottom-sheet-scroll-view data-flex=\"1\">content");
+    expect(markup).not.toContain("<bottom-sheet><rn-view><bottom-sheet-scroll-view>");
   });
 });

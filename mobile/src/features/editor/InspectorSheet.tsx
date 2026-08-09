@@ -1,4 +1,3 @@
-import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -149,13 +148,13 @@ export function InspectorSheet(props: InspectorSheetProps) {
   const setStatus = (status: SceneStatus): void => {
     if (scene) void getBinderStore().then((store) => store.setSceneStatus(scene.id, status)).then(reload);
   };
-  return <Sheet open={props.open} onDismiss={props.onDismiss} designHeight={648}>
-    <BottomSheetScrollView contentContainerStyle={styles.content}>
+  return <Sheet open={props.open} onDismiss={props.onDismiss} designHeight={648} scrollable>
+    <View style={styles.content}>
       <InspectorBody data={data} onDismiss={props.onDismiss} onOpenEntity={props.onOpenEntity}
         onOpenSnapshots={props.onOpenSnapshots} onOpenStoryBible={props.onOpenStoryBible ?? (() => undefined)}
         pickingLabels={pickingLabels}
         reload={reload} setPickingLabels={setPickingLabels} setStatus={setStatus} />
-    </BottomSheetScrollView>
+    </View>
   </Sheet>;
 }
 
