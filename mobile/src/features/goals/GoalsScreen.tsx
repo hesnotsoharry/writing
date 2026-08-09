@@ -11,8 +11,8 @@ import type { GoalTypeId } from "../../shared/goalTypes";
 import { useTheme } from "../../theme/ThemeProvider";
 import { RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
-import type { GoalLocalState } from "./goalLocalState";
-import { deadlinePaceLabel, type GoalDefinition,progressFor, remainderCopy } from "./goalModel";
+import { type GoalLocalState,localCalendarDate } from "./goalLocalState";
+import { deadlinePaceLabel, type GoalDefinition, localProgress,progressFor, remainderCopy } from "./goalModel";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Goals">;
 
@@ -55,18 +55,10 @@ function GoalCards({ goals, local, manuscriptWords }: { goals: GoalDefinition[];
   })}</>;
 }
 
-function localProgress(
-  goal: GoalDefinition, state: GoalLocalState | undefined, manuscriptWords: number,
-): number {
-  if (goal.type === "project" || goal.type === "deadline") return manuscriptWords;
-  if (goal.type === "daily") return Math.max(0, manuscriptWords - (state?.baseline ?? manuscriptWords));
-  return state?.sessionWords ?? 0;
-}
-
 export function GoalsScreen({ navigation, route }: Props) {
   const theme = useTheme(); const projectId = route.params.projectId;
   const [goals, setGoals] = useState<GoalDefinition[]>([]); const [manuscriptWords, setWords] = useState(0); const [local, setLocal] = useState<Record<string, GoalLocalState>>({}); const [sessionOn, setSessionOn] = useState(false);
-  const load = useCallback(() => { void Promise.all([getGoalsStore(), getBinderStore(), getGoalLocalStateStore()]).then(async ([goalStore, binder, localStore]) => { const [goalRows, project] = await Promise.all([goalStore.getGoals(projectId), binder.loadProject(projectId)]); const definitions = (goalRows as MobileGoal[]).map(definition).filter((item): item is GoalDefinition => item !== null); const words = project.scenes.reduce((sum, scene) => sum + scene.word_count, 0); const entries = await Promise.all(definitions.map(async (goal) => [goal.id, await localStore.ensure(goal.id, words)] as const)); setGoals(definitions); setWords(words); setLocal(Object.fromEntries(entries)); setSessionOn(entries.some(([, state]) => state.sessionStartedAt !== null)); }); }, [projectId]);
+  const load = useCallback(() => { void Promise.all([getGoalsStore(), getBinderStore(), getGoalLocalStateStore()]).then(async ([goalStore, binder, localStore]) => { const [goalRows, project] = await Promise.all([goalStore.getGoals(projectId), binder.loadProject(projectId)]); const definitions = (goalRows as MobileGoal[]).map(definition).filter((item): item is GoalDefinition => item !== null); const words = project.scenes.reduce((sum, scene) => sum + scene.word_count, 0); const today = localCalendarDate(new Date()); const entries = await Promise.all(definitions.map(async (goal) => [goal.id, await localStore.ensure(goal.id, words, goal.type === "daily" ? today : undefined)] as const)); setGoals(definitions); setWords(words); setLocal(Object.fromEntries(entries)); setSessionOn(entries.some(([, state]) => state.sessionStartedAt !== null)); }); }, [projectId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
   const toggleSession = async (enabled: boolean) => { const target = goals.find(({ type }) => type === "session") ?? goals[0]; setSessionOn(enabled); if (!target) return; const store = await getGoalLocalStateStore(); const current = local[target.id] ?? await store.ensure(target.id, manuscriptWords); const next = { ...current, sessionStartedAt: enabled ? Date.now() : null, sessionWords: enabled ? current.sessionWords : 0 }; await store.write(target.id, next); setLocal((value) => ({ ...value, [target.id]: next })); };
   return <Screen contentStyle={styles.screen}><Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Goals" trailing={<IconButton icon="plus" label="New goal" onPress={() => navigation.navigate("NewGoal", { projectId })} />} /><ScrollView contentContainerStyle={styles.content}><GoalCards goals={goals} local={local} manuscriptWords={manuscriptWords} />{goals.length === 0 && <Pressable onPress={() => navigation.navigate("NewGoal", { projectId })} style={[styles.empty, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink4} name="target" size={34} /><Text style={[TYPE.cardTitle, { color: theme.colors.ink }]}>Set your first goal</Text><Text style={[TYPE.bodySmall, { color: theme.colors.ink3 }]}>Track words, time, a deadline, or a writing streak.</Text></Pressable>}<Card radius="medium" style={styles.cardGap}><View style={styles.sessionRow}><Icon color={theme.colors.ink3} name="target" size={18} /><Toggle description={sessionOn ? "This sitting is tracked on this device" : "Off · start one when you sit down"} label="Session goal" onChange={(enabled) => { void toggleSession(enabled); }} value={sessionOn} /></View></Card></ScrollView></Screen>;

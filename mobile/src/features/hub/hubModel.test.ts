@@ -54,6 +54,17 @@ describe("hubModel", () => {
     expect(model.goal).toEqual({ available: false, current: null, target: null, streak: null });
   });
 
+  it("shows daily progress from the same persisted baseline as Goals", () => {
+    const goal = { id: "daily", goal_type: "daily", target: 250, enabled: true, config: {} };
+    const state = {
+      baseline: 100, metDays: [], streak: { count: 0, lastMetDate: "" },
+      sessionStartedAt: null, sessionWords: 0,
+    };
+    const model = buildHubModel({ folders: [], scenes: [scene("only", null)], goals: [goal],
+      goalStates: { daily: state } });
+    expect(model.goal).toEqual({ available: true, current: 0, target: 250, streak: null });
+  });
+
   it("degrades to the empty-project state", () => {
     const model = buildHubModel({ folders: [], scenes: [], goals: null });
     expect(model.empty).toBe(true);

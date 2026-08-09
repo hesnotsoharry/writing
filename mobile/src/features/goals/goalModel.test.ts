@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { GoalTypeId } from "../../shared/goalTypes";
-import { type GoalDefinition,progressFor, remainderCopy } from "./goalModel";
+import { type GoalDefinition, localProgress,progressFor, remainderCopy } from "./goalModel";
 import { targetSectionFor } from "./newGoalModel";
 
 function goal(type: GoalTypeId, target: number, config: Record<string, unknown> = {}): GoalDefinition {
@@ -9,6 +9,15 @@ function goal(type: GoalTypeId, target: number, config: Record<string, unknown> 
 }
 
 describe("goal progress copy", () => {
+  it("derives daily progress from the persisted manuscript baseline", () => {
+    const state = {
+      baseline: 1_000, metDays: [], streak: { count: 0, lastMetDate: "" },
+      sessionStartedAt: null, sessionWords: 0,
+    };
+    expect(localProgress(goal("daily", 250), state, 1_075)).toBe(75);
+    expect(localProgress(goal("daily", 250), state, 900)).toBe(0);
+  });
+
   it.each([
     ["daily", 750, 612, "138 words to go."], ["session", 800, 200, "600 words to go."],
     ["project", 90_000, 41_208, "48,792 words to go."], ["time", 30, 18, "12 minutes to go."],

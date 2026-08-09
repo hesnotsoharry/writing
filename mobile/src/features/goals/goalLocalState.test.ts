@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { type GoalLocalState,recordGoalDay } from "./goalLocalState";
+import { type GoalLocalState,localCalendarDate, recordGoalDay } from "./goalLocalState";
 
 describe("device-local goal state", () => {
+  it("formats an injected instant as a local calendar date", () => {
+    expect(localCalendarDate(new Date(2026, 7, 9, 23, 59))).toBe("2026-08-09");
+  });
+
   it("delegates streak math to shared streakLogic and persists locally", async () => {
     const saved: GoalLocalState[] = [];
     const persistence = {

@@ -1,4 +1,6 @@
 import type { Folder, Scene, SceneStatus } from "../../shared/binderStore";
+import type { GoalLocalState } from "../goals/goalLocalState";
+import { type GoalDefinition, localProgress } from "../goals/goalModel";
 
 export const HUB_EXCERPT_LENGTH = 90;
 export const HUB_RECENT_SCENE_COUNT = 3;
@@ -70,14 +72,21 @@ export function pickRecentScenes(scenes: readonly HubSceneInput[]): { primary: H
   return { primary, recent };
 }
 
-interface GoalLike { goal_type: string; target: number; enabled: boolean }
+interface GoalLike { id: string; goal_type: string; target: number; enabled: boolean; config: Record<string, unknown> }
 
-export function deriveGoalModel(goals: readonly GoalLike[] | null): HubGoalModel {
+export function deriveGoalModel(
+  goals: readonly GoalLike[] | null,
+  goalStates: Readonly<Record<string, GoalLocalState>>,
+  manuscriptWords: number,
+): HubGoalModel {
   if (goals === null) return { available: false, current: null, target: null, streak: null };
   const daily = goals.find((goal) => goal.goal_type === "daily" && goal.enabled);
+  const definition: GoalDefinition | null = daily ? {
+    id: daily.id, type: "daily", target: daily.target, enabled: daily.enabled, config: daily.config,
+  } : null;
   return {
     available: true,
-    current: null,
+    current: definition ? localProgress(definition, goalStates[definition.id], manuscriptWords) : null,
     target: daily?.target ?? null,
     streak: null,
   };
@@ -90,14 +99,16 @@ export interface BuildHubModelInput {
   boardsCount?: number;
   inboxCount?: number;
   goals?: GoalLike[] | null;
+  goalStates?: Record<string, GoalLocalState>;
 }
 
 export function buildHubModel(input: BuildHubModelInput): HubModel {
   const picked = pickRecentScenes(input.scenes);
   const sceneCount = input.scenes.length;
+  const totalWords = input.scenes.reduce((total, scene) => total + scene.word_count, 0);
   return {
     empty: isProjectEmpty(input.folders, input.scenes),
-    totalWords: input.scenes.reduce((total, scene) => total + scene.word_count, 0),
+    totalWords,
     primaryScene: picked.primary,
     recentScenes: picked.recent,
     counts: {
@@ -108,6 +119,6 @@ export function buildHubModel(input: BuildHubModelInput): HubModel {
       boards: input.boardsCount ?? 0,
       inbox: input.inboxCount ?? 0,
     },
-    goal: deriveGoalModel(input.goals === undefined ? null : input.goals),
+    goal: deriveGoalModel(input.goals === undefined ? null : input.goals, input.goalStates ?? {}, totalWords),
   };
 }

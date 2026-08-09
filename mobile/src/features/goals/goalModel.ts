@@ -1,5 +1,6 @@
 import { type GoalProgress, goalProgress, type GoalRecord } from "../../shared/goalProgress";
 import type { GoalTypeId } from "../../shared/goalTypes";
+import type { GoalLocalState } from "./goalLocalState";
 
 export interface GoalDefinition {
   id: string;
@@ -56,6 +57,16 @@ function applyStreak(record: GoalRecord, goal: GoalDefinition, local: GoalLocalP
 
 export function progressFor(goal: GoalDefinition, local: GoalLocalProgress): GoalProgress {
   return goalProgress(toGoalRecord(goal, local));
+}
+
+export function localProgress(
+  goal: GoalDefinition,
+  state: GoalLocalState | undefined,
+  manuscriptWords: number,
+): number {
+  if (goal.type === "project" || goal.type === "deadline") return manuscriptWords;
+  if (goal.type === "daily") return Math.max(0, manuscriptWords - (state?.baseline ?? manuscriptWords));
+  return state?.sessionWords ?? 0;
 }
 
 export function remainderCopy(goal: GoalDefinition, local: GoalLocalProgress): string {

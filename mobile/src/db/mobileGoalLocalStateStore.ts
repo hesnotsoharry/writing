@@ -11,6 +11,7 @@ function validState(value: unknown): value is GoalLocalState {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   return typeof row.baseline === "number" && Array.isArray(row.metDays)
+    && (row.baselineDate === undefined || typeof row.baselineDate === "string")
     && row.metDays.every((day) => typeof day === "string")
     && validStreak(row.streak) && validSession(row);
 }
@@ -50,10 +51,12 @@ export class MobileGoalLocalStateStore implements GoalLocalPersistence {
     );
   }
 
-  async ensure(goalId: string, baseline: number): Promise<GoalLocalState> {
+  async ensure(goalId: string, baseline: number, today?: string): Promise<GoalLocalState> {
     const current = await this.read(goalId);
-    if (current) return current;
-    const initial = { ...EMPTY_LOCAL_STATE, baseline };
+    if (current && (today === undefined || current.baselineDate === today)) return current;
+    const initial = current
+      ? { ...current, baseline, baselineDate: today }
+      : { ...EMPTY_LOCAL_STATE, baseline, ...(today === undefined ? {} : { baselineDate: today }) };
     await this.write(goalId, initial);
     return initial;
   }
