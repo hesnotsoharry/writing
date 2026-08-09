@@ -8,6 +8,11 @@ describe("archive restore manifests", () => {
     expect(plan.folder).toBeNull(); expect(plan.scenes).toEqual([{ id: "s", title: "Scene", synopsis: "syn", status: "draft", sortOrder: 20, wordCount: 44, stateBase64: "bytes", folderId: null }]);
   });
 
+  it("restores a scene into the folder it was archived from", () => {
+    const plan = parseArchiveManifest({ id: "a", projectId: "p", kind: "scene", originalId: "s", title: "Scene", stateBase64: JSON.stringify({ id: "s", title: "Scene", status: "draft", sortOrder: 20, wordCount: 44, doc: "bytes", folderId: "f1" }) });
+    expect(plan.scenes[0]?.folderId).toBe("f1");
+  });
+
   it("parses a multi-scene desktop chapter manifest", () => {
     const scenes = [{ id: "s1", title: "One", meta: { synopsis: null, status: "blank", sort_order: 10, word_count: 1 }, doc: "d1" }, { id: "s2", title: "Two", meta: { synopsis: "two", status: "final", sort_order: 20, word_count: 2 }, doc: "d2" }];
     const plan = parseArchiveManifest({ id: "a", projectId: "p", kind: "chapter", originalId: "f", title: "Chapter", stateBase64: JSON.stringify({ folder: { sort_order: 7 }, scenes }) });

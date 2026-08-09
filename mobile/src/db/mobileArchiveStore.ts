@@ -14,6 +14,7 @@ interface ArchiveRow {
 interface SceneManifest {
   id: string; title: string; synopsis: string | null; status: string;
   sortOrder: number; wordCount: number; doc: string | null;
+  folderId: string | null;
 }
 
 async function loadSceneManifest(db: DbClient, scene: Scene): Promise<SceneManifest> {
@@ -24,6 +25,7 @@ async function loadSceneManifest(db: DbClient, scene: Scene): Promise<SceneManif
     id: scene.id, title: scene.title, synopsis: scene.synopsis,
     status: normalizeStatus(scene.status), sortOrder: scene.sort_order,
     wordCount: scene.word_count, doc: docs[0]?.state_base64 ?? null,
+    folderId: scene.folder_id,
   };
 }
 
@@ -128,6 +130,7 @@ export class MobileArchiveStore {
   }
 
   async publishRestoredOwnership(plan: ArchiveRestorePlan): Promise<void> {
+    await this.dropVanishedFolders(plan);
     if (plan.folder) await this.upsertFolder(plan);
     for (const scene of plan.scenes) await this.upsertScene(plan.projectId, scene);
     const folderRows = await this.db.select<{ id: string }[]>(
@@ -170,6 +173,22 @@ export class MobileArchiveStore {
     await this.publishRestoredOwnership(plan);
     for (const scene of plan.scenes) await this.handoffRestoredScene(scene, plan.projectId);
     await this.removeRestoredArchive(plan);
+  }
+
+  /**
+   * A restored scene must not point at a folder deleted while it sat in the
+   * archive — the binder lists scenes by folder match, so a dangling
+   * folder_id would hide the scene from every list. Loose beats lost.
+   */
+  private async dropVanishedFolders(plan: ArchiveRestorePlan): Promise<void> {
+    for (const scene of plan.scenes) {
+      if (scene.folderId === null || scene.folderId === plan.folder?.id) continue;
+      const rows = await this.db.select<{ id: string }[]>(
+        "SELECT id FROM folders WHERE id = ? AND project_id = ?",
+        [scene.folderId, plan.projectId],
+      );
+      if (!rows[0]) scene.folderId = null;
+    }
   }
 
   private async upsertFolder(plan: ArchiveRestorePlan): Promise<void> {

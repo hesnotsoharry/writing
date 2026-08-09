@@ -64,7 +64,8 @@ export function parseArchiveManifest(payload: ArchivePayload): ArchiveRestorePla
     const id = payload.originalId ?? crypto.randomUUID();
     return {
       archiveId: payload.id, projectId: payload.projectId, kind: "scene", folder: null,
-      scenes: [sceneFrom(manifest, id, payload.title, null)],
+      // Older archive rows predate folderId in the manifest and restore loose.
+      scenes: [sceneFrom(manifest, id, payload.title, nullableText(manifest.folderId))],
     };
   }
   const folderId = payload.originalId ?? crypto.randomUUID();
