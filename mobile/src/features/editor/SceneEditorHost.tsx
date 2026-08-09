@@ -42,6 +42,8 @@ export interface SceneEditorHostProps {
   onAutoLinkTap?: (payload: AutoLinkTapPayload) => void;
   /** Fires when the editor gives up and the read-only reader should take over. */
   onFallbackChange?: (isFallback: boolean) => void;
+  /** Remounts the host for a fresh boot after a (possibly transient) failure. */
+  onRetryBoot?: () => void;
 }
 
 type Dispatch = (action: SceneEditorAction) => void;
@@ -272,7 +274,7 @@ function useSelectionCommand(
 
 export function SceneEditorHost({
   focus, onAutoLinkTap, onFallbackChange, onRequestEntityLink, onRequestSelectionActions,
-  onSelectionChange, onWordCountChange, projectId, sceneId,
+  onRetryBoot, onSelectionChange, onWordCountChange, projectId, sceneId,
 }: SceneEditorHostProps) {
   const [state, dispatch] = useReducer(reduceSceneEditor, undefined, createSceneEditorState);
   const [{ port, transport }] = useState(() => createHostPort(sceneId));
@@ -292,7 +294,7 @@ export function SceneEditorHost({
   const { guard, stay } = useExitState(port, state, dispatch);
   const onMessage = useBridgeMessage({ port, ui, uiColors: colors, dispatch, refresh });
   const selectionCommand = useSelectionCommand(ui, selection, onRequestEntityLink);
-  if (state.phase === "fallback") return <FallbackNotice />;
+  if (state.phase === "fallback") return <FallbackNotice onRetry={onRetryBoot} />;
   if (!localUri) return <View style={styles.host}><OpeningOverlay /></View>;
   return <EditorSurface localUri={localUri} webViewKey={state.webViewKey} phase={state.phase}
     wordCount={wordCount} formatState={deriveFormatBarState(selection)} bindWebView={transport.bind}

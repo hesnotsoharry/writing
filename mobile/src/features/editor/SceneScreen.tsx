@@ -89,6 +89,11 @@ export function SceneScreen({ navigation, route }: Props) {
   const [focusMode, setFocusMode] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [editorFailed, setEditorFailed] = useState(false);
+  const [bootAttempt, setBootAttempt] = useState(0);
+  const retryBoot = useCallback(() => {
+    setEditorFailed(false);
+    setBootAttempt((attempt) => attempt + 1);
+  }, []);
   const focus = useFocusSettings();
   const connections = useSceneConnections({ focusMode, navigation, projectId, projectTitle, sceneId });
   return <View style={[styles.screen, { backgroundColor: theme.colors.paper, paddingTop: insets.top }]}>
@@ -98,8 +103,8 @@ export function SceneScreen({ navigation, route }: Props) {
       {/* The reader REPLACES the editor when it cannot load — it is not a
           companion to it. Rendering both stacked the same scene twice. */}
       {editorFailed && <SceneReader sceneId={sceneId} />}
-      <SceneEditorHost key={sceneId} sceneId={sceneId} projectId={projectId}
-        onFallbackChange={setEditorFailed}
+      <SceneEditorHost key={`${sceneId}:${bootAttempt}`} sceneId={sceneId} projectId={projectId}
+        onFallbackChange={setEditorFailed} onRetryBoot={retryBoot}
         focus={{ enabled: focusMode, settings: focus.settings }} onWordCountChange={setWordCount}
         onAutoLinkTap={connections.onAutoLinkTap}
         onRequestSelectionActions={connections.onRequestSelectionActions} />
