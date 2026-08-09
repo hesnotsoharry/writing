@@ -1,5 +1,6 @@
 import type { ManuscriptAbout } from "../features/ai/ai.types";
-import { type BibleLocalWriteDependencies,bridgeBibleLocalWrite } from "../sync/bible/bibleLocalBridge";
+import type { BibleLocalWriteDependencies } from "../sync/bible/bibleLocalBridge";
+import { bridgeBibleLocalWrite } from "../sync/bible/desktopBibleBridge";
 import {
   findEntityLinkProjectId, findEntityProjectId, findEntityTypeProjectId,
   findFieldProjectId, findRelationProjectId, findSceneProjectId,

@@ -3,11 +3,27 @@ import * as Y from "yjs";
 
 import type { DbClient } from "../../db/dbClient";
 import type { ProjectDomainDocStore } from "../../db/projectDomainDocStore";
-import { getDb } from "../../db/schema";
-import { SqliteProjectDomainDocStore } from "../../db/sqliteProjectDomainDocStore";
-import { getSyncRole } from "../syncRole";
-import { applyBibleSqlDelta, buildBibleFromSql, type SqlBibleRows } from "./bibleDoc";
+import { applyBibleSqlDelta, type SqlBibleRows } from "./bibleDoc";
 import { loadBibleProjection } from "./dbBibleApplyTarget";
+
+/**
+ * THIS MODULE MUST STAY FREE OF PLATFORM IMPORTS.
+ *
+ * React Native imports `BibleLocalBridge` from here through the portable
+ * boundary. It previously also held the desktop convenience wrappers, which
+ * imported `../../db/schema` — the Tauri SQL plugin — at module scope. That one
+ * import made the whole mobile bundle unresolvable:
+ *
+ *   Unable to resolve "@tauri-apps/plugin-sql" from "src/db/schema.ts"
+ *   mobileBibleLocalBridge -> bibleLocalBridge -> db/schema
+ *
+ * Nothing caught it. TypeScript resolves the import because the types exist,
+ * vitest runs in Node where the package is installed, and lint has no opinion.
+ * Only bundling for a device failed — the app could not launch at all.
+ *
+ * The desktop-bound helpers now live in `desktopBibleBridge.ts`. Anything added
+ * here must take its `DbClient` and store by argument.
+ */
 
 export type BibleContentListener = (projectId: string, stateBase64: string) => void;
 export type BibleDocMutation<T = void> = (doc: Y.Doc, result: T) => void | Promise<void>;
@@ -53,42 +69,26 @@ export class BibleLocalBridge {
   }
 }
 
-const desktopBridge = new BibleLocalBridge(new SqliteProjectDomainDocStore());
-
 export interface BibleLocalWriteDependencies {
   bridge: BibleLocalBridge;
   db: DbClient;
 }
 
-export function subscribeBibleSaves(listener: BibleContentListener): () => void {
-  return desktopBridge.subscribe(listener);
-}
-
-export function bridgeBibleLocalWrite<T>(
-  projectId: string, sqlWrite: () => Promise<T>, dependencies?: BibleLocalWriteDependencies,
+/**
+ * Platform-neutral local write. Both the bridge and the DbClient are required —
+ * there is deliberately no ambient default, because supplying one is what
+ * dragged the Tauri singleton into this module. Desktop callers get their
+ * defaults from `desktopBibleBridge.ts`.
+ */
+export function bridgeBibleLocalWriteWith<T>(
+  projectId: string, sqlWrite: () => Promise<T>, dependencies: BibleLocalWriteDependencies,
 ): Promise<T> {
-  const bridge = dependencies?.bridge ?? desktopBridge;
-  const dbPromise = dependencies?.db ? Promise.resolve(dependencies.db) : getDb();
+  const { bridge, db } = dependencies;
   let before: SqlBibleRows;
   return bridge.mutate(projectId, async () => {
-    const db = await dbPromise; before = await loadBibleProjection(db, projectId);
+    before = await loadBibleProjection(db, projectId);
     return sqlWrite();
   }, async (doc) => {
-    applyBibleSqlDelta(doc, before, await loadBibleProjection(await dbPromise, projectId));
+    applyBibleSqlDelta(doc, before, await loadBibleProjection(db, projectId));
   });
-}
-
-export async function bootstrapProjectBible(projectId: string): Promise<void> {
-  const store = new SqliteProjectDomainDocStore();
-  if (await store.load("bible", projectId)) return;
-  const doc = buildBibleFromSql(await loadBibleProjection(await getDb(), projectId));
-  await store.save("bible", projectId, fromUint8Array(Y.encodeStateAsUpdate(doc)));
-}
-
-/** Bootstrap only the origin's local projects; joined devices learn docs from their peer. */
-export async function ensureAllProjectBibles(): Promise<void> {
-  if (await getSyncRole() === "joined") return;
-  const db = await getDb();
-  const projects = await db.select<Array<{ id: string }>>("SELECT id FROM projects");
-  await Promise.all(projects.map(({ id }) => bootstrapProjectBible(id)));
 }

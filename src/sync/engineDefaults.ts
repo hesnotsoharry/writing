@@ -12,7 +12,7 @@ import { SqliteSnapshotStore } from "../db/sqliteSnapshotStore";
 import { SqliteSyncLwwStore } from "../db/sqliteSyncLwwStore";
 import { SqliteSyncOutboxStore } from "../db/sqliteSyncOutboxStore";
 import { SqliteAppliedEpochStore } from "../db/syncEpochStore";
-import { ensureAllProjectBibles, subscribeBibleSaves } from "./bible/bibleLocalBridge";
+import { ensureAllProjectBibles, subscribeBibleSaves } from "./bible/desktopBibleBridge";
 import type { EngineOptions } from "./engine";
 import { getSyncMasterKey } from "./keyStorage";
 import { subscribeLocalSceneWrites } from "./localSceneWrites";
