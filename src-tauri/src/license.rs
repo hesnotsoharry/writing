@@ -124,6 +124,12 @@ fn get_instance_name() -> String {
         .unwrap_or_else(|_| "WritersNook device".to_string())
 }
 
+/// Exposes the same already-read machine label for encrypted pairing metadata.
+#[tauri::command]
+pub fn device_name() -> String {
+    get_instance_name()
+}
+
 // ─── Tauri command ─────────────────────────────────────────────────────────
 
 /// POST to the LS activate endpoint and return a parsed `LicenseActivation`.

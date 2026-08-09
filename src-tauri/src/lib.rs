@@ -174,6 +174,7 @@ pub fn run() {
             write_export_file,
             set_border_color,
             license::activate_license,
+            license::device_name,
             byok::byok_set_key,
             byok::byok_has_key,
             byok::byok_clear_key,
