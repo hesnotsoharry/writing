@@ -145,6 +145,29 @@ peer just does not receive the new domains.
 Add a capability list to `hello` so a new peer can say "your other device needs
 an update" instead of silently showing partial data.
 
+## D11 — Board cards are untyped, because the schema has no card kind
+
+The design frames draw brainstorm cards typed **Question / Answer / Maybe**,
+with the kind rendered in that type's accent. That taxonomy does not exist in
+the app. `createBoardCard` (`src/features/brainstorm/boardDoc.ts`) stores only
+`{x, y}` per card, plus `entityRef` on entity cards and `graduated` /
+`destinationId` once a card has been sent to a scene. There is no kind field
+anywhere in the board doc, and boards are view-only on mobile, so nothing on
+the phone could set one.
+
+The first implementation inferred a kind from a text prefix and, failing that,
+fell back to `index % 3` — which labels a user's own cards Question / Answer /
+Maybe in rotation, unrelated to their content. Showing someone invented facts
+about their own writing is worse than showing them nothing, so **cards render
+untyped**. The two eyebrows that survive are the two the doc actually records:
+"Sent to scene" (`graduated`) and "Story Bible" (`entityRef`).
+
+The design handoff's own SOURCE-MAP warns that "several earlier drafts of these
+designs invented behaviour that did not exist, and were corrected only after
+reading these files." This is one of those, caught late. If typed cards are
+wanted, they are a desktop authoring feature first — schema, then desktop UI,
+then the mobile viewer can display them.
+
 ## S3 rules that bind every new domain
 
 These are not style preferences; each one is a defect that already shipped and

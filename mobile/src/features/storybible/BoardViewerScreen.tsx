@@ -40,12 +40,6 @@ function useBoardTransform(initial: Transform) {
   return { transform, setTransform, panHandlers: responder.panHandlers };
 }
 
-function kindColor(kind: BoardCard["kind"], theme: ReturnType<typeof useTheme>): string {
-  if (kind === "Question") return theme.colors.accent;
-  if (kind === "Answer") return theme.colors.location;
-  return theme.colors.note;
-}
-
 function ConnectorLayer({ cards, connections, transform }: {
   cards: BoardCard[]; connections: BoardConnection[]; transform: Transform;
 }) {
@@ -67,7 +61,12 @@ function BoardCardView({ card, onOpenEntity }: { card: BoardCard; onOpenEntity: 
       borderColor: graduated ? theme.colors.accent : theme.colors.parchmentEdge,
       borderWidth: graduated ? 1.5 : 1,
     }]}>
-    <Text style={[TYPE.sectionLabel, { color: graduated ? theme.colors.accentDeep : kindColor(card.kind, theme) }]}>{graduated ? "Sent to scene" : card.kind}</Text>
+    {/* Only the two states the board doc actually records get an eyebrow —
+        a card with neither is simply untyped. See boardModel's kind note. */}
+    {graduated && <Text style={[TYPE.sectionLabel, { color: theme.colors.accentDeep }]}>Sent to scene</Text>}
+    {!graduated && card.entityRef != null && (
+      <Text style={[TYPE.sectionLabel, { color: theme.colors.character }]}>Story Bible</Text>
+    )}
     <Text numberOfLines={4} style={[TYPE.proseBody, styles.cardText, { color: theme.colors.ink }]}>{card.text || (card.entityRef ? "Linked Story Bible entry" : "—")}</Text>
   </Pressable>;
 }

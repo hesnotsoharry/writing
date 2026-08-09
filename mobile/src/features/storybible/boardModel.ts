@@ -1,9 +1,24 @@
 import { toUint8Array } from "js-base64";
 import * as Y from "yjs";
 
+/**
+ * A board card as the desktop actually stores it.
+ *
+ * NOTE ON CARD KINDS. The design frames draw cards typed Question / Answer /
+ * Maybe. That taxonomy does not exist: `createBoardCard` in
+ * `src/features/brainstorm/boardDoc.ts` stores only `{x, y}` per card, plus
+ * `entityRef` on entity cards and `graduated` / `destinationId` once a card has
+ * been sent to a scene. There is no kind field anywhere in the schema, and
+ * boards are view-only on mobile so nothing here could set one.
+ *
+ * An earlier draft inferred a kind from a text prefix and fell back to
+ * `index % 3`, which labelled a user's own cards Question/Answer/Maybe in
+ * rotation with no relation to their content. Cards therefore render untyped.
+ * The design handoff's own README warns that earlier drafts invented behaviour
+ * that did not exist; this is one of those. See ARCH-DECISIONS D11.
+ */
 export interface BoardCard {
   id: string; x: number; y: number; text: string;
-  kind: "Question" | "Answer" | "Maybe";
   entityRef?: string; graduated: boolean; destinationId?: string;
 }
 
@@ -35,25 +50,16 @@ function fragmentText(doc: Y.Doc, id: string): string {
   return lines.join("\n");
 }
 
-function cardKind(text: string, index: number): BoardCard["kind"] {
-  const prefix = text.match(/^\s*(question|answer|maybe)\s*[:—-]/i)?.[1]?.toLocaleLowerCase();
-  if (prefix === "question") return "Question";
-  if (prefix === "answer") return "Answer";
-  if (prefix === "maybe") return "Maybe";
-  return (["Question", "Answer", "Maybe"] as const)[index % 3];
-}
-
 function asNumber(value: unknown): number { return typeof value === "number" && Number.isFinite(value) ? value : 0; }
 
 export function decodeBoard(base64: string | null): BoardViewModel {
   if (!base64) return { cards: [], connections: [] };
   const doc = new Y.Doc();
   Y.applyUpdate(doc, toUint8Array(base64));
-  const cards = [...doc.getMap<CardMeta>("cards").entries()].map(([id, meta], index) => {
+  const cards = [...doc.getMap<CardMeta>("cards").entries()].map(([id, meta]) => {
     const text = fragmentText(doc, id);
     return {
       id, x: asNumber(meta.x), y: asNumber(meta.y), text,
-      kind: cardKind(text, index),
       entityRef: typeof meta.entityRef === "string" ? meta.entityRef : undefined,
       graduated: meta.graduated === true,
       destinationId: typeof meta.destinationId === "string" ? meta.destinationId : undefined,
