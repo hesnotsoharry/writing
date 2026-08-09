@@ -32,13 +32,13 @@ function ContextFooter({ model, state, onDone }: {
   </View>;
 }
 
-function ContextBody({ config, onChange, route, state }: {
+function ContextBody({ config, onChange, onReviewHidden, route, state }: {
   config: AiCtxConfig; onChange(config: AiCtxConfig): void;
-  route: Props["route"]; state: ContextScreenState;
+  onReviewHidden?(): void; route: Props["route"]; state: ContextScreenState;
 }) {
   return <View style={styles.body}>
     <InlineNotice>Only what is listed here leaves your device. Anything hidden from AI is replaced with a placeholder before sending.</InlineNotice>
-    <CurrentSceneCard state={state} />
+    <CurrentSceneCard state={state} onReviewHidden={onReviewHidden} />
     <OtherScenes config={config} currentId={route.params.sceneId} scenes={state.scenes}
       onToggle={(id) => { onChange(toggleScene(config, id)); }} />
     <BibleEntries config={config} entities={state.entities}
@@ -50,6 +50,7 @@ function ContextBody({ config, onChange, route, state }: {
 export function AiContextScreen({ navigation, route }: Props) {
   const theme = useTheme();
   const managed = useManagedAi();
+  const sceneId = route.params.sceneId;
   const [config, setConfig] = useState(() => readContextConfig(route.params.projectId, route.params.conversationId));
   const [state, setState] = useState<ContextScreenState | null>(null);
   useEffect(() => {
@@ -66,7 +67,10 @@ export function AiContextScreen({ navigation, route }: Props) {
     ? managed.access.credential.aiModel : DEFAULT_MODEL;
   return <Screen scroll contentStyle={[styles.screen, { backgroundColor: theme.colors.parchment }]}> 
     <AiHeader title="What the assistant sees" subtitle="Exactly what leaves this device" onBack={navigation.goBack} />
-    {state ? <ContextBody config={config} onChange={change} route={route} state={state} />
+    {state ? <ContextBody config={config} onChange={change} route={route} state={state}
+      onReviewHidden={sceneId ? () => { navigation.navigate("HiddenFromAi", {
+        projectId: route.params.projectId, sceneId,
+      }); } : undefined} />
       : <Text style={[TYPE.body, styles.loading, { color: theme.colors.ink3 }]}>Assembling the exact request…</Text>}
     {state ? <ContextFooter model={model} state={state} onDone={navigation.goBack} /> : null}
   </Screen>;

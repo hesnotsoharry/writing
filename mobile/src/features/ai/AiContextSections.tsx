@@ -9,7 +9,9 @@ import { RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import type { AiCtxConfig, ContextScreenState } from "./aiContextModel";
 
-export function CurrentSceneCard({ state }: { state: ContextScreenState }) {
+export function CurrentSceneCard({ onReviewHidden, state }: {
+  onReviewHidden?(): void; state: ContextScreenState;
+}) {
   const theme = useTheme();
   const sent = state.assembled.sceneExcerpt.length;
   return <View style={styles.section}>
@@ -25,7 +27,14 @@ export function CurrentSceneCard({ state }: { state: ContextScreenState }) {
         <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{sent.toLocaleString()} of {SCENE_EXCERPT_CHARS.toLocaleString()} characters sent</Text>
         <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{state.assembled.sceneExcerptTruncated ? "capped" : "within cap"}</Text>
       </View>
-      <Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>{state.hiddenRunsInScene} runs hidden from AI in this scene</Text>
+      {onReviewHidden ? <Pressable accessibilityLabel="Review prose hidden from AI"
+        accessibilityRole="button" onPress={onReviewHidden}
+        style={({ pressed }) => [styles.between, pressed && styles.pressed]}>
+        <Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>{state.hiddenRunsInScene} runs hidden from AI in this scene</Text>
+        <Text style={[TYPE.meta, { color: theme.colors.accent }]}>Review</Text>
+      </Pressable> : <Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>
+        {state.hiddenRunsInScene} runs hidden from AI in this scene
+      </Text>}
     </Card>
   </View>;
 }
@@ -119,4 +128,5 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 10, overflow: "hidden" },
   check: { width: 22, height: 22, borderWidth: 1, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   dim: { opacity: 0.58 },
+  pressed: { opacity: 0.58 },
 });

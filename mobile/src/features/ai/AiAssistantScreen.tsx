@@ -1,5 +1,6 @@
+import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Icon, IconButton, Pill, Screen, TextField } from "../../components";
@@ -56,8 +57,10 @@ function Composer({ onSend, sending, verb }: {
 
 export function AiAssistantScreen({ navigation, route }: Props) {
   const managed = useManagedAi();
+  const refreshManaged = managed.refresh;
   const conversation = useAssistantConversation(route.params.conversationId);
   const [verb, setVerb] = useState<VerbKey>(takePendingVerb);
+  useFocusEffect(useCallback(() => { refreshManaged(); }, [refreshManaged]));
   const [contextLabel, setContextLabel] = useState("Context: loading…");
   useEffect(() => {
     let active = true;
@@ -75,7 +78,8 @@ export function AiAssistantScreen({ navigation, route }: Props) {
   }); };
   return <Screen contentStyle={styles.screen}>
     <AiHeader title="Assistant" subtitle={AI_MODELS[model].label} balance={balanceLabel(managed.balance)}
-      onBack={navigation.goBack} />
+      subtitleActionLabel={`Change model. Current model: ${AI_MODELS[model].label}`}
+      onSubtitlePress={() => { navigation.navigate("AiModel", route.params); }} onBack={navigation.goBack} />
     {managed.access?.state === "unavailable" ? <View style={styles.notice}><InlineNotice tone="warn">{managed.access.message}. BYOK setup remains desktop-only.</InlineNotice></View> : null}
     {managed.error ? <View style={styles.notice}><InlineNotice tone="warn">{managed.error}</InlineNotice></View> : null}
     <View style={styles.contextWrap}><ContextBar label={contextLabel} onPress={() => { navigation.navigate("AiContext", route.params); }} /></View>
