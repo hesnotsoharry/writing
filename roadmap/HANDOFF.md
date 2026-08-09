@@ -5,116 +5,97 @@ updated: 2026-08-09
 
 ## Current state
 
-**The mobile build has a reachability problem, not a correctness problem.** The
-features are built and they work; several of them simply cannot be reached by a
-finger. Today's session found and fixed three separate ways that happens, and
-one class of it is still open.
+**The mobile app's problem was reachability, and most of it is now closed.** The
+features were built and they worked; a writer just could not get to them. Eight
+separate ways that was true have been found and fixed. What remains is one real
+data-integrity bug in snapshot restore and the sync checks that need a desktop.
 
-Desktop unaffected: v0.12.7 shipped, working version 0.12.8.
+Desktop unaffected: v0.12.7 shipped, working version 0.12.8. Gates green
+throughout: root + mobile lint and typecheck clean, 209 mobile tests passing.
 
-### Today's second session
+### What landed today (second session)
 
-Four fixes landed, all device-verified on `Medium_Phone_API_36.1`:
+**Reachability — eight finished features a finger could not reach:**
 
-1. **The Projects card went stale after archive/restore.**
-   `subscribeMobileStructureChanged` only forwarded *remote* sync-engine merges,
-   so a local archive saved project meta without ever waking the Projects list —
-   the card kept pre-archive counts until a full restart. Local meta saves now
-   fan out through the same subscription. Verified on device: archiving a scene
-   dropped the card from "49 words · 8 scenes" to "10 words · 7 scenes"
-   immediately.
-2. **The inspector sheet's lower half was rendered but inert** — it would not
-   scroll and would not accept taps, killing two finished features at once
-   (version history has *no* other entry point). This turned out to be **three
-   causes wearing one symptom**, and only two are fixed:
-   - `Sheet`'s content `View` had no `flex: 1`, so under a fixed snap point it
-     sized to its content instead of to the sheet; the overflow fell outside the
-     parent's bounds, and on Android that renders but never receives touch.
-     **Fixed** — the CTA below the fold now navigates, device-verified. Applies
-     to every `Sheet` consumer.
-   - The "Open Story Bible" CTA was wired to `onAction={() => undefined}` — a
-     literal no-op. **Fixed.**
-   - **Still open:** the sheet does not scroll, so the version-history row below
-     the CTA is never laid into view. `InspectorSheet` and `SceneActionsSheet`
-     were passing a plain RN `ScrollView` inside `@gorhom/bottom-sheet` v5,
-     which needs its own `BottomSheetScrollView`; I switched both (correct API
-     regardless) but **that alone did not restore scrolling**. #19 stays blocked.
-3. **Outliner drag-to-reorder never reordered.** The row's pan gesture competed
-   with the FlatList's scroll view, which claimed the touch and *cancelled* the
-   pan — `onFinalize` fired with success=false and `onEnd`, the only place the
-   drop is applied, never ran. Instrumented on device to prove it. Fixed with
-   `blocksExternalGesture`, a success-guarded `onEnd`, and a stable gesture
-   identity. `rowHeight` was also wrong (102 vs a real 148), which would have
-   landed drops on the wrong index even once the gesture fired.
-4. **A theme-blind screen.** `ProjectBinderScreen` read the static `PALETTE`
-   instead of `useTheme()`, so the binder rendered light parchment cards on a
-   dark background. Light appearance is unchanged by construction. Also swept
-   the remaining `Â·` mojibake out of mobile/src.
-   (I had also suspected `CustomTypeScreen`; that was my misread — its
-   `CT_PALETTE` is the user-pickable entity-colour swatch list, unrelated to the
-   theme palette. That screen was already theme-aware.)
+| Feature | Why it was unreachable |
+|---|---|
+| Goals | Registered; nothing navigated to it. The Hub's goal ring was inert decoration |
+| Catch-up (`OfflineCatchUp`) | Same — so the behind-state recovery path could never surface |
+| Version history | Entry point sat below a sheet fold that neither scrolled nor accepted touches |
+| Story Bible CTA | Same fold — *and* its handler was literally `() => undefined` |
+| AI model picker | Registered; zero callers |
+| Hidden-from-AI review | Registered; zero callers |
+| Boards | Route HAD a caller, but two barrels exported `BoardViewerScreen` and the navigator imported the 3-line stub instead of the real 123-line viewer |
+| Binder scene actions | Hub → Binder had no long-press at all, while the editor's drawer had the full set |
 
-### Matrix: see roadmap/mobile/EMULATOR-MATRIX.md
+**The editor finally honours dark mode.** Chrome, format bar and fallback were
+all dark while the writing surface stayed cream — the screen a writer stares at
+was the one dark mode never reached. The theme message was ACKed by the web
+channel *before* TipTap bound its handler, so the one-in-flight queue dropped it
+permanently, and theme was only ever pushed once. Pre-bind messages are now
+buffered and replayed, dark is seeded before first paint (no cream flash), and
+live theme changes reach an open editor. Focus dimming was retuned for dark so
+dimmed paragraphs stay legible.
 
-New this session: **#14 corkboard drag PASS** (reorder persisted, verified in the
-pulled device DB), **#15 sticky headers PASS + drag fixed**, **#27 focus mode
-PASS** (dimming confirmed with three paragraphs — inactive grey, caret paragraph
-full contrast), **#24 theme FAIL** — the binder screen is fixed, the editor's
-writing surface is still light in dark mode.
+**Also fixed:** the binder screen's theme-blindness, the outliner's drag (the
+FlatList was cancelling the pan, so the drop never applied), the Projects card
+going stale after archive/restore, and the last mojibake.
 
-Still **blocked, and these are the headline**: #17 (Goals) and #23 (catch-up)
-are unreachable orphan routes; #19 (snapshots) was blocked by the sheet bug and
-now needs a re-run.
+**Decision 0016 recorded:** the binder drawer is button-only under gesture
+navigation. Android owns the left edge and the app never receives the swipe;
+claiming it back means taking Back away inside the editor, which is a worse
+trade than losing a hidden affordance. Matrix #8 is resolved as accepted
+behaviour, not an open defect.
 
-### The systemic finding
+### Verified on device
 
-The Archive screen being orphaned last session was not a one-off. A sweep of
-every route for a matching `navigate()` call found **`Goals` and
-`OfflineCatchUp` are real orphans** — finished features with no way in — plus
-six dead placeholder routes. The sweep one-liner is recorded in the matrix; run
-it after adding any screen. Registering a screen in `AppNavigator` and having a
-green test suite both prove nothing about whether a writer can reach it.
+#11 inspector, #12 Story Bible facts grid (2×2 holds at the small label size),
+#14 corkboard drag, #15 sticky headers, #17 Goals (created a 250 w/day goal, ring
+tracks 0/250), #20 archive round-trip (restored "Opening" back into Chapter One,
+`folder_id = gate-f1` — re-confirms c44f2d2), #24 theme across every screen
+including the editor, #27 focus mode.
 
 ## What's next
 
-1. **Wire up the orphans.** `Goals` (the Hub's goal ring is the obvious link)
-   and `OfflineCatchUp` (needs a behind-state trigger — `App.tsx` already
-   carries `behind: []` and `CatchUpFlow` exists). That unblocks #17 and #23.
-2. **The editor's writing surface ignores dark mode** — still open, and it is
-   the worst of the theme bugs because it is the screen a writer stares at. The
-   chrome, format bar and fallback all go dark correctly; the WebView stays
-   cream-on-black. There *is* a theme message to the editor
-   (`nativeEditorUi.test.ts` covers queueing it behind an ACK), so the likely
-   fault is that it is never sent on initial load, only on change. Worth
-   confirming by toggling the theme with the editor already open.
-3. **Finish the sheet scroll fix**, then run #19. The remaining question is
-   narrow: with `flex: 1` on the wrapper and `BottomSheetScrollView` in place,
-   why does gorhom still not scroll? Suspect the custom absolute-positioned
-   overlay wrapper in `Sheet.tsx`, or the fixed snap point interacting with
-   `enableDynamicSizing`. Reproduce with a scene that has no linked entities —
-   the empty state is what pushes the content past the fold.
-4. **Decide the binder-screen scope question.** `ProjectBinderScreen`
-   (Hub → Binder) has *no* long-press and *no* scene actions — no archive, no
-   status change. Only `BinderDrawer` (from the editor) has them. Parity, or
-   should the tile just open the drawer? Cole's call.
-5. Remaining matrix: #12 Story Bible facts grid, #13 entity to desktop,
-   #2/3 pairing + clone, #10 reorder convergence, #18 share-sheet,
-   #21/22 airplane-mode, #25/26 AI.
-6. **Decide #8** (unchanged): accept button-only drawer under gesture nav
-   (recommended) or add gesture-exclusion rects.
-7. Cosmetic: the focus-mode settings panel clips its "Session goal" row and the
-   HUD strip renders behind the format bar; keyboard spacer nav-bar overshoot;
-   `useAnimatedKeyboard` deprecated in reanimated 4.5.
-8. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
+1. **Snapshot restore — one iteration from done, and it is the priority.** Take
+   → list → diff all work and are correct (the diff renders real word-level
+   changes). Restore does not. Two causes were found and fixed — the live Y.Doc
+   was never replaced so a stale doc merged reverted text back, and
+   `plaintext_projection` was left stale so even a correct write looked lost.
+   It now **fails closed** rather than losing data: "Cannot replace a scene
+   while local editor changes are pending". But version history's only entry
+   point is inside the open editor, and that guard trips on a freshly-hydrated
+   scene with no user edit — so restore is currently blocked outright. A second
+   codex dispatch is mid-flight on exactly this. **Re-run the device repro
+   before believing it fixed:** cold launch → scene → inspector → scroll →
+   version history → restore → force-stop → relaunch → check the prose.
+2. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
+   #13 entity to desktop, #22 convergence and the end-to-end half of #23 all
+   need a desktop peer. Running the desktop app touches the live manuscripts at
+   `%APPDATA%\com.coles.writing\writing.db`, and the DB-swap protocol in
+   `.claude/known-issues.md` requires Cole's OK and that he not open the app
+   during the run — so this was **not done unilaterally**. Mobile-side sync is
+   healthy as far as it can be checked alone: the relay connects
+   (`wss://sync.writersnook.app`), and the pairing record survives restarts.
+3. Remaining emulator-only: #18 share-sheet, #21 airplane-mode queue depth
+   (the queue count only renders on the catch-up screen, which is now
+   reachable), #25/26 AI send + verbs.
+4. Cosmetic, all small: the inspector's snapshot count is stale (it reads "0
+   snapshots" with versions present — it does not reload on return); the Hub
+   goal tile says "Progress unavailable" under a target the Goals screen shows
+   real progress for; the focus panel clips its "Session goal" row and the HUD
+   sits behind the format bar; keyboard spacer nav-bar overshoot;
+   `useAnimatedKeyboard` is deprecated in reanimated 4.5.
+5. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
-   on device — the dev client holds `KEEP_SCREEN_ON` on the same window either
-   way. Needs a release build or Cole's eyes.
-9. Cole-hands: real-device QR scan, iOS leg.
+   — the dev client holds `KEEP_SCREEN_ON` on the same window either way.
+6. Cole-hands: real-device QR scan, the iOS leg.
 
 ## Reference index
 - [roadmap/mobile/EMULATOR-MATRIX.md](mobile/EMULATOR-MATRIX.md) — the checklist, the orphan sweep, dev-loop traps.
+- [decisions/0016-mobile-drawer-is-button-only-under-gesture-nav.md](../decisions/0016-mobile-drawer-is-button-only-under-gesture-nav.md) — the drawer ruling.
+- [.claude/known-issues.md](../.claude/known-issues.md) — `registered-does-not-mean-reachable` and the DB-swap protocol.
 - [roadmap/coordination/mac-day-runbook.md](coordination/mac-day-runbook.md) — Mac-day execution script.
-- [.claude/known-issues.md](../.claude/known-issues.md) — verified fixes for recurring traps.
 - [.claude/vendor-gotchas/tauri.md](../.claude/vendor-gotchas/tauri.md) — Tauri traps.
 - [marketing/.claude/vendor-gotchas/](../marketing/.claude/vendor-gotchas/) — Cloudflare/LS traps.
 - [knowledge/platforms.md](../knowledge/platforms.md) — per-platform facts.
