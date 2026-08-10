@@ -11,9 +11,41 @@ separate ways that was true have been found and fixed, along with the
 data-integrity bug that hid behind one of them. What remains needs a desktop.
 
 Desktop unaffected: v0.12.7 shipped, working version 0.12.8. Gates green
-throughout: root + mobile lint and typecheck clean, 213 mobile tests passing.
+throughout: root + mobile lint and typecheck clean, 222 mobile tests passing.
 
-### What landed today (second session)
+### What landed today (third session)
+
+Four commits, all built by Codex dispatches and reviewed here before acceptance.
+
+**The cosmetic list is cleared, and one of them was hiding a real bug.**
+
+- **Hub goal tile** said "Progress unavailable" under a target the Goals screen
+  showed real progress for — `deriveGoalModel` hardcoded `current: null`. The Hub
+  now loads the same persisted goal-local state and shares one `localProgress`
+  helper with GoalsScreen. Device-verified: "250 word goal / today" with a live
+  ring.
+- **Wiring that up exposed an older defect.** A daily goal's progress is
+  manuscript words minus a stored baseline, and that baseline was written once by
+  a create-if-missing `ensure()` with no notion of the date — so a "daily" goal
+  measured words since it was first opened, and once met stayed met forever.
+  State now carries a `baselineDate` and re-arms at the local day boundary while
+  streak and met-days survive. Matches the day-keyed contract desktop already
+  uses; pre-existing records have no `baselineDate` and re-arm on first read.
+- **Inspector snapshot count** was queried once at mount, so it read "0
+  snapshots" against a populated history. It now reloads on navigation focus
+  while open — verified by reading 3, taking a snapshot, and returning to 4 with
+  no restart.
+- **Focus-mode layout.** The settings panel clipped its "Session goal" row and
+  the HUD sat behind the format bar — both because each was anchored to the
+  screen bottom with no knowledge of the keyboard spacer or the bar's 54px band.
+  The overlay now clears both. Verified keyboard down AND up.
+
+**Two rig traps cost real time and are now written down** (detail in the matrix):
+zeroed animation scales park every bottom sheet off-screen so it looks like a
+broken sheet, and a crashing WebView renderer (logged explicitly by Chromium) is
+a *different* failure from the documented silent handshake stall.
+
+### What landed in the previous session
 
 **Reachability — eight finished features a finger could not reach:**
 
@@ -65,6 +97,10 @@ tracks 0/250), #20 archive round-trip (restored "Opening" back into Chapter One,
 `folder_id = gate-f1` — re-confirms c44f2d2), #19 snapshots end to end,
 #24 theme across every screen including the editor, #27 focus mode.
 
+This session re-verified on a fresh rig: #11 (inspector snapshot count live,
+3 → 4 without restart), #17 (Hub ring shows real progress), #27 (focus layout,
+keyboard down and up).
+
 ## What's next
 
 1. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
@@ -78,20 +114,24 @@ tracks 0/250), #20 archive round-trip (restored "Opening" back into Chapter One,
 2. Remaining emulator-only: #18 share-sheet, #21 airplane-mode queue depth
    (the queue count only renders on the catch-up screen, which is now
    reachable), #25/26 AI send + verbs.
-3. Cosmetic, all small: the inspector's snapshot count is stale (it reads "0
-   snapshots" with versions present — it does not reload on return); the Hub
-   goal tile says "Progress unavailable" under a target the Goals screen shows
-   real progress for; the focus panel clips its "Session goal" row and the HUD
-   sits behind the format bar; keyboard spacer nav-bar overshoot;
-   `useAnimatedKeyboard` is deprecated in reanimated 4.5.
+3. Cosmetic remaining: keyboard spacer nav-bar overshoot, and
+   `useAnimatedKeyboard` is deprecated in reanimated 4.5 — now three call sites,
+   since the focus-overlay fix added one for consistency with the two existing
+   ones. (The inspector snapshot count, the Hub goal tile and the focus-panel
+   layout were the rest of this list and are all fixed and device-verified.)
 4. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
    — the dev client holds `KEEP_SCREEN_ON` on the same window either way.
 5. Cole-hands: real-device QR scan, the iOS leg.
-6. Watch: the editor twice fell into the read-only fallback when reopening a
-   scene right after a restore. Re-navigating loaded it fine, so it reads as the
-   known dev-only handshake transient — but it appeared twice in a row on the
-   same scene, so if it recurs in a release build it is worth a real look.
+6. Watch: the read-only fallback. Last session's note tied it to "reopening a
+   scene right after a restore" — that framing was wrong. It recurred with no
+   restore involved, and this time logcat named the cause outright:
+   `chromium: Renderer process (NNNNN) crash detected (code -1)`, repeating.
+   That is a **different mechanism** from the documented silent handshake stall,
+   which leaves no error at all. It followed a host reboot and a full app
+   restart cleared it, so it reads as rig instability — but the symptom is the
+   writing surface going read-only, so re-check on a stable rig or a release
+   build. Grep recipe in the matrix.
 
 ## Reference index
 - [roadmap/mobile/EMULATOR-MATRIX.md](mobile/EMULATOR-MATRIX.md) — the checklist, the orphan sweep, dev-loop traps.
