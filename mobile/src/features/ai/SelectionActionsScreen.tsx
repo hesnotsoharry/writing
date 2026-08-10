@@ -81,7 +81,7 @@ export function SelectionActionsScreen({ navigation, route }: Props) {
         </Text>
       </Text>
     </View>
-    <Sheet open designHeight={620} onDismiss={navigation.goBack}>
+    <Sheet open designHeight={620} onDismiss={navigation.goBack} scrollable>
       <View style={styles.sheetContent}>
         <View>
           <Text style={[TYPE.bodyStrong, { color: theme.colors.ink }]}>{selection?.wordCount ?? 0} words selected</Text>

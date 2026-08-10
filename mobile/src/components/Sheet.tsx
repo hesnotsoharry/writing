@@ -1,4 +1,4 @@
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import BottomSheet, { BottomSheetScrollView, BottomSheetView } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
 import type { ReactNode } from "react";
 import { useCallback } from "react";
@@ -35,10 +35,11 @@ function SheetContent({ children, fillsHeight, paddingBottom, scrollable }: {
   if (scrollable) {
     return <BottomSheetScrollView
       contentContainerStyle={contentStyle}
+      keyboardShouldPersistTaps="handled"
       style={fillsHeight ? styles.fixedContent : undefined}
     >{children}</BottomSheetScrollView>;
   }
-  return <View style={[contentStyle, fillsHeight && styles.fixedContent]}>{children}</View>;
+  return <BottomSheetView style={contentStyle}>{children}</BottomSheetView>;
 }
 
 function SheetSurface({ children, designHeight, onDismiss, scrollable }: Omit<SheetProps, "open">) {

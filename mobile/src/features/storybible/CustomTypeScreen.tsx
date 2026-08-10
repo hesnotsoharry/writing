@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { IconName } from "../../components";
 import { Icon, ICON_PATHS, PrimaryButton, Screen, SecondaryButton, Sheet, TextField } from "../../components";
@@ -53,7 +53,7 @@ function CustomTypeForm({ navigation, projectId }: { navigation: Props["navigati
     if (!store || !name.trim()) return;
     void store.createCustomType({ projectId, name: name.trim(), icon, color }).then(() => navigation.goBack());
   };
-  return <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+  return <View style={styles.form}>
     <Text style={[TYPE.bodyStrong, { color: theme.colors.ink }]}>New custom type</Text>
     <Text style={[TYPE.meta, styles.subtitle, { color: theme.colors.ink3 }]}>For the things this book has that the six built-ins don’t</Text>
     <TextField label="Name" onChangeText={setName} placeholder="Vessel" value={name} />
@@ -64,14 +64,14 @@ function CustomTypeForm({ navigation, projectId }: { navigation: Props["navigati
     <Preview color={color} icon={icon} name={name} />
     <View style={styles.actions}><SecondaryButton onPress={() => navigation.goBack()}>Cancel</SecondaryButton>
       <PrimaryButton disabled={!store || !name.trim()} onPress={create}>Create type</PrimaryButton></View>
-  </ScrollView>;
+  </View>;
 }
 
 export function CustomTypeScreen({ navigation, route }: Props) {
   const theme = useTheme();
   return <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.paper }]}>
     <View style={styles.backdropCopy}><Text style={[TYPE.prose, { color: theme.colors.ink }]}>The tide went out further than it had any right to.</Text></View>
-    <Sheet designHeight={724} onDismiss={() => navigation.goBack()} open>
+    <Sheet designHeight={724} onDismiss={() => navigation.goBack()} open scrollable>
       <CustomTypeForm navigation={navigation} projectId={route.params.projectId} />
     </Sheet>
   </Screen>;

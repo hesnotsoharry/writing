@@ -10,7 +10,9 @@ vi.mock("@gorhom/bottom-sheet", async () => {
   const Host = ({ children }: { children?: ReactNode }) => create("bottom-sheet", null, children);
   const ScrollHost = ({ children, style }: { children?: ReactNode; style?: { flex?: number } }) =>
     create("bottom-sheet-scroll-view", { "data-flex": style?.flex }, children);
-  return { default: Host, BottomSheetScrollView: ScrollHost };
+  const ViewHost = ({ children, style }: { children?: ReactNode; style?: { flex?: number }[] }) =>
+    create("bottom-sheet-view", { "data-flex": style?.find((item) => item.flex)?.flex }, children);
+  return { default: Host, BottomSheetScrollView: ScrollHost, BottomSheetView: ViewHost };
 });
 vi.mock("expo-blur", async () => {
   const { createElement: create } = await import("react");
@@ -64,5 +66,18 @@ describe("scrollable sheet structure", () => {
 
     expect(markup).toContain("<bottom-sheet><bottom-sheet-scroll-view data-flex=\"1\">content");
     expect(markup).not.toContain("<bottom-sheet><rn-view><bottom-sheet-scroll-view>");
+  });
+
+  it("uses the registered view without flex-constraining non-scrollable content", async () => {
+    const { Sheet } = await import("./Sheet");
+    type RenderableSheetProps = Omit<SheetProps, "children"> & { children?: ReactNode };
+    const RenderableSheet = Sheet as ComponentType<RenderableSheetProps>;
+    const markup = renderToStaticMarkup(createElement(RenderableSheet, {
+      designHeight: 230, onDismiss: () => undefined, open: true,
+    }, "content"));
+
+    expect(markup).toContain("<bottom-sheet><bottom-sheet-view>content");
+    expect(markup).not.toContain("<bottom-sheet><rn-view>");
+    expect(markup).not.toContain("<bottom-sheet-view data-flex=\"1\">");
   });
 });
