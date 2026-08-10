@@ -15,9 +15,10 @@ clipboard and keep-awake are native and require it).
 
 ## Must pass before this is called done
 
-**20 of 28 verified.** The 8 outstanding all need something this rig cannot
-provide alone — a paired desktop (#2, #3, #10, #13, #22), emulator tricks (#18,
-#21), or AI credentials (#25, #26). See the notes below the table.
+**22 of 28 verified.** The 6 outstanding all need something this rig cannot
+provide alone — a paired desktop (#2, #3, #10, #13, #22) or emulator tricks
+(#18, #21). The AI pair (#25, #26) passed 2026-08-10 on a dev-granted trial
+credential. See the notes below the table.
 
 | # | Check | Why it can only be verified here | Result |
 |---|---|---|---|
@@ -45,8 +46,8 @@ provide alone — a paired desktop (#2, #3, #10, #13, #22), emulator tricks (#18
 | 22 | Reconnect: queue drains, edits converge | | |
 | 23 | **Restore on desktop → mobile shows "This device is behind" → Catch up now** | The manual-epoch path, and the reason it exists | **ENTRY POINT BUILT; end-to-end still needs a desktop.** Was BLOCKED — `OfflineCatchUp` was orphaned so the behind-state could never surface. A persistent banner now consumes the engine's existing epoch-mismatch signal and opens the screen ("Catch up now" when a replacement is staged, "Review status" when the owner is absent). The signal is real, not stubbed. Cannot be exercised without a paired desktop producing a restore — see the sync note below |
 | 24 | Settings: theme switch light/dark across every screen | Both themes were only verified structurally | **PASS (was FAIL — 2 theme-blind surfaces, both fixed).** The switch works and persists across a cold relaunch; Settings, Projects, Hub, corkboard, outliner, inspector sheet, editor chrome, format bar and the editor fallback all theme correctly. Two defects found, **both now fixed and device-verified**: (a) **ProjectBinderScreen** (Hub → Binder) rendered light parchment scene cards on dark — it read the static `PALETTE` instead of `useTheme()`; (b) **the editor's writing surface** stayed cream-on-black while its chrome was dark — the theme message was ACKed by the web channel before TipTap bound its handler, so the one-in-flight queue dropped it permanently. Pre-bind messages are now buffered, and dark is seeded before first paint so there is no cream flash. Dark now verified across Settings, Projects, Hub, binder, corkboard, outliner, inspector, Goals, Archive, Boards, version history and the editor itself |
-| 25 | AI assistant sends and streams a reply (managed credential shared) | | **ATTEMPTED, was BLOCKED — blocker now fixed, still unrun.** No trial credit was spent; the assistant was never reachable. See #26 |
-| 26 | Selection → AI verbs sheet; "Hide this from AI" marks the run | | **Blocker found and fixed; the check itself is still unrun.** Selecting text and tapping the format bar's AI control opened `SelectionActions` and rendered the selected prose, then an **entirely empty sheet** — no verbs, no "Hide this from AI". `SelectionActionsScreen.openVerb` is the only `navigate("AiAssistant")` in the app, so this single defect also blocked #25. Cause was in `Sheet`, not the call site: static content rendered as a plain RN `View` with `flex: 1` inside gorhom v5's content mask, which measures at zero height and clips, so the subtree took zero bounds and Android omitted every descendant from the accessibility tree — hence zero nodes rather than merely unscrollable ones. Static content now uses the registered `BottomSheetView`; `SelectionActions` also opts into `scrollable` since its content exceeds the 620px snap point. Fix device-verified via the custom-type sheet; **this row still needs its own device pass** |
+| 25 | AI assistant sends and streams a reply (managed credential shared) | | **PASS 2026-08-10 — a real send on a real trial credential.** The blocker was credential state, not code: The Assistant screen itself now opens (first time reached on device): verb pre-selected from the sheet, context chip "The River + 0 bible entries", model row, composer. But this rig has never paired ("peer none"), and the ONLY writer of the mobile AI credential is `consumeCredentialOffer` fed by a desktop credential-offer over sync — so `managed.access` is `unavailable`, the banner says "Set up managed AI on desktop", and the composer's `TextField` is `editable={false}` (`sending` is forced true when access ≠ available). A disabled RN TextInput swallows taps silently — IME focus provably stayed on the Back button (`dumpsys input_method` showed `mServedView` = the back button's ReactViewGroup), which is why typed text kept vanishing. The server's `/api/ai/trial-session` has a first-grant mode needing NO key (empty `trialKey` → fresh grant, IP-capped), so a `__DEV__`-only "grant trial AI" affordance on the unavailable notice now mints a real trial credential on unpaired rigs — real server, real budget, only the sync-channel delivery skipped (that stays covered by #2/#3). **Verified end to end:** grant → "state: available" → banner clears, header shows the live "$1.50 of $1.50 left" trial balance from `/balance`, composer takes IME focus, and a Brainstorm send produced a streamed multi-paragraph Haiku 4.5 reply rendered in a message card with Copy / To inbox. The reply itself said "I can see there's a passage hidden by the author" — the `ai-exclude` mark on "holds" (#26) was honoured by the context pipeline on a live request. Trial credit was spent (Cole authorised). Traps hit on the way: the per-IP first-grant cap is 3/day and the emulator shares the host IP (a curl probe + two silent failed presses exhausted it — re-exchange with an already-granted key is uncapped and recovered it), and grant failures were invisible until the dev button got a try/catch + `Alert` (kept). Cosmetics: the composer hides behind the keyboard while typing (screen does not pan), and the verb pills render as huge ovals on first entry |
+| 26 | Selection → AI verbs sheet; "Hide this from AI" marks the run | | **PASS 2026-08-10 — both halves.** After the collapsed-selection fix (web-side selection memory in `editorUiBridge`, below), Hide-this-from-AI applies on device: `<span class="ai-exclude" data-ai-exclude="true">holds</span>` landed in the doc, the word renders with the grey redaction treatment in the editor, and a live AI send (#25) then described the passage as "hidden by the author" — the mark survives into the request context. Pre-fix findings kept for the record: The 8bbb260 Sheet fix is verified on its own call site: select a word → format-bar sparkle → the sheet renders completely — "1 words selected", the selected prose above, Bold/Italic/Link entity/Copy, exactly the four catalog verbs (no "Ask" — the revert held), and the dashed "Hide this from AI" row. Verb rows navigate to the Assistant with the verb pre-selected. **"Hide this from AI" is wired end to end and still does nothing:** the tap fires, `runSelectionCommand` succeeds, the sheet dismisses, and the page provably receives `{"type":"editor-command","command":"toggle-ai-exclude"}` (CDP message hook) — but by then ProseMirror's selection has collapsed (`window.getSelection()` captured collapsed at command time), so `toggleMark("aiExclude")` no-ops and no `.ai-exclude` mark ever lands in the doc. Bold/Italic from the same sheet fail identically (no `<strong>` after a sheet Bold). The defect was "selection commands from SelectionActions apply to a collapsed selection" — fixed by remembering the last non-collapsed PM selection in the WebView (`editorUiBridge`), restoring it via `setTextSelection` before selection-dependent commands, and no-opping gracefully when the doc changed since capture. Bold/Italic/link-entity from the sheet are covered by the same path. (Two cosmetics spotted en route: the Assistant screen's verb pills render as ~607px-tall ovals — the Pressables really are that tall in the a11y tree — and the format bar's sparkle is a11y-labelled `toggle-ai-exclude` though it opens SelectionActions.) History: the empty-sheet blocker (plain RN `View` inside gorhom v5's content mask → zero-height clip → Android dropped every descendant from the a11y tree) was fixed in 8bbb260 and first verified through the custom-type sheet |
 | 27 | Focus mode dims non-active paragraphs; keep-awake holds the screen | ProseMirror decoration — must be seen | **PASS** (layout defects fixed 2026-08-09). Dimming verified with three paragraphs: the two inactive ones render grey, the caret's paragraph stays full-contrast, and the decoration follows the caret. Header hides, HUD counts live (words/minutes/percent), exit chip works. Keep-awake is wired correctly (`expo-keep-awake`, tagged, cleaned up on unmount) but could NOT be independently confirmed — the dev client holds `KEEP_SCREEN_ON` on the same window either way. **Both layout defects are now fixed and re-verified:** the panel clipped its "Session goal / 500 words" row and the HUD strip sat behind the format bar, because each was anchored to the screen bottom with no knowledge of the keyboard spacer or the bar's 54px band. The whole overlay now sits above keyboard height plus an explicit bottom inset (`FORMAT_BAR_HEIGHT`, exported from FormatBar rather than a magic number at the call site). Verified with the keyboard BOTH down and up: all four settings rows visible, HUD clear of the bar |
 | 28 | Force-stop and cold relaunch: everything rehydrates from SQLite | | **PASS** (typed marker survived force-stop; scene_docs verified via pulled DB) |
 
@@ -188,6 +189,48 @@ A full force-stop and relaunch cleared it, and the same build then loaded the
 editor normally, so this read as rig instability rather than a code fault — but
 the symptom is the writer's core surface going read-only, so it is worth
 re-checking if it appears on a stable rig or in a release build.
+
+## Rig traps — found 2026-08-10
+
+**The dev client's stored Metro URL can be unroutable from the emulator.** The
+dev client remembered `100.101.42.9:8081` — the host's *Tailscale* address, from
+a session that served Cole's physical phone. The emulator's NAT cannot reach the
+host's Tailscale interface (100% packet loss), so any bundle reload hangs on
+"Loading from 100.101.42.9:8081…" forever while Metro sits healthy on
+localhost. Recovery that works: `adb reverse tcp:8081 tcp:8081`, then relaunch
+via deep link `exp+writersnook-mobile://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081`
+(the bare `writersnook://` scheme does NOT resolve for the dev-client launcher —
+use the `exp+<slug>` form). Note the running app is fine until something forces
+a reload; the trap fires mid-session.
+
+**The adb daemon can crash mid-session and silently drop every forward and
+reverse.** One `adb` call returned exit 255 with "daemon not running"; after its
+auto-restart the 8081 reverse and the WebView devtools forward were both gone
+(and the wireless-ADB physical device fell off the list). If Metro reloads or
+CDP calls start failing, re-run `adb reverse --list` before diagnosing anything
+else.
+
+**Tapping from a screenshot races the keyboard (TOCTOU).** The format bar sits
+at the screen bottom with the keyboard down and jumps ~880px up when it opens —
+and the keyboard can open *between* taking a screenshot and issuing the tap.
+One such race typed a space over the live selection and deleted a word from the
+manuscript (repaired via CDP `document.execCommand('insertText')`, which routes
+through beforeinput and is ProseMirror-safe — direct DOM mutation is not).
+Verify the bar's position in the same screenshot you aim from, and prefer the
+keyboard-up position only when the keyboard is confirmed up.
+
+**`adb shell input text` with no editable focused can leave the app entirely.**
+With IME focus on a non-input (the header Back button — RN kept it there while
+the composer was `editable={false}`), typed key events triggered Android's
+"Display over other apps" Settings screen, which then ANR'd — reading as an app
+crash. It isn't one; close the Settings dialog and the app is untouched
+beneath. Check `dumpsys input_method | grep mServedView` before typing.
+
+**The a11y tree can omit an open, touchable sheet.** While the SelectionActions
+sheet was visibly rendered and its rows navigably live, `uiautomator dump`
+returned only the editor beneath it. Screenshots and behaviour are the oracle
+for sheet content; the a11y dump alone can no longer prove a sheet empty OR
+present.
 
 ## Known limitations going in
 

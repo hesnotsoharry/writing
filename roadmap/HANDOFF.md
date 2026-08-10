@@ -1,17 +1,43 @@
 ---
 project: writing
-updated: 2026-08-09
+updated: 2026-08-10
 ---
 
 ## Current state
 
-**The mobile app's problem was reachability, and most of it is now closed.** The
-features were built and they worked; a writer just could not get to them. Eight
-separate ways that was true have been found and fixed, along with the
-data-integrity bug that hid behind one of them. What remains needs a desktop.
+**The AI checks are done: #25 and #26 both PASS on device.** The assistant
+sends and streams a real reply on a real trial credential, and "Hide this from
+AI" provably redacts — the model itself described the marked passage as
+"hidden by the author" on a live request. Everything left in the emulator
+matrix (6 of 28) needs a desktop peer or emulator tricks, not more mobile code.
 
 Desktop unaffected: v0.12.7 shipped, working version 0.12.8. Gates green
-throughout: root + mobile lint and typecheck clean, 222 mobile tests passing.
+throughout: root + mobile lint and typecheck clean, 227 mobile tests passing.
+
+### What landed today (fourth session)
+
+Two Codex-built fixes, reviewed here, both device-verified:
+
+- **Selection commands from the SelectionActions sheet actually apply now.**
+  They were reaching TipTap after ProseMirror's selection had collapsed, so
+  toggle-ai-exclude / bold / italic silently no-opped — proven with a CDP
+  message hook (command arrives, `window.getSelection()` collapsed, no mark in
+  the doc). The WebView now remembers the last non-collapsed selection and
+  restores it before selection-dependent commands, with a doc-identity guard
+  against stale ranges (`mobile/editor-web/src/editorUiBridge.ts`).
+- **Unpaired rigs can mint a real trial credential.** Mobile's AI credential
+  only ever arrives via a desktop credential-offer over sync; this rig has
+  never paired, so the composer was `editable={false}` — which is why typed
+  text kept vanishing (IME focus provably stuck on the Back button). A
+  `__DEV__`-only "Dev only: grant trial AI" button on the unavailable notice
+  feeds a synthetic offer through the real `consumeCredentialOffer` →
+  first-grant `/api/ai/trial-session` path. Failures alert loudly now (the
+  first attempts failed silently and burned the 3-per-IP daily grant cap).
+- Matrix header is at **22 of 28**; the two rows carry the full evidence, and
+  five new rig traps are written up (unroutable Tailscale Metro URL + the
+  `exp+slug` deep-link recovery, adb daemon crashes dropping forwards,
+  keyboard-race taps, `input text` with no editable focus opening Settings,
+  and the a11y tree omitting live sheets).
 
 ### What landed today (third session)
 
@@ -113,25 +139,17 @@ keyboard down and up).
    (`wss://sync.writersnook.app`), and the pairing record survives restarts.
 2. Remaining emulator-only: #18 share-sheet, #21 airplane-mode queue depth
    (the queue count only renders on the catch-up screen, which is now
-   reachable), #25/26 AI send + verbs.
-   **#25/26 attempted this session and blocked by a real defect, now fixed.**
-   Cole authorised spending trial credit; none was spent, because the AI never
-   became reachable. Tapping the format bar's AI control opened
-   `SelectionActions`, rendered the selected prose, then showed an entirely
-   empty sheet. `openVerb` is the only route to `AiAssistant`, so that one bug
-   took out both checks. Cause was in `Sheet` itself — static content used a
-   plain RN `View` with `flex: 1` inside gorhom v5's content mask, which
-   measures at zero height, so the subtree laid out at zero bounds and Android
-   dropped every descendant from the accessibility tree. Static content now uses
-   the registered `BottomSheetView`. **Verified on device through the
-   custom-type sheet** (724px, same wrapper bug, now renders end to end);
-   `SelectionActions` itself still needs a device pass, which requires a working
-   editor selection. Re-run #25/26 first next session.
+   reachable). **#25/#26 are DONE** — see the matrix rows for the evidence.
 3. Cosmetic remaining: keyboard spacer nav-bar overshoot, and
    `useAnimatedKeyboard` is deprecated in reanimated 4.5 — now three call sites,
    since the focus-overlay fix added one for consistency with the two existing
    ones. (The inspector snapshot count, the Hub goal tile and the focus-panel
    layout were the rest of this list and are all fixed and device-verified.)
+   New from the AI pass, none blocking: the Assistant composer hides behind
+   the keyboard while typing (screen doesn't pan — same edge-to-edge family as
+   #6), the verb pills render as huge ovals on first entry, and the format
+   bar's sparkle is a11y-labelled `toggle-ai-exclude` though it opens
+   SelectionActions.
 4. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
    — the dev client holds `KEEP_SCREEN_ON` on the same window either way.
