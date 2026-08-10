@@ -114,6 +114,19 @@ keyboard down and up).
 2. Remaining emulator-only: #18 share-sheet, #21 airplane-mode queue depth
    (the queue count only renders on the catch-up screen, which is now
    reachable), #25/26 AI send + verbs.
+   **#25/26 attempted this session and blocked by a real defect, now fixed.**
+   Cole authorised spending trial credit; none was spent, because the AI never
+   became reachable. Tapping the format bar's AI control opened
+   `SelectionActions`, rendered the selected prose, then showed an entirely
+   empty sheet. `openVerb` is the only route to `AiAssistant`, so that one bug
+   took out both checks. Cause was in `Sheet` itself — static content used a
+   plain RN `View` with `flex: 1` inside gorhom v5's content mask, which
+   measures at zero height, so the subtree laid out at zero bounds and Android
+   dropped every descendant from the accessibility tree. Static content now uses
+   the registered `BottomSheetView`. **Verified on device through the
+   custom-type sheet** (724px, same wrapper bug, now renders end to end);
+   `SelectionActions` itself still needs a device pass, which requires a working
+   editor selection. Re-run #25/26 first next session.
 3. Cosmetic remaining: keyboard spacer nav-bar overshoot, and
    `useAnimatedKeyboard` is deprecated in reanimated 4.5 — now three call sites,
    since the focus-overlay fix added one for consistency with the two existing
