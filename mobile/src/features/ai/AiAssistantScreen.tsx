@@ -1,7 +1,7 @@
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Icon, IconButton, Pill, Screen, TextField } from "../../components";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -14,6 +14,8 @@ import { loadContextScreenState } from "./aiContextModel";
 import { takePendingVerb } from "./aiDraftState";
 import { formatCreditDollars, presentBalance } from "./aiLogic";
 import { AssistantMessageCard } from "./AssistantMessageCard";
+import { consumeCredentialOffer } from "./credentialHandoff";
+import { createDevTrialOffer } from "./devTrialOffer";
 import { useAssistantConversation } from "./useAssistantConversation";
 import { useManagedAi } from "./useManagedAi";
 
@@ -40,6 +42,26 @@ function VerbChips({ selected, onSelect }: { selected: VerbKey; onSelect(verb: V
     {AI_VERB_ORDER.map((verb) => <Pill key={verb} variant={selected === verb ? "selected" : "plain"}
       onPress={() => { onSelect(verb); }}>{AI_VERBS[verb].label}</Pill>)}
   </ScrollView>;
+}
+
+function UnavailableNotice({ onGrantTrial }: { onGrantTrial(): void }) {
+  const theme = useTheme();
+  return <View style={styles.notice}>
+    <InlineNotice tone="warn">Set up managed AI on desktop. BYOK setup remains desktop-only.</InlineNotice>
+    {__DEV__ && <Pressable accessibilityRole="button" onPress={onGrantTrial} style={styles.devTrialButton}>
+      <Text style={[TYPE.meta, { color: theme.colors.accent }]}>Dev only: grant trial AI</Text>
+    </Pressable>}
+  </View>;
+}
+
+async function grantDevTrial(refresh: () => void): Promise<void> {
+  try {
+    const result = await consumeCredentialOffer(createDevTrialOffer());
+    Alert.alert("Dev trial grant", `state: ${result.availability.state}`);
+    refresh();
+  } catch (error) {
+    Alert.alert("Dev trial grant failed", error instanceof Error ? error.message : String(error));
+  }
 }
 
 function Composer({ onSend, sending, verb }: {
@@ -80,7 +102,8 @@ export function AiAssistantScreen({ navigation, route }: Props) {
     <AiHeader title="Assistant" subtitle={AI_MODELS[model].label} balance={balanceLabel(managed.balance)}
       subtitleActionLabel={`Change model. Current model: ${AI_MODELS[model].label}`}
       onSubtitlePress={() => { navigation.navigate("AiModel", route.params); }} onBack={navigation.goBack} />
-    {managed.access?.state === "unavailable" ? <View style={styles.notice}><InlineNotice tone="warn">{managed.access.message}. BYOK setup remains desktop-only.</InlineNotice></View> : null}
+    {managed.access?.state === "unavailable"
+      ? <UnavailableNotice onGrantTrial={() => { void grantDevTrial(refreshManaged); }} /> : null}
     {managed.error ? <View style={styles.notice}><InlineNotice tone="warn">{managed.error}</InlineNotice></View> : null}
     <View style={styles.contextWrap}><ContextBar label={contextLabel} onPress={() => { navigation.navigate("AiContext", route.params); }} /></View>
     <ScrollView contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled">
@@ -94,6 +117,7 @@ export function AiAssistantScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 }, notice: { paddingHorizontal: 16, paddingTop: 10 },
+  devTrialButton: { alignSelf: "flex-start", paddingHorizontal: 4, paddingTop: 8 },
   contextWrap: { padding: 14, paddingBottom: 0 }, context: { minHeight: 42, borderWidth: 1,
     borderRadius: RADIUS.lg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 },
   grow: { flex: 1 }, messages: { flexGrow: 1, padding: 16, gap: 14 }, empty: { textAlign: "center", opacity: 0.62, marginTop: 48 },

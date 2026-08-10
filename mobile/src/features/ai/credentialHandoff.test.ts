@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearSessionFromMemory, consumeCredentialOffer, markByokOnlyUnavailable,
 } from "./credentialHandoff";
+import { createDevTrialOffer } from "./devTrialOffer";
 
 function harness() {
   let value: string | null = null;
@@ -44,6 +45,15 @@ describe("managed credential handoff", () => {
     expect(replay.availability.state).toBe("replayed");
     expect(replay.ack.accepted).toBe(false);
     expect(deps.client.acquireTrialSession).toHaveBeenCalledOnce();
+  });
+
+  it("accepts the dev first-grant trial offer", async () => {
+    const deps = harness();
+    const result = await consumeCredentialOffer(createDevTrialOffer(), deps);
+    expect(result.availability.state).toBe("available");
+    if (result.availability.state !== "available") return;
+    expect(result.availability.credential.kind).toBe("trial");
+    expect(deps.client.acquireTrialSession).toHaveBeenCalledWith("");
   });
 
   it("keeps BYOK-only state unavailable and stores no provider secret", async () => {
