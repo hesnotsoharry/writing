@@ -8,6 +8,7 @@ import { focusDecorationKey, focusDecorationPlugin, type FocusDecorationState } 
 
 const ENTITY_LINK_ORIGIN = "https://entity.writersnook.app";
 type Editor = Parameters<NonNullable<ComponentProps<typeof MobileEditorCore>["onReady"]>>[0];
+interface RememberedSelection { from: number; to: number; doc: Editor["state"]["doc"] }
 
 function selectionRect(editor: Editor): { x: number; y: number; width: number; height: number } | null {
   const { from, to } = editor.state.selection;
@@ -58,7 +59,25 @@ function entityHref(command: EditorUiCommand): string | null {
   return `${ENTITY_LINK_ORIGIN}/${type}/${id}`;
 }
 
-function runCommand(editor: Editor, command: EditorUiCommand): void {
+function needsSelection(command: EditorUiCommand): boolean {
+  return command.command === "toggle-bold" || command.command === "toggle-italic"
+    || command.command === "toggle-ai-exclude" || command.command === "link-entity";
+}
+
+function restoreSelection(editor: Editor, remembered: RememberedSelection | null): boolean {
+  if (!editor.state.selection.empty || !remembered) return true;
+  if (remembered.doc !== editor.state.doc) return false;
+  const size = editor.state.doc.content.size;
+  const from = Math.min(Math.max(0, remembered.from), size);
+  const to = Math.min(Math.max(0, remembered.to), size);
+  if (from >= to) return false;
+  return editor.chain().focus().setTextSelection({ from, to }).run();
+}
+
+function runCommand(
+  editor: Editor, command: EditorUiCommand, remembered: RememberedSelection | null,
+): void {
+  if (needsSelection(command) && !restoreSelection(editor, remembered)) return;
   if (command.command === "toggle-bold") editor.chain().focus().toggleMark("bold").run();
   else if (command.command === "toggle-italic") editor.chain().focus().toggleMark("italic").run();
   else if (command.command === "toggle-blockquote") editor.chain().focus().toggleWrap("blockquote").run();
@@ -100,10 +119,15 @@ function applyFocus(editor: Editor, focus: FocusDecorationState): void {
 
 export function attachEditorUi(editor: Editor, client: BridgeClient): () => void {
   editor.registerPlugin(focusDecorationPlugin());
-  const onSelection = (): void => { reportSelection(editor, client); };
+  let remembered: RememberedSelection | null = null;
+  const onSelection = (): void => {
+    const { empty, from, to } = editor.state.selection;
+    if (!empty) remembered = { from, to, doc: editor.state.doc };
+    reportSelection(editor, client);
+  };
   const onClick = (event: MouseEvent): void => { reportAutoLinkTap(event, client); };
   const unbind = client.bindEditorUi((message: NativeEditorUiMessage) => {
-    if (message.type === "editor-command") runCommand(editor, message);
+    if (message.type === "editor-command") runCommand(editor, message, remembered);
     else if (message.type === "editor-theme") applyTheme(message.colors);
     else if (message.type === "editor-focus") applyFocus(editor, message);
     reportSelection(editor, client);
@@ -111,6 +135,6 @@ export function attachEditorUi(editor: Editor, client: BridgeClient): () => void
   editor.on("selectionUpdate", onSelection);
   editor.on("transaction", onSelection);
   editor.view.dom.addEventListener("click", onClick);
-  reportSelection(editor, client);
+  onSelection();
   return () => { document.documentElement.classList.remove("focus-mode"); unbind(); editor.unregisterPlugin(focusDecorationKey); editor.off("selectionUpdate", onSelection); editor.off("transaction", onSelection); editor.view.dom.removeEventListener("click", onClick); };
 }
