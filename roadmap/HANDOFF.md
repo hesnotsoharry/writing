@@ -34,8 +34,11 @@ remains unaffected: v0.12.7 shipped, working version 0.12.8.
   queued scenes; four SQLite snapshots independently matched those counts with
   no non-scene rows and three distinct durable markers.
 - **Two safe cosmetics cleared (`b04f968`).** Assistant verb pills are capped
-  at the intended 44px band, and the format-bar sparkle now announces
+  at the intended 44dp band, and the format-bar sparkle now announces
   `AI selection actions` instead of the unrelated editor command name.
+  **Device re-check PASS 2026-08-14:** the four pills render as one normal 44dp
+  row (115px at 420dpi), and the newly labelled sparkle still opens the real
+  SelectionActions sheet.
 - **Build/gates:** x86_64 dev client assembled at
   `mobile/android/app/build/outputs/apk/debug/app-debug.apk` (SHA-256
   `B5A82F060CA13FFAAA86E067E897C35F559A5ADA0EFFABDF8FC8C3368A75C1CA`).
@@ -170,7 +173,7 @@ keyboard down and up).
    recommended migration adds `react-native-keyboard-controller` and a global
    provider, so it must be isolated and device-regressed against #6/#7/#25/#27;
    it was not changed compile-only. The huge verb pills and sparkle label are
-   fixed in `b04f968` and need visual/a11y confirmation.
+   fixed in `b04f968` and device-verified.
 3. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
    — the dev client holds `KEEP_SCREEN_ON` on the same window either way.

@@ -61,7 +61,10 @@ Evidence/build state:
 - `d7e2135` restores the native Android share filter and adds a regression test.
 - `f53a704` makes queue status reachable from Settings without synthetic DB state.
 - `b04f968` constrains Assistant verb pills and gives the sparkle button the
-  truthful accessibility label `AI selection actions`; both need device re-check.
+  truthful accessibility label `AI selection actions`. **Device re-check PASS
+  2026-08-14:** the four pills render as a normal single 44dp band (115px at
+  the rig's 420dpi), and the sparkle exposes the new label, not the old editor
+  command name, while still opening SelectionActions.
 - x86_64 dev client: `mobile/android/app/build/outputs/apk/debug/app-debug.apk`,
   SHA-256 `B5A82F060CA13FFAAA86E067E897C35F559A5ADA0EFFABDF8FC8C3368A75C1CA`.
 - #18 passed through Android's real share resolver, rendered Inbox card, and a
