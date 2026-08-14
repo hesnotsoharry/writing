@@ -1,7 +1,8 @@
 import { BlurView } from "expo-blur";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
+import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 import { Icon, Ring, Toggle } from "../../components";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -22,9 +23,9 @@ export function FocusHud({ bottomInset = 0, onExit, onUpdate, sceneTitle, settin
   sceneTitle: string; settings: FocusSettings; wordCount: number;
 }) {
   const theme = useTheme(); const minutes = useMinutes();
-  const keyboard = useAnimatedKeyboard();
+  const keyboard = useReanimatedKeyboardAnimation();
   const avoidBottomBars = useAnimatedStyle(() => ({
-    transform: [{ translateY: -(keyboard.height.value + bottomInset) }],
+    transform: [{ translateY: keyboard.height.value - bottomInset }],
   }), [bottomInset]);
   useEffect(() => {
     void setFocusKeepAwake(settings.keepAwake);

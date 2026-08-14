@@ -17,6 +17,47 @@ The matrix now has **22 full PASS rows, 2 partial rows, and 4 blank rows.** The
 partial rows are #2 (inherited, not re-run) and #23 (entry point only). Desktop
 remains unaffected: v0.12.7 shipped, working version 0.12.8.
 
+### What landed today (sixth session — keyboard cleanup)
+
+- **Keyboard ownership is unified.** Expo SDK 57's matched
+  `react-native-keyboard-controller` 1.21.9 now provides the root
+  `KeyboardProvider`. The editor bar and Focus HUD use its persistent shared
+  animation value instead of Reanimated 4.5's deprecated per-mount
+  `useAnimatedKeyboard`; this matters when Focus mode mounts after the keyboard
+  is already open.
+- **The Android gap had an observed cause, not an inset guess.** The diagnostic
+  footer reserved 220px below the navigation tree while the overlaid keyboard
+  covered it, so every full-keyboard translation landed 220px too high. The
+  footer now leaves layout while the keyboard is visible. On API 36 the live
+  editor kept IME focus and its caret visible; the format-bar controls moved
+  from `[625,2064][740,2179]` to `[625,1390][740,1505]`, directly above the
+  keyboard surface.
+- **Assistant typing is no longer covered.** One `KeyboardStickyView` moves the
+  four verb chips and composer as a single dock. With a real available managed
+  credential, the focused composer rendered at `[32,1305][675,1424]` and all
+  chips remained visible above the keyboard; no prompt was sent and no credit
+  was spent.
+- **Adjacent dev reliability fix:** managed-AI credential loading now uses the
+  same static `expo-secure-store` import already established by the sync key
+  store. Its redundant dynamic import repeatedly failed after an adb reverse
+  loss (`Could not load bundle` / dev-client `reload` error), preventing an
+  otherwise valid credential from enabling the composer.
+- **Native/device evidence:** the dev APK assembled successfully (SHA-256
+  `98836A123CB0B1E0C0C041FACD5095C05F4088C2EBD37A44855F98495C4989F4`).
+  #6/#7/#25/#27 pass their Android regressions. The known WebView renderer
+  crash recurred independently; a temporary 4GB AVD RAM override stabilized
+  the final Assistant run and did not alter the checked-in AVD configuration.
+- **Gates:** 234 mobile tests pass and 1 is skipped; mobile lint and both
+  typechecks pass. `expo install --check` does not flag Keyboard Controller; it
+  separately reports four pre-existing Expo 57 patch updates (`expo`,
+  `expo-asset`, `expo-build-properties`, `expo-dev-client`), intentionally not
+  mixed into this native keyboard change.
+- **Data safety:** the app was force-stopped and the original mobile DB restored
+  byte-for-byte to SHA-256
+  `C457AFCBB427E3C83D55C66708D6B01F2B29EDA7963116DEF222D75D91C5BE5D`.
+  `integrity_check=ok`, the 11 pre-existing pending rows remain, the share marker
+  remains, networking is on, and the desktop app/database were untouched.
+
 ### What landed today (fifth session — agent verification)
 
 - **Android share target restored (`d7e2135`).** `app.json` already declared
@@ -167,18 +208,12 @@ keyboard down and up).
    #13 entity to desktop, #22 convergence and the end-to-end half of #23 need a
    desktop peer. The DB-swap protocol in `.claude/known-issues.md` requires
    Cole's explicit OK and that he not open the desktop app during the run.
-2. **Keyboard work stays device-gated.** The Assistant composer still hides
-   behind the keyboard, the Android spacer overshoots the navigation-bar inset,
-   and Reanimated 4.5 deprecates the three `useAnimatedKeyboard` calls. The
-   recommended migration adds `react-native-keyboard-controller` and a global
-   provider, so it must be isolated and device-regressed against #6/#7/#25/#27;
-   it was not changed compile-only. The huge verb pills and sparkle label are
-   fixed in `b04f968` and device-verified.
-3. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
+2. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
    — the dev client holds `KEEP_SCREEN_ON` on the same window either way.
-4. Cole-hands: real-device QR scan, the iOS leg.
-5. Watch: the read-only fallback. Last session's note tied it to "reopening a
+3. Cole-hands: real-device QR scan and the iOS leg, including the new Keyboard
+   Controller path.
+4. Watch: the read-only fallback. Last session's note tied it to "reopening a
    scene right after a restore" — that framing was wrong. It recurred with no
    restore involved, and this time logcat named the cause outright:
    `chromium: Renderer process (NNNNN) crash detected (code -1)`, repeating.

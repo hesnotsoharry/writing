@@ -5,6 +5,12 @@ import {
 } from "./credentialHandoff";
 import { createDevTrialOffer } from "./devTrialOffer";
 
+vi.mock("expo-secure-store", () => ({
+  deleteItemAsync: vi.fn(),
+  getItemAsync: vi.fn(),
+  setItemAsync: vi.fn(),
+}));
+
 function harness() {
   let value: string | null = null;
   const secureStore = {

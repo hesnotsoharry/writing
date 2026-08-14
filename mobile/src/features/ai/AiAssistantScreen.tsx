@@ -2,6 +2,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 
 import { Icon, IconButton, Pill, Screen, TextField } from "../../components";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -111,8 +112,10 @@ export function AiAssistantScreen({ navigation, route }: Props) {
       {conversation.messages.map((message) => <AssistantMessageCard key={message.id} message={message} projectId={route.params.projectId} />)}
       {conversation.messages.length === 0 ? <Text style={[TYPE.proseBody, styles.empty]}>Ask about the scene, brainstorm a turn, or get a close craft read.</Text> : null}
     </ScrollView>
-    <VerbChips selected={verb} onSelect={setVerb} />
-    <Composer verb={verb} sending={conversation.sending || managed.access?.state !== "available"} onSend={send} />
+    <KeyboardStickyView>
+      <VerbChips selected={verb} onSelect={setVerb} />
+      <Composer verb={verb} sending={conversation.sending || managed.access?.state !== "available"} onSend={send} />
+    </KeyboardStickyView>
   </Screen>;
 }
 

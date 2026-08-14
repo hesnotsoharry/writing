@@ -1,3 +1,5 @@
+import * as SecureStore from "expo-secure-store";
+
 import { AI_MODELS, DEFAULT_MODEL, type ManagedModel } from "../../shared/aiCatalog";
 import {
   type CredentialAckMessage,
@@ -38,7 +40,7 @@ let unavailableInMemory = false;
 
 async function storePort(deps: CredentialConsumerDeps): Promise<SecureStorePort> {
   if (deps.secureStore) return deps.secureStore;
-  return import("expo-secure-store");
+  return SecureStore;
 }
 
 function credentialFromOffer(offer: CredentialOfferMessage): ManagedAiCredential {

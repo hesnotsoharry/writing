@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider, useKeyboardState } from "react-native-keyboard-controller";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { useAppFonts } from "./components/useAppFonts";
@@ -74,10 +75,12 @@ export default function App() {
     <ShareIntentProvider options={{ scheme: "writersnook" }}>
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
-          <ThemeProvider>
-            <ShareIntentCapture />
-            <AppTree dbLine={dbLine} dbReady={dbReady} fontsLoaded={fontsLoaded} onPaired={handlePaired} syncStatus={syncStatus} />
-          </ThemeProvider>
+          <KeyboardProvider>
+            <ThemeProvider>
+              <ShareIntentCapture />
+              <AppTree dbLine={dbLine} dbReady={dbReady} fontsLoaded={fontsLoaded} onPaired={handlePaired} syncStatus={syncStatus} />
+            </ThemeProvider>
+          </KeyboardProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ShareIntentProvider>
@@ -94,6 +97,7 @@ interface AppTreeProps {
 
 function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTreeProps) {
   const theme = useTheme();
+  const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const gate = useMobileLicenseGate(dbReady);
   const statusStyle = theme.name === "dark" ? "light" : "dark";
   const background = { backgroundColor: theme.colors.parchment };
@@ -115,7 +119,7 @@ function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTree
           if (navigationRef.isReady()) navigationRef.navigate("OfflineCatchUp", { projectId });
         }} />
       </TrialDaysProvider>
-      <DevFooter dbLine={dbLine} status={syncStatus} />
+      {!keyboardVisible && <DevFooter dbLine={dbLine} status={syncStatus} />}
     </View>
   );
 }

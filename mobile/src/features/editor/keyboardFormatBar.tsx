@@ -1,16 +1,17 @@
 import type { ReactNode } from "react";
 import { Platform } from "react-native";
-import Animated, { useAnimatedKeyboard, useAnimatedStyle } from "react-native-reanimated";
+import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 function IosAnimatedKeyboardBar({ children }: { children: ReactNode }) {
-  const keyboard = useAnimatedKeyboard();
-  const style = useAnimatedStyle(() => ({ transform: [{ translateY: -keyboard.height.value }] }));
+  const keyboard = useReanimatedKeyboardAnimation();
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: keyboard.height.value }] }));
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 function AndroidKeyboardSpacerBar({ children }: { children: ReactNode }) {
-  const keyboard = useAnimatedKeyboard();
-  const style = useAnimatedStyle(() => ({ height: keyboard.height.value }));
+  const keyboard = useReanimatedKeyboardAnimation();
+  const style = useAnimatedStyle(() => ({ height: -keyboard.height.value }));
   return <>
     {children}
     <Animated.View style={style} />
