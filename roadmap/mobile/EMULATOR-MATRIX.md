@@ -1,7 +1,7 @@
 ---
 project: writing
 scope: mobile build-out — device verification checklist
-updated: 2026-08-13
+updated: 2026-08-14
 ---
 
 # Emulator / device matrix
@@ -10,17 +10,14 @@ The runtime oracle for this build-out. jsdom cannot render React Native, a
 keyboard, a gesture, or a WebView, so everything below is a claim the test
 suite structurally cannot make.
 
-Rig: `Medium_Phone_API_36.1`. The installed dev client was last device-verified
-2026-08-09. A replacement x86_64 dev client with the repaired share target was
-built 2026-08-13; it still needs installation after host virtualization returns.
+Rig: `Medium_Phone_API_36.1`. The replacement x86_64 dev client with the
+repaired share target was built, installed, and device-verified 2026-08-13.
 
 ## Must pass before this is called done
 
-**20 rows are full PASS, 4 are partial/prepared, and 4 are blank.** The old
-"22 of 28 verified" headline counted any populated Result cell, including #2
-(inherited, not re-run) and #23 (entry point only). The prepared but still
-runtime-unverified rows are #18 and #21. Desktop work remains for #2, #3, #10,
-#13, #22 and the end-to-end half of #23.
+**22 rows are full PASS, 2 are partial, and 4 are blank.** The partial rows are
+#2 (inherited, not re-run) and #23 (entry point only). Desktop work remains for
+#2, #3, #10, #13, #22 and the end-to-end half of #23.
 
 | # | Check | Why it can only be verified here | Result |
 |---|---|---|---|
@@ -41,10 +38,10 @@ runtime-unverified rows are #18 and #21. Desktop work remains for #2, #3, #10,
 | 15 | Outliner sticky headers correct during a drag | | **PASS.** Sticky headers pin while their section scrolls and hand over correctly to the next. Drag reorder was FAIL — the row's pan competed with the FlatList's native scroll, which claimed the touch and *cancelled* the pan, so `onEnd` (the only place the drop applies) never ran. Instrumented on device to prove it: only `onFinalize success=false`, and `sort_order` unchanged in the pulled DB. Fixed with `blocksExternalGesture`, a success-guarded `onEnd` and a stable gesture identity; `rowHeight` was also wrong (102 vs a real 148). Re-verified: dragging a row rewrote `sort_order` in SQLite |
 | 16 | Search: manuscript / bible / notes scopes return results | | **PASS** (manuscript scope live w/ highlight + snippet; bible/notes correctly 0 — re-verify once entities exist. Mojibake ellipsis in snippets found & fixed, ae66a15) |
 | 17 | Goals ring + streak heat map; today outlined at the right weekday | | **PASS (ring); heat map not exercised.** Was BLOCKED — `GoalsScreen` was orphaned, nothing navigated to `"Goals"` and the Hub's goal ring was inert decoration. Both the ring and streak tiles now open it. Verified on device: created a 250 words/day goal, the screen shows the ring at 0% with "0 / 250 · 250 words to go", and the Hub tile updated to "250 word goal". The streak heat map needs a *streak-type* goal — not run. The Hub tile's "Progress unavailable" cosmetic is **fixed and verified 2026-08-09** — it now reads "250 word goal / today" with a live ring, sharing one `localProgress` helper with the Goals screen |
-| 18 | Inbox capture; **share text from another app → note with provenance** | Share intent cannot be exercised off-device | **NOT YET DEVICE-VERIFIED — native prerequisite repaired 2026-08-13 (d7e2135).** Preflight found that `app.json` declared `expo-share-intent`, but the checked-in and merged Android manifest did not advertise a share target. The regenerated/package manifest now contains `ACTION_SEND` + `DEFAULT` + `text/*`, guarded by `androidManifest.test.ts`. An x86_64 debug client assembled successfully and its packaged manifest was inspected. Runtime still must prove share → Inbox card → SQLite with the exact body and `source='Share sheet'`. |
+| 18 | Inbox capture; **share text from another app → note with provenance** | Share intent cannot be exercised off-device | **PASS 2026-08-13 — Android resolver, rendered Inbox, and SQLite.** `query-activities` listed `com.coles.writersnook/.MainActivity` for `ACTION_SEND text/plain`; an unforced send opened Android's real resolver and listed WritersNook. Selecting it created an Inbox card with the exact marker `WN_SHARE_ROW18_20260813_2322_7F4C9A` and footer `1m ago · Share sheet`. A copied SQLite snapshot from the app's WAL-mode database reported `integrity_check=ok` and exactly one matching `quick_notes` row with the exact body, `source='Share sheet'`, `state='inbox'`, and `filed=0`. The missing native filter found in preflight remains guarded by `androidManifest.test.ts` (d7e2135). |
 | 19 | Snapshot take → list → diff → restore | | **PASS end-to-end** (after 4 fixes). Entry point was unreachable behind an unscrollable sheet; restore then silently did nothing durable; then failed closed on every attempt. All fixed. Verified on device: snapshot created and listed; the diff pane renders a real word-level diff (`+1 / −1`, `PROSEDELTAclone` struck vs `clone` underlined); restore applies, **the open editor updates to the restored prose**, and it **survives force-stop + cold relaunch**; the pre-restore draft is preserved as an auto-save; the confirm card dismisses itself. Note the editor twice fell into the read-only fallback on reopening afterwards — re-navigating loaded it fine, so this reads as the known dev-only handshake transient rather than a restore side-effect, but worth watching |
 | 20 | Archive a scene → restore it; content intact | The highest-risk operation in the build | **PASS w/ 2 fixes** (words + status survive, archive table drains). Found & fixed: ArchiveScreen was ORPHANED — binder foot now links it (59abd32); restore dropped folder_id — scenes came back loose, manifest now round-trips it (c44f2d2). **Device re-check done:** archived "Opening" from Chapter One via the binder's scene-actions sheet, restored it from the Archive screen, and confirmed `folder_id = gate-f1` in the pulled DB — it went back to its chapter, not loose. The Projects card and Hub both updated live without a restart |
-| 21 | **Airplane mode: edit offline, queue depth shows real counts** | | **NOT YET DEVICE-VERIFIED — ordinary reachability repaired 2026-08-13 (f53a704).** Airplane mode creates durable outbox rows, but preflight proved the only queue screen was reachable solely after a desktop-produced epoch mismatch. Settings now has **Review queue**, `OfflineCatchUp` supports a device-wide view, and its back button works. Runtime still must show disconnected state, then 1 → 2 → 3 queued scenes after edits to three distinct scenes, with DB + WAL evidence. |
+| 21 | **Airplane mode: edit offline, queue depth shows real counts** | | **PASS 2026-08-13 — rendered 1 → 2 → 3 and durable SQLite evidence.** With airplane mode enabled and the footer continuously `sync disconnected`, Settings → Review queue showed a clean zero baseline and then exactly `1 scene to send`, `2 scenes to send`, and `3 scenes to send` after edits to three distinct scenes. The 500 ms editor batch + 2 s durable-enqueue delay was allowed after each marker. SQLite snapshots at q0/q1/q2/q3 all reported `journal_mode=wal`, `integrity_check=ok`, and pending rows/scenes/non-scene counts of `0/0/0`, `1/1/0`, `2/2/0`, and `3/3/0`. Q3 contained three distinct unacknowledged scene IDs, each with its corresponding unique marker in `scene_docs.plaintext_projection`. Because the existing emulator DB already had 11 unrelated pending rows, the count test used a backed-up throwaway clone with that baseline acknowledged; the original DB was restored byte-for-byte afterward, revalidated, and networking was restored without testing drain. Ordinary reachability remains guarded by f53a704. |
 | 22 | Reconnect: queue drains, edits converge | | |
 | 23 | **Restore on desktop → mobile shows "This device is behind" → Catch up now** | The manual-epoch path, and the reason it exists | **ENTRY POINT BUILT; end-to-end still needs a desktop.** Was BLOCKED — `OfflineCatchUp` was orphaned so the behind-state could never surface. A persistent banner now consumes the engine's existing epoch-mismatch signal and opens the screen ("Catch up now" when a replacement is staged, "Review status" when the owner is absent). The signal is real, not stubbed. Cannot be exercised without a paired desktop producing a restore — see the sync note below |
 | 24 | Settings: theme switch light/dark across every screen | Both themes were only verified structurally | **PASS (was FAIL — 2 theme-blind surfaces, both fixed).** The switch works and persists across a cold relaunch; Settings, Projects, Hub, corkboard, outliner, inspector sheet, editor chrome, format bar and the editor fallback all theme correctly. Two defects found, **both now fixed and device-verified**: (a) **ProjectBinderScreen** (Hub → Binder) rendered light parchment scene cards on dark — it read the static `PALETTE` instead of `useTheme()`; (b) **the editor's writing surface** stayed cream-on-black while its chrome was dark — the theme message was ACKed by the web channel before TipTap bound its handler, so the one-in-flight queue dropped it permanently. Pre-bind messages are now buffered, and dark is seeded before first paint so there is no cream flash. Dark now verified across Settings, Projects, Hub, binder, corkboard, outliner, inspector, Goals, Archive, Boards, version history and the editor itself |
@@ -53,15 +50,13 @@ runtime-unverified rows are #18 and #21. Desktop work remains for #2, #3, #10,
 | 27 | Focus mode dims non-active paragraphs; keep-awake holds the screen | ProseMirror decoration — must be seen | **PASS** (layout defects fixed 2026-08-09). Dimming verified with three paragraphs: the two inactive ones render grey, the caret's paragraph stays full-contrast, and the decoration follows the caret. Header hides, HUD counts live (words/minutes/percent), exit chip works. Keep-awake is wired correctly (`expo-keep-awake`, tagged, cleaned up on unmount) but could NOT be independently confirmed — the dev client holds `KEEP_SCREEN_ON` on the same window either way. **Both layout defects are now fixed and re-verified:** the panel clipped its "Session goal / 500 words" row and the HUD strip sat behind the format bar, because each was anchored to the screen bottom with no knowledge of the keyboard spacer or the bar's 54px band. The whole overlay now sits above keyboard height plus an explicit bottom inset (`FORMAT_BAR_HEIGHT`, exported from FormatBar rather than a magic number at the call site). Verified with the keyboard BOTH down and up: all four settings rows visible, HUD clear of the bar |
 | 28 | Force-stop and cold relaunch: everything rehydrates from SQLite | | **PASS** (typed marker survived force-stop; scene_docs verified via pulled DB) |
 
-## Agent preflight — 2026-08-13
+## Agent verification follow-up — 2026-08-13
 
-The remaining emulator run could not start because this Windows host currently
-reports `Virtualization Enabled In Firmware: No`; `emulator -accel-check`
-returns code 6, and the x86_64 AVD refuses to launch. This is a host prerequisite,
-not product evidence. Enable AMD SVM/virtualization in firmware and reboot before
-continuing #18/#21.
+After the host restart, `emulator -accel-check` returned 0 and the x86_64 AVD
+booted normally. The rebuilt client was installed and #18/#21 were completed
+without launching the desktop app or touching its live database.
 
-Prepared evidence/build state:
+Evidence/build state:
 
 - `d7e2135` restores the native Android share filter and adds a regression test.
 - `f53a704` makes queue status reachable from Settings without synthetic DB state.
@@ -69,6 +64,12 @@ Prepared evidence/build state:
   truthful accessibility label `AI selection actions`; both need device re-check.
 - x86_64 dev client: `mobile/android/app/build/outputs/apk/debug/app-debug.apk`,
   SHA-256 `B5A82F060CA13FFAAA86E067E897C35F559A5ADA0EFFABDF8FC8C3368A75C1CA`.
+- #18 passed through Android's real share resolver, rendered Inbox card, and a
+  copied SQLite provenance check.
+- #21 passed at zero baseline and 1 → 2 → 3 distinct queued scenes while
+  disconnected, with matching SQLite snapshots at every stage.
+- The offline test used a disposable mobile DB clone. The original mobile DB
+  was restored to its exact pre-test hash and airplane mode was disabled.
 - Gates: 229 mobile tests passed, 1 skipped; mobile lint and both typechecks pass.
 
 ## Orphaned screens — a recurring class, swept 2026-08-09

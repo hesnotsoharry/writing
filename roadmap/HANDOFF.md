@@ -1,33 +1,38 @@
 ---
 project: writing
-updated: 2026-08-13
+updated: 2026-08-14
 ---
 
 ## Current state
 
-**Agent-side preparation for #18 and #21 is complete; device evidence is still
-open.** Preflight found two real reachability gaps despite the prior "no more
-mobile code" conclusion: the packaged Android manifest had no share target,
-and ordinary offline mode had no path to the only queue-depth screen. Both are
-fixed and checked below. The emulator could not be relaunched because Windows
-currently reports firmware virtualization disabled.
+**Agent-side #18 and #21 verification is complete.** The rebuilt Android client
+now passes a real share-resolver → Inbox → SQLite provenance run and an
+airplane-mode 0 → 1 → 2 → 3 queue-depth run backed by SQLite snapshots. The
+offline run used a disposable clone because the existing emulator DB already
+contained 11 unrelated pending rows; the original mobile DB was restored to its
+exact pre-test hash afterward, and networking was restored. The desktop app and
+its live database were not opened.
 
-The matrix bookkeeping is corrected: **20 rows are full PASS, 4 are
-partial/prepared, and 4 remain blank.** The previous 22/28 headline counted #2
-(inherited, not re-run) and #23 (entry point only) as verified. Desktop remains
-unaffected: v0.12.7 shipped, working version 0.12.8.
+The matrix now has **22 full PASS rows, 2 partial rows, and 4 blank rows.** The
+partial rows are #2 (inherited, not re-run) and #23 (entry point only). Desktop
+remains unaffected: v0.12.7 shipped, working version 0.12.8.
 
-### What landed today (fifth session — agent preflight)
+### What landed today (fifth session — agent verification)
 
 - **Android share target restored (`d7e2135`).** `app.json` already declared
   `expo-share-intent`, but neither the checked-in nor merged manifest contained
   `ACTION_SEND`. Expo prebuild changed only the manifest; a regression test now
   guards `SEND` + `DEFAULT` + `text/*`, the Gradle merged manifest passes, and
-  the packaged APK was independently inspected.
+  the packaged APK was independently inspected. **Runtime PASS:** Android's
+  real resolver listed WritersNook; selecting it produced the exact shared body
+  and `Share sheet` provenance in both the rendered Inbox and SQLite.
 - **Offline queue status is ordinarily reachable (`f53a704`).** Settings now
   exposes **Review queue** without needing a synthetic restore mismatch.
   `OfflineCatchUp` supports device-wide status, preserves project-scoped behind
-  recovery, and has a working back button.
+  recovery, and has a working back button. **Runtime PASS:** while continuously
+  disconnected in airplane mode, the screen rendered zero, then 1 → 2 → 3
+  queued scenes; four SQLite snapshots independently matched those counts with
+  no non-scene rows and three distinct durable markers.
 - **Two safe cosmetics cleared (`b04f968`).** Assistant verb pills are capped
   at the intended 44px band, and the format-bar sparkle now announces
   `AI selection actions` instead of the unrelated editor command name.
@@ -35,9 +40,10 @@ unaffected: v0.12.7 shipped, working version 0.12.8.
   `mobile/android/app/build/outputs/apk/debug/app-debug.apk` (SHA-256
   `B5A82F060CA13FFAAA86E067E897C35F559A5ADA0EFFABDF8FC8C3368A75C1CA`).
   Mobile lint and both typechecks pass; 229 tests pass, 1 is skipped.
-- **Runtime blocker:** `systeminfo` reports firmware virtualization is disabled;
-  `emulator -accel-check` returns code 6. The named x86_64 AVD cannot launch
-  until AMD SVM/virtualization is enabled in firmware and Windows is rebooted.
+- **Runtime blocker cleared after Cole's restart.** `emulator -accel-check`
+  returned 0, `Medium_Phone_API_36.1` booted, and the rebuilt client was
+  installed. After verification, the original mobile DB was restored
+  byte-for-byte and airplane mode was disabled.
 
 ### What landed today (fourth session)
 
@@ -154,30 +160,22 @@ keyboard down and up).
 
 ## What's next
 
-1. **Restore the Android rig.** Enable AMD SVM/virtualization in firmware,
-   reboot, confirm `emulator -accel-check` returns 0, then boot
-   `Medium_Phone_API_36.1` and install the rebuilt x86_64 dev client above.
-2. **Finish emulator-only #18/#21.** For #18, share a unique text marker into
-   WritersNook and prove the Inbox card plus SQLite `source='Share sheet'`. For
-   #21, enter airplane mode, edit three distinct scenes (queue depth coalesces
-   by scene), wait at least 3 seconds after each, and capture 1 → 2 → 3 from
-   Settings → Review queue plus DB/WAL evidence. Do not test drain here.
-3. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
+1. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
    #13 entity to desktop, #22 convergence and the end-to-end half of #23 need a
    desktop peer. The DB-swap protocol in `.claude/known-issues.md` requires
    Cole's explicit OK and that he not open the desktop app during the run.
-4. **Keyboard work stays device-gated.** The Assistant composer still hides
+2. **Keyboard work stays device-gated.** The Assistant composer still hides
    behind the keyboard, the Android spacer overshoots the navigation-bar inset,
    and Reanimated 4.5 deprecates the three `useAnimatedKeyboard` calls. The
    recommended migration adds `react-native-keyboard-controller` and a global
    provider, so it must be isolated and device-regressed against #6/#7/#25/#27;
    it was not changed compile-only. The huge verb pills and sparkle label are
    fixed in `b04f968` and need visual/a11y confirmation.
-5. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
+3. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
    — the dev client holds `KEEP_SCREEN_ON` on the same window either way.
-6. Cole-hands: real-device QR scan, the iOS leg.
-7. Watch: the read-only fallback. Last session's note tied it to "reopening a
+4. Cole-hands: real-device QR scan, the iOS leg.
+5. Watch: the read-only fallback. Last session's note tied it to "reopening a
    scene right after a restore" — that framing was wrong. It recurred with no
    restore involved, and this time logcat named the cause outright:
    `chromium: Renderer process (NNNNN) crash detected (code -1)`, repeating.
