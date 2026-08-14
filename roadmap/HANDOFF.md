@@ -1,18 +1,43 @@
 ---
 project: writing
-updated: 2026-08-10
+updated: 2026-08-13
 ---
 
 ## Current state
 
-**The AI checks are done: #25 and #26 both PASS on device.** The assistant
-sends and streams a real reply on a real trial credential, and "Hide this from
-AI" provably redacts — the model itself described the marked passage as
-"hidden by the author" on a live request. Everything left in the emulator
-matrix (6 of 28) needs a desktop peer or emulator tricks, not more mobile code.
+**Agent-side preparation for #18 and #21 is complete; device evidence is still
+open.** Preflight found two real reachability gaps despite the prior "no more
+mobile code" conclusion: the packaged Android manifest had no share target,
+and ordinary offline mode had no path to the only queue-depth screen. Both are
+fixed and checked below. The emulator could not be relaunched because Windows
+currently reports firmware virtualization disabled.
 
-Desktop unaffected: v0.12.7 shipped, working version 0.12.8. Gates green
-throughout: root + mobile lint and typecheck clean, 227 mobile tests passing.
+The matrix bookkeeping is corrected: **20 rows are full PASS, 4 are
+partial/prepared, and 4 remain blank.** The previous 22/28 headline counted #2
+(inherited, not re-run) and #23 (entry point only) as verified. Desktop remains
+unaffected: v0.12.7 shipped, working version 0.12.8.
+
+### What landed today (fifth session — agent preflight)
+
+- **Android share target restored (`d7e2135`).** `app.json` already declared
+  `expo-share-intent`, but neither the checked-in nor merged manifest contained
+  `ACTION_SEND`. Expo prebuild changed only the manifest; a regression test now
+  guards `SEND` + `DEFAULT` + `text/*`, the Gradle merged manifest passes, and
+  the packaged APK was independently inspected.
+- **Offline queue status is ordinarily reachable (`f53a704`).** Settings now
+  exposes **Review queue** without needing a synthetic restore mismatch.
+  `OfflineCatchUp` supports device-wide status, preserves project-scoped behind
+  recovery, and has a working back button.
+- **Two safe cosmetics cleared (`b04f968`).** Assistant verb pills are capped
+  at the intended 44px band, and the format-bar sparkle now announces
+  `AI selection actions` instead of the unrelated editor command name.
+- **Build/gates:** x86_64 dev client assembled at
+  `mobile/android/app/build/outputs/apk/debug/app-debug.apk` (SHA-256
+  `B5A82F060CA13FFAAA86E067E897C35F559A5ADA0EFFABDF8FC8C3368A75C1CA`).
+  Mobile lint and both typechecks pass; 229 tests pass, 1 is skipped.
+- **Runtime blocker:** `systeminfo` reports firmware virtualization is disabled;
+  `emulator -accel-check` returns code 6. The named x86_64 AVD cannot launch
+  until AMD SVM/virtualization is enabled in firmware and Windows is rebooted.
 
 ### What landed today (fourth session)
 
@@ -129,32 +154,30 @@ keyboard down and up).
 
 ## What's next
 
-1. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
-   #13 entity to desktop, #22 convergence and the end-to-end half of #23 all
-   need a desktop peer. Running the desktop app touches the live manuscripts at
-   `%APPDATA%\com.coles.writing\writing.db`, and the DB-swap protocol in
-   `.claude/known-issues.md` requires Cole's OK and that he not open the app
-   during the run — so this was **not done unilaterally**. Mobile-side sync is
-   healthy as far as it can be checked alone: the relay connects
-   (`wss://sync.writersnook.app`), and the pairing record survives restarts.
-2. Remaining emulator-only: #18 share-sheet, #21 airplane-mode queue depth
-   (the queue count only renders on the catch-up screen, which is now
-   reachable). **#25/#26 are DONE** — see the matrix rows for the evidence.
-3. Cosmetic remaining: keyboard spacer nav-bar overshoot, and
-   `useAnimatedKeyboard` is deprecated in reanimated 4.5 — now three call sites,
-   since the focus-overlay fix added one for consistency with the two existing
-   ones. (The inspector snapshot count, the Hub goal tile and the focus-panel
-   layout were the rest of this list and are all fixed and device-verified.)
-   New from the AI pass, none blocking: the Assistant composer hides behind
-   the keyboard while typing (screen doesn't pan — same edge-to-edge family as
-   #6), the verb pills render as huge ovals on first entry, and the format
-   bar's sparkle is a11y-labelled `toggle-ai-exclude` though it opens
-   SelectionActions.
-4. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
+1. **Restore the Android rig.** Enable AMD SVM/virtualization in firmware,
+   reboot, confirm `emulator -accel-check` returns 0, then boot
+   `Medium_Phone_API_36.1` and install the rebuilt x86_64 dev client above.
+2. **Finish emulator-only #18/#21.** For #18, share a unique text marker into
+   WritersNook and prove the Inbox card plus SQLite `source='Share sheet'`. For
+   #21, enter airplane mode, edit three distinct scenes (queue depth coalesces
+   by scene), wait at least 3 seconds after each, and capture 1 → 2 → 3 from
+   Settings → Review queue plus DB/WAL evidence. Do not test drain here.
+3. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
+   #13 entity to desktop, #22 convergence and the end-to-end half of #23 need a
+   desktop peer. The DB-swap protocol in `.claude/known-issues.md` requires
+   Cole's explicit OK and that he not open the desktop app during the run.
+4. **Keyboard work stays device-gated.** The Assistant composer still hides
+   behind the keyboard, the Android spacer overshoots the navigation-bar inset,
+   and Reanimated 4.5 deprecates the three `useAnimatedKeyboard` calls. The
+   recommended migration adds `react-native-keyboard-controller` and a global
+   provider, so it must be isolated and device-regressed against #6/#7/#25/#27;
+   it was not changed compile-only. The huge verb pills and sparkle label are
+   fixed in `b04f968` and need visual/a11y confirmation.
+5. **Not verified, flagged honestly:** focus-mode keep-awake is wired correctly
    (`expo-keep-awake`, tagged, cleaned up on unmount) but could not be confirmed
    — the dev client holds `KEEP_SCREEN_ON` on the same window either way.
-5. Cole-hands: real-device QR scan, the iOS leg.
-6. Watch: the read-only fallback. Last session's note tied it to "reopening a
+6. Cole-hands: real-device QR scan, the iOS leg.
+7. Watch: the read-only fallback. Last session's note tied it to "reopening a
    scene right after a restore" — that framing was wrong. It recurred with no
    restore involved, and this time logcat named the cause outright:
    `chromium: Renderer process (NNNNN) crash detected (code -1)`, repeating.
