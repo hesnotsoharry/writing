@@ -34,12 +34,15 @@ function Group({ children, label }: { children: React.ReactNode; label: string }
   return <View style={styles.group}><SectionLabel>{label}</SectionLabel><Card style={styles.groupCard}>{children}</Card></View>;
 }
 
-function SyncCard({ deviceName, onSync, onUnpair, status }: { deviceName: string; onSync(): void; onUnpair(): void; status: string }) {
+function SyncCard({ deviceName, onReviewQueue, onSync, onUnpair, status }: {
+  deviceName: string; onReviewQueue?: () => void; onSync(): void; onUnpair(): void; status: string;
+}) {
   const theme = useTheme();
   return <Card style={styles.syncCard}><View style={styles.syncTitle}><Icon color={theme.colors.good} name="cloud" size={20} />
     <View style={styles.copy}><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink }]}>Synced with {deviceName}</Text>
       <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{status}</Text></View></View>
     <View style={styles.syncActions}><Pressable onPress={onSync} style={[styles.softButton, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Sync now</Text></Pressable>
+      {onReviewQueue && <Pressable onPress={onReviewQueue} style={[styles.softButton, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Review queue</Text></Pressable>}
       <Pressable onPress={onUnpair} style={[styles.softButton, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.danger }]}>Unpair</Text></Pressable></View></Card>;
 }
 
@@ -69,6 +72,7 @@ export function SettingsScreen({ navigation, route }: Props) {
   const status = syncState.state === "connected" ? "Live · changes sync continuously" : "Offline · changes are queued";
   return <Screen scroll contentStyle={styles.screen}><Topbar title="Settings" />
     <View style={styles.content}><SyncCard deviceName={deviceName} status={status}
+      onReviewQueue={() => navigation.navigate("OfflineCatchUp")}
       onSync={() => { void mobileEngine.syncNow(); }} onUnpair={unpair} />
       <Group label="Writing"><View style={styles.row}><Text style={[TYPE.bodySmall, { color: theme.colors.ink }]}>Theme</Text>
         <View style={styles.segment}><Segmented options={[{ label: "Light", value: "light" }, { label: "Dark", value: "dark" }, { label: "Auto", value: "system" }]} value={preference} onChange={setPreference} /></View></View>

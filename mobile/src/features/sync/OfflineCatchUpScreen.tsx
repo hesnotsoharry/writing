@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
-import { Card, Icon, PrimaryButton, Screen, SecondaryButton, Topbar } from "../../components";
+import { Card, Icon, IconButton, PrimaryButton, Screen, SecondaryButton, Topbar } from "../../components";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { SyncStatus } from "../../shared/engine";
 import { mobileEngine } from "../../sync/mobileEngine";
@@ -40,12 +40,17 @@ function BehindCard({ onCatchUp, onReview, waiting }: { onCatchUp(): void; onRev
   </Card>;
 }
 
+function behindForProject(status: SyncStatus, projectId?: string) {
+  const behind = status.behind ?? mobileEngine.listBehind();
+  return projectId === undefined ? behind : behind.filter((item) => item.projectId === projectId);
+}
+
 export function OfflineCatchUpScreen({ navigation, route }: Props) {
   const theme = useTheme();
   const [status, setStatus] = useState<SyncStatus>(mobileEngine.status());
   const [deviceName, setDeviceName] = useState("Desktop");
   const flow = useMemo(() => new CatchUpFlow(mobileEngine), []);
-  const behind = (status.behind ?? mobileEngine.listBehind()).filter((item) => item.projectId === route.params.projectId);
+  const behind = behindForProject(status, route.params?.projectId);
   const behindModel = behindCardModel(behind);
   useEffect(() => mobileEngine.subscribe(setStatus), []);
   useEffect(() => { void getPairedDeviceName().then(setDeviceName); }, []);
@@ -53,9 +58,9 @@ export function OfflineCatchUpScreen({ navigation, route }: Props) {
   const prepare = async () => flow.prepare(sceneIds);
   const review = async () => {
     try {
-      const snapshots = await prepare(); const first = snapshots[0];
-      if (first) navigation.navigate("SceneVersionHistory", {
-        projectId: route.params.projectId, sceneId: first.sceneId, snapshotId: first.snapshotId,
+      const snapshots = await prepare(); const first = snapshots[0]; const targetProjectId = route.params?.projectId ?? behind.find(({ sceneId }) => sceneId === first?.sceneId)?.projectId;
+      if (first && targetProjectId) navigation.navigate("SceneVersionHistory", {
+        projectId: targetProjectId, sceneId: first.sceneId, snapshotId: first.snapshotId,
       });
     } catch { Alert.alert("Couldn’t create the safety snapshot", "Your local copy has not been changed."); }
   };
@@ -64,7 +69,7 @@ export function OfflineCatchUpScreen({ navigation, route }: Props) {
     catch { Alert.alert("Catch-up is waiting", "Your local copy is safe. Try again when the other device is online."); }
   };
   return <Screen scroll contentStyle={styles.screen}>
-    <Topbar title="Sync" leading={<Icon color={theme.colors.ink3} name="chevLeft" size={20} />} />
+    <Topbar title="Sync" leading={<IconButton color={theme.colors.ink3} icon="chevLeft" label="Back" onPress={navigation.goBack} />} />
     <View style={styles.stack}>
       <InfoCard icon="wifiOff" tone="warn" title={status.state === "connected" ? "Sync is live" : "Writing offline"}
         meta={`${deviceName} last seen ${formatLastSeen(status.lastPeerSeenAt)}`}>

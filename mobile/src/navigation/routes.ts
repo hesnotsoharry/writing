@@ -40,7 +40,7 @@ export type RootStackParamList = {
   NewGoal: { projectId: string; initialType?: string };
   Archive: { projectId: string };
   EmptyProject: { projectId: string; projectTitle: string };
-  OfflineCatchUp: { projectId: string };
+  OfflineCatchUp: { projectId?: string } | undefined;
   Activation: { reason?: "missing" | "expired" } | undefined;
   Trial: { projectId: string; projectTitle: string };
   NewEntry: { projectId: string; initialType?: EntityTypeParam };

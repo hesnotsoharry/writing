@@ -35,7 +35,7 @@ const ROUTE_PARAMS = {
   NewGoal: { projectId: "p", initialType: "daily" },
   Archive: { projectId: "p" },
   EmptyProject: { projectId: "p", projectTitle: "Project" },
-  OfflineCatchUp: { projectId: "p" },
+  OfflineCatchUp: undefined,
   Activation: { reason: "expired" },
   Trial: { projectId: "p", projectTitle: "Project" },
   NewEntry: { projectId: "p", initialType: "character" },
@@ -43,8 +43,17 @@ const ROUTE_PARAMS = {
   SceneVersionHistory: { projectId: "p", sceneId: "s", snapshotId: "v" },
 } satisfies RootStackParamList;
 
+const OFFLINE_CATCH_UP_PARAMS = [
+  undefined,
+  { projectId: "p" },
+] satisfies RootStackParamList["OfflineCatchUp"][];
+
 describe("RootStackParamList", () => {
   it("declares params for all 37 designed screens", () => {
     expect(Object.keys(ROUTE_PARAMS)).toHaveLength(37);
+  });
+
+  it("supports device-wide and project-scoped offline queue routes", () => {
+    expect(OFFLINE_CATCH_UP_PARAMS).toEqual([undefined, { projectId: "p" }]);
   });
 });
