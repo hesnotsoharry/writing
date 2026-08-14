@@ -15,6 +15,7 @@ interface FormatAction {
   icon: IconName;
   active?: keyof FormatBarState;
   accent?: boolean;
+  accessibilityLabel?: string;
 }
 
 const ACTIONS: FormatAction[] = [
@@ -23,7 +24,8 @@ const ACTIONS: FormatAction[] = [
   { command: "toggle-blockquote", icon: "heading", active: "blockquoteActive" },
   { command: "wrap-quote", icon: "quote" },
   { command: "link-entity", icon: "link", active: "hasRange" },
-  { command: "toggle-ai-exclude", icon: "sparkle", active: "aiExcluded", accent: true },
+  { command: "toggle-ai-exclude", icon: "sparkle", active: "aiExcluded", accent: true,
+    accessibilityLabel: "AI selection actions" },
 ];
 
 interface FormatBarProps {
@@ -40,7 +42,7 @@ function ActionButton({ action, active, onPress }: {
   const theme = useTheme();
   const tint = action.accent || active;
   return (
-    <Pressable accessibilityLabel={action.command} onPress={onPress}
+    <Pressable accessibilityLabel={action.accessibilityLabel ?? action.command} onPress={onPress}
       style={[styles.button, tint && { backgroundColor: theme.colors.accentWash }]}
     >
       <Icon name={action.icon} size={18} color={tint ? theme.colors.accent : theme.colors.ink2} />

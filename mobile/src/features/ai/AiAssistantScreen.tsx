@@ -7,7 +7,7 @@ import { Icon, IconButton, Pill, Screen, TextField } from "../../components";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { AI_MODELS, AI_VERB_ORDER, AI_VERBS, DEFAULT_MODEL, type VerbKey } from "../../shared/aiCatalog";
 import { useTheme } from "../../theme/ThemeProvider";
-import { RADIUS } from "../../theme/tokens";
+import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import { AiHeader, InlineNotice } from "./AiChrome";
 import { loadContextScreenState } from "./aiContextModel";
@@ -38,7 +38,8 @@ function ContextBar({ label, onPress }: { label: string; onPress(): void }) {
 }
 
 function VerbChips({ selected, onSelect }: { selected: VerbKey; onSelect(verb: VerbKey): void }) {
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false}
+    style={styles.chipScroller} contentContainerStyle={styles.chips}>
     {AI_VERB_ORDER.map((verb) => <Pill key={verb} variant={selected === verb ? "selected" : "plain"}
       onPress={() => { onSelect(verb); }}>{AI_VERBS[verb].label}</Pill>)}
   </ScrollView>;
@@ -121,6 +122,7 @@ const styles = StyleSheet.create({
   contextWrap: { padding: 14, paddingBottom: 0 }, context: { minHeight: 42, borderWidth: 1,
     borderRadius: RADIUS.lg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 },
   grow: { flex: 1 }, messages: { flexGrow: 1, padding: 16, gap: 14 }, empty: { textAlign: "center", opacity: 0.62, marginTop: 48 },
-  chips: { paddingHorizontal: 14, gap: 7 }, composer: { padding: 12, borderTopWidth: StyleSheet.hairlineWidth,
+  chipScroller: { flexGrow: 0, height: HIT_SLOP_MIN },
+  chips: { height: HIT_SLOP_MIN, paddingHorizontal: 14, gap: 7 }, composer: { padding: 12, borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: "row", alignItems: "center", gap: 8 }, input: { minHeight: 44, borderRadius: RADIUS.sheet },
 });
