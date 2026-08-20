@@ -6,6 +6,7 @@
     "scheme": "writersnook",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
     "newArchEnabled": true,
     "assetBundlePatterns": [
       "editor-web/dist/index.html"
@@ -23,14 +24,37 @@
         }
       ],
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#f7efe1",
+          "dark": {
+            "backgroundColor": "#1a1713"
+          }
+        }
+      ]
     ],
     "android": {
       "package": "com.coles.writersnook",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f7efe1"
+      },
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "ios": {
-      "bundleIdentifier": "com.coles.writersnook"
+      "bundleIdentifier": "com.coles.writersnook",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     }
   }
 }
