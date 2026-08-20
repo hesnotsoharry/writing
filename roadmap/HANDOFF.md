@@ -1,9 +1,85 @@
 ---
 project: writing
-updated: 2026-08-14
+updated: 2026-08-20
 ---
 
 ## Current state
+
+**Mobile has moved from feature QA into distribution plumbing.** The features
+were in good shape; the *shippable artifact* had never been built. As of
+2026-08-20 the app is companion-only, carries real branding, and produces a
+release manifest that Play would accept. It still cannot be submitted: see
+"What's next".
+
+Desktop remains shipped at **v0.12.8** (tagged 2026-07-30) with **144 commits
+on master past that tag** — 39 of them in `src/`/`src-tauri/`, and they are the
+entire device-sync programme (protocol v1.1 -> v1.3, QR pairing, HKDF+AES-GCM
+framing, epoch ownership, seven LWW domains, bible replication, catch-up). It
+is all gated off behind `syncExperimental: "off"`
+(`src/features/settings/settings.store.ts:113`), so no released build has it.
+The relay IS deployed and live — `wss://sync.writersnook.app` answers with the
+worker's own 404 body on a plain GET.
+
+### What landed today (2026-08-20 — launch readiness + distribution plumbing)
+
+- **Commercial legal copy corrected.** `terms.html` and `refunds.html` were live
+  carrying "Template copy for review — please have these terms checked by
+  counsel before launch", and described the deprecated $5/mo Device Sync as the
+  only subscription while the $14.99/mo AI assistant had been selling since
+  2026-06-14. Both rewritten: AI subscription and credit sections, a
+  "Your writing and AI" section, a liability cap with a consumer-law carve-out,
+  and a governing-law clause. **Not deployed — the governing-law clause still
+  reads `PROVINCE_PLACEHOLDER`** because the site only ever states "Canada" and
+  a jurisdiction must not be guessed. 332 marketing tests still pass.
+- **Mobile is companion-only (decision, Cole 2026-08-20).** Both "Buy a license"
+  links, the "Top up" button that opened the Lemon Squeezy portal, and the
+  now-unreferenced `getPortalUrl` were removed. Apple 3.1.1 and Play Billing
+  both require IAP for digital goods unlocked in-app and this client has no IAP,
+  so those were the likeliest rejection. Licence *activation* is untouched —
+  that is verification, not purchase.
+- **Branding and build config.** The app was still shipping the stock Android
+  robot launcher icon. Icons and splash generated from `app-icon.png`; the
+  adaptive foreground is the mark inset into the 66% safe zone on flat parchment
+  so the system mask is the only container shape. `eas.json` gained `production`
+  and `submit` profiles.
+- **`SYSTEM_ALERT_WINDOW` no longer ships in release.** It is emitted by
+  prebuild (present since the first prebuild commit `b21ea0f`), so a manifest
+  edit would be undone on the next run — `android.blockedPermissions` is the fix
+  that survives regeneration. Verified against both merged manifests: release
+  has no overlay permission, no cleartext and is not debuggable; debug keeps all
+  three. `CHANGE_WIFI_MULTICAST_STATE` turned out to be debug-only already.
+- **Two cold Android builds, both BUILD SUCCESSFUL** (12m05s, then 9m58s after
+  the config change). The APK was unpacked and `aapt2 dump` run against it:
+  it carries the feather icon and the adaptive foreground layer, label
+  `WritersNook`, `targetSdkVersion 36`, and still has the overlay permission in
+  debug so the dev menu works. Debug APK is 324 MB (universal + dev client).
+- **Gate truth:** desktop `tsc` and `lint` are clean; desktop vitest is
+  **2122 passed / 6 failed**, and all 6 failures are in the wave-46 eval harness
+  (`src/test/scorer.test.ts`, `src/test/eval-runner.test.ts`) — stale assertions
+  drifted from the implementation, NOT missing API keys. No shipping app code
+  fails. But `npm run test` exits 1, so the release gate is red by default.
+  Mobile: 234 pass. Marketing: 332 pass. relay-worker: 11 pass.
+
+### Prep for the #22 device session — read before running it
+
+The reconnect drain is **not** instant, and expecting it to be would produce a
+false FAIL. Scene entries clear only on a round trip: `onConnection` ->
+`syncNow()` flushes the outbox and sends hello (`src/sync/engine.ts:145`), but
+an entry clears only when the *peer's* hello arrives with a state vector that
+already covers our doc (`answerHello` -> `acknowledgeDoc`,
+`src/sync/engine.ts:315`). If the peer built its hello before applying our
+flush, the entry survives until the next sweep — and the sweep is
+`sweepMs ?? 60_000` (`src/sync/engine.ts:342`). **Watch the counter for 60+
+seconds before calling #22 a failure.** Row entries are different: they clear on
+an explicit `row-ack` (`src/sync/engine.ts:275`) and should drop promptly. Rows
+draining fast while scenes lag is the expected signature, not a defect.
+
+`src/test/sync/outbox.test.ts` covers enqueue, ack semantics and flush ordering
+but has **no coverage of the reconnect -> flush -> peer-hello -> ack round
+trip**. Write that integration test against the `liveRelay.integration.test.ts`
+harness AFTER the behaviour has been observed once, so it encodes reality.
+
+### Previous state (2026-08-14)
 
 **Agent-side #18 and #21 verification is complete.** The rebuilt Android client
 now passes a real share-resolver → Inbox → SQLite provenance run and an
@@ -204,6 +280,14 @@ keyboard down and up).
 
 ## What's next
 
+### Blocked on Cole
+
+0. **Four answers unblock the current work:** (a) the **province** for the
+   governing-law clause, (b) go-ahead to **push** — pushing master deploys the
+   live marketing site, (c) whether there is a paid **Apple Developer
+   membership** (EAS builds iOS in the cloud, so a Mac is not required, but the
+   membership has no workaround), (d) an hour for the **sync session** below.
+
 1. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
    #13 entity to desktop, #22 convergence and the end-to-end half of #23 need a
    desktop peer. The DB-swap protocol in `.claude/known-issues.md` requires
@@ -222,6 +306,50 @@ keyboard down and up).
    restart cleared it, so it reads as rig instability — but the symptom is the
    writing surface going read-only, so re-check on a stable rig or a release
    build. Grep recipe in the matrix.
+
+### Mobile: still not submittable
+
+- **Release signing is the debug keystore** (`android/app/build.gradle`, stock
+  `androiddebugkey`). Do NOT fix this by editing build.gradle — prebuild owns
+  that file and regenerates it. Use **EAS-managed credentials** so EAS holds the
+  upload keystore; that needs Cole's Expo account.
+- **iOS does not exist.** No `mobile/ios/` tree; never prebuilt or run.
+- `version` is still `0.1.0` / `versionCode 1`. The EAS `production` profile
+  auto-increments, but the marketing version needs a real number.
+- No store listing, screenshots, age rating, or data-safety answers anywhere.
+- `privacy.html` was last updated 2026-06-14, says "files on your own
+  **computer**", and never mentions a phone, camera, or share sheet. Both stores
+  will check it against the declared behaviour.
+- No in-app account deletion (Apple 5.1.1(v) and Google both require it once an
+  account-like identity exists — trial state, Lemon instance id, AI key).
+- **The splash migration is unverified on device.** expo-splash-screen 57
+  replaced `setTheme(R.style.AppTheme)` with
+  `SplashScreenManager.registerOnActivity` in `MainActivity.kt`, which changes
+  first-paint theming. Green tests cannot see this.
+
+### Gotcha worth knowing
+
+`mobile/android/` is committed to git but **prebuild regenerates the whole
+tree** — it was cleared and recreated twice on 2026-08-20. Any hand edit to a
+native file there is lost on the next prebuild. Native changes must go through
+`app.json` or a config plugin.
+
+### Commercial
+
+- Add **Cloudflare Turnstile** to `/api/ai/trial-session` (and the contact and
+  newsletter forms). Turnstile's free tier is $0 with no paid Cloudflare plan
+  required — 20 widgets, 10 hostnames each, unlimited challenges. Today there is
+  no bot defence there; exposure is bounded at $25/day by
+  `GLOBAL_DAILY_TRIAL_SPEND_CAP` but an attacker can still deny the trial to
+  real users in ~17 requests.
+- **Device Sync is to be sold at $5/mo** (decision, Cole 2026-08-20). The LS
+  variant `1748967` exists but has no checkout UUID, and `pricing.html` still
+  says "not yet shipped".
+- `CHANGELOG.md` stops at 0.2.1 (2026-06-08); ~25 tags have shipped since.
+  `RELEASING.md` still claims the project is Windows-only.
+- No error monitoring anywhere. The only way to learn a customer is broken is
+  Cloudflare's live log tail.
+
 
 ## Reference index
 - [roadmap/mobile/EMULATOR-MATRIX.md](mobile/EMULATOR-MATRIX.md) — the checklist, the orphan sweep, dev-loop traps.
