@@ -14,7 +14,6 @@ export type NormalizedEvent =
 
 export interface SessionResult { token: string; expiresAt: number }
 export interface TrialSessionResult extends SessionResult { trialKey?: string; allowance?: number }
-export interface PortalResult { url: string }
 
 export interface StreamOptions {
   verb?: VerbKey;
@@ -130,14 +129,6 @@ export class MobileAiClient {
     });
     if (!response.ok) throw new Error(`Balance fetch failed: ${response.status}`);
     return response.json() as Promise<LiveBalance>;
-  }
-
-  async getPortalUrl(token: string): Promise<PortalResult> {
-    const response = await this.fetcher(`${this.baseUrl}/api/ai/portal`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error(`Portal fetch failed: ${response.status}`);
-    return response.json() as Promise<PortalResult>;
   }
 
   async streamChat(

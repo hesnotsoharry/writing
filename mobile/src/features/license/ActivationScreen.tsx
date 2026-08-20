@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useState } from "react";
-import { Linking, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { BookSpine, Icon, PrimaryButton, Screen } from "../../components";
 import { getLicenseStore } from "../../db/stores";
@@ -35,7 +35,6 @@ export function ActivationGate({ onActivated, trialExpired = true }: GateProps) 
       <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>It’s in your purchase email, in the form XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX</Text>
       <PrimaryButton disabled={busy} onPress={() => { void activate(); }}>{busy ? "Activating…" : "Activate"}</PrimaryButton>
       {error && <View style={[styles.error, { backgroundColor: theme.colors.paper, borderColor: theme.colors.line }]}><Icon color={theme.colors.danger} name="info" size={16} /><Text style={[TYPE.meta, styles.errorCopy, { color: theme.colors.ink2 }]}>{friendlyError(error.kind, error.message)}</Text></View>}
-      <Text onPress={() => { void Linking.openURL("https://writersnook.app/pricing"); }} style={[TYPE.bodySmallStrong, styles.buy, { color: theme.colors.accent }]}>Buy a license</Text>
       <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>One license covers your desktop and your phone. Activating here uses the same key.</Text>
     </View></View></Screen>;
 }
@@ -50,5 +49,5 @@ const styles = StyleSheet.create({
   title: { marginTop: 22 }, reassurance: { lineHeight: 24, marginTop: 10 }, form: { marginTop: 30, gap: SPACE.s3 },
   input: { borderWidth: 1.5, borderRadius: RADIUS.lg, paddingHorizontal: 15, paddingVertical: 14 },
   error: { flexDirection: "row", alignItems: "flex-start", gap: 9, borderWidth: 1, borderRadius: RADIUS.lg, padding: 13 },
-  errorCopy: { flex: 1, lineHeight: 18 }, buy: { minHeight: 44, textAlign: "center", textAlignVertical: "center" },
+  errorCopy: { flex: 1, lineHeight: 18 },
 });

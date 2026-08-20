@@ -1,13 +1,12 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Alert, Linking, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
-import { Card, Meter, PrimaryButton, Screen, SecondaryButton } from "../../components";
+import { Card, Meter, Screen, SecondaryButton } from "../../components";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useTheme } from "../../theme/ThemeProvider";
 import { TYPE } from "../../theme/typography";
 import { AiHeader } from "./AiChrome";
 import { formatCreditDollars, presentBalance } from "./aiLogic";
-import { mobileAiClient } from "./mobileAiClient";
 import { useManagedAi } from "./useManagedAi";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AiLimits">;
@@ -27,28 +26,27 @@ function showDesktopKeyMessage(): void {
   Alert.alert("Set up on desktop", "API-key entry is desktop-only. Mobile never receives provider keys or local model endpoints.");
 }
 
-function CreditActions({ onTopUp }: { onTopUp(): void }) {
+function showDesktopBillingMessage(): void {
+  Alert.alert("Manage on desktop", "Your subscription and credit top-ups are managed from the desktop app. Once they are topped up there, this device picks the new balance up automatically.");
+}
+
+function CreditActions() {
   return <View style={styles.actions}>
-    <PrimaryButton onPress={onTopUp} style={styles.action}>Top up</PrimaryButton>
-    <SecondaryButton onPress={showDesktopKeyMessage} style={styles.action}>Use my own key on desktop</SecondaryButton>
+    <SecondaryButton onPress={showDesktopBillingMessage} style={styles.action}>Manage on desktop</SecondaryButton>
+    <SecondaryButton onPress={showDesktopKeyMessage} style={styles.action}>Use my own key</SecondaryButton>
   </View>;
 }
 
 function CreditState({ managed }: { managed: ReturnType<typeof useManagedAi> }) {
   const theme = useTheme();
   const live = managed.balance ? presentBalance(managed.balance) : null;
-  const topUp = async (): Promise<void> => {
-    if (managed.access?.state !== "available") { showDesktopKeyMessage(); return; }
-    const { url } = await mobileAiClient.getPortalUrl(managed.access.session.token);
-    await Linking.openURL(url);
-  };
   return <Card style={styles.card}>
     <Text style={[TYPE.bodyStrong, { color: theme.colors.ink }]}>You&apos;re out of credit</Text>
     <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>
       {live ? `Used ${formatCreditDollars(live.allowance)} of ${formatCreditDollars(live.allowance)} this period` : "The live balance is exhausted"}
     </Text>
     <Meter progress={1} tone="danger" height={6} />
-    <CreditActions onTopUp={() => { void topUp(); }} />
+    <CreditActions />
     <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>{WORKING_PROMISE}</Text>
   </Card>;
 }
