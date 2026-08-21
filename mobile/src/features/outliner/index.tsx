@@ -1,7 +1,9 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
+import type { FlatListProps } from "react-native";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 import { Icon, IconButton, Screen, StatusDot, Topbar } from "../../components";
 import { getBinderStore, getLabelStore } from "../../db/stores";
@@ -12,11 +14,31 @@ import { STATUS_ORDER } from "../../shared/status";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
-import { buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, outlinerDropIndex, summarizeOutline } from "./outlinerModel";
-import { type OutlinerDrop, OutlinerRow } from "./OutlinerRow";
+import type { OutlineItem } from "./outlinerModel";
+import { applyOptimisticOrder, buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, reorderGroupIds, summarizeOutline } from "./outlinerModel";
+import { OutlinerRow } from "./OutlinerRow";
 import { useOutlinerData } from "./useOutlinerData";
+import { OutlinerDragContext, useOutlinerDrag } from "./useOutlinerDrag";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Outliner">;
+type OutlineCellProps = React.ComponentProps<NonNullable<FlatListProps<OutlineItem>["CellRendererComponent"]>>;
+
+/**
+ * VirtualizedList wraps every row in its own cell view, so a dragged row can
+ * only stack above its neighbours if the *cell* is raised — a zIndex inside the
+ * row cannot escape it. Chapter headers keep the plain default view; they are
+ * the sticky ones, and nothing drags them.
+ */
+function OutlineCell(props: OutlineCellProps) {
+  const drag = useContext(OutlinerDragContext);
+  const sceneId = props.item.kind === "scene" ? props.item.scene.id : "";
+  const lift = useAnimatedStyle(() => ({ zIndex: drag !== null && drag.activeId.value === sceneId ? 4 : 0 }));
+  // `onFocusCapture` is how VirtualizedList keeps a focused row (these have
+  // text inputs) mounted while the window scrolls — forward it, don't drop it.
+  const cell = { onFocusCapture: props.onFocusCapture, onLayout: props.onLayout };
+  if (props.item.kind === "header") return <View {...cell} style={props.style}>{props.children}</View>;
+  return <Animated.View {...cell} style={[props.style, lift]}>{props.children}</Animated.View>;
+}
 
 function ChapterHeader({ group, reload }: { group: ReturnType<typeof buildOutlineGroups>[number]; reload: () => void }) {
   const theme = useTheme();
@@ -56,19 +78,32 @@ function toggleLabel(sceneId: string, label: Label, assigned: boolean, reload: (
     : store.assignLabel(sceneId, label.id)).then(reload);
 }
 
+/** The chapter groups, re-sorted by the writer's own drop until the reloaded
+ *  rows catch up — the drag preview lands on the new order, not the old one. */
+function useOrderedGroups(data: ReturnType<typeof useOutlinerData>) {
+  const { folders, reload, scenes } = data;
+  const [order, setOrder] = useState<Record<string, string[]>>({});
+  const groups = useMemo(
+    () => applyOptimisticOrder(buildOutlineGroups(folders, scenes), order),
+    [folders, order, scenes],
+  );
+  const reorder = useCallback((sceneId: string, groupId: string | null, toIndex: number) => {
+    const group = groups.find(({ id }) => id === groupId);
+    if (group) setOrder((previous) => ({ ...previous, [groupId ?? "short"]: reorderGroupIds(group.scenes, sceneId, toIndex) }));
+    void getBinderStore().then((store) => store.moveScene(sceneId, groupId, toIndex)).then(reload);
+  }, [groups, reload]);
+  return { groups, reorder };
+}
+
 function OutlinerBody({ navigation, projectId }: Pick<Props, "navigation"> & { projectId: string }) {
   const theme = useTheme();
   const data = useOutlinerData(projectId);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const groups = useMemo(() => buildOutlineGroups(data.folders, data.scenes), [data.folders, data.scenes]);
+  const { groups, reorder } = useOrderedGroups(data);
   const items = useMemo(() => flattenOutline(groups), [groups]);
   const sticky = useMemo(() => deriveStickyHeaderIndices(items), [items]);
   const scrollGesture = useMemo(() => Gesture.Native(), []);
-  const drop = useCallback(({ sceneId, groupId, fromIndex, count, translationY }: OutlinerDrop) => {
-    const toIndex = outlinerDropIndex(fromIndex, translationY, count);
-    if (toIndex === fromIndex) return;
-    void getBinderStore().then((store) => store.moveScene(sceneId, groupId, toIndex)).then(data.reload);
-  }, [data.reload]);
+  const drag = useOutlinerDrag(groups, reorder);
   const create = () => {
     void getBinderStore().then((store) => store.createScene({ projectId, folderId: data.folders[0]?.id ?? null, title: "Untitled scene" })).then(data.reload);
   };
@@ -77,7 +112,7 @@ function OutlinerBody({ navigation, projectId }: Pick<Props, "navigation"> & { p
     const group = groups.find(({ id }) => id === item.groupId);
     return <OutlinerRow active={activeId === item.scene.id} availableLabels={data.labels} groupCount={group?.scenes.length ?? 1}
       groupId={item.groupId} indexInGroup={item.indexInGroup} labels={data.sceneLabels[item.scene.id] ?? []}
-      onActivate={() => setActiveId(item.scene.id)} onDrop={drop}
+      drag={drag} onActivate={() => setActiveId(item.scene.id)}
       onRename={(value) => commitSceneField("rename", item.scene.id, value, data.reload)}
       onStatus={(status: SceneStatus) => void getBinderStore().then((store) => store.setSceneStatus(item.scene.id, status)).then(data.reload)}
       onSynopsis={(value) => commitSceneField("synopsis", item.scene.id, value, data.reload)}
@@ -86,9 +121,9 @@ function OutlinerBody({ navigation, projectId }: Pick<Props, "navigation"> & { p
   return (
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Outliner" trailing={<Pressable accessibilityLabel="Column options" style={[styles.columns, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Columns</Text><Icon color={theme.colors.ink2} name="chevDown" size={13} /></Pressable>} />
-      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <GestureDetector gesture={scrollGesture}>
-        <FlatList data={items} keyExtractor={({ key }) => key} renderItem={renderItem} stickyHeaderIndices={sticky} />
-      </GestureDetector>}
+      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <OutlinerDragContext.Provider value={drag}><GestureDetector gesture={scrollGesture}>
+        <FlatList CellRendererComponent={OutlineCell} data={items} keyExtractor={({ key }) => key} renderItem={renderItem} stickyHeaderIndices={sticky} />
+      </GestureDetector></OutlinerDragContext.Provider>}
       <View style={styles.bottom}><Pressable onPress={create} style={styles.newScene}><Icon color={theme.colors.accent} name="plus" size={16} /><Text style={[TYPE.bodySmallStrong, { color: theme.colors.accent }]}>New scene</Text></Pressable><StatusSummary scenes={data.scenes} /></View>
     </Screen>
   );

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { Folder, Scene } from "../../shared/binderStore";
-import { buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, OUTLINER_ROW_HEIGHT, outlinerDropIndex, summarizeOutline } from "./outlinerModel";
+import { computeReorder } from "../../shared/computeReorder";
+import { applyOptimisticOrder, buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, OUTLINER_ROW_HEIGHT, outlinerDropIndex, outlinerPreviewOffsets, outlinerPreviewSlot, reorderGroupIds, summarizeOutline } from "./outlinerModel";
 
 const folders: Folder[] = [
   { id: "c1", project_id: "p", title: "Chapter 1", sort_order: 1 },
@@ -54,5 +55,69 @@ describe("outliner grouping", () => {
     expect(outlinerDropIndex(1, OUTLINER_ROW_HEIGHT, 4)).toBe(2);
     expect(outlinerDropIndex(1, -OUTLINER_ROW_HEIGHT * 3, 4)).toBe(0);
     expect(outlinerDropIndex(1, OUTLINER_ROW_HEIGHT * 6, 4)).toBe(3);
+  });
+});
+
+describe("outliner drag preview", () => {
+  it("mirrors the slot mapping computeReorder produces for the same move", () => {
+    const ids = ["a", "b", "c", "d"];
+    for (const [from, to] of [[0, 3], [3, 0], [1, 2], [2, 1], [2, 2]]) {
+      const order = computeReorder(ids.map((id) => ({ id })), ids[from], to).map(({ id }) => id);
+      ids.forEach((id, index) => { expect(outlinerPreviewSlot(index, from, to)).toBe(order.indexOf(id)); });
+    }
+  });
+
+  it("slides passed rows by the dragged row's own height, whatever theirs is", () => {
+    // Rows differ wildly (a wrapped synopsis and a wrapped label strip both
+    // grow a row), so a fixed OUTLINER_ROW_HEIGHT step would misalign them.
+    expect(outlinerPreviewOffsets([80, 300, 120], 0, 2)).toEqual([420, -80, -80]);
+    expect(outlinerPreviewOffsets([80, 300, 120], 2, 0)).toEqual([120, 120, -380]);
+  });
+
+  it("moves only the rows between the origin and the drop", () => {
+    expect(outlinerPreviewOffsets([100, 100, 100, 100], 1, 2)).toEqual([0, 100, -100, 0]);
+    expect(outlinerPreviewOffsets([100, 100, 100, 100], 3, 1)).toEqual([0, 100, 100, -200]);
+  });
+
+  it("holds every row still when the drop index equals the origin or is out of range", () => {
+    expect(outlinerPreviewOffsets([100, 100], 1, 1)).toEqual([0, 0]);
+    expect(outlinerPreviewOffsets([100, 100], -1, 1)).toEqual([0, 0]);
+    expect(outlinerPreviewOffsets([100, 100], 5, 1)).toEqual([0, 0]);
+  });
+});
+
+describe("outliner optimistic order", () => {
+  const base = () => buildOutlineGroups(folders, [
+    scene("a", "c1", 10, "draft"), scene("b", "c1", 20, "draft"), scene("c", "c1", 30, "draft"),
+    scene("loose", null, 5, "blank"),
+  ]);
+
+  it("reorders a group by exactly the ids the persisted move will produce", () => {
+    const scenes = base()[0].scenes;
+    const ids = reorderGroupIds(scenes, "a", 2);
+    expect(ids).toEqual(computeReorder(scenes.map(({ id }) => ({ id })), "a", 2).map(({ id }) => id));
+    expect(applyOptimisticOrder(base(), { c1: ids })[0].scenes.map(({ id }) => id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("keeps the freshly loaded scene rows, overriding only their order", () => {
+    const groups = base();
+    groups[0].scenes[0] = { ...groups[0].scenes[0], word_count: 999 };
+    const applied = applyOptimisticOrder(groups, { c1: ["c", "b", "a"] });
+    expect(applied[0].scenes.map(({ id, word_count: words }) => [id, words])).toEqual([
+      ["c", 30], ["b", 20], ["a", 999],
+    ]);
+  });
+
+  it("keys the short-pieces group under its own name", () => {
+    const applied = applyOptimisticOrder(base(), { short: ["loose"] });
+    expect(applied[2].scenes.map(({ id }) => id)).toEqual(["loose"]);
+  });
+
+  it("ignores a remembered order once it stops describing the group", () => {
+    const groups = base();
+    // A scene was deleted, added, or moved to another chapter since the drop.
+    expect(applyOptimisticOrder(groups, { c1: ["c", "b"] })[0].scenes.map(({ id }) => id)).toEqual(["a", "b", "c"]);
+    expect(applyOptimisticOrder(groups, { c1: ["c", "b", "gone"] })[0].scenes.map(({ id }) => id)).toEqual(["a", "b", "c"]);
+    expect(applyOptimisticOrder(groups, {})[0].scenes.map(({ id }) => id)).toEqual(["a", "b", "c"]);
   });
 });

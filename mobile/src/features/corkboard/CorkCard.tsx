@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import type { LayoutChangeEvent } from "react-native";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import type { SharedValue } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { Circle, Defs, RadialGradient, Stop, Svg } from "react-native-svg";
 
 import { LabelPill, StatusDot } from "../../components";
@@ -10,8 +13,17 @@ import { STATUS_META, STATUS_ORDER } from "../../shared/status";
 import type { Entity } from "../../shared/storyBibleStore";
 import { useTheme } from "../../theme/ThemeProvider";
 import type { LabelToken } from "../../theme/tokens";
-import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
+import { DURATION, HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import type { DragOffset } from "./corkboardModel";
+import type { CorkDrag } from "./useCorkDrag";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+/** Release settle: quick, so the card lands the moment the finger lifts. */
+const SETTLE = { duration: DURATION.fast };
+/** Displacement slide: slower, because its whole job is to be *read*. */
+const SLIDE = { duration: DURATION.base };
+const NO_OFFSET: DragOffset = { dx: 0, dy: 0 };
 
 const ENTITY_TOKEN: Record<string, LabelToken> = {
   character: "clay", location: "moss", item: "gold", faction: "sea",
@@ -28,21 +40,84 @@ interface CorkCardProps {
   entities: Entity[];
   active: boolean;
   width: number;
+  index: number;
+  drag: CorkDrag;
   onActivate: () => void;
-  onDrop: (translationX: number, translationY: number) => void;
   onStatus: (status: SceneStatus) => void;
   onSynopsis: (value: string) => void;
 }
 
-function useCardGesture(onDrop: CorkCardProps["onDrop"]) {
+interface CardMotion {
+  tx: SharedValue<number>;
+  ty: SharedValue<number>;
+  dragging: boolean;
+  begin: () => void;
+  settle: (offset: DragOffset) => void;
+  release: () => void;
+}
+
+/**
+ * The dragged card's own transform. It stays on the finger while the pan runs,
+ * then animates onto the slot the drop will give it and only *then* commits the
+ * reorder — so the card is never seen jumping back to where it started.
+ *
+ * Nothing here is memoized: a memoized callback may not write to a shared value.
+ */
+function useCardMotion(drag: CorkDrag, index: number): CardMotion {
   const [dragging, setDragging] = useState(false);
-  const [translation, setTranslation] = useState({ x: 0, y: 0 });
-  const gesture = useMemo(() => Gesture.Pan().activateAfterLongPress(350).runOnJS(true)
-    .onStart(() => setDragging(true))
-    .onUpdate((event) => setTranslation({ x: event.translationX, y: event.translationY }))
-    .onEnd((event) => onDrop(event.translationX, event.translationY))
-    .onFinalize(() => { setDragging(false); setTranslation({ x: 0, y: 0 }); }), [onDrop]);
-  return { dragging, gesture, translation };
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const finish = () => {
+    drag.commit(index);
+    tx.value = 0;
+    ty.value = 0;
+    setDragging(false);
+  };
+  return {
+    dragging, tx, ty,
+    begin: () => { tx.value = 0; ty.value = 0; setDragging(true); },
+    settle: (offset: DragOffset) => {
+      const done = (finished?: boolean) => { "worklet"; if (finished !== false) runOnJS(finish)(); };
+      tx.value = withTiming(offset.dx, SETTLE);
+      ty.value = withTiming(offset.dy, SETTLE, done);
+    },
+    release: () => {
+      // A plain tap fails the pan and still finalizes it; only the card that
+      // actually holds the drag may tear the group's preview down.
+      if (drag.activeIndex.value === index) drag.cancel();
+      tx.value = withTiming(0, SETTLE);
+      ty.value = withTiming(0, SETTLE);
+      setDragging(false);
+    },
+  };
+}
+
+function cardGesture(drag: CorkDrag, index: number, motion: CardMotion) {
+  return Gesture.Pan().activateAfterLongPress(350).runOnJS(true)
+    .onStart(() => { motion.begin(); drag.start(index); })
+    .onUpdate((event) => {
+      motion.tx.value = event.translationX;
+      motion.ty.value = event.translationY;
+      drag.move(index, event.translationX, event.translationY);
+    })
+    .onEnd((event, success) => {
+      if (success) motion.settle(drag.end(index, event.translationX, event.translationY));
+    })
+    .onFinalize((_event, success) => { if (!success) motion.release(); });
+}
+
+/** Dragged card follows the finger; every other card slides to the slot the
+ *  drop would give it, opening the gap the dragged card is heading for. */
+function useCardStyle(drag: CorkDrag, index: number, motion: CardMotion) {
+  return useAnimatedStyle(() => {
+    if (drag.activeIndex.value === index) {
+      return { transform: [{ translateX: motion.tx.value }, { translateY: motion.ty.value }] };
+    }
+    const offset = drag.offsets.value[index] ?? NO_OFFSET;
+    return drag.snap.value
+      ? { transform: [{ translateX: offset.dx }, { translateY: offset.dy }] }
+      : { transform: [{ translateX: withTiming(offset.dx, SLIDE) }, { translateY: withTiming(offset.dy, SLIDE) }] };
+  });
 }
 
 function Pushpin() {
@@ -67,38 +142,50 @@ function EntityChips({ entities }: { entities: Entity[] }) {
   );
 }
 
+function CardBody(props: Pick<CorkCardProps, "entities" | "onStatus" | "onSynopsis" | "scene">) {
+  const theme = useTheme();
+  return (
+    <>
+      <Pushpin />
+      <View style={styles.metaRow}>
+        <Pressable accessibilityLabel={`Change status from ${STATUS_META[props.scene.status].label}`} onPress={() => props.onStatus(nextStatus(props.scene.status))} style={styles.statusTarget}>
+          <StatusDot size={8} status={props.scene.status} />
+          <Text style={[styles.statusLabel, { color: theme.colors.ink3 }]}>{STATUS_META[props.scene.status].label}</Text>
+        </Pressable>
+        <Text style={[styles.words, { color: theme.colors.ink4 }]}>{props.scene.word_count.toLocaleString()}w</Text>
+      </View>
+      <Text style={[styles.title, { color: theme.colors.ink }]}>{props.scene.title}</Text>
+      <TextInput
+        accessibilityLabel={`Synopsis for ${props.scene.title}`}
+        multiline
+        onEndEditing={(event) => props.onSynopsis(event.nativeEvent.text.trim())}
+        placeholder="Add a synopsis…"
+        placeholderTextColor={theme.colors.ink4}
+        style={[styles.synopsis, { color: theme.colors.ink2 }]}
+        defaultValue={props.scene.synopsis ?? ""}
+      />
+      <EntityChips entities={props.entities} />
+    </>
+  );
+}
+
 export function CorkCard(props: CorkCardProps) {
   const theme = useTheme();
-  const { dragging, gesture, translation } = useCardGesture(props.onDrop);
+  const motion = useCardMotion(props.drag, props.index);
+  const gesture = cardGesture(props.drag, props.index, motion);
+  const dragStyle = useCardStyle(props.drag, props.index, motion);
   const borderColor = props.active ? theme.colors.accent : theme.colors.line;
+  const onLayout = (event: LayoutChangeEvent) => props.drag.measure(props.index, event.nativeEvent.layout.height);
   return (
     <GestureDetector gesture={gesture}>
-      <Pressable onPress={props.onActivate} style={[
-        styles.card, theme.shadow[dragging ? "dragged" : "raised"],
+      <AnimatedPressable onLayout={onLayout} onPress={props.onActivate} style={[
+        styles.card, theme.shadow[motion.dragging ? "dragged" : "raised"],
         { width: props.width, backgroundColor: theme.colors.paper, borderColor,
-          borderWidth: props.active ? 1.5 : 1, transform: [{ translateX: translation.x }, { translateY: translation.y }],
-          zIndex: dragging ? 4 : 0 },
+          borderWidth: props.active ? 1.5 : 1, zIndex: motion.dragging ? 4 : 0 },
+        dragStyle,
       ]}>
-        <Pushpin />
-        <View style={styles.metaRow}>
-          <Pressable accessibilityLabel={`Change status from ${STATUS_META[props.scene.status].label}`} onPress={() => props.onStatus(nextStatus(props.scene.status))} style={styles.statusTarget}>
-            <StatusDot size={8} status={props.scene.status} />
-            <Text style={[styles.statusLabel, { color: theme.colors.ink3 }]}>{STATUS_META[props.scene.status].label}</Text>
-          </Pressable>
-          <Text style={[styles.words, { color: theme.colors.ink4 }]}>{props.scene.word_count.toLocaleString()}w</Text>
-        </View>
-        <Text style={[styles.title, { color: theme.colors.ink }]}>{props.scene.title}</Text>
-        <TextInput
-          accessibilityLabel={`Synopsis for ${props.scene.title}`}
-          multiline
-          onEndEditing={(event) => props.onSynopsis(event.nativeEvent.text.trim())}
-          placeholder="Add a synopsis…"
-          placeholderTextColor={theme.colors.ink4}
-          style={[styles.synopsis, { color: theme.colors.ink2 }]}
-          defaultValue={props.scene.synopsis ?? ""}
-        />
-        <EntityChips entities={props.entities} />
-      </Pressable>
+        <CardBody entities={props.entities} onStatus={props.onStatus} onSynopsis={props.onSynopsis} scene={props.scene} />
+      </AnimatedPressable>
     </GestureDetector>
   );
 }

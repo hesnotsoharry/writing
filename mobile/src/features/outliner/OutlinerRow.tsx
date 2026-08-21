@@ -1,27 +1,28 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import type { LayoutChangeEvent } from "react-native";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import type { NativeGesture } from "react-native-gesture-handler";
+import type { ComposedGesture, GestureType, NativeGesture } from "react-native-gesture-handler";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import type { SharedValue } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { Icon, LabelPill, StatusDot } from "../../components";
 import type { Scene, SceneStatus } from "../../shared/binderStore";
 import type { Label } from "../../shared/labelStore";
 import { STATUS_ORDER } from "../../shared/status";
 import { useTheme } from "../../theme/ThemeProvider";
-import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
+import { DURATION, HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import { OUTLINER_ROW_HEIGHT } from "./outlinerModel";
+import type { OutlinerDrag } from "./useOutlinerDrag";
+
+/** Release settle: quick, so the row lands the moment the finger lifts. */
+const SETTLE = { duration: DURATION.fast };
+/** Displacement slide: slower, because its whole job is to be *read*. */
+const SLIDE = { duration: DURATION.base };
 
 function nextStatus(status: SceneStatus): SceneStatus {
   return STATUS_ORDER[(STATUS_ORDER.indexOf(status) + 1) % STATUS_ORDER.length];
-}
-
-export interface OutlinerDrop {
-  sceneId: string;
-  groupId: string | null;
-  fromIndex: number;
-  count: number;
-  translationY: number;
 }
 
 interface OutlinerRowProps {
@@ -33,12 +34,70 @@ interface OutlinerRowProps {
   availableLabels: Label[];
   active: boolean;
   onActivate: () => void;
-  onDrop: (drop: OutlinerDrop) => void;
+  drag: OutlinerDrag;
   onRename: (value: string) => void;
   onSynopsis: (value: string) => void;
   onStatus: (value: SceneStatus) => void;
   onToggleLabel: (label: Label, assigned: boolean) => void;
   scrollGesture: NativeGesture;
+}
+
+type DragProps = Pick<OutlinerRowProps, "drag" | "groupCount" | "groupId" | "indexInGroup" | "scene" | "scrollGesture">;
+
+interface RowMotion {
+  ty: SharedValue<number>;
+  dragging: boolean;
+  begin: () => void;
+  settle: (offset: number) => void;
+  release: () => void;
+}
+
+/**
+ * The dragged row's own transform. It stays on the finger while the pan runs,
+ * then animates onto the slot the drop will give it and only *then* commits the
+ * reorder — so the row is never seen jumping back to where it started.
+ *
+ * Nothing here is memoized: a memoized callback may not write to a shared value.
+ */
+function useRowMotion(drag: OutlinerDrag, sceneId: string): RowMotion {
+  const [dragging, setDragging] = useState(false);
+  const ty = useSharedValue(0);
+  const finish = () => { drag.commit(sceneId); ty.value = 0; setDragging(false); };
+  return {
+    dragging, ty,
+    begin: () => { ty.value = 0; setDragging(true); },
+    settle: (offset: number) => {
+      const done = (finished?: boolean) => { "worklet"; if (finished !== false) runOnJS(finish)(); };
+      ty.value = withTiming(offset, SETTLE, done);
+    },
+    release: () => {
+      // A plain tap fails the pan and still finalizes it; only the row that
+      // actually holds the drag may tear the list's preview down.
+      if (drag.activeId.value === sceneId) drag.cancel();
+      ty.value = withTiming(0, SETTLE);
+      setDragging(false);
+    },
+  };
+}
+
+function rowGesture(props: DragProps, motion: RowMotion) {
+  const { drag, groupCount, groupId, indexInGroup, scene, scrollGesture } = props;
+  const at = (translationY: number) => ({ sceneId: scene.id, groupId, fromIndex: indexInGroup, count: groupCount, translationY });
+  return Gesture.Pan().activateAfterLongPress(350).blocksExternalGesture(scrollGesture).runOnJS(true)
+    .onStart(() => { motion.begin(); drag.start(at(0)); })
+    .onUpdate((event) => { motion.ty.value = event.translationY; drag.move(at(event.translationY)); })
+    .onEnd((event, success) => { if (success) motion.settle(drag.end(at(event.translationY))); })
+    .onFinalize((_event, success) => { if (!success) motion.release(); });
+}
+
+/** Dragged row follows the finger; every other row in the chapter slides to the
+ *  slot the drop would give it, opening the gap the dragged row is heading for. */
+function useRowStyle(drag: OutlinerDrag, sceneId: string, motion: RowMotion) {
+  return useAnimatedStyle(() => {
+    if (drag.activeId.value === sceneId) return { transform: [{ translateY: motion.ty.value }] };
+    const dy = drag.offsets.value[sceneId] ?? 0;
+    return { transform: [{ translateY: drag.snap.value ? dy : withTiming(dy, SLIDE) }] };
+  });
 }
 
 function LabelAssignment(props: Pick<OutlinerRowProps, "labels" | "availableLabels" | "onToggleLabel">) {
@@ -59,21 +118,12 @@ function LabelAssignment(props: Pick<OutlinerRowProps, "labels" | "availableLabe
   );
 }
 
-function DragHandle(props: Pick<OutlinerRowProps, "groupCount" | "groupId" | "indexInGroup" | "onDrop" | "scene" | "scrollGesture">) {
+function DragHandle({ dragging, gesture }: { dragging: boolean; gesture: ComposedGesture | GestureType }) {
   const theme = useTheme();
-  const [dragging, setDragging] = useState(false);
-  const { groupCount, groupId, indexInGroup, onDrop, scene, scrollGesture } = props;
-  const gesture = useMemo(() => Gesture.Pan().activateAfterLongPress(350)
-    .blocksExternalGesture(scrollGesture).runOnJS(true)
-    .onStart(() => setDragging(true))
-    .onEnd((event, success) => {
-      if (success) onDrop({ sceneId: scene.id, groupId, fromIndex: indexInGroup, count: groupCount, translationY: event.translationY });
-    })
-    .onFinalize(() => setDragging(false)), [groupCount, groupId, indexInGroup, onDrop, scene.id, scrollGesture]);
   return <GestureDetector gesture={gesture}><View accessibilityLabel="Long-press to reorder scene" style={styles.dragHandle}><Icon color={dragging ? theme.colors.accent : theme.colors.ink4} name="list" size={17} /></View></GestureDetector>;
 }
 
-export function OutlinerRow(props: OutlinerRowProps) {
+function RowSurface(props: OutlinerRowProps & { handle: React.ReactNode }) {
   const theme = useTheme();
   return (
     <Pressable onPress={props.onActivate} style={[styles.row, { borderBottomColor: theme.colors.lineSoft }, props.active && { backgroundColor: theme.colors.accentTint }]}>
@@ -83,12 +133,30 @@ export function OutlinerRow(props: OutlinerRowProps) {
         <View style={styles.titleRow}>
           <TextInput accessibilityLabel={`Rename ${props.scene.title}`} defaultValue={props.scene.title} onEndEditing={(event) => props.onRename(event.nativeEvent.text.trim())} style={[styles.title, { color: theme.colors.ink }]} />
           <Text style={[styles.words, { color: theme.colors.ink4 }]}>{props.scene.word_count.toLocaleString()}w</Text>
-          <DragHandle {...props} />
+          {props.handle}
         </View>
         <TextInput accessibilityLabel={`Synopsis for ${props.scene.title}`} defaultValue={props.scene.synopsis ?? ""} multiline onEndEditing={(event) => props.onSynopsis(event.nativeEvent.text.trim())} placeholder="No synopsis yet" placeholderTextColor={theme.colors.ink4} style={[styles.synopsis, { color: theme.colors.ink2 }]} />
         <LabelAssignment availableLabels={props.availableLabels} labels={props.labels} onToggleLabel={props.onToggleLabel} />
       </View>
     </Pressable>
+  );
+}
+
+export function OutlinerRow(props: OutlinerRowProps) {
+  const theme = useTheme();
+  const motion = useRowMotion(props.drag, props.scene.id);
+  const gesture = rowGesture(props, motion);
+  const dragStyle = useRowStyle(props.drag, props.scene.id, motion);
+  const onLayout = (event: LayoutChangeEvent) => props.drag.measure(props.scene.id, event.nativeEvent.layout.height);
+  // Same lift the corkboard gives a picked-up card: shadow "dragged" over an
+  // opaque surface, raised above its neighbours.
+  const lifted = motion.dragging
+    ? { ...theme.shadow.dragged, backgroundColor: theme.colors.paper, zIndex: 4 }
+    : null;
+  return (
+    <Animated.View onLayout={onLayout} style={[lifted, dragStyle]}>
+      <RowSurface {...props} handle={<DragHandle dragging={motion.dragging} gesture={gesture} />} />
+    </Animated.View>
   );
 }
 

@@ -1,17 +1,18 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { Icon, IconButton, Screen, Segmented, Topbar } from "../../components";
 import { getBinderStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
-import type { Scene, SceneStatus } from "../../shared/binderStore";
+import type { SceneStatus } from "../../shared/binderStore";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
-import { buildCorkGroups, dragTargetIndex, getCardLayout, reorderPreview } from "./corkboardModel";
+import { buildCorkGroups, getCardLayout, reorderPreview } from "./corkboardModel";
 import { CorkCard } from "./CorkCard";
 import { useCorkboardData } from "./useCorkboardData";
+import { useCorkDrag } from "./useCorkDrag";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Corkboard">;
 const COLUMN_OPTIONS = [{ label: "1", value: "1" }, { label: "2", value: "2" }] as const;
@@ -39,23 +40,25 @@ function CorkGroupView(props: CorkGroupProps) {
   const [ordered, setOrdered] = useState(props.group.scenes);
   if (ordered.map(({ id }) => id).join() !== props.group.scenes.map(({ id }) => id).join()
     && new Set(ordered.map(({ id }) => id)).size !== props.group.scenes.length) setOrdered(props.group.scenes);
-  const onDrop = (scene: Scene, fromIndex: number, x: number, y: number) => {
-    const toIndex = dragTargetIndex({
-      fromIndex, translationX: x, translationY: y, count: ordered.length,
-      columns: props.columns, cardWidth: props.cardWidth,
-      rowHeight: props.columns === 1 ? 180 : 220, gutter: props.columns === 1 ? 16 : 12,
-    });
-    if (toIndex === fromIndex) return;
-    setOrdered(reorderPreview(ordered, scene.id, toIndex));
-    void getBinderStore().then((store) => store.moveScene(scene.id, props.group.id, toIndex)).then(props.onReload);
-  };
+  // Same numbers the drop math has always used, so where a card lands is unchanged.
+  const geometry = useMemo(() => ({
+    columns: props.columns, cardWidth: props.cardWidth,
+    gutter: props.columns === 1 ? 16 : 12, rowHeight: props.columns === 1 ? 180 : 220,
+  }), [props.cardWidth, props.columns]);
+  const { id: groupId } = props.group;
+  const { onReload } = props;
+  const onReorder = useCallback((sceneId: string, toIndex: number) => {
+    setOrdered((current) => reorderPreview(current, sceneId, toIndex));
+    void getBinderStore().then((store) => store.moveScene(sceneId, groupId, toIndex)).then(onReload);
+  }, [groupId, onReload]);
+  const drag = useCorkDrag({ geometry, onReorder, scenes: ordered });
   return (
     <View>
       <View style={styles.groupHeader}><Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>{props.group.title}</Text><View style={[styles.rule, { backgroundColor: theme.colors.parchmentEdge }]} /></View>
       <View style={[styles.cardGrid, { gap: props.columns === 1 ? 16 : 12 }]}>
         {ordered.map((scene, index) => <CorkCard
-          active={props.activeId === scene.id} entities={props.entities[scene.id] ?? []} key={scene.id}
-          onActivate={() => props.onActivate(scene.id)} onDrop={(x, y) => onDrop(scene, index, x, y)}
+          active={props.activeId === scene.id} drag={drag} entities={props.entities[scene.id] ?? []} index={index} key={scene.id}
+          onActivate={() => props.onActivate(scene.id)}
           onStatus={(status) => commitStatus(scene.id, status, props.onReload)}
           onSynopsis={(value) => commitSynopsis(scene.id, value, props.onReload)} scene={scene} width={props.cardWidth}
         />)}
