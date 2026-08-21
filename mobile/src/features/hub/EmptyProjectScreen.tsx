@@ -36,10 +36,14 @@ export function EmptyProjectScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (model && !model.empty) navigation.replace("Hub", { projectId, projectTitle });
   }, [model, navigation, projectId, projectTitle]);
+  // A project can have chapters and still be empty of prose — start the first
+  // scene inside the first chapter when there is one (the binder drawer's
+  // "New scene" does the same), otherwise it lands in Short pieces.
+  const firstFolderId = model?.firstFolderId ?? null;
   const writeFirst = useCallback(() => {
-    void getBinderStore().then((store) => store.createScene({ projectId, folderId: null, title: "Untitled scene" }))
+    void getBinderStore().then((store) => store.createScene({ projectId, folderId: firstFolderId, title: "Untitled scene" }))
       .then((sceneId) => navigation.replace("Scene", { projectId, sceneId, sceneTitle: "Untitled scene" }));
-  }, [navigation, projectId]);
+  }, [firstFolderId, navigation, projectId]);
   return (
     <Screen contentStyle={styles.screen}>
       <View style={styles.content}>

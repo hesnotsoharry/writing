@@ -11,23 +11,18 @@ import { STATUS_META } from "../../shared/status";
 import { subscribeMobileStructureChanged } from "../../sync/mobileEngine";
 import { PALETTE } from "../../theme/palette";
 import { useTheme } from "../../theme/ThemeProvider";
-import type { BinderChapter, BinderSceneItem } from "./binderQueries";
-import { listBinder } from "./binderQueries";
+import type { BinderRow, BinderSceneItem } from "./binderQueries";
+import { buildBinderRows, listBinder } from "./binderQueries";
 import { SceneActionsSheet } from "./SceneActionsSheet";
 import { useBinderDrawerData } from "./useBinderDrawerData";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectBinder">;
 type LoadState = "loading" | "ready" | "error";
 
-const EMPTY_COPY = "Nothing here yet — pair with your desktop to bring your writing over.";
-const SHORT_PIECES_HEADER_ID = "h-short-pieces";
-
-type Row =
-  | { kind: "header"; id: string; title: string }
-  | { kind: "scene"; id: string; scene: BinderSceneItem };
+const NEW_SCENE_TITLE = "Untitled scene";
 
 interface BinderLoadHandlers {
-  onSuccess: (rows: Row[]) => void;
+  onSuccess: (rows: BinderRow[]) => void;
   onError: (message: string) => void;
 }
 
@@ -48,30 +43,43 @@ function useBinderColors() {
   };
 }
 
-function fetchBinder(projectId: string, handlers: BinderLoadHandlers): void {
-  void listBinder(projectId)
-    .then((tree) => handlers.onSuccess(toRows(tree.chapters, tree.shortPieces)))
-    .catch((error: unknown) => handlers.onError(String(error)));
+/** Desktop creates the scene in place and selects it; mobile's equivalent of
+ *  selecting is opening the editor on it. */
+async function createAndOpenScene(args: {
+  folderId: string | null; navigation: Props["navigation"]; projectId: string; refresh: () => void;
+}): Promise<void> {
+  const store = await getBinderStore();
+  const sceneId = await store.createScene({
+    projectId: args.projectId, folderId: args.folderId, title: NEW_SCENE_TITLE,
+  });
+  args.refresh();
+  args.navigation.navigate("Scene", {
+    projectId: args.projectId, sceneId, sceneTitle: NEW_SCENE_TITLE,
+  });
 }
 
-/** Flattens the chapter tree into one ordered list so a single FlatList can
- *  render chapter headers and their scenes without nested VirtualizedLists. */
-function toRows(chapters: BinderChapter[], shortPieces: BinderSceneItem[]): Row[] {
-  const rows: Row[] = [];
-  for (const chapter of chapters) {
-    rows.push({ kind: "header", id: `h-${chapter.id}`, title: chapter.title });
-    for (const scene of chapter.scenes) rows.push({ kind: "scene", id: scene.id, scene });
-  }
-  if (shortPieces.length > 0) {
-    rows.push({ kind: "header", id: SHORT_PIECES_HEADER_ID, title: "Short pieces" });
-    for (const scene of shortPieces) rows.push({ kind: "scene", id: scene.id, scene });
-  }
-  return rows;
+function fetchBinder(projectId: string, handlers: BinderLoadHandlers): void {
+  void listBinder(projectId)
+    .then((tree) => handlers.onSuccess(buildBinderRows(tree)))
+    .catch((error: unknown) => handlers.onError(String(error)));
 }
 
 function ChapterHeader({ title }: { title: string }) {
   const colors = useBinderColors();
   return <Text style={[styles.chapterHeader, { color: colors.accent }]}>{title}</Text>;
+}
+
+/** Desktop's inline "add one" hint (Binder.tsx), as a tappable row: the only
+ *  way out of a chapter — or a project — that has no scenes yet. */
+function AddSceneRow({ label, onPress }: { label: string; onPress: () => void }) {
+  const colors = useBinderColors();
+  return (
+    <Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress}
+      style={({ pressed }) => [styles.addRow, { borderColor: colors.border }, pressed && styles.pressed]}>
+      <Icon color={colors.accent} name="plus" size={15} />
+      <Text style={[styles.addText, { color: colors.accent }]}>{label}</Text>
+    </Pressable>
+  );
 }
 
 function SceneRow({ scene, onLongPress, onPress }: {
@@ -106,10 +114,27 @@ interface BinderContentProps {
   errorMessage: string;
   load: () => void;
   onActions: (scene: BinderSceneItem) => void;
+  onAddScene: (folderId: string | null) => void;
   onOpenArchive: () => void;
   onOpenScene: (scene: BinderSceneItem) => void;
-  rows: Row[];
+  rows: BinderRow[];
   state: LoadState;
+}
+
+interface BinderRowViewProps {
+  onActions: (scene: BinderSceneItem) => void;
+  onAddScene: (folderId: string | null) => void;
+  onOpenScene: (scene: BinderSceneItem) => void;
+  row: BinderRow;
+}
+
+function BinderRowView({ onActions, onAddScene, onOpenScene, row }: BinderRowViewProps) {
+  if (row.kind === "header") return <ChapterHeader title={row.title} />;
+  if (row.kind === "add") {
+    return <AddSceneRow label={row.label} onPress={() => { onAddScene(row.folderId); }} />;
+  }
+  return <SceneRow scene={row.scene} onPress={() => { onOpenScene(row.scene); }}
+    onLongPress={() => { onActions(row.scene); }} />;
 }
 
 function BinderContent(props: BinderContentProps) {
@@ -129,9 +154,8 @@ function BinderContent(props: BinderContentProps) {
     );
   }
   return (
-    <FlatList contentContainerStyle={[styles.listContent, props.rows.length === 0 && styles.emptyList]}
+    <FlatList contentContainerStyle={styles.listContent}
       data={props.rows} keyExtractor={(row) => row.id}
-      ListEmptyComponent={<CenteredMessage><Text style={[styles.emptyText, { color: colors.inkMuted }]}>{EMPTY_COPY}</Text></CenteredMessage>}
       ListFooterComponent={props.archived > 0 ? <Pressable accessibilityLabel={`Archived, ${props.archived}`}
         accessibilityRole="button" onPress={props.onOpenArchive}
         style={({ pressed }) => [styles.archiveFoot, { borderColor: colors.border }, pressed && styles.pressed]}>
@@ -139,19 +163,17 @@ function BinderContent(props: BinderContentProps) {
         <Text style={[styles.archiveText, { color: colors.inkMuted }]}>Archived</Text>
         <Badge count={props.archived} />
       </Pressable> : null}
-      renderItem={({ item }) => item.kind === "header"
-        ? <ChapterHeader title={item.title} />
-        : <SceneRow scene={item.scene} onPress={() => props.onOpenScene(item.scene)}
-          onLongPress={() => props.onActions(item.scene)} />}
+      renderItem={({ item }) => <BinderRowView onActions={props.onActions}
+        onAddScene={props.onAddScene} onOpenScene={props.onOpenScene} row={item} />}
     />
   );
 }
 
 function useBinderLoad(projectId: string) {
   const [state, setState] = useState<LoadState>("loading");
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<BinderRow[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
-  const onSuccess = useCallback((nextRows: Row[]) => {
+  const onSuccess = useCallback((nextRows: BinderRow[]) => {
     setRows(nextRows);
     setState("ready");
   }, []);
@@ -195,10 +217,14 @@ export function ProjectBinderScreen({ navigation, route }: Props) {
     setActionScene(null);
     refresh();
   }, [refresh]);
+  const onAddScene = useCallback((folderId: string | null) => {
+    void createAndOpenScene({ folderId, navigation, projectId, refresh });
+  }, [navigation, projectId, refresh]);
 
   return <>
     <BinderContent archived={drawerData.archived} errorMessage={binder.errorMessage} load={binder.load}
-      onActions={onActions} onOpenArchive={() => navigation.navigate("Archive", { projectId })}
+      onActions={onActions} onAddScene={onAddScene}
+      onOpenArchive={() => navigation.navigate("Archive", { projectId })}
       onOpenScene={onOpenScene} rows={binder.rows} state={binder.state} />
     <SceneActionsSheet key={actionScene?.id ?? "none"} open={actionScene !== null}
       projectId={projectId} scene={actionScene} labels={drawerData.labels}
@@ -209,7 +235,18 @@ export function ProjectBinderScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   listContent: { padding: 16, paddingBottom: 32 },
-  emptyList: { flexGrow: 1 },
+  addRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    marginBottom: 8,
+  },
+  addText: { fontSize: 14, fontWeight: "600" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
   chapterHeader: {
     fontSize: 12,
@@ -239,7 +276,6 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 9,
   },
   archiveText: { flex: 1, fontSize: 14, fontWeight: "600" },
-  emptyText: { fontSize: 15, textAlign: "center", lineHeight: 22 },
   errorText: { fontSize: 16, fontWeight: "600" },
   errorDetail: { fontSize: 13, textAlign: "center" },
   retryButton: {

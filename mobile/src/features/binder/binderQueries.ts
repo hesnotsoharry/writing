@@ -65,4 +65,5 @@ export async function listBinder(projectId: string): Promise<BinderTree> {
   return buildBinderTree(folders, scenes);
 }
 
-export type { BinderChapter, BinderSceneItem, BinderTree } from "./binderTree";
+export type { BinderChapter, BinderRow, BinderSceneItem, BinderTree } from "./binderTree";
+export { buildBinderRows } from "./binderTree";

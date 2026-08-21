@@ -77,15 +77,18 @@ describe("isProjectEmpty", () => {
   const folder: Folder = { id: "f", project_id: "p", title: "Chapter", sort_order: 1 };
   const baseScene: Scene = scene("s", null);
 
-  it("is empty only with no folders and no scenes", () => {
-    expect(isProjectEmpty([], [])).toBe(true);
+  it("is empty with no folders and no scenes", () => {
+    expect(isProjectEmpty([])).toBe(true);
   });
 
   it("is not empty when scenes exist", () => {
-    expect(isProjectEmpty([], [baseScene])).toBe(false);
+    expect(isProjectEmpty([baseScene])).toBe(false);
   });
 
-  it("is not empty when a folder exists without scenes", () => {
-    expect(isProjectEmpty([folder], [])).toBe(false);
+  it("is empty when chapters exist but hold no scenes — chapters are not prose", () => {
+    expect(isProjectEmpty([])).toBe(true);
+    const model = buildHubModel({ folders: [folder], scenes: [] });
+    expect(model.empty).toBe(true);
+    expect(model.firstFolderId).toBe("f");
   });
 });

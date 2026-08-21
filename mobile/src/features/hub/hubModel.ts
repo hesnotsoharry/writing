@@ -30,6 +30,9 @@ export interface HubGoalModel {
 
 export interface HubModel {
   empty: boolean;
+  /** First chapter in sort order, so the first-scene affordance can drop the
+   *  scene into an existing chapter instead of stranding it in Short pieces. */
+  firstFolderId: string | null;
   totalWords: number;
   primaryScene: HubSceneModel | null;
   recentScenes: HubSceneModel[];
@@ -43,8 +46,16 @@ export function formatHubExcerpt(value: string, maxLength = HUB_EXCERPT_LENGTH):
   return `…${normalized.slice(-(maxLength - 1)).trimStart()}`;
 }
 
-export function isProjectEmpty(folders: readonly Folder[], scenes: readonly Scene[]): boolean {
-  return folders.length === 0 && scenes.length === 0;
+/**
+ * "Empty" means there is nothing to write in — no scenes. Chapters alone are
+ * not writing: a project with folders but no scenes used to fall through to
+ * the full Hub, which then had no resume card and no call to action, and to a
+ * binder that rendered a chapter header over blank space. Desktop treats the
+ * same situation as "add the first scene" (Binder.tsx ChapterEmptyHint), so
+ * mobile routes it to the first-scene screen.
+ */
+export function isProjectEmpty(scenes: readonly Scene[]): boolean {
+  return scenes.length === 0;
 }
 
 function sceneTime(scene: HubSceneInput): number {
@@ -107,7 +118,8 @@ export function buildHubModel(input: BuildHubModelInput): HubModel {
   const sceneCount = input.scenes.length;
   const totalWords = input.scenes.reduce((total, scene) => total + scene.word_count, 0);
   return {
-    empty: isProjectEmpty(input.folders, input.scenes),
+    empty: isProjectEmpty(input.scenes),
+    firstFolderId: input.folders[0]?.id ?? null,
     totalWords,
     primaryScene: picked.primary,
     recentScenes: picked.recent,
