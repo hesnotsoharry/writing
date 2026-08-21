@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { MIGRATIONS, runMigrations } from "../db/migrations";
 import { makeSqlJsDb } from "./support/sqljsDb";
 
+const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
+
 describe("migration 22 — sync protocol v1.3", () => {
   it("creates durable sync tables, indexes, and feature columns", async () => {
     const db = await makeSqlJsDb();
@@ -23,7 +25,9 @@ describe("migration 22 — sync protocol v1.3", () => {
       expect(noteColumns.map(({ name }) => name)).toEqual(expect.arrayContaining([
         "source", "state", "updated_at",
       ]));
-      expect(MIGRATIONS.at(-1)).toMatchObject({ version: 22, name: "sync-protocol-v13" });
+      expect(MIGRATIONS).toContainEqual(
+        expect.objectContaining({ version: 22, name: "sync-protocol-v13" }),
+      );
     } finally { db.close(); }
   });
 
@@ -33,7 +37,7 @@ describe("migration 22 — sync protocol v1.3", () => {
       await db.execute("PRAGMA user_version = 21");
       await runMigrations(db);
       const version = await db.select<Array<{ user_version: number }>>("PRAGMA user_version");
-      expect(version[0].user_version).toBe(22);
+      expect(version[0].user_version).toBe(LATEST);
     } finally { db.close(); }
   });
 });

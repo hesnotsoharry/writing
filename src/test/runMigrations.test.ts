@@ -88,6 +88,30 @@ describe("runMigrations — version gating (vi.fn double)", () => {
   });
 });
 
+/**
+ * The registry invariant, asserted once here.
+ *
+ * Several migration tests used to carry an `expect(LATEST).toBe(<n>)` pin
+ * alongside their real assertion. Those pins tested nothing about the migration
+ * under test — only "nobody has added a migration since" — so every new
+ * migration broke eight unrelated files at once (the trap CLAUDE.md warns
+ * about). The property those pins were reaching for is this one, and it does
+ * not need restating per file.
+ */
+describe("MIGRATIONS registry shape", () => {
+  it("is strictly ascending with unique versions and names", () => {
+    const versions = MIGRATIONS.map(({ version }) => version);
+    expect(versions).toEqual([...versions].sort((left, right) => left - right));
+    expect(new Set(versions).size).toBe(versions.length);
+    expect(new Set(MIGRATIONS.map(({ name }) => name)).size).toBe(MIGRATIONS.length);
+  });
+
+  it("starts at 1 and leaves no gaps", () => {
+    expect(MIGRATIONS.map(({ version }) => version))
+      .toEqual(MIGRATIONS.map((_, index) => index + 1));
+  });
+});
+
 describe("assertSafeVersion — PRAGMA interpolation guard", () => {
   it("accepts valid non-negative 32-bit integers", () => {
     expect(() => assertSafeVersion(0)).not.toThrow();

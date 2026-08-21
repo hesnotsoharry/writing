@@ -15,7 +15,9 @@ import {
   migration_020_doc_updated_at,
   migration_021_project_meta_docs,
 } from "./migrations2";
-import { migration_022_sync_protocol_v13 } from "./migrations3";
+import {
+  migration_022_sync_protocol_v13, migration_023_about_updated_at,
+} from "./migrations3";
 
 export interface Migration {
   version: number;
@@ -388,6 +390,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 20, name: "doc-updated-at", up: migration_020_doc_updated_at },
   { version: 21, name: "project-meta-docs", up: migration_021_project_meta_docs },
   { version: 22, name: "sync-protocol-v13", up: migration_022_sync_protocol_v13 },
+  { version: 23, name: "about-updated-at", up: migration_023_about_updated_at },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

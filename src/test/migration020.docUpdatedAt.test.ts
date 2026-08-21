@@ -11,10 +11,10 @@ async function columnNames(db: SqlJsTestDb, table: string): Promise<string[]> {
 }
 
 describe("migration 20 — document sync timestamps", () => {
-  it("registers migration 20 and reaches the new latest version", async () => {
+  it("registers migration 20 and is not the tail of the registry", () => {
     const migration = MIGRATIONS.find(({ version }) => version === 20);
     expect(migration?.name).toBe("doc-updated-at");
-      expect(LATEST).toBe(22);
+    expect(LATEST).toBeGreaterThanOrEqual(20);
   });
 
   it("adds nullable updated_at columns without backfilling existing rows", async () => {

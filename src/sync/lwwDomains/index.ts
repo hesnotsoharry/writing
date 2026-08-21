@@ -7,12 +7,12 @@ export { AI_CONVERSATIONS_SYNC_SETTING_KEY, createLwwLocalBridges } from "./loca
 export type { AiConversationWriteBridge, DomainWriteBridge, PublishLocalRow } from "./types";
 
 /**
- * `manuscript_about` has no timestamp column, so its seed stamp is 0 and a tie
- * between two devices that both predate sync is broken by device id alone —
- * effectively a coin flip over a whole About page. Announcing only rows that
- * actually say something keeps that flip away from the case that matters: a
- * device holding an untouched blank row can no longer win against one holding
- * real content. The durable fix is an `updated_at` column; see HANDOFF.
+ * `manuscript_about` rows written before migration 023 have no `updated_at`, so
+ * they still seed at stamp 0 and two such devices tie on device id — a coin
+ * flip over a whole About page, since the projection overwrites every column.
+ * Announcing only rows that actually say something keeps that flip away from
+ * the case that matters: an untouched blank row can no longer win against one
+ * holding real content. Anything written since carries a real stamp.
  */
 const ABOUT_HAS_CONTENT = ["synopsis", "genre", "tone", "pov", "notes"]
   .map((column) => `COALESCE(${column}, '') <> ''`).join(" OR ");
@@ -45,7 +45,7 @@ const DEFINITIONS: readonly SqlDomainDefinition[] = [
   ], seed: { project: "project_id" } },
   { domain: "manuscript_about", table: "manuscript_about", key: "project_id", columns: [
     "project_id", "synopsis", "genre", "tone", "pov", "notes",
-  ], seed: { project: "project_id", where: ABOUT_HAS_CONTENT } },
+  ], seed: { project: "project_id", stamp: "updated_at", where: ABOUT_HAS_CONTENT } },
 ];
 
 export interface LwwDomainRegistrations {

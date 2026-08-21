@@ -394,7 +394,6 @@ describe("migrations 16–17 — ai assistant + manuscript_about schema", () => 
       try {
         await runMigrations(db);
         expect(await readUserVersion(db)).toBe(LATEST);
-      expect(LATEST).toBe(22);
       } finally {
         db.close();
       }

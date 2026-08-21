@@ -63,3 +63,23 @@ export async function migration_022_sync_protocol_v13(db: DbClient): Promise<voi
   await createSyncIndexes(db);
   await addFeatureColumns(db);
 }
+
+/**
+ * Give `manuscript_about` an `updated_at` so its LWW seed can be ordered.
+ *
+ * It was the only replicated row domain with no timestamp column. First-sync
+ * seeding stamps a row from its own timestamp, so an About row fell back to
+ * stamp 0 — and two devices that both predate sync then tied at 0 with the
+ * winner decided by lexicographic device id. Because the projection overwrites
+ * every column, that coin flip could silently erase a whole About page
+ * (synopsis, genre, tone, POV, notes) on one of them.
+ *
+ * Deliberately NOT added to the domain's replicated column list. `parsePayload`
+ * requires every listed column to be present, so a payload from a peer on an
+ * older build — which has no such column — would throw and the row would be
+ * dropped. The column's job is to order this device's seed, not to travel.
+ */
+export async function migration_023_about_updated_at(db: DbClient): Promise<void> {
+  if (!await tableExists(db, "manuscript_about")) return;
+  await ensureColumn(db, "manuscript_about", "updated_at", "TEXT");
+}

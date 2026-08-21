@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { MIGRATIONS, runMigrations } from "../db/migrations";
 import { makeSqlJsDb } from "./support/sqljsDb";
 
+const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
+
 describe("migration 21 — project meta docs", () => {
   it("creates the base64-TEXT store and reaches version 21", async () => {
     const db = await makeSqlJsDb();
@@ -17,7 +19,7 @@ describe("migration 21 — project meta docs", () => {
         { name: "updated_at", type: "TEXT", notnull: 0 },
       ]);
       expect((await db.select<{ user_version: number }[]>("PRAGMA user_version"))[0].user_version)
-        .toBe(22);
+        .toBe(LATEST);
     } finally {
       db.close();
     }

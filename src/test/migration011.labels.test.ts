@@ -166,7 +166,6 @@ describe("migration suite — after labels + scene_labels", () => {
     try {
       await runMigrations(db);
       expect(await readUserVersion(db)).toBe(LATEST);
-      expect(LATEST).toBe(22);
     } finally {
       db.close();
     }

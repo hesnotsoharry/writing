@@ -24,19 +24,27 @@ export async function sqliteGetManuscriptAbout(
   return { synopsis: r.synopsis ?? "", genre: r.genre ?? "", tone: r.tone ?? "", pov: r.pov ?? "", notes: r.notes ?? "" };
 }
 
-/** Upsert the manuscript_about row; creates or overwrites all fields. */
+/**
+ * Upsert the manuscript_about row; creates or overwrites all fields.
+ *
+ * `updated_at` is stamped here and is local-only — it never rides the wire (see
+ * `migration_023_about_updated_at`). Its single job is to give first-sync
+ * seeding a real timestamp to order this device's row by, instead of the 0 that
+ * made two pre-sync devices tie and decide a whole About page on device id.
+ */
 export async function sqliteSetManuscriptAbout(
   db: DbClient,
   projectId: string,
   about: ManuscriptAbout,
 ): Promise<void> {
   await db.execute(
-    `INSERT INTO manuscript_about (project_id, synopsis, genre, tone, pov, notes)
-     VALUES ($1,$2,$3,$4,$5,$6)
+    `INSERT INTO manuscript_about (project_id, synopsis, genre, tone, pov, notes, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
      ON CONFLICT(project_id) DO UPDATE SET
        synopsis=excluded.synopsis, genre=excluded.genre, tone=excluded.tone,
-       pov=excluded.pov, notes=excluded.notes`,
-    [projectId, about.synopsis, about.genre, about.tone, about.pov, about.notes],
+       pov=excluded.pov, notes=excluded.notes, updated_at=excluded.updated_at`,
+    [projectId, about.synopsis, about.genre, about.tone, about.pov, about.notes,
+      new Date().toISOString()],
   );
 }
 
