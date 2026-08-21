@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -6,6 +7,7 @@ import { BookSpine, Card, Icon, IconButton, Screen } from "../../components";
 import { getBinderStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import { mobileEngine, subscribeMobileStructureChanged } from "../../sync/mobileEngine";
+import { hasSyncMasterKey } from "../../sync/mobileKeyStorage";
 import { getPairedDeviceName } from "../../sync/pairedDevice";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS, SPACE } from "../../theme/tokens";
@@ -55,12 +57,29 @@ function ProjectsContent(props: { projects: ProjectCardModel[]; onOpen: (item: P
   );
 }
 
-function PairedFooter() {
+function PairedFooter({ onPair }: { onPair: () => void }) {
   const theme = useTheme();
   const [connected, setConnected] = useState(mobileEngine.status().state === "connected");
   const [deviceName, setDeviceName] = useState("Desktop");
+  // Pairing is the presence of a sync master key. Re-read on focus so the
+  // footer settles as soon as the pairing screen hands control back.
+  const [paired, setPaired] = useState<boolean | null>(null);
   useEffect(() => mobileEngine.subscribe((status) => setConnected(status.state === "connected")), []);
-  useEffect(() => { void getPairedDeviceName().then(setDeviceName); }, []);
+  useFocusEffect(useCallback(() => {
+    void hasSyncMasterKey().then(setPaired);
+    void getPairedDeviceName().then(setDeviceName);
+  }, []));
+  if (paired === null) return <View style={styles.footer} />;
+  if (!paired) {
+    return (
+      <Pressable accessibilityRole="button" onPress={onPair} style={styles.footer}>
+        <Icon color={theme.colors.ink3} name="cloud" size={16} />
+        <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>
+          Not paired · <Text style={{ color: theme.colors.accent }}>Pair with desktop</Text>
+        </Text>
+      </Pressable>
+    );
+  }
   return (
     <View style={styles.footer}>
       <Icon color={connected ? theme.colors.good : theme.colors.ink3} name="cloud" size={16} />
@@ -92,7 +111,7 @@ export function ProjectsScreen({ navigation }: Props) {
       {state === "loading" && <View style={styles.center}><ActivityIndicator color={theme.colors.accent} /></View>}
       {state === "error" && <View style={styles.center}><Text style={[TYPE.body, { color: theme.colors.danger }]}>Couldn’t load your projects.</Text></View>}
       {state === "ready" && <ProjectsContent onNew={create} onOpen={open} projects={projects} />}
-      <PairedFooter />
+      <PairedFooter onPair={() => navigation.navigate("Pair")} />
     </Screen>
   );
 }
