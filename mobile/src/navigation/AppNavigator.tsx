@@ -32,9 +32,11 @@ interface AppNavigatorProps { onPairedSuccessfully?: () => void }
 const STANDARD_SCREENS = <>
   <Stack.Screen component={ProjectsScreen} name="ProjectList" />
   <Stack.Screen component={HubScreen} name="Hub" />
-  {/* P4 mounts the left-edge binder drawer here. Disabling interactive-pop
-      protects that gesture even when legacy callers push instead of reset. */}
-  <Stack.Screen component={SceneScreen} name="Scene" options={{ gestureEnabled: false }} />
+  {/* Decision 0016 made the binder drawer button-only (header hamburger), so
+      there is no left-edge drawer gesture left to protect and the editor keeps
+      the platform's swipe-back: iOS interactive-pop, and on Android the system
+      back gesture, which native-stack never hands to JS anyway. */}
+  <Stack.Screen component={SceneScreen} name="Scene" />
   <Stack.Screen component={ProjectBinderScreen} name="ProjectBinder" options={({ route }) => ({ headerShown: true, title: route.params.projectTitle })} />
   <Stack.Screen component={InspectorScreen} name="Inspector" />
   <Stack.Screen component={CorkboardScreen} name="Corkboard" />

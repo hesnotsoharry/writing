@@ -24,11 +24,14 @@ type SceneConnections = Pick<SceneEditorHostProps, "onAutoLinkTap" | "onRequestS
   openScene(scene: Scene): void; openEntity(entity: Entity): void;
 };
 
-function EditorHeader({ onBinder, onFocus, onInspector, title }: {
-  title: string; onBinder(): void; onFocus(): void; onInspector(): void;
+function EditorHeader({ onBack, onBinder, onFocus, onInspector, title }: {
+  title: string; onBack(): void; onBinder(): void; onFocus(): void; onInspector(): void;
 }) {
   const theme = useTheme();
   return <View style={styles.header}>
+    <Pressable accessibilityLabel="Back" onPress={onBack} style={styles.headerButton}>
+      <Icon name="chevLeft" size={20} color={theme.colors.ink3} />
+    </Pressable>
     <Pressable accessibilityLabel="Open binder" onPress={onBinder} style={styles.headerButton}>
       <Icon name="list" size={20} color={theme.colors.ink3} />
     </Pressable>
@@ -128,7 +131,8 @@ export function SceneScreen({ navigation, route }: Props) {
   const focus = useFocusSettings();
   const connections = useSceneConnections({ focusMode, navigation, projectId, projectTitle, sceneId });
   return <View style={[styles.screen, { backgroundColor: theme.colors.paper, paddingTop: insets.top }]}>
-    {!focusMode && <EditorHeader title={sceneTitle} onBinder={() => { drawerDispatch({ type: "open" }); }}
+    {!focusMode && <EditorHeader title={sceneTitle} onBack={() => { navigation.goBack(); }}
+      onBinder={() => { drawerDispatch({ type: "open" }); }}
       onFocus={() => { setFocusMode(true); }} onInspector={() => { setInspectorOpen(true); }} />}
     <WritingSurface failed={editorFailed} bootAttempt={bootAttempt} sceneId={sceneId}
       projectId={projectId} focus={{ enabled: focusMode, settings: focus.settings }}
@@ -148,7 +152,7 @@ export function SceneScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 }, editor: { flex: 1 },
-  header: { height: 46, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  header: { height: 46, paddingHorizontal: 4, flexDirection: "row", alignItems: "center", gap: 0 },
   headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   breadcrumb: { ...TYPE.bodySmallStrong, flex: 1, textAlign: "center" },
 });
