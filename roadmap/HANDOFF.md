@@ -394,6 +394,27 @@ keyboard down and up).
   asynchronously, so enforcement cannot land in lockstep — it needs a permissive
   Worker first, then a client release, then a flag flip.
 
+- **The read-only fallback was covering its own prose** (`7e9f597`). The
+  occluder was the notice, not a double render: `FallbackNotice` rendered inside
+  a `position: absolute, inset: 0, zIndex: 2` layer and the host returned that
+  layer and nothing else, so a full-bleed sibling sat across the reader's whole
+  ScrollView — notice at the top, footer at the bottom, the layer owning
+  everything between. Now an in-flow banner, with a real either/or swap. My
+  first diagnosis (SceneScreen rendering reader and host as siblings) was wrong;
+  that gate already implements the replacement. **Device-verified** by forcing
+  the fallback with a 1 ms boot budget: the scene that rendered blank now
+  renders its 18 words, Try again re-attempts with the prose still readable, and
+  a normal open still gets the full editor.
+- **Orphaned scenes no longer vanish outside the binder** — outliner, corkboard
+  and drawer list now match `buildBinderTree`.
+- **`word_count` is NOT a bug — do not "fix" it.** `upsertScene`'s conflict
+  clause omits it on purpose: `SqlSceneRow` has no such field, the projection
+  never selects or diffs it, and desktop's apply target is character-identical.
+  Counts replicate through the scene-doc merge (`storedDocMerge.ts:28`), not the
+  meta path, which seeds 0 for a row that does not exist yet. Adding it to the
+  conflict clause would zero a locally correct count on every meta apply. Pinned
+  by a test in `mobile/src/db/mobileStores.test.ts`.
+
 ### Still open
 
 1. **Ship the desktop side of the sync backfill first.** A new phone paired to a
@@ -404,10 +425,14 @@ keyboard down and up).
    already-paired path on Cole's real devices (desktop seeded, phone gained the
    board and 10 snapshots), and a genuinely empty peer receiving everything on
    first connect in `liveRelay.integration.test.ts` over a real relay. What is
-   not: the mobile *pairing UI* against a virgin install. An emulator is primed
-   for it (virgin install, Metro-attached) but the manual-pairing field wants
-   the desktop's pairing string, which carries the raw sync master key — that is
-   Cole's to paste, not an agent's to shuttle.
+   not: the mobile *pairing UI* against a virgin install. The
+   `Medium_Phone_API_36.1` emulator is **primed and waiting** — virgin install,
+   attached to Metro, parked on Pair with desktop -> "Enter pairing code
+   manually instead" with the field focused. It needs the desktop's pairing
+   string, which carries the raw sync master key (`src/sync/keys.ts` says never
+   log it) — that is Cole's to paste, not an agent's to shuttle. A pre-run
+   backup of the desktop DB is at
+   `%APPDATA%\com.coles.writing\writing.db.2026-08-21-precoldpair`.
 3. **Turnstile itself is unbuilt** — only scoped. Follow the memo's three-phase
    rollout; do not enforce on `master` in one step.
 
