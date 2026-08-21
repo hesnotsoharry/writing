@@ -8,11 +8,13 @@
 #     currently-shipped version (the updater only triggers on a HIGHER version).
 #
 # What it does:
-#   1. Reads the version from src-tauri/tauri.conf.json.
+#   1. Reads the version from src-tauri/tauri.conf.json and the matching
+#      CHANGELOG.md section (aborts if missing — no placeholder notes).
 #   2. Builds a signed bundle (createUpdaterArtifacts produces the .sig file).
-#   3. Generates latest.json (the file the in-app updater polls).
-#   4. Creates a GitHub release tagged v<version> and uploads the installer
-#      + latest.json as release assets.
+#   3. Generates latest.json (the file the in-app updater polls), with `notes`
+#      set to that changelog section so the in-app update modal can render it.
+#   4. Creates a GitHub release tagged v<version> (changelog section as the
+#      release body) and uploads the installer + latest.json as release assets.
 #
 # --- Multi-platform updater manifest contract ----------------------------
 # There is ONE latest.json per release tag, written by two publishes in order:
@@ -44,6 +46,41 @@
 # publishes close together to minimize it.
 
 $ErrorActionPreference = 'Stop'
+
+# Pull the CHANGELOG.md section for $Version via the shared parser
+# (src/features/updater/changelogNotes.ts). Missing / empty sections abort
+# the release — never fall back to "Update to $Version".
+function Get-ReleaseNotesFromChangelog {
+    param(
+        [Parameter(Mandatory)][string]$ProjectRoot,
+        [Parameter(Mandatory)][string]$Version
+    )
+    $changelogPath = Join-Path $ProjectRoot 'CHANGELOG.md'
+    if (-not (Test-Path -LiteralPath $changelogPath)) {
+        throw "CHANGELOG.md not found at $changelogPath. Add a '$Version' entry before publishing."
+    }
+
+    $tsxCmd = Join-Path $ProjectRoot 'node_modules\.bin\tsx.cmd'
+    $tsxBin = Join-Path $ProjectRoot 'node_modules\.bin\tsx'
+    $tsx = if (Test-Path $tsxCmd) { $tsxCmd } elseif (Test-Path $tsxBin) { $tsxBin } else { $null }
+    if (-not $tsx) {
+        throw "tsx not found under node_modules/.bin — run npm install before publishing."
+    }
+
+    $script = Join-Path $ProjectRoot 'scripts\print-changelog-notes.ts'
+    $notesFile = Join-Path $env:TEMP "wn-release-notes-$Version.md"
+    & $tsx $script $Version $changelogPath $notesFile
+    if ($LASTEXITCODE -ne 0) {
+        throw "Refusing to publish $Version without a CHANGELOG.md entry. See the message above."
+    }
+    if (-not (Test-Path -LiteralPath $notesFile)) {
+        throw "Failed to write release notes for $Version."
+    }
+    return [pscustomobject]@{
+        Path = $notesFile
+        Text = [System.IO.File]::ReadAllText($notesFile)
+    }
+}
 
 # --- Config ---------------------------------------------------------------
 $Repo        = 'hesnotsoharry/writing'
@@ -90,6 +127,10 @@ $conf    = Get-Content (Join-Path $ProjectRoot 'src-tauri\tauri.conf.json') -Raw
 $Version = $conf.version
 $Tag     = "v$Version"
 Write-Host "Publishing version $Version (tag $Tag)" -ForegroundColor Cyan
+
+$releaseNotes = Get-ReleaseNotesFromChangelog -ProjectRoot $ProjectRoot -Version $Version
+Write-Host "Release notes for $Version (from CHANGELOG.md):" -ForegroundColor Cyan
+Write-Host $releaseNotes.Text
 
 # Guard: refuse to re-publish an existing tag (would confuse the updater).
 $existing = gh release view $Tag --repo $Repo 2>$null
@@ -153,7 +194,7 @@ $pubDate   = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 # is what Tauri's updater looks up on a 64-bit Windows build.
 $manifest = [ordered]@{
     version   = $Version
-    notes     = "Update to $Version"
+    notes     = $releaseNotes.Text
     pub_date  = $pubDate
     platforms = [ordered]@{
         'windows-x86_64' = [ordered]@{
@@ -171,7 +212,7 @@ Write-Host "Creating GitHub release $Tag..." -ForegroundColor Cyan
 gh release create $Tag $setup.FullName $latestPath `
     --repo $Repo `
     --title $Tag `
-    --notes "Release $Version"
+    --notes-file $releaseNotes.Path
 if ($LASTEXITCODE -ne 0) { throw 'gh release create failed.' }
 
 # --- Upload to R2 (downloads.writersnook.app) ---------------------------------

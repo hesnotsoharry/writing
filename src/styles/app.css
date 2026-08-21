@@ -1424,6 +1424,24 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
   display: flex; flex-direction: column; justify-content: center;
 }
 .upd-note { font-size: var(--text-sm); color: var(--ink-3); margin: 0; }
+.upd-notes {
+  padding: var(--s-4) var(--s-5);
+  max-height: 40vh; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  font-size: var(--text-sm); color: var(--ink-2); line-height: 1.5;
+}
+.upd-notes-p {
+  margin: 0 0 var(--s-3);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.upd-notes-p:last-child,
+.upd-notes-list:last-child { margin-bottom: 0; }
+.upd-notes-list {
+  margin: 0 0 var(--s-3); padding-left: var(--s-5);
+}
+.upd-notes-list li { margin: 0 0 var(--s-1); overflow-wrap: anywhere; }
+.upd-notes-list li:last-child { margin-bottom: 0; }
+.upd-notes-list li::marker { color: var(--ink-4); }
 .upd-bar-track {
   height: 6px; border-radius: 3px;
   background: var(--parchment-deep); overflow: hidden;

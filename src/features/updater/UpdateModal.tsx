@@ -9,6 +9,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Icon } from "../../components/Icon";
+import { type NotesBlock, parseReleaseNotes, visibleReleaseNotes } from "./releaseNotes";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,80 @@ function ProgressBar({ received, total }: { received: number; total: number | nu
   );
 }
 
+function UpdateHeader({ version }: { version: string }) {
+  return (
+    <div className="sheet-head">
+      <Icon name="feather" style={{ width: 22, height: 22, color: "var(--accent)", flexShrink: 0 }} />
+      <div>
+        <div className="sheet-title">Update available</div>
+        <div className="sheet-sub">Version {version} is ready to install.</div>
+      </div>
+    </div>
+  );
+}
+
+function NotesBlockView({ block }: { block: NotesBlock }) {
+  if (block.type === "list") {
+    return (
+      <ul className="upd-notes-list">
+        {block.items.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+  return <p className="upd-notes-p">{block.text}</p>;
+}
+
+function ReleaseNotes({ text }: { text: string }) {
+  const blocks = parseReleaseNotes(text);
+  if (blocks.length === 0) return null;
+  return (
+    <div className="upd-notes">
+      {blocks.map((block, i) => (
+        <NotesBlockView key={i} block={block} />
+      ))}
+    </div>
+  );
+}
+
+function InstallProgress({ state }: { state: InstallState }) {
+  return (
+    <div className="upd-body">
+      {state.phase === "downloading" && (
+        <ProgressBar received={state.received} total={state.total} />
+      )}
+      {state.phase === "restarting" && (
+        <p className="upd-note">Restarting…</p>
+      )}
+    </div>
+  );
+}
+
+function UpdateFooter({
+  busy, phase, onDismiss, onInstall,
+}: {
+  busy: boolean;
+  phase: Phase;
+  onDismiss: () => void;
+  onInstall: () => void;
+}) {
+  const label = phase === "restarting"
+    ? "Restarting…"
+    : busy ? "Installing…" : "Install & restart";
+  return (
+    <div className="sheet-foot">
+      <button className="btn btn-ghost" disabled={busy} onClick={onDismiss}>
+        Later
+      </button>
+      <button className="btn btn-primary" disabled={busy} onClick={onInstall}>
+        <Icon name="download" className="ic" />
+        {label}
+      </button>
+    </div>
+  );
+}
+
 // ── Install flow hook ─────────────────────────────────────────────────────────
 
 function useInstallFlow(
@@ -92,39 +167,20 @@ function useInstallFlow(
 export function UpdateModal({ update, onDismiss, onInstallError }: UpdateModalProps) {
   const { state, startInstall } = useInstallFlow(update, onDismiss, onInstallError);
   const busy = state.phase !== "idle";
-  const installLabel = state.phase === "restarting"
-    ? "Restarting…"
-    : busy ? "Installing…" : "Install & restart";
+  const notes = visibleReleaseNotes(update.body);
 
   return createPortal(
     <div className="scrim" onClick={busy ? undefined : onDismiss}>
       <div className="sheet upd-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head">
-          <Icon name="feather" style={{ width: 22, height: 22, color: "var(--accent)", flexShrink: 0 }} />
-          <div>
-            <div className="sheet-title">Update available</div>
-            <div className="sheet-sub">Version {update.version} is ready to install.</div>
-          </div>
-        </div>
-        {busy && (
-          <div className="upd-body">
-            {state.phase === "downloading" && (
-              <ProgressBar received={state.received} total={state.total} />
-            )}
-            {state.phase === "restarting" && (
-              <p className="upd-note">Restarting…</p>
-            )}
-          </div>
-        )}
-        <div className="sheet-foot">
-          <button className="btn btn-ghost" disabled={busy} onClick={onDismiss}>
-            Later
-          </button>
-          <button className="btn btn-primary" disabled={busy} onClick={startInstall}>
-            <Icon name="download" className="ic" />
-            {installLabel}
-          </button>
-        </div>
+        <UpdateHeader version={update.version} />
+        {notes !== null && !busy && <ReleaseNotes text={notes} />}
+        {busy && <InstallProgress state={state} />}
+        <UpdateFooter
+          busy={busy}
+          phase={state.phase}
+          onDismiss={onDismiss}
+          onInstall={startInstall}
+        />
       </div>
     </div>,
     document.body,
