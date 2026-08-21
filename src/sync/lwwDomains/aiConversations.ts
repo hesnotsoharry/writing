@@ -1,5 +1,5 @@
 import type { DbClient } from "../../db/dbClient";
-import type { LwwDomainAdapter } from "../lww/registry";
+import type { LwwDomainAdapter, LwwSeedRow } from "../lww/registry";
 import { createSqlDomainAdapter } from "./sqlDomain";
 
 const CONVERSATION_COLUMNS = ["id", "project_id", "title", "last_verb",
@@ -44,9 +44,14 @@ export function createAiConversationsAdapter(db: DbClient): LwwDomainAdapter {
   const conversations = createSqlDomainAdapter(db, {
     domain: "ai_conversations", table: "ai_conversations", key: "id",
     columns: CONVERSATION_COLUMNS,
+    seed: { project: "project_id", stamp: "COALESCE(updated_at, created_at)" },
   });
   const messages = createSqlDomainAdapter(db, {
     domain: "ai_conversations", table: "ai_messages", key: "id", columns: MESSAGE_COLUMNS,
+    seed: {
+      project: "ai_conversations.project_id", stamp: "ai_messages.created_at",
+      from: "ai_messages JOIN ai_conversations ON ai_conversations.id = ai_messages.conversation_id",
+    },
   });
   const context = { db, conversations, messages };
   return {
@@ -56,7 +61,25 @@ export function createAiConversationsAdapter(db: DbClient): LwwDomainAdapter {
       projectAiPayload(context, rowId, projectId, payload),
     applyTombstone: (rowId, projectId) =>
       tombstoneAiPayload(context, rowId, projectId),
+    listSeedRows: () => listAiSeedRows(conversations, messages),
   };
+}
+
+/**
+ * Both halves of the domain, re-prefixed into the composite row ids
+ * `splitRowId` expects. A message whose conversation is gone is dropped by the
+ * inner join rather than seeded into a scope it could never be projected into.
+ */
+async function listAiSeedRows(
+  conversations: LwwDomainAdapter, messages: LwwDomainAdapter,
+): Promise<LwwSeedRow[]> {
+  const [conversationRows, messageRows] = await Promise.all([
+    conversations.listSeedRows?.() ?? [], messages.listSeedRows?.() ?? [],
+  ]);
+  return [
+    ...conversationRows.map((row) => ({ ...row, rowId: `conversation:${row.rowId}` })),
+    ...messageRows.map((row) => ({ ...row, rowId: `message:${row.rowId}` })),
+  ];
 }
 
 async function readAiPayload(

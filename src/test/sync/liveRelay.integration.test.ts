@@ -366,6 +366,93 @@ describe.runIf(RELAY_URL)("live relay end-to-end", () => {
     } finally { engineA.stop(); engineB.stop(); dbA.close(); dbB.close(); }
   }, 50_000);
 
+  it("backfills pre-existing row-domain data to a freshly paired peer", async () => {
+    // Mirror of "pushes every LWW domain into the peer SQL projection without a
+    // sweep" above, with one deliberate difference: that case fires the local
+    // write bridge for every fixture, which stamps a sync_lww_rows ledger entry
+    // before either engine connects. Real pre-sync data has NO ledger entry —
+    // it was written by a user before sync ever existed on this device. Insert
+    // straight into dbA's feature tables with raw SQL (no bridge, no publish) so
+    // this reproduces a user's existing library the moment they pair a new
+    // device, and prove first-connect reconciliation — not a sweep — backfills it.
+    const masterKey = generateMasterKey(); const dbA = await makeSqlJsDb();
+    const dbB = await makeSqlJsDb(); await runMigrations(dbA); await runMigrations(dbB);
+    await seedLwwParents(dbA); await seedLwwParents(dbB);
+    const registryA = new LwwDomainRegistry(); const registryB = new LwwDomainRegistry();
+    registerLwwDomains(registryA, dbA, { aiConversationsEnabled: true });
+    registerLwwDomains(registryB, dbB, { aiConversationsEnabled: true });
+
+    // Pre-existing rows, written directly to dbA's feature tables — exactly as
+    // if a user had been using this device long before sync existed. No bridge
+    // call, no publish, no sync_lww_rows entry.
+    await dbA.execute(
+      "INSERT INTO goals (id,project_id,goal_type,target,enabled,created_at,config_json,updated_at) "
+      + "VALUES (?,?,?,?,?,?,?,?)",
+      ["g-pre", "p1", "daily", 750, 1, 10, "{}", "pre-sync"],
+    );
+    await dbA.execute(
+      "INSERT INTO scene_snapshots (id,scene_id,label,state_base64,word_count,created_at,kind) "
+      + "VALUES (?,?,?,?,?,?,?)",
+      ["ss-pre", "s1", "Pre-sync draft", "cHJl", 42, 20, "manual"],
+    );
+    await dbA.execute(
+      "INSERT INTO boards (id,project_id,title,sort) VALUES (?,?,?,?)",
+      ["brainstorm-default", "p1", "Brainstorm", 1024],
+    );
+    await dbA.execute(
+      "INSERT INTO board_docs (board_id,state_base64) VALUES (?,?)",
+      ["brainstorm-default", "Ym9hcmQ="],
+    );
+
+    const engineA = makeEngine("preexisting-lww-A", masterKey, new MemoryDocStore(), {
+      lww: { store: new SqliteSyncLwwStore(dbA), registry: registryA,
+        outbox: new SqliteSyncOutboxStore(dbA) }, sweepMs: 60_000,
+    });
+    const engineB = makeEngine("preexisting-lww-B", masterKey, new MemoryDocStore(), {
+      lww: { store: new SqliteSyncLwwStore(dbB), registry: registryB,
+        outbox: new SqliteSyncOutboxStore(dbB) }, sweepMs: 60_000,
+    });
+    try {
+      await engineA.start(); await engineB.start();
+      await until(() => engineA.status().state === "connected"
+        && engineB.status().state === "connected");
+
+      await until(async () => (await dbB.select<Array<{ id: string }>>(
+        "SELECT id FROM goals WHERE id = ?", ["g-pre"],
+      )).length === 1, 20_000).catch((error: unknown) => {
+        throw new Error(
+          "a freshly paired device never receives goals that predate sync", { cause: error },
+        );
+      });
+
+      await until(async () => (await dbB.select<Array<{ id: string }>>(
+        "SELECT id FROM scene_snapshots WHERE id = ?", ["ss-pre"],
+      )).length === 1, 20_000).catch((error: unknown) => {
+        throw new Error(
+          "a freshly paired device never receives scene snapshots that predate sync",
+          { cause: error },
+        );
+      });
+
+      await until(async () => (await dbB.select<Array<{ id: string }>>(
+        "SELECT id FROM boards WHERE id = ?", ["brainstorm-default"],
+      )).length === 1, 20_000).catch((error: unknown) => {
+        throw new Error(
+          "a freshly paired device never receives boards that predate sync", { cause: error },
+        );
+      });
+
+      // The observed bug: board_docs content arrives via the doc path (which
+      // sweeps the whole DB on every hello) even when the boards row-domain
+      // record does not, leaving orphaned content with no listable record.
+      const boardRow = (await dbB.select<Array<{ id: string }>>(
+        "SELECT id FROM boards WHERE id = ?", ["brainstorm-default"],
+      ))[0];
+      expect(boardRow, "a freshly paired device must list the board, not just its content")
+        .toBeDefined();
+    } finally { engineA.stop(); engineB.stop(); dbA.close(); dbB.close(); }
+  }, 40_000);
+
   it("converges a fresh peer and streams live edits", async () => {
     const masterKey = generateMasterKey();
     const storeA = new MemoryDocStore();

@@ -1,6 +1,7 @@
 import type { EngineOptions, SyncProvider } from "./engineTypes";
 import type { EpochManager } from "./epochManager";
 import { deriveKeys } from "./keys";
+import { seedLwwLedgerForSession } from "./lww/backfill";
 import type { DurableOutbox } from "./outbox";
 import type { SyncQueueDepth } from "./statusEmitter";
 
@@ -23,6 +24,9 @@ export async function prepareSession(
     deriveKeys(masterKey), options.getDeviceId(),
   ]);
   await epochs.initialize(deviceId, options.metaStore);
+  // Sits with ensureProjectMetas/ensureProjectBibles above by intent: make local
+  // state sync-ready before a peer can ask about it.
+  await seedLwwLedgerForSession(options.lwwStore, options.lwwRegistry, deviceId);
   const [lastPeerSeenAt, queue] = await Promise.all([
     options.loadLastPeerSeenAt?.() ?? Promise.resolve(null),
     outbox?.depth() ?? Promise.resolve(EMPTY_QUEUE),

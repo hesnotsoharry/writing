@@ -48,6 +48,14 @@ export class SqliteSyncLwwStore implements SyncLwwStore {
     return rows.map(fromDb);
   }
 
+  async listRowIds(domain: string): Promise<Set<string>> {
+    // No `deleted` filter on purpose — see the interface note.
+    const rows = await this.db.select<Array<{ row_id: string }>>(
+      "SELECT row_id FROM sync_lww_rows WHERE domain = ?", [domain],
+    );
+    return new Set(rows.map((row) => row.row_id));
+  }
+
   async listScopes(): Promise<Array<{ domain: string; projectId: string | null }>> {
     const rows = await this.db.select<Array<{ domain: string; project_id: string | null }>>(
       "SELECT DISTINCT domain, project_id FROM sync_lww_rows ORDER BY domain, project_id",

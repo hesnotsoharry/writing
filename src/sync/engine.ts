@@ -131,6 +131,7 @@ export class SyncEngine {
     // Drop the old session's inbound chain: a handler still pending from it would
     // otherwise serialize ahead of (or stall) every frame of the next session.
     this.inbound = Promise.resolve();
+    this.lww?.reset();
     this.localContent.stop();
     this.unsubscribeOutbox?.(); this.unsubscribeOutbox = null;
     this.setStatus({ state: "off", peerSeen: false });
@@ -235,7 +236,8 @@ export class SyncEngine {
 
   private onConnection(state: ConnectionState): void {
     this.setStatus({ state });
-    if (state !== "connected") { this.stopSweep(); return; }
+    // Per-connection reconciler state cannot outlive the connection it describes.
+    if (state !== "connected") { this.lww?.reset(); this.stopSweep(); return; }
     if (this.isPaused()) return;
     void this.syncNow().then(() => {
       if (this.replacements.hasPending()) return this.flushReplacements();
