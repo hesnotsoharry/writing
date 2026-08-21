@@ -14,13 +14,20 @@ export interface CardLayout {
   cardWidth: number;
 }
 
+/**
+ * Short pieces are scenes with `folder_id` NULL plus any scene whose
+ * `folder_id` names a folder this project does not have. Same rescue rule as
+ * the binder's `buildBinderTree` — a dropped orphan here is prose the writer
+ * cannot reach from the corkboard at all.
+ */
 export function buildCorkGroups(folders: readonly Folder[], scenes: readonly Scene[]): CorkGroup[] {
+  const known = new Set(folders.map((folder) => folder.id));
   const groups = folders.map((folder) => ({
     id: folder.id,
     title: folder.title,
     scenes: scenes.filter((scene) => scene.folder_id === folder.id),
   }));
-  const shortPieces = scenes.filter((scene) => scene.folder_id === null);
+  const shortPieces = scenes.filter((scene) => scene.folder_id === null || !known.has(scene.folder_id));
   return shortPieces.length > 0 ? [...groups, { id: null, title: "Short pieces", scenes: shortPieces }] : groups;
 }
 

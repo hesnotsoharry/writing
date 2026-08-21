@@ -1,12 +1,38 @@
 import { describe, expect, it } from "vitest";
 
-import type { Scene } from "../../shared/binderStore";
+import type { Folder, Scene } from "../../shared/binderStore";
 import { computeReorder } from "../../shared/computeReorder";
-import { dragTargetIndex, getCardLayout, reorderPreview } from "./corkboardModel";
+import { buildCorkGroups, dragTargetIndex, getCardLayout, reorderPreview } from "./corkboardModel";
 
 function scene(id: string): Scene {
   return { id, project_id: "p", folder_id: "f", title: id, synopsis: null, sort_order: 0, word_count: 0, status: "blank" };
 }
+
+function inFolder(id: string, folderId: string | null): Scene {
+  return { ...scene(id), folder_id: folderId };
+}
+
+const folders: Folder[] = [
+  { id: "f1", project_id: "p", title: "Chapter 1", sort_order: 1 },
+  { id: "f2", project_id: "p", title: "Chapter 2", sort_order: 2 },
+];
+
+describe("corkboard grouping", () => {
+  it("rescues orphan-folder scenes into short pieces alongside loose ones", () => {
+    const groups = buildCorkGroups(folders, [
+      inFolder("foldered", "f1"), inFolder("loose", null), inFolder("orphan", "gone"),
+    ]);
+    expect(groups.map(({ title }) => title)).toEqual(["Chapter 1", "Chapter 2", "Short pieces"]);
+    expect(groups[0].scenes.map(({ id }) => id)).toEqual(["foldered"]);
+    expect(groups[1].scenes).toEqual([]);
+    expect(groups[2].scenes.map(({ id }) => id)).toEqual(["loose", "orphan"]);
+  });
+
+  it("still omits the short-pieces group when every scene resolves to a folder", () => {
+    const groups = buildCorkGroups(folders, [inFolder("a", "f1"), inFolder("b", "f2")]);
+    expect(groups.map(({ id }) => id)).toEqual(["f1", "f2"]);
+  });
+});
 
 describe("corkboard layout and reorder", () => {
   it("uses the designed 18px outer gutters and 12px two-column gutter", () => {

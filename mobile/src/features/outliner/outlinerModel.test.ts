@@ -24,6 +24,25 @@ describe("outliner grouping", () => {
     });
   });
 
+  it("rescues orphan-folder scenes into short pieces alongside loose ones", () => {
+    const scenes = [
+      scene("foldered", "c1", 10, "draft"),
+      scene("loose", null, 20, "blank"),
+      scene("orphan", "gone", 30, "revise"),
+    ];
+    const groups = buildOutlineGroups(folders, scenes);
+    expect(groups.map(({ title }) => title)).toEqual(["Chapter 1", "Chapter 2", "Short pieces"]);
+    expect(groups[0].scenes.map(({ id }) => id)).toEqual(["foldered"]);
+    expect(groups[1].scenes).toEqual([]);
+    expect(groups[2].scenes.map(({ id }) => id)).toEqual(["loose", "orphan"]);
+    expect(groups[2].wordTotal).toBe(50);
+  });
+
+  it("still omits the short-pieces group when every scene resolves to a folder", () => {
+    const groups = buildOutlineGroups(folders, [scene("a", "c1", 1, "draft"), scene("b", "c2", 1, "draft")]);
+    expect(groups.map(({ title }) => title)).toEqual(["Chapter 1", "Chapter 2"]);
+  });
+
   it("derives sticky indices from the live flattened order", () => {
     const groups = buildOutlineGroups(folders, [scene("a", "c1", 1, "draft"), scene("b", "c2", 1, "draft"), scene("loose", null, 1, "draft")]);
     expect(deriveStickyHeaderIndices(flattenOutline(groups))).toEqual([0, 2, 4]);

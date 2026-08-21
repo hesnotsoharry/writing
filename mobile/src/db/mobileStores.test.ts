@@ -217,6 +217,36 @@ describe("local-write ping-pong guard", () => {
     unsubscribe();
   });
 
+  /**
+   * `word_count` is NOT part of the project-meta projection: `SqlSceneRow`
+   * (src/sync/meta/applyPlan.ts) has no such field, `loadProjection` never
+   * selects it, and the planner never diffs it. It is owned by the scene-doc
+   * path instead — `mergeStoredScene` recomputes it from the merged Yjs doc
+   * (src/sync/storedDocMerge.ts) and calls `updateWordCount`, wired on mobile
+   * in src/sync/mobileEngine.ts. Desktop's sqliteMetaApplyTarget.upsertScene
+   * is character-identical to this one. So the meta path must seed 0 on
+   * INSERT and leave a local count ALONE on conflict — adding word_count to
+   * the ON CONFLICT clause would zero a correct count on every meta apply.
+   */
+  it("leaves word_count to the scene-doc path: seeds 0, never clobbers on conflict", async () => {
+    const binder = new MobileBinderStore(db);
+    const projectId = await project(binder);
+    const target = new MobileMetaApplyTarget();
+    const remote = { project_id: projectId, folder_id: null, title: "Remote", synopsis: null,
+      status: "draft" as const, sort_order: 1000 };
+
+    await target.upsertScene({ id: "scene-new", ...remote });
+    const seeded = await binder.loadProject(projectId);
+    expect(seeded.scenes.find(({ id }) => id === "scene-new")?.word_count).toBe(0);
+
+    await binder.setSceneWordCount("scene-new", 412);
+    await target.upsertScene({ id: "scene-new", ...remote, title: "Renamed remotely" });
+    const applied = await binder.loadProject(projectId);
+    const row = applied.scenes.find(({ id }) => id === "scene-new");
+    expect(row?.title).toBe("Renamed remotely");
+    expect(row?.word_count).toBe(412);
+  });
+
   it.each(["goals", "quick-notes"])("notifies local %s writes but suppresses remote application", async (domain) => {
     const projectId = await project(new MobileBinderStore(db));
     const listener = vi.fn();

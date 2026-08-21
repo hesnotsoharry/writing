@@ -13,6 +13,7 @@ import { TYPE } from "../../theme/typography";
 import { registerAiSelection } from "../ai/selectionBridge";
 import { BinderDrawer, useBinderDrawerState } from "../binder/BinderDrawer";
 import { FocusHud, useFocusSettings } from "../focus";
+import { FallbackNotice } from "./editorOverlays";
 import { FORMAT_BAR_HEIGHT } from "./FormatBar";
 import { InspectorSheet } from "./InspectorSheet";
 import { SceneEditorHost, type SceneEditorHostProps } from "./SceneEditorHost";
@@ -81,6 +82,35 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+interface WritingSurfaceProps {
+  failed: boolean; bootAttempt: number; sceneId: string; projectId?: string;
+  focus: SceneEditorHostProps["focus"]; connections: SceneConnections;
+  onFallbackChange(failed: boolean): void;
+  onRetryBoot(): void;
+  onWordCountChange(wordCount: number): void;
+}
+
+/**
+ * The read-only reader REPLACES the editor when it cannot load — it is not a
+ * companion to it. The host is unmounted outright (in `fallback` it has
+ * nothing left to draw, its port is already closed, and its 750ms word-count
+ * poll is pure waste), and the notice is an in-flow banner ABOVE the reader.
+ * Rendering the two as siblings put a full-bleed `position: absolute` notice
+ * layer across the reader's whole prose area.
+ */
+function WritingSurface(props: WritingSurfaceProps) {
+  if (props.failed) return <View style={styles.editor}>
+    <FallbackNotice onRetry={props.onRetryBoot} />
+    <SceneReader sceneId={props.sceneId} />
+  </View>;
+  return <View style={styles.editor}>
+    <SceneEditorHost key={`${props.sceneId}:${props.bootAttempt}`} sceneId={props.sceneId}
+      projectId={props.projectId} onFallbackChange={props.onFallbackChange} focus={props.focus}
+      onWordCountChange={props.onWordCountChange} onAutoLinkTap={props.connections.onAutoLinkTap}
+      onRequestSelectionActions={props.connections.onRequestSelectionActions} />
+  </View>;
+}
+
 export function SceneScreen({ navigation, route }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -100,16 +130,10 @@ export function SceneScreen({ navigation, route }: Props) {
   return <View style={[styles.screen, { backgroundColor: theme.colors.paper, paddingTop: insets.top }]}>
     {!focusMode && <EditorHeader title={sceneTitle} onBinder={() => { drawerDispatch({ type: "open" }); }}
       onFocus={() => { setFocusMode(true); }} onInspector={() => { setInspectorOpen(true); }} />}
-    <View style={styles.editor}>
-      {/* The reader REPLACES the editor when it cannot load — it is not a
-          companion to it. Rendering both stacked the same scene twice. */}
-      {editorFailed && <SceneReader sceneId={sceneId} />}
-      <SceneEditorHost key={`${sceneId}:${bootAttempt}`} sceneId={sceneId} projectId={projectId}
-        onFallbackChange={setEditorFailed} onRetryBoot={retryBoot}
-        focus={{ enabled: focusMode, settings: focus.settings }} onWordCountChange={setWordCount}
-        onAutoLinkTap={connections.onAutoLinkTap}
-        onRequestSelectionActions={connections.onRequestSelectionActions} />
-    </View>
+    <WritingSurface failed={editorFailed} bootAttempt={bootAttempt} sceneId={sceneId}
+      projectId={projectId} focus={{ enabled: focusMode, settings: focus.settings }}
+      connections={connections} onFallbackChange={setEditorFailed} onRetryBoot={retryBoot}
+      onWordCountChange={setWordCount} />
     {projectId && <BinderDrawer projectId={projectId} activeSceneId={sceneId}
       state={drawer} dispatch={drawerDispatch} onOpenScene={connections.openScene}
       onOpenInbox={() => { navigation.navigate("Inbox", { projectId }); }}

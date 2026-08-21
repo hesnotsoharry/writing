@@ -133,7 +133,11 @@ interface BinderListProps {
 }
 function BinderList(props: BinderListProps) {
   const theme = useTheme();
-  const loose = props.data.scenes.filter(({ folder_id }) => !folder_id);
+  // Short pieces = folder_id-less scenes PLUS scenes whose folder_id names a
+  // folder this project does not have. Same rescue rule as buildBinderTree —
+  // an orphan dropped here is a scene the drawer can never open.
+  const known = new Set(props.data.folders.map(({ id }) => id));
+  const loose = props.data.scenes.filter(({ folder_id }) => !folder_id || !known.has(folder_id));
   return <ScrollView contentContainerStyle={styles.list}>
     <SectionHeading title="Manuscript" count={props.data.scenes.length} />
     {props.data.folders.map((folder) => <Chapter key={folder.id} folder={folder}

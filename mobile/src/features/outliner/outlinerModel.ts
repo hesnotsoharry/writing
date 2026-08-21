@@ -21,12 +21,19 @@ export interface OutlineSummary {
  * interactive bands (title, synopsis, labels). */
 export const OUTLINER_ROW_HEIGHT = 148;
 
+/**
+ * Short pieces are scenes with `folder_id` NULL plus any scene whose
+ * `folder_id` names a folder this project does not have. Same rescue rule as
+ * the binder's `buildBinderTree` — a dropped orphan here is prose the writer
+ * cannot reach from the outliner at all.
+ */
 export function buildOutlineGroups(folders: readonly Folder[], scenes: readonly Scene[]): OutlineGroup[] {
+  const known = new Set(folders.map((folder) => folder.id));
   const groups = folders.map((folder) => {
     const rows = scenes.filter((scene) => scene.folder_id === folder.id);
     return { id: folder.id, title: folder.title, scenes: rows, wordTotal: rows.reduce((sum, scene) => sum + scene.word_count, 0) };
   });
-  const short = scenes.filter((scene) => scene.folder_id === null);
+  const short = scenes.filter((scene) => scene.folder_id === null || !known.has(scene.folder_id));
   return short.length === 0 ? groups : [...groups, {
     id: null, title: "Short pieces", scenes: short,
     wordTotal: short.reduce((sum, scene) => sum + scene.word_count, 0),

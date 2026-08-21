@@ -18,7 +18,7 @@ import { routeBridgeMessage } from "./bridgeRouting";
 import {
   EDITOR_ASSET_TIMEOUT_MS, EDITOR_BOOT_TIMEOUT_MS, EDITOR_ERROR_FORWARDER,
 } from "./editorBootBudget";
-import { FallbackNotice, OpeningOverlay } from "./editorOverlays";
+import { OpeningOverlay } from "./editorOverlays";
 import type {
   EditorCommandName, EditorSelectionMessage, EditorSelectionState,
 } from "./editorUiProtocol";
@@ -41,10 +41,10 @@ export interface SceneEditorHostProps {
   focus?: { enabled: boolean; settings: FocusSettings };
   onWordCountChange?: (wordCount: number) => void;
   onAutoLinkTap?: (payload: AutoLinkTapPayload) => void;
-  /** Fires when the editor gives up and the read-only reader should take over. */
+  /** Fires when the editor gives up and the read-only reader should take over.
+   *  SceneScreen owns everything past that point — it unmounts this host and
+   *  renders the reader plus the retry notice itself. */
   onFallbackChange?: (isFallback: boolean) => void;
-  /** Remounts the host for a fresh boot after a (possibly transient) failure. */
-  onRetryBoot?: () => void;
 }
 
 type Dispatch = (action: SceneEditorAction) => void;
@@ -261,7 +261,7 @@ function useSelectionCommand(
 
 export function SceneEditorHost({
   focus, onAutoLinkTap, onFallbackChange, onRequestEntityLink, onRequestSelectionActions,
-  onRetryBoot, onSelectionChange, onWordCountChange, projectId, sceneId,
+  onSelectionChange, onWordCountChange, projectId, sceneId,
 }: SceneEditorHostProps) {
   const [state, dispatch] = useReducer(reduceSceneEditor, undefined, createSceneEditorState);
   const [{ port, transport }] = useState(() => createHostPort(sceneId));
@@ -284,7 +284,9 @@ export function SceneEditorHost({
   const { guard, stay } = useExitState(port, state, dispatch);
   const onMessage = useBridgeMessage({ port, ui, uiColors: colors, dispatch, refresh });
   const selectionCommand = useSelectionCommand(ui, selection, onRequestEntityLink);
-  if (state.phase === "fallback") return <FallbackNotice onRetry={onRetryBoot} />;
+  // Nothing to draw: the notice and the reader belong to SceneScreen, which
+  // swaps this host out entirely once onFallbackChange has fired.
+  if (state.phase === "fallback") return null;
   if (!localUri) return <View style={styles.host}><OpeningOverlay /></View>;
   return <EditorSurface localUri={localUri} webViewKey={state.webViewKey} phase={state.phase}
     wordCount={wordCount} formatState={deriveFormatBarState(selection)} bindWebView={transport.bind}
@@ -301,9 +303,6 @@ export function SceneEditorHost({
 
 const styles = StyleSheet.create({
   host: { flex: 1 }, webView: { flex: 1 },
-  opening: { position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", gap: 10 },
-  fallbackLayer: { position: "absolute", inset: 0, zIndex: 2 },
-  notice: { margin: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8 },
   noticeText: { fontSize: 13, textAlign: "center" },
   savingFooter: { minHeight: 24, alignItems: "center", justifyContent: "center" },
   blockedFooter: {
