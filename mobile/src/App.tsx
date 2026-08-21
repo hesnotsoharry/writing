@@ -37,6 +37,9 @@ function syncStatusLine(status: SyncStatus): string {
   return `sync ${status.state} · peer ${peer} · last ${last}`;
 }
 
+/** Exactly one element per branch owns the bottom inset — see Screen.tsx. */
+const BOTTOM_EDGES = ["bottom"] as const;
+
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
   const [dbLine, setDbLine] = useState("opening database…");
@@ -108,7 +111,11 @@ function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTree
     return <><StatusBar style={statusStyle} /><View style={[styles.root, background]} /></>;
   }
   if (gate.gateStatus === "needed") {
-    return <><StatusBar style={statusStyle} /><ActivationGate onActivated={gate.onActivated} trialExpired={gate.trialExpired} /></>;
+    return <><StatusBar style={statusStyle} />
+      <View style={[styles.root, background]}>
+        <ActivationGate onActivated={gate.onActivated} trialExpired={gate.trialExpired} />
+        <SafeAreaView edges={BOTTOM_EDGES} style={background} />
+      </View></>;
   }
   return (
     <View style={[styles.root, background]}>
@@ -120,6 +127,7 @@ function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTree
         }} />
       </TrialDaysProvider>
       {!keyboardVisible && <DevFooter dbLine={dbLine} status={syncStatus} />}
+      {keyboardVisible && <SafeAreaView edges={BOTTOM_EDGES} style={background} />}
     </View>
   );
 }
