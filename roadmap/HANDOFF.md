@@ -351,6 +351,17 @@ native file there is lost on the next prebuild. Native changes must go through
   Cloudflare's live log tail.
 
 
+### Cole's desktop DB holds no manuscripts (Cole, 2026-08-20)
+
+Cole does not write in the app; his `%APPDATA%\com.coles.writing\writing.db`
+has no manuscript content worth protecting, and he has cleared it for direct
+testing. **The full DB-swap protocol is therefore NOT required for sync work on
+his rig** — take one `Copy-Item` backup before a destructive run (it costs
+seconds and still covers the `app_meta` licence row and settings) and skip the
+move-aside/restore/hash ritual. This is a fact about Cole's machine only; his
+writing partner's install is untouched by any of it, and this note goes stale
+the moment he starts writing.
+
 ## Reference index
 - [roadmap/mobile/EMULATOR-MATRIX.md](mobile/EMULATOR-MATRIX.md) — the checklist, the orphan sweep, dev-loop traps.
 - [decisions/0016-mobile-drawer-is-button-only-under-gesture-nav.md](../decisions/0016-mobile-drawer-is-button-only-under-gesture-nav.md) — the drawer ruling.
