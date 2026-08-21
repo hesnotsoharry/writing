@@ -22,6 +22,9 @@ export const EMPTY_LOCAL_STATE: GoalLocalState = {
   sessionWords: 0,
 };
 
+/** Device-local sitting flag when no `session`-type goal row exists yet. */
+export const SESSION_STATE_ID = "session";
+
 export function localCalendarDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -38,6 +41,34 @@ export async function recordGoalDay(
   const current = await persistence.read(goalId) ?? EMPTY_LOCAL_STATE;
   const metDays = met && !current.metDays.includes(today) ? [...current.metDays, today] : current.metDays;
   const next = { ...current, metDays, streak: advanceStreak(current.streak, today, met) };
+  await persistence.write(goalId, next);
+  return next;
+}
+
+export function sessionGoalId(goals: ReadonlyArray<{ id: string; type: string }>): string {
+  return goals.find((goal) => goal.type === "session")?.id ?? SESSION_STATE_ID;
+}
+
+export function applySessionToggle(
+  state: GoalLocalState,
+  enabled: boolean,
+  now: number,
+): GoalLocalState {
+  return {
+    ...state,
+    sessionStartedAt: enabled ? now : null,
+    sessionWords: enabled ? state.sessionWords : 0,
+  };
+}
+
+export async function persistSessionToggle(
+  persistence: GoalLocalPersistence,
+  goalId: string,
+  enabled: boolean,
+  now: number,
+): Promise<GoalLocalState> {
+  const current = await persistence.read(goalId) ?? EMPTY_LOCAL_STATE;
+  const next = applySessionToggle(current, enabled, now);
   await persistence.write(goalId, next);
   return next;
 }

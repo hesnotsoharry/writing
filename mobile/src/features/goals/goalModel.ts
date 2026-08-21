@@ -69,6 +69,12 @@ export function localProgress(
   return state?.sessionWords ?? 0;
 }
 
+export function goalCardKind(type: GoalTypeId): "amount" | "deadline" | "streak" {
+  if (type === "deadline") return "deadline";
+  if (type === "streak") return "streak";
+  return "amount";
+}
+
 export function remainderCopy(goal: GoalDefinition, local: GoalLocalProgress): string {
   const progress = progressFor(goal, local);
   if (progress.family === "amount") return amountRemainder(progress);

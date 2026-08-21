@@ -38,9 +38,30 @@ export function makeDraft(type: GoalTypeId, projectWords: number): GoalDraft {
   return draft;
 }
 
-export function goalWrite(type: GoalTypeId, draft: GoalDraft, projectWords: number, countDaysOff: boolean) {
+export interface GoalWrite {
+  goalType: GoalTypeId;
+  target: number;
+  enabled: boolean;
+  config: Record<string, unknown>;
+}
+
+function targetOf(type: GoalTypeId, draft: GoalDraft): number {
+  if (type === "deadline") return draft.finalWords;
+  if (type === "streak") return draft.milestone;
+  return draft.amount;
+}
+
+function finiteTarget(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+export function goalWrite(
+  type: GoalTypeId,
+  draft: GoalDraft,
+  projectWords: number,
+  countDaysOff: boolean,
+): GoalWrite {
   const goal = buildGoal(null, type, draft, projectWords);
-  const target = type === "deadline" ? draft.finalWords : type === "streak" ? draft.milestone : draft.amount;
   const config: Record<string, unknown> = { ...goal, countDaysOff };
   delete config.id;
   delete config.type;
@@ -48,5 +69,5 @@ export function goalWrite(type: GoalTypeId, draft: GoalDraft, projectWords: numb
   delete config.streakDays;
   delete config.best;
   delete config.week;
-  return { goalType: type, target, config };
+  return { goalType: type, target: finiteTarget(targetOf(type, draft)), enabled: true, config };
 }

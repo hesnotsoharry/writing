@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { GoalTypeId } from "../../shared/goalTypes";
-import { type GoalDefinition, localProgress,progressFor, remainderCopy } from "./goalModel";
-import { targetSectionFor } from "./newGoalModel";
+import { GOAL_TYPES, type GoalTypeId } from "../../shared/goalTypes";
+import { goalCardKind, type GoalDefinition, localProgress, progressFor, remainderCopy } from "./goalModel";
+import { goalWrite, makeDraft, targetSectionFor } from "./newGoalModel";
 
 function goal(type: GoalTypeId, target: number, config: Record<string, unknown> = {}): GoalDefinition {
   return { id: type, type, target, enabled: true, config };
@@ -52,5 +52,34 @@ describe("new goal target sections", () => {
     const section = targetSectionFor(type);
     expect(section.family).toBe(family); expect(section.presets).toEqual(presets); expect(section.showCountDaysOff).toBe(daysOff);
     expect(section.showDate).toBe(type === "deadline"); expect(section.showQualifiers).toBe(type === "streak");
+  });
+});
+
+describe("new goal create path", () => {
+  it("emits an enabled upsert payload with a finite target for every type", () => {
+    for (const { id } of GOAL_TYPES) {
+      const write = goalWrite(id, makeDraft(id, 12_000), 12_000, false);
+      expect(write.enabled).toBe(true);
+      expect(write.goalType).toBe(id);
+      expect(write.target).toBeGreaterThan(0);
+      expect(Number.isFinite(write.target)).toBe(true);
+      expect(write.config).not.toHaveProperty("id");
+      expect(write.config).not.toHaveProperty("type");
+    }
+  });
+
+  it("keeps the default daily draft at 750 so Save persists a visible amount goal", () => {
+    const write = goalWrite("daily", makeDraft("daily", 0), 0, false);
+    expect(write).toMatchObject({ goalType: "daily", target: 750, enabled: true });
+    expect(write.config.words).toBe(750);
+  });
+
+  it("treats a per-session goal as an amount card, not a hidden type", () => {
+    expect(goalCardKind("session")).toBe("amount");
+    expect(goalCardKind("daily")).toBe("amount");
+    expect(goalCardKind("deadline")).toBe("deadline");
+    expect(goalCardKind("streak")).toBe("streak");
+    const write = goalWrite("session", makeDraft("session", 0), 0, true);
+    expect(write).toMatchObject({ goalType: "session", target: 800, enabled: true });
   });
 });
