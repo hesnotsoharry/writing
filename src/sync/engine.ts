@@ -341,7 +341,13 @@ export class SyncEngine {
 
   private startSweep(): void {
     this.stopSweep();
-    this.sweepTimer = setInterval(() => { void this.sendHello(); }, this.options.sweepMs ?? 60_000);
+    // A full reconcile, not just a hello. Sending only hello made the sweep half
+    // a sync: the doc path self-healed on it while the row path did not, so row
+    // summaries went out ONLY on our own connect. A peer that joined a room we
+    // were already connected to therefore never heard a single row summary --
+    // it received every document and none of the records. Measured on a cold
+    // pair: four projects and seven scenes arrived, `boards` stayed empty.
+    this.sweepTimer = setInterval(() => { void this.syncNow(); }, this.options.sweepMs ?? 60_000);
   }
 
   private stopSweep(): void {
