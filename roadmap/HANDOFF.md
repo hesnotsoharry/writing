@@ -1,6 +1,6 @@
 ---
 project: writing
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 
 ## Current state
@@ -19,6 +19,61 @@ is all gated off behind `syncExperimental: "off"`
 (`src/features/settings/settings.store.ts:113`), so no released build has it.
 The relay IS deployed and live — `wss://sync.writersnook.app` answers with the
 worker's own 404 body on a plain GET.
+
+### What landed today (2026-08-21 — three real bugs, all verified on device)
+
+Cole's Pixel 3 XL was driven live over wireless adb against his real paired
+desktop for all three.
+
+- **The mobile editor hung on "Opening editor…" and fell back to read-only**
+  (`d3b1fe6`). Diagnosed as a race, not the documented "silent handshake stall":
+  `port.receive("ready")` does not resolve when the port has read the message,
+  it resolves once the hydrate round-trip that `ready` starts has been acked
+  (`handleReady` awaits its own ack). The host dispatched *after* that await, so
+  the two handshake actions arrived inverted — `hydrate-acked` first, which the
+  reducer drops outside `hydrating`, then `ready`, leaving the phase in
+  `hydrating` with nothing left to advance it. A hydrate slower than the guest's
+  250 ms `ready` retry let a second `ready` short-circuit through in time; a
+  fast one lost. Small scenes and a warm WebView hydrate fast, which is why it
+  presented as "works once per app launch". Routing moved to
+  `mobile/src/features/editor/bridgeRouting.ts` so the ordering has a test seam.
+  **The previous session's conclusion that "the WebView never loads a page at
+  all" was wrong** — CDP over the phone's WebView socket showed the page loading,
+  ProseMirror mounting and the guest posting a valid hydrate ack; the earlier
+  "no targets" reading was taken after the fallback had already unmounted the
+  WebView. Verified: four consecutive opens of the same scene all render prose,
+  the doc-less "A stray idea" opens editable, typing updates the counter.
+- **A project with chapters but no scenes was a dead end** (`451388b`).
+  `isProjectEmpty` asked "no folders AND no scenes", so one empty chapter made
+  the project count as non-empty and the binder's only empty state was a
+  `ListEmptyComponent` that a single header row defeated. Now "no scenes", with
+  desktop's row semantics mirrored: every scene-less chapter gets an inline "add
+  one" row, and Short pieces always renders. `buildBinderTree` also rescues
+  scenes whose `folder_id` names a folder the project does not have — desktop
+  drops those orphans, but on mobile a dropped row is prose you cannot reach.
+- **First sync never backfilled row-domain data** (`f018256`) — the most
+  important of the three. Full brief:
+  `roadmap/coordination/first-sync-row-backfill-brief.md`. Documents reconcile
+  against the DATABASE; rows reconciled against `sync_lww_rows`, a change log
+  migration 022 creates empty and nothing ever seeded, so anything written
+  before sync went live reached no peer. Reconciliation was also push-only, so
+  an empty device announced nothing and triggered nothing — device #3 would have
+  broken even with a seeded ledger. Adapters can now enumerate their own table,
+  `prepareSession` seeds the ledger as a tombstone-aware set difference stamped
+  from each row's own timestamp (never the clock — a "now" stamp would outrank a
+  real tombstone and resurrect every deleted board and note), and the reconciler
+  answers a summary naming an unknown row with its own summary for that scope.
+  No protocol bump: v1.3 messages only.
+  **Runtime oracle, on the real pair:** the desktop dev app picked the change up
+  and seeded; the phone now holds `boards: brainstorm-default | Default Board`
+  where it previously had only orphan `board_docs` content, plus 10 scene
+  snapshots it never had. That is the reported bug, gone, on live data.
+- **Gate truth:** desktop `tsc` + `lint` clean; desktop vitest **2159 passed /
+  6 failed**, the same 6 wave-46 eval-harness failures as yesterday
+  (`scorer.test.ts`, `eval-runner.test.ts`) and no new ones. Mobile: `tsc` clean,
+  lint clean, **248 passed**. The live-relay suite passes 11/11 against a local
+  `wrangler dev` (`SYNC_LIVE_RELAY=ws://127.0.0.1:8788 npx vitest run
+  liveRelay.integration`), including the new backfill case.
 
 ### What landed today (2026-08-20 — launch readiness + distribution plumbing)
 
@@ -306,6 +361,40 @@ keyboard down and up).
    restart cleared it, so it reads as rig instability — but the symptom is the
    writing surface going read-only, so re-check on a stable rig or a release
    build. Grep recipe in the matrix.
+
+### Follow-ups from 2026-08-21
+
+1. **Ship the desktop side of the sync backfill first.** A new phone paired to a
+   desktop on an older build still misses pre-existing rows, because that
+   desktop never seeds its ledger. No wire change, so nothing regresses — but
+   the fix is only real once desktop ships.
+2. **`manuscript_about` needs an `updated_at` column.** It is the one LWW domain
+   with no timestamp, so two devices that both predate sync tie at seed stamp 0
+   and device id decides — a coin flip over a whole About page (synopsis, genre,
+   tone, POV, notes), and the loser's content is discarded wholesale because the
+   projection overwrites every column. Blank rows are kept out of the draw as
+   mitigation; the column is the real fix. Deliberately not smuggled into the
+   backfill change as a migration.
+3. **Pairing push is unpaced.** The end-of-scope push lists with no limit, and
+   `archive` / `scene_snapshots` rows each carry a base64 Yjs state. A large
+   history could emit thousands of frames the moment a phone pairs. Per-frame
+   size is bounded so this is throughput, not correctness — but cap or pace it,
+   and make sure the queue-depth UI moves so pairing does not look frozen.
+4. **The read-only fallback renders nothing.** Watched it happen before the
+   editor fix landed: the notice showed, the reader's "18 words" footer showed,
+   and the prose area was blank. `SceneScreen.tsx:106` renders `SceneReader`
+   *and* `SceneEditorHost` together while the comment directly above says the
+   reader replaces the editor. Rare now that the handshake is fixed, but this is
+   the safety net and it is broken.
+5. **Orphan-folder scenes still vanish outside the binder.** `outlinerModel.ts`,
+   `corkboardModel.ts` and `BinderDrawer`'s list keep the strict filter the
+   binder just dropped, so a scene whose `folder_id` does not resolve is still
+   invisible there. One line each.
+6. **`mobileMetaApplyTarget.upsertScene` never updates `word_count`** on
+   conflict (inserts 0), so synced word counts can stay stale on mobile.
+7. **The Turnstile scout still needs re-running** — the Gemini Flash run exited
+   1 on a free-tier quota error, so nothing was produced. Re-run before any
+   Turnstile work is briefed out.
 
 ### Mobile: still not submittable
 
