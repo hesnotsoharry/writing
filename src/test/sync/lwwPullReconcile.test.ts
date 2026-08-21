@@ -4,7 +4,7 @@ import type { DbClient } from "../../db/dbClient";
 import { runMigrations } from "../../db/migrations";
 import { SqliteSyncLwwStore } from "../../db/sqliteSyncLwwStore";
 import { seedLwwLedger } from "../../sync/lww/backfill";
-import { LwwReconciler } from "../../sync/lww/reconciler";
+import { LwwReconciler, PUSH_BATCH_SIZE } from "../../sync/lww/reconciler";
 import { LwwDomainRegistry } from "../../sync/lww/registry";
 import { registerLwwDomains } from "../../sync/lwwDomains";
 import {
@@ -155,6 +155,28 @@ describe("LWW pull reconciliation", () => {
 
     // B now knows every row A named, so there is nothing to pull.
     expect(helloFrames(b)).toEqual([]);
+  });
+
+  it("delivers a large backfill in full, yielding between batches", async () => {
+    const total = PUSH_BATCH_SIZE * 2 + 3;
+    for (let index = 0; index < total; index += 1) {
+      await a.db.execute(
+        "INSERT INTO quick_notes (id,project_id,body,created_at,filed,source,state) VALUES (?,?,?,?,?,?,?)",
+        [`n${String(index).padStart(3, "0")}`, "p1", `note ${index}`, 1_700_000_000_000 + index,
+          0, "share", "inbox"],
+      );
+    }
+    await seedLwwLedger({ store: a.store, registry: a.registry, deviceId: "device-a" });
+
+    await a.reconciler.sendAllSummaries();
+    await pipe.drain();
+
+    const received = await b.db.select<Array<{ n: number }>>(
+      "SELECT COUNT(*) AS n FROM quick_notes",
+    );
+    // Pacing must never become capping: the peer needs every row, and nothing
+    // re-sends row summaries on the sweep to deliver a stranded remainder.
+    expect(received[0].n).toBe(total);
   });
 
   it("re-arms the answer after a reconnect", async () => {

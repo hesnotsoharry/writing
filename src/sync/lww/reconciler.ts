@@ -7,6 +7,9 @@ import type { LwwDomainRegistry } from "./registry";
 
 type SendRow = (message: RowMessage | RowAckMessage | RowHelloMessage) => Promise<void>;
 
+/** Rows pushed before the backfill yields the tick. */
+export const PUSH_BATCH_SIZE = 25;
+
 export class LwwReconciler {
   private readonly peerRows = new Map<string, Set<string>>();
   /** Scopes where the peer advertised a row we have never heard of. */
@@ -19,6 +22,11 @@ export class LwwReconciler {
     private readonly send: SendRow,
     private readonly callbacks: ReconcilerCallbacks = {},
   ) {}
+
+  /** Overridable in tests; a macrotask so timers and rendering get a turn. */
+  protected pace(): Promise<void> {
+    return new Promise((resolve) => { setTimeout(resolve, 0); });
+  }
 
   /**
    * Drops per-connection state. Must run whenever the connection leaves
@@ -68,13 +76,34 @@ export class LwwReconciler {
     await this.answerScope(key, message);
   }
 
-  /** Push every local row the peer's summary did not mention. */
+  /**
+   * Push every local row the peer's summary did not mention, yielding the tick
+   * between batches.
+   *
+   * Deliberately NOT capped. On a fresh pairing this is the whole backfill, and
+   * `archive` and `scene_snapshots` rows each carry a base64 Yjs state, so a
+   * large history is a genuinely large transfer — but the peer needs every one
+   * of those rows, so a cap would not reduce the work, only strand part of it.
+   * Nothing re-sends row summaries on the sweep (it only sends hello), so a
+   * stranded remainder would wait for the next reconnect. Silently delivering
+   * two thirds of someone's archive is worse than taking longer to deliver all
+   * of it.
+   *
+   * The yield is what stops the transfer monopolising the tick, so timers and
+   * the UI still run and pairing does not look frozen.
+   */
   private async pushUnseen(message: RowHelloMessage, seen: Set<string>): Promise<void> {
     const rows = await this.store.list(
       message.domain, message.project, "", Number.MAX_SAFE_INTEGER,
     );
+    let sinceYield = 0;
     for (const local of rows) {
-      if (!seen.has(local.rowId)) await this.sendRow(local);
+      if (seen.has(local.rowId)) continue;
+      await this.sendRow(local);
+      sinceYield += 1;
+      if (sinceYield < PUSH_BATCH_SIZE) continue;
+      sinceYield = 0;
+      await this.pace();
     }
   }
 
