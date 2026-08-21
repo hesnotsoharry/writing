@@ -362,39 +362,54 @@ keyboard down and up).
    writing surface going read-only, so re-check on a stable rig or a release
    build. Grep recipe in the matrix.
 
-### Follow-ups from 2026-08-21
+### Second batch, same day — follow-ups worked through
+
+- **`manuscript_about` now has `updated_at`** (`ac07954`, migration 023). It was
+  the only replicated row domain with no timestamp, so its seeds stamped at 0
+  and two pre-sync devices tied with device id deciding a whole About page.
+  The column is deliberately NOT in the replicated column list: `parsePayload`
+  requires every listed column, so a payload from an older peer would throw and
+  the row would be dropped. Its job is to order this device's seed, not travel.
+- **The pairing push is paced, not capped** (`7c48ae5`) — against the earlier
+  suggestion, and the reason matters. A cap does not reduce the work, it strands
+  part of it, and nothing re-sends row summaries on the sweep (it only sends
+  hello), so a stranded remainder waits for the next reconnect. It now yields
+  the tick every 25 rows so pairing does not look frozen, and a test pushes two
+  full batches plus a remainder and asserts every row lands. Queue-depth UI
+  still does not move during a backfill — that push bypasses the outbox, and
+  wiring it through would mean taking on ack semantics. Left alone deliberately.
+- **The migration test tax is retired** (part of `ac07954`). Eight migration
+  test files carried an `expect(LATEST).toBe(22)` pin next to their real
+  assertion, so every new migration broke eight unrelated files — the trap
+  CLAUDE.md warns about. Each already asserted `user_version === LATEST`, which
+  is the real claim; the property the pins reached for is now asserted once in
+  `runMigrations.test.ts` (versions unique, ascending, gapless).
+- **Turnstile scout re-run and landed** (`7c48ae5`) —
+  `research/turnstile-trial-session-scout.md`. Its load-bearing claims were
+  spot-checked against the code rather than taken on trust: the re-exchange path
+  returns before `grant_trial` and grants zero credit, `PER_IP_DAILY_GRANT_CAP`
+  is 3, and both `src/features/ai/ai.client.ts:86` and
+  `mobile/src/features/ai/mobileAiClient.ts:113` call the endpoint. Its central
+  point stands: Pages deploys on push while the desktop app updates
+  asynchronously, so enforcement cannot land in lockstep — it needs a permissive
+  Worker first, then a client release, then a flag flip.
+
+### Still open
 
 1. **Ship the desktop side of the sync backfill first.** A new phone paired to a
    desktop on an older build still misses pre-existing rows, because that
    desktop never seeds its ledger. No wire change, so nothing regresses — but
    the fix is only real once desktop ships.
-2. **`manuscript_about` needs an `updated_at` column.** It is the one LWW domain
-   with no timestamp, so two devices that both predate sync tie at seed stamp 0
-   and device id decides — a coin flip over a whole About page (synopsis, genre,
-   tone, POV, notes), and the loser's content is discarded wholesale because the
-   projection overwrites every column. Blank rows are kept out of the draw as
-   mitigation; the column is the real fix. Deliberately not smuggled into the
-   backfill change as a migration.
-3. **Pairing push is unpaced.** The end-of-scope push lists with no limit, and
-   `archive` / `scene_snapshots` rows each carry a base64 Yjs state. A large
-   history could emit thousands of frames the moment a phone pairs. Per-frame
-   size is bounded so this is throughput, not correctness — but cap or pace it,
-   and make sure the queue-depth UI moves so pairing does not look frozen.
-4. **The read-only fallback renders nothing.** Watched it happen before the
-   editor fix landed: the notice showed, the reader's "18 words" footer showed,
-   and the prose area was blank. `SceneScreen.tsx:106` renders `SceneReader`
-   *and* `SceneEditorHost` together while the comment directly above says the
-   reader replaces the editor. Rare now that the handshake is fixed, but this is
-   the safety net and it is broken.
-5. **Orphan-folder scenes still vanish outside the binder.** `outlinerModel.ts`,
-   `corkboardModel.ts` and `BinderDrawer`'s list keep the strict filter the
-   binder just dropped, so a scene whose `folder_id` does not resolve is still
-   invisible there. One line each.
-6. **`mobileMetaApplyTarget.upsertScene` never updates `word_count`** on
-   conflict (inserts 0), so synced word counts can stay stale on mobile.
-7. **The Turnstile scout still needs re-running** — the Gemini Flash run exited
-   1 on a free-tier quota error, so nothing was produced. Re-run before any
-   Turnstile work is briefed out.
+2. **The cold-pair path has no device-level run yet.** What IS verified: the
+   already-paired path on Cole's real devices (desktop seeded, phone gained the
+   board and 10 snapshots), and a genuinely empty peer receiving everything on
+   first connect in `liveRelay.integration.test.ts` over a real relay. What is
+   not: the mobile *pairing UI* against a virgin install. An emulator is primed
+   for it (virgin install, Metro-attached) but the manual-pairing field wants
+   the desktop's pairing string, which carries the raw sync master key — that is
+   Cole's to paste, not an agent's to shuttle.
+3. **Turnstile itself is unbuilt** — only scoped. Follow the memo's three-phase
+   rollout; do not enforce on `master` in one step.
 
 ### Mobile: still not submittable
 
