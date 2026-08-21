@@ -415,24 +415,47 @@ keyboard down and up).
   conflict clause would zero a locally correct count on every meta apply. Pinned
   by a test in `mobile/src/db/mobileStores.test.ts`.
 
+### The cold pair, and what it caught (2026-08-21, third batch)
+
+A virgin emulator paired to the desktop through the real pairing UI
+**reproduced the original bug in full**: all four projects, all seven scenes
+and the board's Yjs content arrived, while `boards` stayed empty,
+`scene_snapshots` stayed at 0 against the desktop's 11, and the LWW ledger
+stayed empty. Seeding and the pull direction were both fine — nothing ever sent
+the summary that starts the exchange.
+
+`sendAllSummaries` ran only from `syncNow`, which fires on our OWN connection
+event. The desktop was already connected when the emulator joined, so its state
+never changed and it announced no rows. The doc path survives that because the
+sweep re-sends `hello` every 60 s and the peer's hello triggers `answerHello`;
+the row path had no equivalent. **The sweep now runs a full `syncNow`**
+(`991009b`), so rows re-announce on the same cadence as docs and the outbox
+gets a periodic retry it never had.
+
+Two lessons worth keeping:
+
+- **"Verified end-to-end" needs the word COLD.** The phone check passed because
+  it was already paired, and `liveRelay.integration.test.ts` connects both
+  engines fresh so both fire `syncNow`. Neither exercised a peer arriving at an
+  already-connected device — the single most likely real-world shape.
+- **Reading these DB files without replaying the WAL will lie to you**, and it
+  lies worst when you are checking for ABSENCE. sql.js ignores the `-wal`, so a
+  freshly synced device reads as completely empty. Copy `writing.db`,
+  `-wal` and `-shm` together and open them with `node:sqlite`
+  (`DatabaseSync`), which replays the log. The device's own screen is the
+  cheaper cross-check.
+
+After the fix the cold-paired emulator holds `boards: brainstorm-default`, all
+11 snapshots and the matching ledger rows.
+
 ### Still open
 
 1. **Ship the desktop side of the sync backfill first.** A new phone paired to a
    desktop on an older build still misses pre-existing rows, because that
    desktop never seeds its ledger. No wire change, so nothing regresses — but
    the fix is only real once desktop ships.
-2. **The cold-pair path has no device-level run yet.** What IS verified: the
-   already-paired path on Cole's real devices (desktop seeded, phone gained the
-   board and 10 snapshots), and a genuinely empty peer receiving everything on
-   first connect in `liveRelay.integration.test.ts` over a real relay. What is
-   not: the mobile *pairing UI* against a virgin install. The
-   `Medium_Phone_API_36.1` emulator is **primed and waiting** — virgin install,
-   attached to Metro, parked on Pair with desktop -> "Enter pairing code
-   manually instead" with the field focused. It needs the desktop's pairing
-   string, which carries the raw sync master key (`src/sync/keys.ts` says never
-   log it) — that is Cole's to paste, not an agent's to shuttle. A pre-run
-   backup of the desktop DB is at
-   `%APPDATA%\com.coles.writing\writing.db.2026-08-21-precoldpair`.
+2. **Mobile is still running a dev bundle from Metro.** The cold-pair proof used
+   the dev client, not a release build. A release-build pair is still unrun.
 3. **Turnstile itself is unbuilt** — only scoped. Follow the memo's three-phase
    rollout; do not enforce on `master` in one step.
 
