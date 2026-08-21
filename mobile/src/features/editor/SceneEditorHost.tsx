@@ -5,7 +5,6 @@ import WebView, { type WebViewMessageEvent } from "react-native-webview";
 
 import { getBinderStore } from "../../db/stores";
 import type { LiveSceneFlushResult } from "../../shared/engine";
-import { parseWebViewMessage } from "../../shared/mobileEditorBridgeProtocol";
 import { createMobileLiveScenePort, subscribeMobileDocReplaced } from "../../sync/mobileEngine";
 import {
   type MobileLiveScenePort, subscribeMobileSceneReplaced,
@@ -15,8 +14,9 @@ import { copyText } from "../ai/mobileClipboard";
 import type { SelectionCommand } from "../ai/selectionBridge";
 import type { FocusSettings } from "../focus/focusSettings";
 import type { AutoLinkTapPayload } from "../storybible";
+import { routeBridgeMessage } from "./bridgeRouting";
 import {
-  EDITOR_ASSET_TIMEOUT_MS, EDITOR_BOOT_TIMEOUT_MS, EDITOR_DIAG_TAG, EDITOR_ERROR_FORWARDER,
+  EDITOR_ASSET_TIMEOUT_MS, EDITOR_BOOT_TIMEOUT_MS, EDITOR_ERROR_FORWARDER,
 } from "./editorBootBudget";
 import { FallbackNotice, OpeningOverlay } from "./editorOverlays";
 import type {
@@ -191,29 +191,9 @@ interface BridgeMessageOptions {
   refresh(): void;
 }
 
-function handleParsedMessage(message: ReturnType<typeof parseWebViewMessage>,
-  options: BridgeMessageOptions): void {
-  if (message?.type === "ready") options.dispatch({ type: "ready", sessionId: message.sessionId });
-  if (message?.type === "ack" && message.ackType === "hydrate") {
-    options.ui.start(message.sessionId, options.uiColors);
-    options.dispatch({ type: "hydrate-acked", sessionId: message.sessionId });
-  }
-  if (message?.type === "update") options.refresh();
-  if (message?.type === "error") options.dispatch({ type: "editor-failed" });
-}
-
-async function receiveBridgeEvent(event: WebViewMessageEvent, options: BridgeMessageOptions) {
-  const raw = event.nativeEvent.data;
-  if (raw.includes(EDITOR_DIAG_TAG)) { console.error("[editor] WebView JS error:", raw); return; }
-  if (options.ui.receive(raw)) return;
-  const message = parseWebViewMessage(raw);
-  await options.port.receive(raw);
-  handleParsedMessage(message, options);
-}
-
 function useBridgeMessage(options: BridgeMessageOptions) {
-  return useCallback((event: WebViewMessageEvent) => receiveBridgeEvent(event, options),
-    [options]);
+  return useCallback((event: WebViewMessageEvent) =>
+    routeBridgeMessage(event.nativeEvent.data, options), [options]);
 }
 
 function useExitState(port: MobileLiveScenePort, state: ReturnType<typeof createSceneEditorState>,
