@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Screen } from "../../components";
+import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { AppearsInRow } from "../../shared/fullEntryDefs";
 import { ROLE_KEY } from "../../shared/fullEntryDefs";
@@ -21,7 +22,6 @@ import { buildEntryModel } from "./typeModel";
 import { useEntryData } from "./useEntryData";
 
 /** Gap kept between the focused input and the keyboard; mirrors Screen's own offset. */
-const KEYBOARD_BOTTOM_OFFSET = 24;
 
 type EntryRoute = "BibleEntry" | "BibleEntryScrolled" | "BibleEntryLocation";
 type Props = NativeStackScreenProps<RootStackParamList, EntryRoute>;

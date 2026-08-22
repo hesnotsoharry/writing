@@ -1,9 +1,11 @@
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Screen } from "../../components";
+import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
 import { getStoryBibleStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import { ROLE_KEY } from "../../shared/fullEntryDefs";
@@ -44,7 +46,8 @@ export function NewEntryScreen({ navigation, route }: Props) {
   };
   return <Screen contentStyle={styles.screen}>
     <NewEntryTopbar canSave={Boolean(store && name.trim())} onCancel={() => navigation.goBack()} onSave={() => { void save(); }} />
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET}
+      contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <TypePicker customTypes={customTypes} onCustom={() => navigation.navigate("CustomType", { projectId })} onSelect={selectType} selected={type} />
       <EntryIdentityFields name={name} onName={setName} onRole={setRole} role={role} />
       <View style={styles.sectionHead}><Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>Details</Text>
@@ -55,7 +58,7 @@ export function NewEntryScreen({ navigation, route }: Props) {
       <NewSections onChange={(key, value) => setSections((current) => ({ ...current, [key]: value }))} sections={model.sections} values={sections} />
       <NewEntryAiToggle onChange={setExclude} value={exclude} />
       <Text style={[TYPE.meta, styles.footer, { color: theme.colors.ink3 }]}>Fields and sections change with the type. Mentions of the name in your prose link back here automatically.</Text>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   </Screen>;
 }
 

@@ -6,6 +6,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Icon, IconButton, Screen, StatusDot, Topbar } from "../../components";
+import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
 import { getBinderStore, getLabelStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { SceneStatus } from "../../shared/binderStore";
@@ -32,7 +33,6 @@ type OutlineSceneItem = Extract<OutlineItem, { kind: "scene" }>;
 type OutlinerSheet = "none" | "create" | "columns";
 
 /** Gap kept between the focused input and the keyboard; mirrors Screen's own offset. */
-const KEYBOARD_BOTTOM_OFFSET = 24;
 
 function ChapterHeader({ group, reload }: { group: OutlineGroup; reload: () => void }) {
   const theme = useTheme();

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../theme/ThemeProvider";
 import { RADIUS } from "../theme/tokens";
 import { resolveSheetLayout } from "./Sheet.logic";
+import { InSheetProvider } from "./sheetContext";
 
 export interface SheetProps {
   children: ReactNode;
@@ -50,18 +51,32 @@ function SheetSurface({ children, designHeight, onDismiss, scrollable }: Omit<Sh
   const layout = resolveSheetLayout(designHeight, height);
   return (
     <BottomSheet
+      // A sheet is anchored to the bottom of the window, so every input in one
+      // is in the half the keyboard covers. The library ships defaults that do
+      // not match this app: `android_keyboardInputMode` defaults to `adjustPan`
+      // while the app sets `softwareKeyboardLayoutMode: "resize"`, and under
+      // that mismatch gorhom applies its own offset maths on top of a window
+      // Android has already resized. Declaring `adjustResize` makes it stand
+      // down and let the window resize do the work. `keyboardBlurBehavior`
+      // defaults to `none`, which leaves a sheet parked at keyboard height
+      // after dismissal.
+      android_keyboardInputMode="adjustResize"
       backgroundStyle={[styles.background, theme.shadow.sheet, { backgroundColor: theme.colors.paper }]}
       enableDynamicSizing={layout.fixedHeight === undefined}
       enablePanDownToClose
       handleIndicatorStyle={{ backgroundColor: theme.colors.ink4 }}
       index={0}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
       onChange={handleChange}
       snapPoints={layout.fixedHeight === undefined ? undefined : [layout.fixedHeight]}
     >
-      <SheetContent fillsHeight={layout.contentFillsAvailableHeight}
-        paddingBottom={Math.max(16, insets.bottom)} scrollable={scrollable}>
-        {children}
-      </SheetContent>
+      <InSheetProvider value={true}>
+        <SheetContent fillsHeight={layout.contentFillsAvailableHeight}
+          paddingBottom={Math.max(16, insets.bottom)} scrollable={scrollable}>
+          {children}
+        </SheetContent>
+      </InSheetProvider>
     </BottomSheet>
   );
 }

@@ -1,8 +1,10 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Icon, IconButton, Screen, Segmented, Topbar } from "../../components";
+import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
 import { getBinderStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { SceneStatus } from "../../shared/binderStore";
@@ -93,10 +95,10 @@ function CorkboardBody({ navigation, projectId }: Pick<Props, "navigation"> & { 
   return (
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.parchmentDeep }]}>
       <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Corkboard" trailing={<View style={styles.segment}><Segmented onChange={setColumnsValue} options={COLUMN_OPTIONS} value={columnsValue} /></View>} />
-      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <ScrollView contentContainerStyle={styles.scroll}>
+      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {!data.bibleAvailable && <View style={[styles.bibleUnavailable, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink3} name="info" size={16} /><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>Story Bible unavailable — entity chips are hidden.</Text></View>}
         {groups.map((group) => <CorkGroupView activeId={activeId} cardWidth={layout.cardWidth} columns={columns} entities={data.entities} group={group} key={group.id ?? "short"} onActivate={setActiveId} onReload={data.reload} />)}
-      </ScrollView>}
+      </KeyboardAwareScrollView>}
       <Footer onNew={onNew} />
     </Screen>
   );

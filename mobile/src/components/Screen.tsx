@@ -5,6 +5,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useTheme } from "../theme/ThemeProvider";
+import { KEYBOARD_BOTTOM_OFFSET } from "./keyboard";
 
 /**
  * The app root always renders the chrome that actually touches the window
@@ -23,13 +24,6 @@ import { useTheme } from "../theme/ThemeProvider";
  * re-runs the library's internal memo.
  */
 const EDGES = ["top", "left", "right"] as const;
-
-/**
- * Breathing room between the focused input's bottom edge and the top of the
- * keyboard. Without it an input can end up flush against the keyboard, which
- * reads as "still covered" even though it technically isn't.
- */
-const KEYBOARD_BOTTOM_OFFSET = 24;
 
 export interface ScreenProps {
   children: ReactNode;
