@@ -462,6 +462,48 @@ gap.
   server, a login, password reset and a privacy surface, and still need the
   rotation. Recommendation stands unless Cole wants accounts for other reasons.
 
+### Keyboard coverage, board links, and the parity list (2026-08-21, sixth batch)
+
+- **Inputs in the bottom half sat under the keyboard, and the cause was
+  `Sheet`.** A sheet is anchored to the window bottom, so every input in one is
+  in the covered half — and gorhom's defaults were wrong for this app twice.
+  `android_keyboardInputMode` defaults to `adjustPan` while `app.json` declares
+  `softwareKeyboardLayoutMode: "resize"`, so the library applied its own offset
+  maths on top of a window Android had already resized; `keyboardBlurBehavior`
+  defaults to `none`, parking the sheet at keyboard height after dismissal. A
+  plain `TextInput` is also invisible to the sheet. `TextField` now swaps to
+  `BottomSheetTextInput` off a context `Sheet` provides, fixing all five sheets
+  with no call-site changes. Four screens then needed their own container:
+  NewEntry, NewGoal and the corkboard moved to `KeyboardAwareScrollView`, and
+  the Inbox composer rides `KeyboardStickyView`.
+- **There is no platform standard that does this for you.** Android resizes the
+  window, iOS overlays and reports a frame; either way the app must move the
+  focused input, so this app has exactly four sanctioned containers
+  (`<Screen scroll>`, `KeyboardAwareScrollView`, `KeyboardStickyView`, `Sheet`)
+  and `components/keyboardCoverage.test.ts` is an inventory of every
+  input-bearing file against the one it uses, checked by a source scan. **A new
+  text input fails the suite until it is listed** — that is the enforcement.
+- **Board cards can be linked on mobile.** A list of toggles in the card sheet,
+  not a drag between nodes: desktop's drag-from-handle needs a pointer and a
+  canvas that is not panning under your finger. Links are treated as undirected
+  (desktop stores `{from,to}` but nothing distinguishes the directions), and
+  unlinking clears duplicate pairs a two-device edit can leave.
+
+**Desktop features still absent from mobile**, all of them stated in-app:
+
+| Gap | Deliberate? |
+|---|---|
+| Compile / export | yes — a desktop job |
+| Replace across scenes | yes |
+| Label *definition* (applying labels works) | yes |
+| Relationship-map editing and link-drawing | no — same shape as the board fix, portable |
+| Moving board cards (positions) | yes — a phone-chosen x/y means nothing on desktop's unbounded canvas |
+| BYOK API-key entry | yes — mobile never receives provider keys |
+| Subscription / top-ups | yes — companion-only, Apple 3.1.1 and Play Billing |
+
+Custom entity types are NOT a gap — `CustomTypeScreen` is routed and works; the
+settings footer claiming otherwise was stale and is corrected.
+
 ### Conflict handling for LWW rows — recommendation, not yet built
 
 Cole asked whether the user can pick a winner for the row domains where work
