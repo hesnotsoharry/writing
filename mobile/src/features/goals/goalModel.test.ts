@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { GOAL_TYPES, type GoalTypeId } from "../../shared/goalTypes";
 import { goalCardKind, type GoalDefinition, localProgress, progressFor, remainderCopy } from "./goalModel";
-import { goalWrite, makeDraft, targetSectionFor } from "./newGoalModel";
+import { draftForExistingGoal, goalWrite, makeDraft, targetSectionFor } from "./newGoalModel";
 
 function goal(type: GoalTypeId, target: number, config: Record<string, unknown> = {}): GoalDefinition {
   return { id: type, type, target, enabled: true, config };
@@ -58,7 +58,7 @@ describe("new goal target sections", () => {
 describe("new goal create path", () => {
   it("emits an enabled upsert payload with a finite target for every type", () => {
     for (const { id } of GOAL_TYPES) {
-      const write = goalWrite(id, makeDraft(id, 12_000), 12_000, false);
+      const write = goalWrite(id, makeDraft(id, 12_000), 12_000, { countDaysOff: false });
       expect(write.enabled).toBe(true);
       expect(write.goalType).toBe(id);
       expect(write.target).toBeGreaterThan(0);
@@ -69,7 +69,7 @@ describe("new goal create path", () => {
   });
 
   it("keeps the default daily draft at 750 so Save persists a visible amount goal", () => {
-    const write = goalWrite("daily", makeDraft("daily", 0), 0, false);
+    const write = goalWrite("daily", makeDraft("daily", 0), 0, { countDaysOff: false });
     expect(write).toMatchObject({ goalType: "daily", target: 750, enabled: true });
     expect(write.config.words).toBe(750);
   });
@@ -79,7 +79,36 @@ describe("new goal create path", () => {
     expect(goalCardKind("daily")).toBe("amount");
     expect(goalCardKind("deadline")).toBe("deadline");
     expect(goalCardKind("streak")).toBe("streak");
-    const write = goalWrite("session", makeDraft("session", 0), 0, true);
+    const write = goalWrite("session", makeDraft("session", 0), 0, { countDaysOff: true });
     expect(write).toMatchObject({ goalType: "session", target: 800, enabled: true });
+  });
+
+  it("preserves an explicit enabled flag instead of always re-enabling on save", () => {
+    const write = goalWrite("daily", makeDraft("daily", 0), 0, { countDaysOff: false, enabled: false });
+    expect(write.enabled).toBe(false);
+  });
+});
+
+describe("edit-prefill mapping for an existing goal row", () => {
+  it("round-trips an amount goal's target and disabled state into editor draft state", () => {
+    const write = goalWrite("daily", makeDraft("daily", 0), 0, { countDaysOff: false, enabled: false });
+    const existing = draftForExistingGoal({ goal_type: write.goalType, target: write.target, enabled: write.enabled, config: write.config }, 0);
+    expect(existing).toMatchObject({ type: "daily", countDaysOff: false, enabled: false });
+    expect(existing.draft.amount).toBe(750);
+  });
+
+  it("round-trips a deadline goal's finish date and starting words", () => {
+    const draft = makeDraft("deadline", 10_000);
+    const write = goalWrite("deadline", { ...draft, finalWords: 90_000, date: "2026-12-31", startWords: 10_000 }, 10_000, { countDaysOff: true });
+    const existing = draftForExistingGoal({ goal_type: write.goalType, target: write.target, enabled: write.enabled, config: write.config }, 10_000);
+    expect(existing).toMatchObject({ type: "deadline", countDaysOff: true, enabled: true });
+    expect(existing.draft).toMatchObject({ finalWords: 90_000, date: "2026-12-31", startWords: 10_000 });
+  });
+
+  it("round-trips a streak goal's milestone and qualifier", () => {
+    const draft = { ...makeDraft("streak", 0), milestone: 60, qualifies: "daily" as const };
+    const write = goalWrite("streak", draft, 0, { countDaysOff: true });
+    const existing = draftForExistingGoal({ goal_type: write.goalType, target: write.target, enabled: write.enabled, config: write.config }, 0);
+    expect(existing.draft).toMatchObject({ milestone: 60, qualifies: "daily" });
   });
 });

@@ -37,7 +37,7 @@ export type RootStackParamList = {
   HiddenFromAi: { projectId: string; sceneId: string };
   AiLimits: { projectId: string; reason: "managed-refusal" | "out-of-credit" };
   SceneActions: { projectId: string; sceneId: string };
-  NewGoal: { projectId: string; initialType?: string };
+  NewGoal: { projectId: string; initialType?: string; goalId?: string };
   Archive: { projectId: string };
   EmptyProject: { projectId: string; projectTitle: string };
   OfflineCatchUp: { projectId?: string } | undefined;

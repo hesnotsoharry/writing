@@ -1,5 +1,6 @@
-import { blankDraft, buildGoal, type GoalDraft } from "../../shared/goalsEditorHelpers";
+import { blankDraft, buildGoal, draftFromGoal, type GoalDraft } from "../../shared/goalsEditorHelpers";
 import { GOAL_META, type GoalFamily, type GoalTypeId } from "../../shared/goalTypes";
+import { type GoalDefinition, toGoalRecord } from "./goalModel";
 
 export interface TargetSectionModel {
   family: GoalFamily;
@@ -55,12 +56,19 @@ function finiteTarget(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+export interface GoalWriteOptions {
+  countDaysOff: boolean;
+  /** Preserved from the existing row when editing; defaults to true for a brand-new goal. */
+  enabled?: boolean;
+}
+
 export function goalWrite(
   type: GoalTypeId,
   draft: GoalDraft,
   projectWords: number,
-  countDaysOff: boolean,
+  options: GoalWriteOptions,
 ): GoalWrite {
+  const { countDaysOff, enabled = true } = options;
   const goal = buildGoal(null, type, draft, projectWords);
   const config: Record<string, unknown> = { ...goal, countDaysOff };
   delete config.id;
@@ -69,5 +77,35 @@ export function goalWrite(
   delete config.streakDays;
   delete config.best;
   delete config.week;
-  return { goalType: type, target: finiteTarget(targetOf(type, draft)), enabled: true, config };
+  return { goalType: type, target: finiteTarget(targetOf(type, draft)), enabled, config };
+}
+
+/** The subset of a persisted goal row the edit-prefill mapping needs — deliberately
+ *  narrower than `MobileGoal` so this stays a pure function callers can unit-test
+ *  without a store or database. */
+export interface ExistingGoalRow {
+  goal_type: string;
+  target: number;
+  enabled: boolean;
+  config: Record<string, unknown>;
+}
+
+export interface ExistingGoalDraft {
+  type: GoalTypeId;
+  draft: GoalDraft;
+  countDaysOff: boolean;
+  enabled: boolean;
+}
+
+/** Maps a stored goal row back into editor state so NewGoalScreen can reopen an
+ *  existing goal pre-filled, reusing the same `toGoalRecord`/`draftFromGoal`
+ *  helpers the desktop editor and progress cards already rely on. */
+export function draftForExistingGoal(row: ExistingGoalRow, projectWords: number): ExistingGoalDraft {
+  const type = row.goal_type as GoalTypeId;
+  const definition: GoalDefinition = { id: "editing", type, target: row.target, enabled: row.enabled, config: row.config };
+  const record = toGoalRecord(definition, { current: projectWords });
+  return {
+    type, draft: draftFromGoal(record, projectWords),
+    countDaysOff: row.config.countDaysOff === true, enabled: row.enabled,
+  };
 }

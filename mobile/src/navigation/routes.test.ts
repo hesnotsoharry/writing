@@ -32,7 +32,7 @@ const ROUTE_PARAMS = {
   HiddenFromAi: { projectId: "p", sceneId: "s" },
   AiLimits: { projectId: "p", reason: "managed-refusal" },
   SceneActions: { projectId: "p", sceneId: "s" },
-  NewGoal: { projectId: "p", initialType: "daily" },
+  NewGoal: { projectId: "p", initialType: "daily", goalId: "g" },
   Archive: { projectId: "p" },
   EmptyProject: { projectId: "p", projectTitle: "Project" },
   OfflineCatchUp: undefined,
