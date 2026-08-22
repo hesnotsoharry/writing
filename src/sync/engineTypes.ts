@@ -7,6 +7,7 @@ import type { SnapshotStore } from "../db/snapshotStore";
 import type { AppliedEpochs, AppliedEpochStore } from "../db/syncEpochStore";
 import type { SyncLwwStore } from "../db/syncLwwStore";
 import type { BibleApplyTarget } from "./bible/bibleApplyExec";
+import type { DeviceRosterIo } from "./deviceRoster";
 import type { LwwDomainRegistry } from "./lww/registry";
 import type { MetaApplyTarget } from "./meta/applyExec";
 import type { SyncOutboxStore } from "./outbox";
@@ -37,6 +38,7 @@ export interface EngineOptions {
   outboxStore?: SyncOutboxStore;
   loadLastPeerSeenAt?: () => Promise<string | null>;
   saveLastPeerSeenAt?: (value: string) => Promise<void>;
+  deviceRoster?: DeviceRosterIo;
   ensureProjectMetas?: () => Promise<void>;
   ensureProjectBibles?: () => Promise<void>;
   subscribeMetaSaves?: (cb: (projectId: string, epochs: AppliedEpochs) => void) => () => void;

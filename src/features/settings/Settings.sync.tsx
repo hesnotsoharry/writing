@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 
 import { syncEngine } from "../../sync/desktopEngine";
+import { isDeviceOnline } from "../../sync/deviceRoster";
 import type { SyncStatus } from "../../sync/engine";
 import { DEFAULT_RELAY_URL } from "../../sync/engineDefaults";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../../sync/keyStorage";
 import { clearSyncRole, setSyncRole, type SyncRole } from "../../sync/syncRole";
 import { CredentialShareRow } from "./Settings.credentialShare";
+import { DeviceList } from "./Settings.devices";
 import { SetRow } from "./Settings.primitives";
 import { getTweak, type Tweaks } from "./settings.store";
 import { SyncQr } from "./SyncQr";
@@ -34,16 +36,30 @@ function startSync(): Promise<void> {
   return syncEngine.start(getTweak("syncRelayUrl", ""));
 }
 
+/** Counts peers seen inside the presence window, not roster length: the roster
+ *  remembers devices that have gone away, and the status line is about now. */
+function onlinePeerCount(status: SyncStatus): number {
+  const now = Date.now();
+  return (status.devices ?? []).filter(
+    (device) => !device.self && isDeviceOnline(device, status.state === "connected", now),
+  ).length;
+}
+
 function formatStatus(status: SyncStatus): string {
+  const peers = onlinePeerCount(status);
   if (status.state === "connected" && status.peerSeen && status.lastSyncAt) {
     const time = new Date(status.lastSyncAt).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
-    return `Connected — synced with your other device ${time}`;
+    // "your other device" was a lie on any key with more than two devices, and
+    // it hid exactly the case Cole hit: two peers online, one of them the phone
+    // he thought he had unpaired. Name the count; the list below names them.
+    const who = peers === 1 ? "1 device" : `${peers} devices`;
+    return `Connected — synced with ${who} ${time}`;
   }
   if (status.state === "connected" || status.state === "connecting") {
-    return "Waiting for your other device";
+    return "Waiting for your other devices";
   }
   return "Offline";
 }
@@ -141,12 +157,15 @@ interface ReadyKeyProps {
   onRequestOff: () => void;
   onCancelOff: () => void;
   onTurnOff: () => void;
+  onForget: (id: string) => void;
 }
 
 function ReadyKey(props: ReadyKeyProps) {
   return (
     <>
       <div className="sync-status" data-state={props.status.state}>{formatStatus(props.status)}</div>
+      <DeviceList devices={props.status.devices ?? []}
+        connected={props.status.state === "connected"} onForget={props.onForget} />
       <div className="sync-actions">
         <button className="btn btn-soft" onClick={props.onShowPairing}>Show pairing string</button>
         {!props.confirmingOff && <button className="btn" onClick={props.onRequestOff}>
@@ -262,7 +281,8 @@ export function SyncSection({ tweaks, setTweak }: SyncSectionProps) {
     ? <ReadyKey status={status} pairingString={pairingString} pairingPayload={pairingPayload}
       confirmingOff={confirmingOff}
       onShowPairing={() => { void actions.showPairing(); }} onRequestOff={() => setConfirmingOff(true)}
-      onCancelOff={() => setConfirmingOff(false)} onTurnOff={() => { void actions.turnOff(); }} />
+      onCancelOff={() => setConfirmingOff(false)} onTurnOff={() => { void actions.turnOff(); }}
+      onForget={(id) => { void syncEngine.forgetDevice(id); }} />
     : <MissingKey joinOpen={joinOpen} busy={actions.busy}
       onEnable={() => { void actions.activate(generateMasterKey(), "origin"); }}
       onJoin={(value) => actions.activate(decodeMasterKey(value), "joined")} setJoinOpen={setJoinOpen} />;

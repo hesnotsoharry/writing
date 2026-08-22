@@ -3,6 +3,10 @@ export const ROW_SUMMARY_LIMIT = 512;
 export interface HelloDoc { c: string; sv: string; at: string | null }
 export interface HelloMessage {
   t: "hello"; device: string; docs: HelloDoc[]; capabilities?: string[];
+  /** Human-readable identity for the peer's device list. Optional on the wire:
+   *  peers on builds before the roster send neither, and the validator must not
+   *  reject them — an unnamed peer still syncs, it just lists as unnamed. */
+  name?: string; platform?: string;
 }
 export interface DiffMessage { t: "diff"; c: string; u: string; e?: number }
 export interface LiveMessage { t: "live"; c: string; u: string; e?: number }

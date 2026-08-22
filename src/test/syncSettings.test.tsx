@@ -2,6 +2,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SyncDevice } from "../sync/deviceRoster";
+
+function device(id: string, name: string, lastSeenAt: string, self = false): SyncDevice {
+  return { id, name, platform: null, firstSeenAt: lastSeenAt, lastSeenAt, self };
+}
+
 const mocks = vi.hoisted(() => ({
   clearKey: vi.fn<() => Promise<void>>(),
   getKey: vi.fn<() => Promise<Uint8Array | null>>(),
@@ -12,10 +18,12 @@ const mocks = vi.hoisted(() => ({
   stop: vi.fn<() => void>(),
   sendCredentialOffer: vi.fn(),
   onCredentialAck: vi.fn(),
+  forgetDevice: vi.fn<(id: string) => Promise<void>>(),
   status: {
     state: "disconnected" as "off" | "connecting" | "connected" | "disconnected",
     peerSeen: false,
     lastSyncAt: null as string | null,
+    devices: [] as SyncDevice[],
   },
 }));
 
@@ -39,6 +47,7 @@ vi.mock("../sync/desktopEngine", () => ({
     }),
     sendCredentialOffer: mocks.sendCredentialOffer,
     onCredentialAck: mocks.onCredentialAck,
+    forgetDevice: mocks.forgetDevice,
   },
 }));
 
@@ -80,6 +89,8 @@ beforeEach(() => {
   mocks.sendCredentialOffer.mockImplementation(async (_managed: unknown, id: string) => id);
   mocks.status.state = "disconnected";
   mocks.status.peerSeen = false;
+  mocks.status.devices = [];
+  mocks.forgetDevice.mockResolvedValue(undefined);
   mocks.status.lastSyncAt = null;
 });
 
@@ -104,14 +115,56 @@ describe("SyncSection", () => {
     expect(await screen.findByText("Offline")).toBeTruthy();
   });
 
-  it("shows the last-sync time when the engine has connected to a peer", async () => {
+  it("counts the peers it is synced with instead of assuming there is one", async () => {
+    // "your other device" was true only on a two-device key. It hid the case
+    // that made this list necessary: a phone believed unpaired still answering
+    // alongside an emulator, with no way to tell which was which.
+    const now = new Date().toISOString();
     mocks.status.state = "connected";
     mocks.status.peerSeen = true;
     mocks.status.lastSyncAt = "2026-08-06T14:35:00.000Z";
+    mocks.status.devices = [
+      device("self", "Cole-PC", now, true),
+      device("phone", "Pixel 3 XL", now),
+      device("emu", "sdk_gphone64_x86_64", now),
+    ];
     mocks.getKey.mockResolvedValue(MASTER_KEY);
     renderSection();
-    expect(await screen.findByText(/Connected — synced with your other device/i)).toBeTruthy();
+    expect(await screen.findByText(/Connected — synced with 2 devices/i)).toBeTruthy();
     expect(screen.getByText(/14:35|10:35/)).toBeTruthy();
+  });
+
+  it("names every device on the key, and says which one you are looking out of", async () => {
+    const now = new Date().toISOString();
+    mocks.status.state = "connected";
+    mocks.status.peerSeen = true;
+    mocks.status.devices = [
+      device("self", "Cole-PC", now, true),
+      device("phone", "Pixel 3 XL", now),
+    ];
+    mocks.getKey.mockResolvedValue(MASTER_KEY);
+    renderSection();
+    expect(await screen.findByText("Cole-PC")).toBeTruthy();
+    expect(screen.getByText("Pixel 3 XL")).toBeTruthy();
+    expect(screen.getByText(/· this device$/)).toBeTruthy();
+    expect(screen.getByText(/online now/i)).toBeTruthy();
+  });
+
+  it("shows a stale device as last-seen, and forgetting it is local only", async () => {
+    const stale = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    mocks.status.state = "connected";
+    mocks.status.peerSeen = true;
+    mocks.status.devices = [
+      device("self", "Cole-PC", new Date().toISOString(), true),
+      device("phone", "Pixel 3 XL", stale),
+    ];
+    mocks.getKey.mockResolvedValue(MASTER_KEY);
+    renderSection();
+    expect(await screen.findByText(/last seen 3h ago/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove from list" }));
+    expect(mocks.forgetDevice).toHaveBeenCalledWith("phone");
+    // The panel must never imply this evicts the device — it cannot.
+    expect(screen.getByText(/it does not control access/i)).toBeTruthy();
   });
 
   it("gently rejects a garbage pairing string", async () => {

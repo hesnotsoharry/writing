@@ -2,6 +2,7 @@
 // dependencies for S4 step 5 (scene read + sync-down). Mirrors
 // src/sync/desktopEngine.ts's "construct once, export the singleton" shape —
 // see that file's `export const syncEngine = new SyncEngine(...)`.
+import type { DeviceIdentity } from "@writersnook/sync/deviceRoster";
 import { LwwDomainRegistry } from "@writersnook/sync/lww/registry";
 import { registerLwwDomains } from "@writersnook/sync/lwwDomains";
 
@@ -73,6 +74,11 @@ function buildMobileEngineOptions(): EngineOptions {
     epochAcceptance: "manual",
     loadLastPeerSeenAt: () => readLastPeerSeenAt(mobileDb),
     saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(mobileDb, value),
+    deviceRoster: {
+      load: () => readAppMeta(mobileDb, DEVICE_ROSTER_KEY),
+      save: (value) => writeAppMeta(mobileDb, DEVICE_ROSTER_KEY, value),
+      identity: () => Promise.resolve(deviceIdentity),
+    },
     subscribeMetaSaves: subscribeMobileMetaSaves,
     readMasterKey: getSyncMasterKey,
     getDeviceId: getOrCreateMobileDeviceId,
@@ -99,9 +105,20 @@ async function readLastPeerSeenAt(db: DbClient): Promise<string | null> {
   return rows[0]?.value ?? null;
 }
 async function writeLastPeerSeenAt(db: DbClient, value: string): Promise<void> {
-  await db.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
-    "sync_last_peer_seen_at", value,
-  ]);
+  await writeAppMeta(db, "sync_last_peer_seen_at", value);
+}
+
+/** Same app_meta key desktop uses, so the two platforms stay one shape. */
+const DEVICE_ROSTER_KEY = "sync_device_roster";
+
+async function readAppMeta(db: DbClient, key: string): Promise<string | null> {
+  const rows = await db.select<Array<{ value: string }>>(
+    "SELECT value FROM app_meta WHERE key = ?", [key],
+  );
+  return rows[0]?.value ?? null;
+}
+async function writeAppMeta(db: DbClient, key: string, value: string): Promise<void> {
+  await db.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [key, value]);
 }
 
 /** The mobile SyncEngine singleton. Call `.start()` after pairing / on app
@@ -133,6 +150,19 @@ export function createMobileLiveScenePort(
     sceneStore: mobileSceneStore,
     updateWordCount: updateSceneWordCount,
   });
+}
+
+/** How this device names itself to its peers' device lists.
+ *
+ *  Injected rather than read here on purpose: reading it needs `react-native`,
+ *  and this module is imported by node-environment tests that cannot parse
+ *  React Native's Flow source. `App.tsx` is already RN-bound, so it supplies
+ *  the value at boot — the same shape as `setMobileAiConversationsSyncEnabled`
+ *  below. Unset, this device simply lists as unnamed; it still syncs. */
+let deviceIdentity: DeviceIdentity = {};
+
+export function setMobileDeviceIdentity(identity: DeviceIdentity): void {
+  deviceIdentity = identity;
 }
 
 /** Start against a persisted pairing override, or the production relay. */

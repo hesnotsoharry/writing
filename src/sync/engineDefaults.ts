@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import type { DbClient } from "../db/dbClient";
 import { getOrCreateDeviceId } from "../db/deviceId";
 import { getDb } from "../db/schema";
@@ -12,7 +14,9 @@ import { SqliteSnapshotStore } from "../db/sqliteSnapshotStore";
 import { SqliteSyncLwwStore } from "../db/sqliteSyncLwwStore";
 import { SqliteSyncOutboxStore } from "../db/sqliteSyncOutboxStore";
 import { SqliteAppliedEpochStore } from "../db/syncEpochStore";
+import { platformLabel } from "../shell/platform";
 import { ensureAllProjectBibles, subscribeBibleSaves } from "./bible/desktopBibleBridge";
+import type { DeviceIdentity } from "./deviceRoster";
 import type { EngineOptions } from "./engine";
 import { getSyncMasterKey } from "./keyStorage";
 import { subscribeLocalSceneWrites } from "./localSceneWrites";
@@ -43,6 +47,11 @@ export function defaultEngineOptions(): EngineOptions {
     epochAcceptance: "automatic",
     loadLastPeerSeenAt: () => readLastPeerSeenAt(db),
     saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(db, value),
+    deviceRoster: {
+      load: () => readAppMeta(db, DEVICE_ROSTER_KEY),
+      save: (value) => writeAppMeta(db, DEVICE_ROSTER_KEY, value),
+      identity: readDeviceIdentity,
+    },
     ensureProjectMetas: ensureAllProjectMetas, subscribeMetaSaves: subscribeProjectMetaSaves,
     ensureProjectBibles: ensureAllProjectBibles, subscribeBibleSaves,
     subscribeSceneWrites: subscribeLocalSceneWrites,
@@ -63,14 +72,36 @@ export function desktopDbClient(): DbClient {
   };
 }
 
-async function readLastPeerSeenAt(db: DbClient): Promise<string | null> {
+const LAST_PEER_SEEN_KEY = "sync_last_peer_seen_at";
+/** The roster lives in app_meta rather than its own table: it is a handful of
+ *  rows of local observation, and app_meta already carries the sibling
+ *  `sync_last_peer_seen_at` and `sync_role`. No migration to append, and none
+ *  to reconcile against mobile, which stores it the same way. */
+const DEVICE_ROSTER_KEY = "sync_device_roster";
+
+async function readAppMeta(db: DbClient, key: string): Promise<string | null> {
   const rows = await db.select<Array<{ value: string }>>(
-    "SELECT value FROM app_meta WHERE key = ?", ["sync_last_peer_seen_at"],
+    "SELECT value FROM app_meta WHERE key = ?", [key],
   );
   return rows[0]?.value ?? null;
 }
-async function writeLastPeerSeenAt(db: DbClient, value: string): Promise<void> {
-  await db.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [
-    "sync_last_peer_seen_at", value,
-  ]);
+async function writeAppMeta(db: DbClient, key: string, value: string): Promise<void> {
+  await db.execute("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)", [key, value]);
+}
+function readLastPeerSeenAt(db: DbClient): Promise<string | null> {
+  return readAppMeta(db, LAST_PEER_SEEN_KEY);
+}
+function writeLastPeerSeenAt(db: DbClient, value: string): Promise<void> {
+  return writeAppMeta(db, LAST_PEER_SEEN_KEY, value);
+}
+
+/** `device_name` is the same Rust command the pairing QR uses, so a device
+ *  shows up in the list under the name it was paired with. */
+async function readDeviceIdentity(): Promise<DeviceIdentity> {
+  const platform = platformLabel();
+  try {
+    return { name: (await invoke<string>("device_name")).trim() || null, platform };
+  } catch {
+    return { name: null, platform };
+  }
 }

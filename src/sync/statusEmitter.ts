@@ -1,3 +1,4 @@
+import type { SyncDevice } from "./deviceRoster";
 import type { EpochStamp } from "./meta/metaDoc";
 import type { ConnectionState } from "./provider";
 
@@ -12,6 +13,10 @@ export interface SyncStatus {
   /** Optional only for source compatibility with pre-v1.3 UI initializers. The
    * engine/status emitter always populate all three v1.3 diagnostics fields. */
   lastPeerSeenAt?: string | null; queue?: SyncQueueDepth; behind?: BehindScene[];
+  /** Every device that has ever announced itself on this key, newest sighting
+   *  first, including this one. `peerSeen` cannot distinguish two peers from
+   *  four, or a departed device from a sleeping one; this can. */
+  devices?: SyncDevice[];
 }
 
 /** Sync status plus its subscribers. Extracted from SyncEngine, which sits at the
@@ -20,7 +25,7 @@ export interface SyncStatus {
 export class StatusEmitter {
   private status: SyncStatus = {
     state: "off", peerSeen: false, lastSyncAt: null, lastPeerSeenAt: null,
-    queue: { scenes: 0, notes: 0, boards: 0, rows: 0 }, behind: [],
+    queue: { scenes: 0, notes: 0, boards: 0, rows: 0 }, behind: [], devices: [],
   };
   private readonly listeners = new Set<(status: SyncStatus) => void>();
 

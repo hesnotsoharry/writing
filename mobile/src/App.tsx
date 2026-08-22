@@ -16,10 +16,16 @@ import { AppNavigator } from "./navigation/AppNavigator";
 import type { RootStackParamList } from "./navigation/routes";
 import type { SyncStatus } from "./shared/engine";
 import { SyncEngine } from "./shared/engine";
-import { mobileEngine, startMobileEngine } from "./sync/mobileEngine";
+import { mobileDeviceIdentity } from "./sync/mobileDeviceIdentity";
+import { mobileEngine, setMobileDeviceIdentity, startMobileEngine } from "./sync/mobileEngine";
 import { hasSyncMasterKey } from "./sync/mobileKeyStorage";
 import { isDeviceJoined } from "./sync/mobileSyncRole";
 import { ThemeProvider, useTheme } from "./theme/ThemeProvider";
+
+// At module scope, not in an effect: the roster stamps this device's own entry
+// the moment `start()` runs, and both start paths below fire from effects. A
+// later setter would name this device only from its second session onward.
+setMobileDeviceIdentity(mobileDeviceIdentity());
 
 const OFF_STATUS: SyncStatus = {
   state: "off",
@@ -28,6 +34,7 @@ const OFF_STATUS: SyncStatus = {
   lastPeerSeenAt: null,
   queue: { scenes: 0, notes: 0, boards: 0, rows: 0 },
   behind: [],
+  devices: [],
 };
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
 

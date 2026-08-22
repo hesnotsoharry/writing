@@ -18,3 +18,18 @@ export function isMac(): boolean {
     return false;
   }
 }
+
+/** A display label for this device's OS, for the sync device list. Same
+ *  never-throws contract as `isMac` — under jsdom there is no OS plugin, and a
+ *  missing label must degrade the list, not break sync startup. */
+export function platformLabel(): string | null {
+  try {
+    const labels: Record<string, string> = {
+      macos: "macOS", windows: "Windows", linux: "Linux",
+      android: "Android", ios: "iOS",
+    };
+    return labels[platform()] ?? null;
+  } catch {
+    return null;
+  }
+}

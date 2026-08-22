@@ -2320,6 +2320,25 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .sync-pairing-code { display: flex; align-items: center; gap: var(--s-2); }
 .sync-pairing-code code { min-width: 0; overflow-wrap: anywhere; color: var(--ink);
   font-family: var(--font-mono); font-size: var(--text-xs); }
+.sync-devices { margin: 0 0 var(--s-3); }
+.sync-devices-heading { margin-bottom: var(--s-2); color: var(--ink-3);
+  font-size: var(--text-xs); font-weight: var(--w-semi); letter-spacing: .04em;
+  text-transform: uppercase; }
+.sync-device-list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0;
+  overflow: hidden; list-style: none; background: var(--line-soft);
+  border: 1px solid var(--line); border-radius: var(--r-md); }
+.sync-device { display: flex; gap: var(--s-2); align-items: center;
+  padding: var(--s-2) var(--s-3); background: var(--parchment); }
+.sync-device-dot { flex: none; width: 7px; height: 7px; background: var(--ink-3);
+  border-radius: 50%; opacity: .45; }
+.sync-device[data-online="true"] .sync-device-dot { background: var(--accent-deep); opacity: 1; }
+.sync-device-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
+.sync-device-name { overflow: hidden; color: var(--ink); font-size: var(--text-sm);
+  font-weight: var(--w-medium); text-overflow: ellipsis; white-space: nowrap; }
+.sync-device-meta { color: var(--ink-3); font-size: var(--text-xs); }
+.sync-device-forget { flex: none; font-size: var(--text-xs); }
+.sync-devices-empty, .sync-devices-note { margin: var(--s-2) 0 0; max-width: 55ch;
+  color: var(--ink-3); font-size: var(--text-xs); line-height: 1.5; }
 .sync-pairing-input { margin-bottom: var(--s-2); font-family: var(--font-mono); }
 .sync-error { margin: 0 0 var(--s-2); color: var(--danger); font-size: var(--text-xs); }
 .sync-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2);

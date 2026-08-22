@@ -7,6 +7,8 @@ import {
   type CredentialAckHandler, CredentialExchange, type CredentialOfferHandler,
   type ManagedCredentialState,
 } from "./credentialExchange";
+import { DeviceRosterTracker } from "./deviceRoster";
+import { ControlRouter } from "./engineControlRouter";
 import { type ChannelDoc,EngineDocRepository } from "./engineDocRepository";
 import { publishBibleSave, sendEligibleOutboxMessage } from "./engineOutbound";
 import { prepareSession } from "./engineSession";
@@ -59,9 +61,12 @@ export class SyncEngine {
   private structureChanged: (() => void) | null = null;
   private docReplaced: ((sceneId: string) => void) | null = null;
   private readonly credentials: CredentialExchange;
+  private readonly devices: DeviceRosterTracker;
+  private readonly control: ControlRouter;
 
   constructor(options: EngineOptions) {
     this.options = options;
+    this.devices = new DeviceRosterTracker(options.deviceRoster ?? {});
     this.credentials = new CredentialExchange((message) => this.sendMessage(message),
       () => !this.isPaused() && this.statusEmitter.current().state === "connected");
     this.docs = new EngineDocRepository(options);
@@ -95,6 +100,9 @@ export class SyncEngine {
       (projectId, stateBase64) => void publishBibleSave(this.outbox, (message) => this.sendMessage(message), projectId, stateBase64),
       (sceneId) => this.notifyLocalSave(sceneId),
     );
+    this.control = new ControlRouter({ devices: this.devices, credentials: this.credentials, options,
+      lww: () => this.lww, outbox: () => this.outbox, send: (m) => this.sendMessage(m),
+      answerHello: (h) => this.answerHello(h), patchStatus: (p) => this.setStatus(p) });
   }
 
   /** `relayUrlOverride` lets callers honor the `syncRelayUrl` tweak without
@@ -107,6 +115,7 @@ export class SyncEngine {
     this.deviceId = session.deviceId;
     this.setStatus({ lastPeerSeenAt: session.lastPeerSeenAt,
       queue: session.queue, behind: this.epochs.listBehind() });
+    this.setStatus({ devices: await this.devices.load(session.deviceId, new Date().toISOString()) });
     this.unsubscribeOutbox = this.outbox?.subscribe((queue) => this.setStatus({ queue })) ?? null;
     const provider = session.provider;
     this.provider = provider;
@@ -137,6 +146,9 @@ export class SyncEngine {
     this.setStatus({ state: "off", peerSeen: false });
   }
 
+  /** Clears one entry from the local device list. Local bookkeeping only — a
+   *  device still holding the master key rejoins the room and reappears. */
+  async forgetDevice(id: string): Promise<void> { this.setStatus({ devices: await this.devices.forget(id) }); }
   subscribe(cb: (status: SyncStatus) => void): () => void { return this.statusEmitter.subscribe(cb); }
   status(): SyncStatus { return this.statusEmitter.current(); }
   listBehind(): readonly BehindScene[] { return this.epochs.listBehind(); }
@@ -254,34 +266,17 @@ export class SyncEngine {
   }
 
   private async handleMessage(message: InnerMessage): Promise<void> {
-    if (await this.handleControlMessage(message)) return;
+    if (await this.control.handle(message)) return;
     if (message.t !== "diff" && message.t !== "live") return;
     await this.remoteUpdates.apply(message);
     this.setStatus({ lastSyncAt: new Date().toISOString(), behind: this.epochs.listBehind() });
-  }
-
-  private async handleControlMessage(message: InnerMessage): Promise<boolean> {
-    if (message.t === "hello") {
-      const lastPeerSeenAt = new Date().toISOString();
-      this.setStatus({ peerSeen: true, lastPeerSeenAt });
-      await this.options.saveLastPeerSeenAt?.(lastPeerSeenAt);
-      await this.answerHello(message);
-      return true;
-    }
-    if (message.t === "row-hello") { await this.lww?.receiveSummary(message); return true; }
-    if (message.t === "row") {
-      const ack = await this.lww?.receiveRow(message);
-      if (ack) await this.sendMessage(ack);
-      return true;
-    }
-    if (message.t === "row-ack") { await this.outbox?.acknowledge(message.id); return true; }
-    return this.credentials.receive(message);
   }
 
   private async makeHello(docs?: ChannelDoc[]): Promise<HelloMessage> {
     const stored = docs ?? await this.docs.listAll();
     return { t: "hello", device: this.deviceId,
       capabilities: ["domain-docs", "row-lww", "manual-epochs", "managed-credential-schema"],
+      ...this.devices.helloFields(),
       docs: stored.map((d) => helloDoc(d, this.epochs)) };
   }
 
