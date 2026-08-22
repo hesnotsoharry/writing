@@ -530,7 +530,16 @@ quick notes, as a new Inbox note marked "conflicting version from <device>",
 which needs no new UI because the Inbox is already a triage list. A generic
 "Sync conflicts" list in Settings covers the rest.
 
-Not built. Wants Cole's go-ahead on the keep-both shape first.
+**BUILT 2026-08-21** (Cole approved the keep-both shape). `lww/displacedRows.ts`
+plus a `readDisplaced` step in `receiveRow`; detection is "still unacknowledged
+in our own outbox", so an incoming winner is a real collision rather than our
+own change echoing back. Preservation is scoped to `quick_notes` and
+`manuscript_about` — the two domains carrying writing someone would miss — and
+the preserved copy is published so it is not stranded on the losing device.
+A failure to keep it is swallowed on purpose: losing the copy is bad, failing
+the apply of the row that WON is worse. No picker was built and none is
+planned; the one place a picker earns its keep, scene prose after a restore,
+already has the epoch catch-up flow.
 
 ### Mobile UX pass (2026-08-21, fourth batch)
 
