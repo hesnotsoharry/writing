@@ -21,6 +21,7 @@ import {
   computeMTLD,
   computeMTLDOneDirection,
   computeTTR,
+  normalizeC2ToC1Scale,
   parseJudgeResponse,
   scoreClicheDensity,
   scoreComponent1,
@@ -348,14 +349,19 @@ describe("parseJudgeResponse", () => {
     expect(score).toBe(2);
   });
 
-  it("returns null score for response containing no 0–4 integer", () => {
+  it("returns null score for response containing no 0–10 integer", () => {
     const { score } = parseJudgeResponse("This feedback lacks any numeric score.");
     expect(score).toBeNull();
   });
 
-  it("returns null score when the only integers are out of range (5, 6, etc.)", () => {
-    const { score } = parseJudgeResponse("I would rate this about 6 out of 10.");
+  it("returns null score when the only number is out of range (11, off-scale)", () => {
+    const { score } = parseJudgeResponse("I would rate this an 11, off the charts.");
     expect(score).toBeNull();
+  });
+
+  it("parses 'N out of 10' phrasing and accepts 6 as a valid in-range score", () => {
+    const { score } = parseJudgeResponse("I would rate this about 6 out of 10.");
+    expect(score).toBe(6);
   });
 
   it("uses the LAST integer 0–4 as the score when multiple appear", () => {
@@ -371,7 +377,7 @@ describe("buildC2Prompt", () => {
   it("contains the verbatim design-§2 rating instruction", () => {
     const prompt = buildC2Prompt("Sample output.");
     expect(prompt).toContain("Rate the cliché density");
-    expect(prompt).toContain("0-4 scale");
+    expect(prompt).toContain("0-10 scale");
     expect(prompt).toContain("Before your score, explain your reasoning in one sentence.");
   });
 
@@ -408,10 +414,10 @@ describe("scoreD3 — dry-run mode", () => {
 // ── scoreD3: live run with fake judgeFn ───────────────────────────────────────
 
 describe("scoreD3 — live run with injected judgeFn", () => {
-  it("combines component1 and component2 scores with equal weight", async () => {
+  it("combines component1 and normalized (0-10 → 0-4) component2 scores with equal weight", async () => {
     const judgeFn = async () => "This output is somewhat generic. 3";
     const result = await scoreD3(CLEAN_PARAGRAPH, judgeFn);
-    const expected = (result.component1.score + 3) / 2;
+    const expected = (result.component1.score + normalizeC2ToC1Scale(3)) / 2;
     expect(result.d3).toBeCloseTo(expected, 10);
     expect(result.component2?.score).toBe(3);
   });

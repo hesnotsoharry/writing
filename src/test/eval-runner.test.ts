@@ -18,6 +18,7 @@ import {
   buildT3HarnessOffParams,
   buildT3HarnessOnParams,
   buildT6BlankBoxParams,
+  PILOT_CELLS,
   PILOT_MODELS,
   PILOT_N,
 } from "../../eval/tasks.ts";
@@ -188,17 +189,17 @@ describe("blind() — typography normalization", () => {
 // ── 2. Keymap generation tests ────────────────────────────────────────────────
 
 describe("buildKeymap() — label generation + keymap correctness", () => {
-  it("produces exactly 60 entries for the full pilot cell set", () => {
+  it("produces one entry per cell for the full pilot cell set (models × cells × N)", () => {
     const specs = buildAllCells("E1");
     const { keymap } = buildKeymap(specs);
-    expect(Object.keys(keymap)).toHaveLength(60);
+    expect(Object.keys(keymap)).toHaveLength(PILOT_MODELS.length * PILOT_CELLS.length * PILOT_N);
   });
 
-  it("produces 60 unique OUT-<hex> labels", () => {
+  it("produces unique OUT-<hex> labels, one per cell", () => {
     const specs = buildAllCells("E1");
     const { labels } = buildKeymap(specs);
     const unique = new Set(labels);
-    expect(unique.size).toBe(60);
+    expect(unique.size).toBe(PILOT_MODELS.length * PILOT_CELLS.length * PILOT_N);
     for (const label of labels) {
       expect(label).toMatch(/^OUT-[0-9a-f]{4}$/);
     }
@@ -211,7 +212,9 @@ describe("buildKeymap() — label generation + keymap correctness", () => {
       expect(typeof entry.model).toBe("string");
       expect(entry.model.length).toBeGreaterThan(0);
       expect(["T3", "T6"]).toContain(entry.task);
-      expect(["harness-on", "harness-off", "blank-box"]).toContain(entry.condition);
+      expect(["harness-on", "harness-off", "principles-only", "aggressive", "blank-box"]).toContain(
+        entry.condition,
+      );
       expect(entry.excerpt).toBe("E1");
       expect(entry.sample).toBeGreaterThanOrEqual(1);
       expect(entry.sample).toBeLessThanOrEqual(PILOT_N);
