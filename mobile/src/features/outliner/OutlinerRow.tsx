@@ -6,14 +6,15 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import type { SharedValue } from "react-native-reanimated";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
-import { Icon, LabelPill, StatusDot } from "../../components";
+import { Hairline, Icon, LabelPill, StatusDot } from "../../components";
 import type { Scene, SceneStatus } from "../../shared/binderStore";
 import type { Label } from "../../shared/labelStore";
 import { STATUS_ORDER } from "../../shared/status";
 import { useTheme } from "../../theme/ThemeProvider";
 import { DURATION, HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
-import { OUTLINER_ROW_HEIGHT } from "./outlinerModel";
+import type { OutlinerColumnVisibility } from "./outlinerColumns";
+import { outlinerRowHeight, reservesSceneDivider, showsSceneDivider } from "./outlinerModel";
 import type { OutlinerDrag } from "./useOutlinerDrag";
 
 /** Release settle: quick, so the row lands the moment the finger lifts. */
@@ -32,6 +33,7 @@ interface OutlinerRowProps {
   indexInGroup: number;
   labels: Label[];
   availableLabels: Label[];
+  columns: OutlinerColumnVisibility;
   active: boolean;
   onActivate: () => void;
   drag: OutlinerDrag;
@@ -123,20 +125,36 @@ function DragHandle({ dragging, gesture }: { dragging: boolean; gesture: Compose
   return <GestureDetector gesture={gesture}><View accessibilityLabel="Long-press to reorder scene" style={styles.dragHandle}><Icon color={dragging ? theme.colors.accent : theme.colors.ink4} name="list" size={17} /></View></GestureDetector>;
 }
 
+/** The small rule that tells one scene in a chapter from the next. */
+function RowDivider({ dragging, groupCount, indexInGroup }: Pick<OutlinerRowProps, "groupCount" | "indexInGroup"> & { dragging: boolean }) {
+  const theme = useTheme();
+  if (!reservesSceneDivider(indexInGroup, groupCount)) return null;
+  const inked = showsSceneDivider(indexInGroup, groupCount, dragging);
+  return <Hairline style={[styles.divider, { backgroundColor: inked ? theme.colors.parchmentEdge : "transparent" }]} />;
+}
+
+/** The title line — the one part of a row no column switch can take away. */
+function RowTitle(props: OutlinerRowProps & { handle: React.ReactNode }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.titleRow}>
+      <TextInput accessibilityLabel={`Rename ${props.scene.title}`} defaultValue={props.scene.title} onEndEditing={(event) => props.onRename(event.nativeEvent.text.trim())} style={[styles.title, { color: theme.colors.ink }]} />
+      {props.columns.words && <Text style={[styles.words, { color: theme.colors.ink4 }]}>{props.scene.word_count.toLocaleString()}w</Text>}
+      {props.handle}
+    </View>
+  );
+}
+
 function RowSurface(props: OutlinerRowProps & { handle: React.ReactNode }) {
   const theme = useTheme();
   return (
-    <Pressable onPress={props.onActivate} style={[styles.row, { borderBottomColor: theme.colors.lineSoft }, props.active && { backgroundColor: theme.colors.accentTint }]}>
+    <Pressable onPress={props.onActivate} style={[styles.row, { minHeight: outlinerRowHeight(props.columns) }, props.active && { backgroundColor: theme.colors.accentTint }]}>
       {props.active && <View style={[styles.activeBar, { backgroundColor: theme.colors.accent }]} />}
-      <Pressable accessibilityLabel="Change scene status" onPress={() => props.onStatus(nextStatus(props.scene.status))} style={styles.status}><StatusDot size={9} status={props.scene.status} /></Pressable>
+      {props.columns.status && <Pressable accessibilityLabel="Change scene status" onPress={() => props.onStatus(nextStatus(props.scene.status))} style={styles.status}><StatusDot size={9} status={props.scene.status} /></Pressable>}
       <View style={styles.main}>
-        <View style={styles.titleRow}>
-          <TextInput accessibilityLabel={`Rename ${props.scene.title}`} defaultValue={props.scene.title} onEndEditing={(event) => props.onRename(event.nativeEvent.text.trim())} style={[styles.title, { color: theme.colors.ink }]} />
-          <Text style={[styles.words, { color: theme.colors.ink4 }]}>{props.scene.word_count.toLocaleString()}w</Text>
-          {props.handle}
-        </View>
-        <TextInput accessibilityLabel={`Synopsis for ${props.scene.title}`} defaultValue={props.scene.synopsis ?? ""} multiline onEndEditing={(event) => props.onSynopsis(event.nativeEvent.text.trim())} placeholder="No synopsis yet" placeholderTextColor={theme.colors.ink4} style={[styles.synopsis, { color: theme.colors.ink2 }]} />
-        <LabelAssignment availableLabels={props.availableLabels} labels={props.labels} onToggleLabel={props.onToggleLabel} />
+        <RowTitle {...props} />
+        {props.columns.synopsis && <TextInput accessibilityLabel={`Synopsis for ${props.scene.title}`} defaultValue={props.scene.synopsis ?? ""} multiline onEndEditing={(event) => props.onSynopsis(event.nativeEvent.text.trim())} placeholder="No synopsis yet" placeholderTextColor={theme.colors.ink4} style={[styles.synopsis, { color: theme.colors.ink2 }]} />}
+        {props.columns.labels && <LabelAssignment availableLabels={props.availableLabels} labels={props.labels} onToggleLabel={props.onToggleLabel} />}
       </View>
     </Pressable>
   );
@@ -156,12 +174,18 @@ export function OutlinerRow(props: OutlinerRowProps) {
   return (
     <Animated.View onLayout={onLayout} style={[lifted, dragStyle]}>
       <RowSurface {...props} handle={<DragHandle dragging={motion.dragging} gesture={gesture} />} />
+      <RowDivider dragging={motion.dragging} groupCount={props.groupCount} indexInGroup={props.indexInGroup} />
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { minHeight: OUTLINER_ROW_HEIGHT, flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  // Height comes from the visible columns, applied inline — a row trimmed to
+  // its title must actually get shorter, not keep a full row's worth of air.
+  row: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8 },
+  // Inset so the scene-to-scene rule reads as lighter than the chapter header's
+  // full-bleed edge — a separator, not another structural boundary.
+  divider: { marginHorizontal: 16 },
   activeBar: { position: "absolute", left: 0, top: 8, bottom: 8, width: 3, borderRadius: 3 },
   status: { width: HIT_SLOP_MIN, height: HIT_SLOP_MIN, alignItems: "center", justifyContent: "center" },
   main: { flex: 1, minWidth: 0 }, titleRow: { minHeight: HIT_SLOP_MIN, flexDirection: "row", alignItems: "center" },

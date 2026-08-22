@@ -1,5 +1,6 @@
 import type { Folder, Scene, SceneStatus } from "../../shared/binderStore";
 import { computeReorder } from "../../shared/computeReorder";
+import type { OutlinerColumnVisibility } from "./outlinerColumns";
 
 export interface OutlineGroup {
   id: string | null;
@@ -18,9 +19,27 @@ export interface OutlineSummary {
   status: Record<SceneStatus, number>;
 }
 
-/** Base rendered row height: 16px vertical row padding plus three 44px
- * interactive bands (title, synopsis, labels). */
-export const OUTLINER_ROW_HEIGHT = 148;
+/** Vertical row padding, and the minimum comfortable height of one tappable
+ *  band. A row stacks one band per field that occupies its own line. */
+const ROW_PADDING = 16;
+const ROW_BAND = 44;
+
+/** Base rendered row height: the padding plus all three stacked bands (title,
+ *  synopsis, labels) — what a row measures with every column turned on. */
+export const OUTLINER_ROW_HEIGHT = ROW_PADDING + 3 * ROW_BAND;
+
+/**
+ * Nominal row height for the columns currently shown.
+ *
+ * Only the fields that stack own a band: the status dot and the word count ride
+ * inside the title line and cost no height. This is what the drag maths steps
+ * by, so hiding the synopsis has to shrink it — otherwise a compact row would
+ * need two rows' worth of travel to move one slot.
+ */
+export function outlinerRowHeight(columns: OutlinerColumnVisibility): number {
+  const bands = 1 + (columns.synopsis ? 1 : 0) + (columns.labels ? 1 : 0);
+  return ROW_PADDING + bands * ROW_BAND;
+}
 
 /**
  * Short pieces are scenes with `folder_id` NULL plus any scene whose
@@ -133,4 +152,27 @@ export function applyOptimisticOrder(
     const rank = new Map(wanted.map((id, index) => [id, index]));
     return { ...group, scenes: [...group.scenes].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0)) };
   });
+}
+
+/**
+ * Whether a scene row reserves the hairline that separates it from the next
+ * scene in its chapter.
+ *
+ * The divider belongs to the row *above* the gap and is rendered inside that
+ * row's animated wrapper, so it slides with the row during a drag preview
+ * instead of being left behind as a stray line across the opening gap. The last
+ * row of a chapter reserves nothing: it has no next scene to be told apart
+ * from, and the next thing down is a chapter header that carries its own edge.
+ *
+ * The space is reserved whether or not the line is currently inked, so lifting
+ * a row cannot change its height and shunt the whole list up by a pixel.
+ */
+export function reservesSceneDivider(indexInGroup: number, groupCount: number): boolean {
+  return indexInGroup < groupCount - 1;
+}
+
+/** ...and that reserved hairline only carries ink while the row is at rest — a
+ *  lifted row is one clean shadowed card, with no rule across its bottom edge. */
+export function showsSceneDivider(indexInGroup: number, groupCount: number, dragging: boolean): boolean {
+  return !dragging && reservesSceneDivider(indexInGroup, groupCount);
 }

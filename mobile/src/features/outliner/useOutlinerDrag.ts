@@ -1,9 +1,9 @@
-import { createContext, useRef } from "react";
+import { useRef } from "react";
 import type { SharedValue } from "react-native-reanimated";
 import { useSharedValue } from "react-native-reanimated";
 
 import type { OutlineGroup } from "./outlinerModel";
-import { OUTLINER_ROW_HEIGHT, outlinerDropIndex, outlinerPreviewOffsets } from "./outlinerModel";
+import { outlinerDropIndex, outlinerPreviewOffsets } from "./outlinerModel";
 
 export interface OutlinerDrop {
   sceneId: string;
@@ -34,10 +34,6 @@ export interface OutlinerDrag {
   cancel: () => void;
 }
 
-/** Lets the list's cell renderer see the live drag without re-creating the cell
- *  component on every render. */
-export const OutlinerDragContext = createContext<OutlinerDrag | null>(null);
-
 export type OutlinerReorder = (sceneId: string, groupId: string | null, toIndex: number) => void;
 
 interface Pending {
@@ -47,25 +43,28 @@ interface Pending {
 }
 
 /** Measured row heights plus the offset calculation that reads them. */
-function usePreview(groups: readonly OutlineGroup[]) {
+function usePreview(groups: readonly OutlineGroup[], rowHeight: number) {
   const heights = useRef<Record<string, number>>({});
   return {
     measure: (sceneId: string, height: number) => { heights.current[sceneId] = height; },
     preview: (drop: OutlinerDrop, toIndex: number) => {
       const ids = groups.find(({ id }) => id === drop.groupId)?.scenes.map(({ id }) => id) ?? [];
-      const measured = ids.map((id) => heights.current[id] ?? OUTLINER_ROW_HEIGHT);
+      const measured = ids.map((id) => heights.current[id] ?? rowHeight);
       const values = outlinerPreviewOffsets(measured, drop.fromIndex, toIndex);
       return Object.fromEntries(ids.map((id, index) => [id, values[index] ?? 0]));
     },
   };
 }
 
-export function useOutlinerDrag(groups: readonly OutlineGroup[], onReorder: OutlinerReorder): OutlinerDrag {
+/** `rowHeight` is the nominal height of a row under the columns currently
+ *  shown — it sets how far a finger must travel to step one slot, so a row
+ *  stripped down to its title moves as readily as a full one. */
+export function useOutlinerDrag(groups: readonly OutlineGroup[], onReorder: OutlinerReorder, rowHeight: number): OutlinerDrag {
   const activeId = useSharedValue("");
   const offsets = useSharedValue<Record<string, number>>({});
   const snap = useSharedValue(true);
   const pending = useRef<Pending | null>(null);
-  const { measure, preview } = usePreview(groups);
+  const { measure, preview } = usePreview(groups, rowHeight);
 
   const cancel = () => {
     snap.value = true;
@@ -80,13 +79,13 @@ export function useOutlinerDrag(groups: readonly OutlineGroup[], onReorder: Outl
     activeId.value = drop.sceneId;
   };
   const move = (drop: OutlinerDrop) => {
-    const toIndex = outlinerDropIndex(drop.fromIndex, drop.translationY, drop.count);
+    const toIndex = outlinerDropIndex(drop.fromIndex, drop.translationY, drop.count, rowHeight);
     if (!pending.current || pending.current.toIndex === toIndex) return;
     pending.current = { ...pending.current, toIndex };
     offsets.value = preview(drop, toIndex);
   };
   const end = (drop: OutlinerDrop) => {
-    const toIndex = outlinerDropIndex(drop.fromIndex, drop.translationY, drop.count);
+    const toIndex = outlinerDropIndex(drop.fromIndex, drop.translationY, drop.count, rowHeight);
     pending.current = { groupId: drop.groupId, fromIndex: drop.fromIndex, toIndex };
     const settled = preview(drop, toIndex);
     offsets.value = settled;

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Folder, Scene } from "../../shared/binderStore";
 import { computeReorder } from "../../shared/computeReorder";
-import { applyOptimisticOrder, buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, OUTLINER_ROW_HEIGHT, outlinerDropIndex, outlinerPreviewOffsets, outlinerPreviewSlot, reorderGroupIds, summarizeOutline } from "./outlinerModel";
+import { applyOptimisticOrder, buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, OUTLINER_ROW_HEIGHT, outlinerDropIndex, outlinerPreviewOffsets, outlinerPreviewSlot, outlinerRowHeight, reorderGroupIds, reservesSceneDivider, showsSceneDivider, summarizeOutline } from "./outlinerModel";
 
 const folders: Folder[] = [
   { id: "c1", project_id: "p", title: "Chapter 1", sort_order: 1 },
@@ -119,5 +119,54 @@ describe("outliner optimistic order", () => {
     expect(applyOptimisticOrder(groups, { c1: ["c", "b"] })[0].scenes.map(({ id }) => id)).toEqual(["a", "b", "c"]);
     expect(applyOptimisticOrder(groups, { c1: ["c", "b", "gone"] })[0].scenes.map(({ id }) => id)).toEqual(["a", "b", "c"]);
     expect(applyOptimisticOrder(groups, {})[0].scenes.map(({ id }) => id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("scene dividers", () => {
+  it("separates consecutive scenes inside a chapter", () => {
+    expect([0, 1, 2].map((index) => showsSceneDivider(index, 4, false))).toEqual([true, true, true]);
+  });
+
+  it("stops at the last row of a chapter, so the divider never runs into the next header", () => {
+    expect(showsSceneDivider(3, 4, false)).toBe(false);
+    expect(showsSceneDivider(0, 1, false)).toBe(false);
+    expect(showsSceneDivider(0, 0, false)).toBe(false);
+  });
+
+  it("drops the divider off a lifted row, so a dragged card carries no hairline", () => {
+    expect(showsSceneDivider(0, 4, true)).toBe(false);
+    expect(showsSceneDivider(3, 4, true)).toBe(false);
+  });
+});
+
+describe("reserved divider space", () => {
+  it("reserves the hairline box for every row a scene follows, lifted or not", () => {
+    expect([0, 1, 2, 3].map((index) => reservesSceneDivider(index, 4))).toEqual([true, true, true, false]);
+    expect(reservesSceneDivider(0, 1)).toBe(false);
+    expect(reservesSceneDivider(0, 0)).toBe(false);
+  });
+});
+
+describe("row height under column choices", () => {
+  const all = { status: true, synopsis: true, words: true, labels: true };
+
+  it("matches the full-row constant when every column shows", () => {
+    expect(outlinerRowHeight(all)).toBe(OUTLINER_ROW_HEIGHT);
+  });
+
+  it("drops a band for each stacked field that is hidden", () => {
+    expect(outlinerRowHeight({ ...all, labels: false })).toBe(104);
+    expect(outlinerRowHeight({ ...all, synopsis: false })).toBe(104);
+    expect(outlinerRowHeight({ ...all, synopsis: false, labels: false })).toBe(60);
+  });
+
+  it("charges nothing for the status dot or word count — they ride the title line", () => {
+    expect(outlinerRowHeight({ ...all, status: false, words: false })).toBe(OUTLINER_ROW_HEIGHT);
+  });
+
+  it("steps the drop index by the shorter row once the synopsis is off", () => {
+    const compact = outlinerRowHeight({ ...all, synopsis: false, labels: false });
+    expect(outlinerDropIndex(0, compact, 4, compact)).toBe(1);
+    expect(outlinerDropIndex(0, compact, 4, OUTLINER_ROW_HEIGHT)).toBe(0);
   });
 });

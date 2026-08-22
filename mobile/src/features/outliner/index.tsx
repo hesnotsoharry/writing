@@ -1,9 +1,9 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useContext, useMemo, useState } from "react";
-import type { FlatListProps } from "react-native";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import type { NativeGesture } from "react-native-gesture-handler";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Icon, IconButton, Screen, StatusDot, Topbar } from "../../components";
 import { getBinderStore, getLabelStore } from "../../db/stores";
@@ -16,33 +16,25 @@ import { HIT_SLOP_MIN } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import type { CreatePromptResult } from "../binder/createPromptModel";
 import { CreatePromptSheet } from "../binder/CreatePromptSheet";
-import type { OutlineItem } from "./outlinerModel";
-import { applyOptimisticOrder, buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, reorderGroupIds, summarizeOutline } from "./outlinerModel";
+import type { OutlinerColumnVisibility } from "./outlinerColumns";
+import { describeOutlinerColumns } from "./outlinerColumns";
+import { OutlinerColumnsSheet } from "./OutlinerColumnsSheet";
+import type { OutlineGroup, OutlineItem } from "./outlinerModel";
+import { applyOptimisticOrder, buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, outlinerRowHeight, reorderGroupIds, summarizeOutline } from "./outlinerModel";
 import { OutlinerRow } from "./OutlinerRow";
+import { useOutlinerColumns } from "./useOutlinerColumns";
 import { useOutlinerData } from "./useOutlinerData";
-import { OutlinerDragContext, useOutlinerDrag } from "./useOutlinerDrag";
+import type { OutlinerDrag } from "./useOutlinerDrag";
+import { useOutlinerDrag } from "./useOutlinerDrag";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Outliner">;
-type OutlineCellProps = React.ComponentProps<NonNullable<FlatListProps<OutlineItem>["CellRendererComponent"]>>;
+type OutlineSceneItem = Extract<OutlineItem, { kind: "scene" }>;
+type OutlinerSheet = "none" | "create" | "columns";
 
-/**
- * VirtualizedList wraps every row in its own cell view, so a dragged row can
- * only stack above its neighbours if the *cell* is raised — a zIndex inside the
- * row cannot escape it. Chapter headers keep the plain default view; they are
- * the sticky ones, and nothing drags them.
- */
-function OutlineCell(props: OutlineCellProps) {
-  const drag = useContext(OutlinerDragContext);
-  const sceneId = props.item.kind === "scene" ? props.item.scene.id : "";
-  const lift = useAnimatedStyle(() => ({ zIndex: drag !== null && drag.activeId.value === sceneId ? 4 : 0 }));
-  // `onFocusCapture` is how VirtualizedList keeps a focused row (these have
-  // text inputs) mounted while the window scrolls — forward it, don't drop it.
-  const cell = { onFocusCapture: props.onFocusCapture, onLayout: props.onLayout };
-  if (props.item.kind === "header") return <View {...cell} style={props.style}>{props.children}</View>;
-  return <Animated.View {...cell} style={[props.style, lift]}>{props.children}</Animated.View>;
-}
+/** Gap kept between the focused input and the keyboard; mirrors Screen's own offset. */
+const KEYBOARD_BOTTOM_OFFSET = 24;
 
-function ChapterHeader({ group, reload }: { group: ReturnType<typeof buildOutlineGroups>[number]; reload: () => void }) {
+function ChapterHeader({ group, reload }: { group: OutlineGroup; reload: () => void }) {
   const theme = useTheme();
   const rename = (title: string) => {
     if (group.id === null || title === "" || title === group.title) return;
@@ -103,11 +95,13 @@ function persistOutlinerScene(projectId: string, result: CreatePromptResult, rel
   })).then(reload);
 }
 
-function OutlinerTopbar({ onBack }: { onBack: () => void }) {
+function OutlinerTopbar({ columns, onBack, onColumns }: {
+  columns: OutlinerColumnVisibility; onBack: () => void; onColumns: () => void;
+}) {
   const theme = useTheme();
   return <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={onBack} />} title="Outliner"
-    trailing={<Pressable accessibilityLabel="Column options" style={[styles.columns, { backgroundColor: theme.colors.parchment }]}>
-      <Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Columns</Text>
+    trailing={<Pressable accessibilityLabel="Column options" onPress={onColumns} style={[styles.columns, { backgroundColor: theme.colors.parchment }]}>
+      <Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>{describeOutlinerColumns(columns)}</Text>
       <Icon color={theme.colors.ink2} name="chevDown" size={13} />
     </Pressable>} />;
 }
@@ -125,37 +119,91 @@ function OutlinerFooter({ onCreate, scenes }: {
   </View>;
 }
 
+/** Everything a row needs that is the same for every row, bundled so the list
+ *  can hand it down without a dozen repeated props. */
+interface OutlineRowContext {
+  activeId: string | null;
+  columns: OutlinerColumnVisibility;
+  data: ReturnType<typeof useOutlinerData>;
+  drag: OutlinerDrag;
+  groups: OutlineGroup[];
+  onActivate: (sceneId: string) => void;
+  scrollGesture: NativeGesture;
+}
+
+function OutlineSceneRow({ context, item }: { context: OutlineRowContext; item: OutlineSceneItem }) {
+  const { columns, data, drag, groups, scrollGesture } = context;
+  const { scene } = item;
+  const group = groups.find(({ id }) => id === item.groupId);
+  return <OutlinerRow active={context.activeId === scene.id} availableLabels={data.labels} columns={columns}
+    drag={drag} groupCount={group?.scenes.length ?? 1} groupId={item.groupId} indexInGroup={item.indexInGroup}
+    labels={data.sceneLabels[scene.id] ?? []} onActivate={() => context.onActivate(scene.id)}
+    onRename={(value) => commitSceneField("rename", scene.id, value, data.reload)}
+    onStatus={(status: SceneStatus) => void getBinderStore().then((store) => store.setSceneStatus(scene.id, status)).then(data.reload)}
+    onSynopsis={(value) => commitSceneField("synopsis", scene.id, value, data.reload)}
+    onToggleLabel={(label, assigned) => toggleLabel(scene.id, label, assigned, data.reload)}
+    scene={scene} scrollGesture={scrollGesture} />;
+}
+
+function OutlineItemView({ context, item }: { context: OutlineRowContext; item: OutlineItem }) {
+  if (item.kind === "header") return <ChapterHeader group={item.group} reload={context.data.reload} />;
+  return <OutlineSceneRow context={context} item={item} />;
+}
+
+/**
+ * A keyboard-aware scroll view, not a FlatList.
+ *
+ * Every row here carries TextInputs, so a row in the bottom half of the screen
+ * sits under the software keyboard the moment it is focused; the fix the rest
+ * of the app uses is `KeyboardAwareScrollView`, which a virtualized list cannot
+ * simply become. Rendering the rows straight into one is affordable — this is a
+ * single manuscript's scenes, the same set the corkboard already renders in a
+ * plain ScrollView — and it pays for itself twice over: sibling rows can be
+ * z-ordered directly (the FlatList cell wrapper used to swallow the dragged
+ * row's lift), and every row reports its measured height, so the drag preview
+ * stops guessing at `OUTLINER_ROW_HEIGHT` for rows the window had not rendered.
+ *
+ * `mode="layout"` is deliberate. The default "insets" mode nests the scroller
+ * inside a native clipping view, which would leave `Gesture.Native()` bound to
+ * a wrapper rather than the real scroll view — and the row pan's
+ * `blocksExternalGesture` has to be able to stop *the scroller* mid-drag.
+ */
+function OutlinerList({ context, items, sticky }: {
+  context: OutlineRowContext; items: OutlineItem[]; sticky: number[];
+}) {
+  return (
+    <GestureDetector gesture={context.scrollGesture}>
+      <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET} keyboardShouldPersistTaps="handled"
+        mode="layout" stickyHeaderIndices={sticky}>
+        {items.map((item) => <OutlineItemView context={context} item={item} key={item.key} />)}
+      </KeyboardAwareScrollView>
+    </GestureDetector>
+  );
+}
+
 function OutlinerBody({ navigation, projectId }: Pick<Props, "navigation"> & { projectId: string }) {
   const theme = useTheme();
   const data = useOutlinerData(projectId);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [sheet, setSheet] = useState<OutlinerSheet>("none");
+  const { columns, toggle } = useOutlinerColumns();
   const { groups, reorder } = useOrderedGroups(data);
   const items = useMemo(() => flattenOutline(groups), [groups]);
   const sticky = useMemo(() => deriveStickyHeaderIndices(items), [items]);
   const scrollGesture = useMemo(() => Gesture.Native(), []);
-  const drag = useOutlinerDrag(groups, reorder);
-  const renderItem = ({ item }: { item: (typeof items)[number] }) => {
-    if (item.kind === "header") return <ChapterHeader group={item.group} reload={data.reload} />;
-    const group = groups.find(({ id }) => id === item.groupId);
-    return <OutlinerRow active={activeId === item.scene.id} availableLabels={data.labels} groupCount={group?.scenes.length ?? 1}
-      groupId={item.groupId} indexInGroup={item.indexInGroup} labels={data.sceneLabels[item.scene.id] ?? []}
-      drag={drag} onActivate={() => setActiveId(item.scene.id)}
-      onRename={(value) => commitSceneField("rename", item.scene.id, value, data.reload)}
-      onStatus={(status: SceneStatus) => void getBinderStore().then((store) => store.setSceneStatus(item.scene.id, status)).then(data.reload)}
-      onSynopsis={(value) => commitSceneField("synopsis", item.scene.id, value, data.reload)}
-      onToggleLabel={(label, assigned) => toggleLabel(item.scene.id, label, assigned, data.reload)} scene={item.scene} scrollGesture={scrollGesture} />;
-  };
+  const drag = useOutlinerDrag(groups, reorder, outlinerRowHeight(columns));
+  const close = () => { setSheet("none"); };
+  const context = { activeId, columns, data, drag, groups, onActivate: setActiveId, scrollGesture };
   return (
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.paper }]}>
-      <OutlinerTopbar onBack={navigation.goBack} />
-      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <OutlinerDragContext.Provider value={drag}><GestureDetector gesture={scrollGesture}>
-        <FlatList CellRendererComponent={OutlineCell} data={items} keyExtractor={({ key }) => key} renderItem={renderItem} stickyHeaderIndices={sticky} />
-      </GestureDetector></OutlinerDragContext.Provider>}
-      <OutlinerFooter onCreate={() => { setCreating(true); }} scenes={data.scenes} />
-      {creating && <CreatePromptSheet folders={data.folders} kind="scene" open
-        onConfirm={(result) => { setCreating(false); persistOutlinerScene(projectId, result, data.reload); }}
-        onDismiss={() => { setCreating(false); }} />}
+      <OutlinerTopbar columns={columns} onBack={navigation.goBack} onColumns={() => { setSheet("columns"); }} />
+      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} />
+        : <OutlinerList context={context} items={items} sticky={sticky} />}
+      <OutlinerFooter onCreate={() => { setSheet("create"); }} scenes={data.scenes} />
+      <OutlinerColumnsSheet columns={columns} onDismiss={close} onToggle={toggle} open={sheet === "columns"} />
+      {sheet === "create" && <CreatePromptSheet folders={data.folders} kind="scene" open
+        onConfirm={(result) => { close(); persistOutlinerScene(projectId, result, data.reload); }}
+        onDismiss={close} />}
     </Screen>
   );
 }
