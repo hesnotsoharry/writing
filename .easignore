@@ -1,0 +1,37 @@
+# EAS Build archive excludes (for mobile/ iOS cloud builds).
+# EAS archives from the REPO ROOT (monorepo detection), and when .easignore
+# exists it is used INSTEAD of .gitignore — so this replicates .gitignore's
+# excludes and adds the mobile-specific ones. mobile/.easignore is NOT read.
+
+.git/
+node_modules/
+.superpowers/
+dist/
+target/
+*.log
+.env
+.env.local
+.env.*.local
+eval/.env.eval
+eval/runs/
+.wrangler/
+.codex/
+release-archive/
+
+# Desktop (Tauri) build artifacts — gigabytes, never needed on EAS runners
+src-tauri/target/
+
+# Expo local state + locally-built Android project (built with Gradle on this
+# machine, never on EAS; holds ~8GB of native intermediates)
+mobile/.expo/
+mobile/android/
+
+# iOS signing credentials: eas-cli reads them from disk pre-upload; never ship
+mobile/credentials.json
+mobile/credentials/
+
+# Repo content irrelevant to the mobile build
+.claude/
+.github/
+marketing/
+release-archive/

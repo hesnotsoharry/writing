@@ -39,7 +39,7 @@
       ]
     ],
     "android": {
-      "package": "com.coles.writersnook",
+      "package": "app.writersnook",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -47,14 +47,41 @@
       },
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "permissions": [
+        "android.permission.CAMERA"
       ]
     },
     "ios": {
-      "bundleIdentifier": "com.coles.writersnook",
+      "bundleIdentifier": "app.writersnook",
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "8"
+    },
+    "extra": {
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "app.writersnook.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.app.writersnook"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "77af6f96-7e0d-49ca-b5ba-40342b40c15c"
       }
-    }
+    },
+    "owner": "codingmagic"
   }
 }

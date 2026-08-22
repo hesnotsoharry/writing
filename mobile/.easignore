@@ -1,0 +1,17 @@
+# EAS build archive excludes. NOTE: when this file exists EAS uses it INSTEAD of
+# .gitignore, so it must be complete on its own.
+# editor-web/dist is deliberately NOT excluded (rebuilt on the runner via
+# eas-build-post-install anyway, but harmless to ship).
+
+node_modules/
+.expo/
+
+# Android is built locally with Gradle, never on EAS — and holds gigabytes of
+# native build intermediates.
+android/
+
+# iOS signing credentials: read by eas-cli from disk, must not ship in the archive.
+credentials/
+credentials.json
+
+*.log

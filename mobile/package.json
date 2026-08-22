@@ -15,7 +15,7 @@
     "start": "expo start --dev-client",
     "preandroid": "npm run editor-web:build",
     "android": "expo run:android",
-    "eas-build-post-install": "npm run editor-web:build"
+    "eas-build-post-install": "npm --prefix .. ci --no-audit --no-fund && npm run editor-web:build"
   },
   "dependencies": {
     "@expo-google-fonts/hanken-grotesk": "0.4.3",

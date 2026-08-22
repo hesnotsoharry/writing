@@ -25,3 +25,10 @@ eval/runs/
 # Expo local device state (regenerable)
 mobile/.expo/
 mobile/editor-web/dist/
+
+# iOS signing credentials (p12 + provisioning profiles; canonical copies live in
+# ~/.appstoreconnect/writersnook/) — never commit
+mobile/credentials.json
+mobile/credentials/
+
+release-archive/

@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 16.0.0"
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -15,6 +16,8 @@
     },
     "production": {
       "autoIncrement": true,
+      "credentialsSource": "local",
+      "node": "24.13.0",
       "android": {
         "buildType": "app-bundle"
       },
@@ -29,7 +32,13 @@
         "track": "internal",
         "releaseStatus": "draft"
       },
-      "ios": {}
+      "ios": {
+        "ascAppId": "6804240408",
+        "appleTeamId": "W2M7ZT3V9K",
+        "ascApiKeyPath": "C:/Users/coles/.appstoreconnect/AuthKey_79UAUVWB52.p8",
+        "ascApiKeyId": "79UAUVWB52",
+        "ascApiKeyIssuerId": "ed1bcc65-7ee8-4c96-b447-190800d229e6"
+      }
     }
   }
 }
