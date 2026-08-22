@@ -2,7 +2,7 @@ import type { Vec2 } from "../../shared/frLayout";
 
 export interface Viewport { width: number; height: number }
 export interface Transform { scale: number; x: number; y: number }
-export interface MapNodeBox { id: string; x: number; y: number; width: number; height: number }
+export interface WorldBox { x: number; y: number; width: number; height: number }
 
 export const MIN_MAP_ZOOM = 0.5;
 export const MAX_MAP_ZOOM = 2.5;
@@ -28,14 +28,16 @@ export function fitToContent(points: Vec2[], viewport: Viewport, padding = 32): 
   };
 }
 
-export function screenToWorld(point: Vec2, transform: Transform): Vec2 {
-  return { x: (point.x - transform.x) / transform.scale, y: (point.y - transform.y) / transform.scale };
-}
-
-export function hitTestNode(point: Vec2, nodes: MapNodeBox[], transform: Transform): string | null {
-  const world = screenToWorld(point, transform);
-  const hit = [...nodes].reverse().find((node) =>
-    world.x >= node.x - node.width / 2 && world.x <= node.x + node.width / 2
-    && world.y >= node.y - node.height / 2 && world.y <= node.y + node.height / 2);
-  return hit?.id ?? null;
+/**
+ * Padded bounding box around a set of world-space points — the SVG frame for
+ * an edge/connector layer that lives inside a 1x1-anchored world view (see
+ * BoardCanvas's `styles.world`). Shared by the relationship map (node
+ * centres) and the brainstorm board (card top-left corners).
+ */
+export function boundingBox(points: readonly Vec2[], padding: number): WorldBox {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const x = Math.min(...xs) - padding;
+  const y = Math.min(...ys) - padding;
+  return { x, y, width: Math.max(...xs) + padding * 2 - x, height: Math.max(...ys) + padding * 2 - y };
 }

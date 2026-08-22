@@ -19,7 +19,7 @@
  */
 import { Gesture } from "react-native-gesture-handler";
 import type { SharedValue } from "react-native-reanimated";
-import { useSharedValue } from "react-native-reanimated";
+import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 
 import { MAX_MAP_ZOOM, MIN_MAP_ZOOM, type Transform, type Viewport } from "./mapViewport";
 
@@ -77,4 +77,17 @@ export function useBoardTransform(viewport: Viewport): BoardTransform {
   };
 
   return { apply, gesture: Gesture.Simultaneous(pan, pinch), scale, x, y, zoomBy };
+}
+
+/**
+ * The animated style for a transform's world layer. Built by the consumer,
+ * not folded into `useBoardTransform` itself, so the shared values it reads
+ * stay writable — see the file-header note on memoized callbacks. Shared by
+ * the brainstorm board and the relationship map, whose world layers are
+ * styled identically (translate + scale from a 1x1-anchored origin).
+ */
+export function useWorldStyle({ scale, x, y }: BoardTransform) {
+  return useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }, { translateY: y.value }, { scale: scale.value }],
+  }));
 }

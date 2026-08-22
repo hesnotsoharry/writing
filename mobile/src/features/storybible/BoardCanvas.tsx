@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 
 import { Icon } from "../../components";
@@ -9,26 +9,16 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import type { BoardCard, BoardConnection, BoardViewModel } from "./boardModel";
-import { fitToContent, type Viewport } from "./mapViewport";
-import { type BoardTransform, useBoardTransform } from "./useBoardTransform";
+import { boundingBox, fitToContent, type Viewport } from "./mapViewport";
+import { useBoardTransform, useWorldStyle } from "./useBoardTransform";
 
 /** Half the rendered card box — connectors leave and land at a card's centre. */
 const CARD_HALF = { x: 80, y: 40 };
 /** Slack around the connector layer so a bezier never clips at the SVG edge. */
 const CONNECTOR_PAD = 240;
 
-interface WorldBox { x: number; y: number; width: number; height: number }
-
-function connectorBox(cards: readonly BoardCard[]): WorldBox {
-  const xs = cards.map((card) => card.x);
-  const ys = cards.map((card) => card.y);
-  const x = Math.min(...xs) - CONNECTOR_PAD;
-  const y = Math.min(...ys) - CONNECTOR_PAD;
-  return {
-    x, y,
-    width: Math.max(...xs) + CONNECTOR_PAD * 2 - x,
-    height: Math.max(...ys) + CONNECTOR_PAD * 2 - y,
-  };
+function connectorBox(cards: readonly BoardCard[]) {
+  return boundingBox(cards, CONNECTOR_PAD);
 }
 
 /**
@@ -93,13 +83,6 @@ function useAutoFit(cards: readonly BoardCard[], viewport: Viewport, apply: (nex
     fitted.current = key;
     apply(fit);
   }, [apply, cards.length, fit, viewport.height, viewport.width]);
-}
-
-/** Built here, not in the hook, so the shared values stay writable — see useBoardTransform. */
-function useWorldStyle({ scale, x, y }: BoardTransform) {
-  return useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { translateY: y.value }, { scale: scale.value }],
-  }));
 }
 
 function ZoomButtons({ zoomBy }: { zoomBy: (factor: number) => void }) {

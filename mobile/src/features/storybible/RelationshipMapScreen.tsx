@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { Icon, Screen } from "../../components";
@@ -45,9 +45,9 @@ export function RelationshipMapScreen({ navigation, route }: Props) {
     if (data.store) void data.store.allRelations(projectId).then(setRelations);
   }, [data.store, projectId]);
   useEffect(() => { loadRelations(); }, [loadRelations]);
-  const nodes: MapNode[] = data.entries.filter((entry) => entry.type !== "theme").map((entry) => ({
+  const nodes: MapNode[] = useMemo(() => data.entries.filter((entry) => entry.type !== "theme").map((entry) => ({
     ...entry, visualType: resolveMobileType(entry.type, data.customTypes),
-  }));
+  })), [data.customTypes, data.entries]);
   const selected = nodes.find((node) => node.id === selectedId) ?? nodes[0];
   const canvasHeight = Math.max(300, height - 220);
   const toggleLink = (targetId: string) => {
