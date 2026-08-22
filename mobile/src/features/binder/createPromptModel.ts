@@ -2,8 +2,9 @@ import { SHORT_PIECES_TITLE } from "./binderTree";
 
 export const DEFAULT_SCENE_TITLE = "Untitled scene";
 export const DEFAULT_CHAPTER_TITLE = "New chapter";
+export const DEFAULT_PROJECT_TITLE = "Untitled project";
 
-export type CreateKind = "scene" | "chapter";
+export type CreateKind = "scene" | "chapter" | "project";
 
 export interface CreateFolderOption {
   id: string;
@@ -43,7 +44,9 @@ export interface CommitCreateInput {
 
 /** Placeholder shown in the prompt — also the title written when input is empty. */
 export function defaultTitleFor(kind: CreateKind): string {
-  return kind === "scene" ? DEFAULT_SCENE_TITLE : DEFAULT_CHAPTER_TITLE;
+  if (kind === "scene") return DEFAULT_SCENE_TITLE;
+  if (kind === "chapter") return DEFAULT_CHAPTER_TITLE;
+  return DEFAULT_PROJECT_TITLE;
 }
 
 /**

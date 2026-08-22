@@ -4,6 +4,7 @@ import type { DbClient } from "../shared/dbClient";
 import { normalizeStatus } from "../shared/status";
 import { MobileArchiveStore } from "./mobileArchiveStore";
 import { bootstrapMobileProjectBible } from "./mobileBibleLocalBridge";
+import { MobileBoardsStore } from "./mobileBoardsStore";
 import {
   bootstrapMobileProjectMeta,
   bridgeMobileFolder,
@@ -18,7 +19,11 @@ interface RawScene extends Omit<Scene, "status" | "excludeFromAi"> {
 
 export class MobileBinderStore implements BinderStore {
   private readonly archive: MobileArchiveStore;
-  constructor(private readonly db: DbClient) { this.archive = new MobileArchiveStore(db); }
+  private readonly boards: MobileBoardsStore;
+  constructor(private readonly db: DbClient) {
+    this.archive = new MobileArchiveStore(db);
+    this.boards = new MobileBoardsStore(db);
+  }
 
   listProjects(): Promise<Project[]> {
     return this.db.select("SELECT id, title, type, sort_order, created_at, updated_at FROM projects ORDER BY sort_order");
@@ -36,6 +41,7 @@ export class MobileBinderStore implements BinderStore {
     await Promise.all([
       bootstrapMobileProjectMeta({ id, title: args.title, type: args.type }),
       bootstrapMobileProjectBible(id),
+      this.boards.ensureDefaultBoard(id),
     ]);
     return id;
   }

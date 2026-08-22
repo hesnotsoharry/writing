@@ -12,7 +12,13 @@ import { getPairedDeviceName } from "../../sync/pairedDevice";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import type { CreatePromptResult } from "../binder/createPromptModel";
+import { CreatePromptSheet } from "../binder/CreatePromptSheet";
 import { loadProjectsModel, type ProjectCardModel, projectTypeLabel, syncBadgeLabel } from "./projectsModel";
+
+/** CreatePromptSheet expects a folder list — a project has none, and the
+ *  "project" kind never renders the folder picker, so this is always empty. */
+const NO_FOLDERS: never[] = [];
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectList">;
 type LoadState = "loading" | "ready" | "error";
@@ -92,15 +98,17 @@ export function ProjectsScreen({ navigation }: Props) {
   const theme = useTheme();
   const [state, setState] = useState<LoadState>("loading");
   const [projects, setProjects] = useState<ProjectCardModel[]>([]);
+  const [creating, setCreating] = useState(false);
   const load = useCallback(() => {
     void loadProjectsModel().then((rows) => { setProjects(rows); setState("ready"); }).catch(() => setState("error"));
   }, []);
   useEffect(load, [load]);
   useEffect(() => subscribeMobileStructureChanged(load), [load]);
   const open = useCallback((item: ProjectCardModel) => navigation.navigate("Hub", { projectId: item.id, projectTitle: item.title }), [navigation]);
-  const create = useCallback(() => {
-    void getBinderStore().then((store) => store.createProject({ title: "Untitled project", type: "novel" }))
-      .then((projectId) => navigation.navigate("Hub", { projectId, projectTitle: "Untitled project" }));
+  const onConfirmCreate = useCallback((result: CreatePromptResult) => {
+    setCreating(false);
+    void getBinderStore().then((store) => store.createProject({ title: result.title, type: "novel" }))
+      .then((projectId) => navigation.navigate("Hub", { projectId, projectTitle: result.title }));
   }, [navigation]);
   return (
     <Screen contentStyle={styles.screen}>
@@ -110,8 +118,10 @@ export function ProjectsScreen({ navigation }: Props) {
       </View>
       {state === "loading" && <View style={styles.center}><ActivityIndicator color={theme.colors.accent} /></View>}
       {state === "error" && <View style={styles.center}><Text style={[TYPE.body, { color: theme.colors.danger }]}>Couldn’t load your projects.</Text></View>}
-      {state === "ready" && <ProjectsContent onNew={create} onOpen={open} projects={projects} />}
+      {state === "ready" && <ProjectsContent onNew={() => { setCreating(true); }} onOpen={open} projects={projects} />}
       <PairedFooter onPair={() => navigation.navigate("Pair")} />
+      {creating && <CreatePromptSheet folders={NO_FOLDERS} kind="project"
+        onConfirm={onConfirmCreate} onDismiss={() => { setCreating(false); }} open />}
     </Screen>
   );
 }

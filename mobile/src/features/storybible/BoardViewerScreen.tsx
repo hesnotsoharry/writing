@@ -25,7 +25,13 @@ function useBoard(projectId: string, boardId?: string) {
   const [meta, setMeta] = useState<BoardMeta | null>(null); const [model, setModel] = useState<BoardViewModel>({ cards: [], connections: [] });
   const [entities, setEntities] = useState<Entity[]>([]); const [nonce, setNonce] = useState(0);
   useEffect(() => { void Promise.all([getBoardsStore(), getStoryBibleStore()]).then(async ([boards, bible]) => {
-    const list = await boards.list(projectId); const board = list.find((item) => item.id === boardId) ?? list[0];
+    let list = await boards.list(projectId);
+    // Self-heal: a project synced in before board bootstrap existed (or one
+    // born on a device that skipped it) can have zero board rows. Rather than
+    // a distinct empty state, seed the default board on demand — the same
+    // move desktop's own binder makes when it opens Brainstorm on an empty list.
+    if (list.length === 0) { await boards.ensureDefaultBoard(projectId); list = await boards.list(projectId); }
+    const board = list.find((item) => item.id === boardId) ?? list[0];
     const loadedEntities = await bible.listEntities(projectId);
     setEntities(loadedEntities);
     if (board) { setMeta({ id: board.id, title: board.title }); setModel(decodeBoard(await boards.docs.load(board.id))); }

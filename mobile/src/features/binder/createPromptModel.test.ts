@@ -5,6 +5,7 @@ import {
   buildFolderChoices,
   commitCreatePrompt,
   DEFAULT_CHAPTER_TITLE,
+  DEFAULT_PROJECT_TITLE,
   DEFAULT_SCENE_TITLE,
   defaultTitleFor,
   resolveCreateTitle,
@@ -37,6 +38,7 @@ describe("defaultTitleFor", () => {
   it("uses the live placeholder for each kind", () => {
     expect(defaultTitleFor("scene")).toBe(DEFAULT_SCENE_TITLE);
     expect(defaultTitleFor("chapter")).toBe(DEFAULT_CHAPTER_TITLE);
+    expect(defaultTitleFor("project")).toBe(DEFAULT_PROJECT_TITLE);
   });
 });
 
@@ -108,5 +110,15 @@ describe("commitCreatePrompt", () => {
       titleInput: "",
       knownIds: ["ch1"],
     })).toEqual({ title: DEFAULT_CHAPTER_TITLE, folderId: "ch1" });
+    expect(commitCreatePrompt({
+      kind: "project",
+      titleInput: "  ",
+      knownIds: [],
+    })).toEqual({ title: DEFAULT_PROJECT_TITLE, folderId: null });
+    expect(commitCreatePrompt({
+      kind: "project",
+      titleInput: "  My Novel  ",
+      knownIds: [],
+    })).toEqual({ title: "My Novel", folderId: null });
   });
 });

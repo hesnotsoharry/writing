@@ -43,6 +43,14 @@ function FolderPicker({ choices, onSelect, selectedId }: {
   );
 }
 
+const HEADLINE: Record<CreateKind, string> = { scene: "New scene", chapter: "New chapter", project: "New project" };
+const FIELD_LABEL: Record<CreateKind, string> = {
+  scene: "Scene title", chapter: "Chapter title", project: "Project title",
+};
+const CONFIRM_LABEL: Record<CreateKind, string> = {
+  scene: "Create scene", chapter: "Create chapter", project: "Create project",
+};
+
 function CreatePromptForm(props: Omit<CreatePromptSheetProps, "onDismiss" | "open">) {
   const theme = useTheme();
   const fallback = defaultTitleFor(props.kind);
@@ -59,23 +67,19 @@ function CreatePromptForm(props: Omit<CreatePromptSheetProps, "onDismiss" | "ope
   };
   return (
     <View style={styles.content}>
-      <Text style={[TYPE.bodyStrong, { color: theme.colors.ink }]}>
-        {props.kind === "scene" ? "New scene" : "New chapter"}
-      </Text>
-      <TextField autoFocus label={props.kind === "scene" ? "Scene title" : "Chapter title"}
+      <Text style={[TYPE.bodyStrong, { color: theme.colors.ink }]}>{HEADLINE[props.kind]}</Text>
+      <TextField autoFocus label={FIELD_LABEL[props.kind]}
         onChangeText={setTitle} onSubmitEditing={commit} returnKeyType="done"
         selectTextOnFocus value={title} />
       {props.kind === "scene" && <FolderPicker choices={buildFolderChoices(props.folders)}
         onSelect={setFolderId} selectedId={folderId} />}
-      <PrimaryButton onPress={commit}>
-        {props.kind === "scene" ? "Create scene" : "Create chapter"}
-      </PrimaryButton>
+      <PrimaryButton onPress={commit}>{CONFIRM_LABEL[props.kind]}</PrimaryButton>
     </View>
   );
 }
 
 export function CreatePromptSheet(props: CreatePromptSheetProps) {
-  const height = props.kind === "chapter" ? 280 : 520;
+  const height = props.kind === "scene" ? 520 : 280;
   return (
     <Sheet designHeight={height} onDismiss={props.onDismiss} open={props.open} scrollable>
       <CreatePromptForm folders={props.folders} impliedFolderId={props.impliedFolderId}

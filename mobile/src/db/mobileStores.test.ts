@@ -327,6 +327,25 @@ describe("mobile creation-time and ensure-sweep bootstrap", () => {
     expect(await new DbProjectDomainDocStore(db).load("bible", "stranded")).not.toBeNull();
   });
 
+  it("seeds a default board when a project is created", async () => {
+    const projectId = await project(new MobileBinderStore(db));
+    const boards = await new MobileBoardsStore(db).list(projectId);
+    expect(boards).toHaveLength(1);
+    expect(boards[0]).toMatchObject({ project_id: projectId, title: "Default Board", sort: 0 });
+  });
+
+  it("ensureDefaultBoard is idempotent — never doubles up on an existing board", async () => {
+    const projectId = await project(new MobileBinderStore(db));
+    const store = new MobileBoardsStore(db);
+    const seeded = await store.list(projectId);
+    expect(seeded).toHaveLength(1);
+    await store.ensureDefaultBoard(projectId);
+    await store.ensureDefaultBoard(projectId);
+    const after = await store.list(projectId);
+    expect(after).toHaveLength(1);
+    expect(after[0].id).toBe(seeded[0].id);
+  });
+
   it("ensure sweeps do not touch or overwrite a project's existing docs", async () => {
     const binder = new MobileBinderStore(db);
     const projectId = await project(binder);
