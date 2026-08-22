@@ -70,8 +70,21 @@ function useSceneConnections({ focusMode, navigation, projectId, projectTitle, s
       entityId: tap.entityId, entityType: tap.entityType,
       anchor: { ...tap.anchor, y: tap.anchor.y + (focusModeRef.current ? 0 : 46) } });
   }, [navigation, projectId]);
+  /**
+   * The sparkle is the assistant, not just a selection tool.
+   *
+   * It used to return silently whenever nothing was highlighted, which read as
+   * a dead button — the assistant was reachable from exactly one place in the
+   * app, and only via a selection. With no selection it now opens the chat
+   * directly; the route's `sceneId` is what scopes the conversation, and
+   * nothing in the assistant needs a selection to work.
+   */
   const onRequestSelectionActions = useCallback<NonNullable<SceneEditorHostProps["onRequestSelectionActions"]>>((selection, command) => {
-    if (!projectId || !selection || selection.collapsed) return;
+    if (!projectId) return;
+    if (!selection || selection.collapsed) {
+      navigation.navigate("AiAssistant", { projectId, sceneId });
+      return;
+    }
     clearAiSelection.current?.();
     clearAiSelection.current = registerAiSelection({ sceneId,
       aiSafeText: selection.aiSafeText, wordCount: countWords(selection.aiSafeText),
