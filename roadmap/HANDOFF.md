@@ -37,11 +37,16 @@ updated: 2026-08-22
   flips; the re-exchange path never checks. Contact + newsletter enforce
   outright once `TURNSTILE_SECRET_KEY` exists (they deploy in lockstep with
   their forms). Widgets render only once the placeholder site key in
-  `marketing/public/site.js` is replaced. **Still needed:** create the widget
-  in the Cloudflare dashboard (the stored API token lacks Turnstile scope and
-  the Chrome extension was offline), set the Pages secret, patch the site key
-  — then phase 2 (desktop client flow, needs Cole's UX pick from the scout
-  memo §7) and the phase-3 flag flip after that release soaks.
+  `marketing/public/site.js` is replaced. **Phase 2 is also built** (same day,
+  `2672950`, in v0.12.9): the desktop client no longer first-grants silently —
+  the assistant panel shows a one-time activation card hosting the challenge
+  page in an iframe, usable even when the widget is unavailable while the
+  server stays permissive. Existing trials (stored key) see zero change.
+  **Still needed:** create the widget in the Cloudflare dashboard (the stored
+  API token lacks Turnstile scope and the Chrome extension was offline), set
+  the Pages secret, patch the placeholder site key in `site.js` AND
+  `turnstile-challenge.html` — then the phase-3 `TURNSTILE_ENFORCED` flip
+  once the v0.12.9 updater adoption soaks.
 - **Play submission plumbing** (`1fccd62`): privacy.html now covers the phone
   app (camera/QR, share sheet, E2E sync, AI credential handoff, Fathom
   site-only), mobile is `1.0.0`, and
@@ -683,9 +688,9 @@ After the fix the cold-paired emulator holds `boards: brainstorm-default`, all
    both are only real once desktop ships. Prepped and tagged 2026-08-22.
 2. **Mobile is still running a dev bundle from Metro.** The cold-pair proof used
    the dev client, not a release build. A release-build pair is still unrun.
-3. **Turnstile: phase 1 built and dark** (see 2026-08-22 above). Next: widget +
-   secret + site key, then the desktop client flow (Cole's UX pick), then the
-   enforcement flip. Still: never enforce on `master` in one step.
+3. **Turnstile: phases 1 AND 2 built; still dark** (see 2026-08-22 above).
+   Next: widget + secret + site keys, ship v0.12.9, then the enforcement
+   flip. Still: never enforce on `master` in one step.
 
 ### Mobile: still not submittable
 
