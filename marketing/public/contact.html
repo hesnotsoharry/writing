@@ -86,6 +86,7 @@
             <label for="ct-msg" style="display:block;font-family:Literata,serif;font-size:17px;font-weight:600;color:#2a251d">What's on your mind</label>
             <textarea id="ct-msg" rows="6" placeholder="Bugs, billing, a feature you wish existed, or a kind word." style="width:100%;margin-top:10px;font-size:16.5px;line-height:1.65;padding:14px 16px;border-radius:4px;border:1px solid #ddd0b8;background:#fcfaf5;color:#2a251d;resize:vertical;transition:border-color .25s ease"></textarea>
           </div>
+          <div id="ct-turnstile"></div>
           <button id="ct-send" type="submit" style="display:inline-flex;align-items:center;justify-content:center;gap:10px;font-family:'Hanken Grotesk',sans-serif;font-weight:600;font-size:16.5px;padding:16px 28px;border-radius:8px;border:none;background:#b25a38;color:#fff;cursor:pointer;box-shadow:0 12px 30px rgba(178,90,56,.2)">Send it</button>
           <p id="ct-note" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.08em;color:#8a8071;margin:0;line-height:1.9;min-height:20px">Your email is used to reply, and for nothing else.</p>
         </form>
@@ -157,6 +158,13 @@ WNMotion.ready(function () {
   var message = document.getElementById('ct-msg');
   var note = document.getElementById('ct-note');
   var send = document.getElementById('ct-send');
+  var turnstileBox = document.getElementById('ct-turnstile');
+
+  // Same guard as the newsletter forms in site.js: dark/no-op until a real
+  // site key is set, so the widget and server enforcement go live together.
+  var turnstileWidgetPromise = (window.WNTurnstile && window.WNTurnstile.enabled())
+    ? window.WNTurnstile.render(turnstileBox)
+    : null;
 
   m.reveal(document.querySelectorAll('.ct-in'), { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: .95, ease: 'power3.out' }, .11);
   m.reveal(document.querySelectorAll('.ct-rise'), { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: .9, ease: 'power3.out' }, .12);
@@ -201,16 +209,24 @@ WNMotion.ready(function () {
     note.style.color = '#8a8071';
     gsap.to(send, { backgroundColor: '#8f4429', duration: .3 });
 
+    var turnstileWidget = turnstileWidgetPromise ? await turnstileWidgetPromise : null;
+    var payload = {
+      name: name.value.trim(),
+      email: email.value.trim(),
+      message: message.value.trim(),
+    };
+    if (turnstileWidget) {
+      var turnstileToken = turnstileWidget.getToken();
+      if (turnstileToken) payload.turnstileToken = turnstileToken;
+    }
+
     try {
       var response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.value.trim(),
-          email: email.value.trim(),
-          message: message.value.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
+      if (turnstileWidget) turnstileWidget.reset();
       if (!response.ok) {
         showFailure('Something went wrong. Please email support@writersnook.app directly.');
         return;
@@ -226,6 +242,7 @@ WNMotion.ready(function () {
         },
       });
     } catch (_) {
+      if (turnstileWidget) turnstileWidget.reset();
       showFailure('Could not reach the server. Please try again shortly or email support@writersnook.app.');
     }
   });

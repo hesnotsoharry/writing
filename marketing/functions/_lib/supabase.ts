@@ -8,6 +8,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   CONTACT_TO?: string;
+  /** Turnstile secret key (siteverify). Unset → no verification anywhere (today's behavior). */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 /**
@@ -25,6 +27,12 @@ export interface AiEnv extends Env {
   TRIAL_AI_ENABLED?: string;
   /** HMAC secret for hashing CF-Connecting-IP before storing in trial_ip_grants. */
   IP_HASH_SECRET?: string;
+  /**
+   * Turnstile Phase 3 flip. 'true' → first-grant trial requests without a
+   * turnstileToken are rejected. Any other value (or absent) → Phase 1
+   * permissive mode: missing tokens are allowed through (telemetry-only).
+   */
+  TURNSTILE_ENFORCED?: string;
 }
 
 /**

@@ -1,5 +1,11 @@
 /* Writers Nook marketing — shared behavior (all pages) */
 /* global document, window, navigator, localStorage, IntersectionObserver, setTimeout, fetch */
+
+// Public Turnstile site key (not secret). Placeholder until Cole registers a real widget in the
+// Cloudflare dashboard — the guard below keeps the widget dark (and the server unenforced) until
+// then, so the two go live together.
+window.WN_TURNSTILE_SITE_KEY = "PLACEHOLDER_TURNSTILE_SITE_KEY";
+
 (function () {
   // ---- Fathom event tracking ----
   // window.fathom may not be defined yet at click time (script loads with
@@ -111,6 +117,43 @@
     if (nowT === startT) document.body.classList.add('reveal-all');
   }, 500);
 
+  // ---- Turnstile (shared helper; used by the newsletter forms below and by
+  //      contact.html's inline submit handler). Guard: if the site key is missing
+  //      or still the placeholder, `enabled()` is false and `render()` is a no-op
+  //      that resolves to null — callers submit without a token and the server
+  //      (unenforced until the secret is set) answers either way. ----
+  var turnstileLoadPromise = null;
+  function turnstileEnabled() {
+    var key = window.WN_TURNSTILE_SITE_KEY;
+    return typeof key === 'string' && key.length > 0 && key !== 'PLACEHOLDER_TURNSTILE_SITE_KEY';
+  }
+  function loadTurnstileScript() {
+    if (turnstileLoadPromise) return turnstileLoadPromise;
+    turnstileLoadPromise = new Promise(function (resolve) {
+      window.wnTurnstileOnLoad = function () { resolve(window.turnstile || null); };
+      var s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=wnTurnstileOnLoad&render=explicit';
+      s.defer = true;
+      s.onerror = function () { resolve(null); };
+      document.head.appendChild(s);
+    });
+    return turnstileLoadPromise;
+  }
+  // renderWidget: mounts an explicit widget into `container` and resolves to
+  // { getToken, reset } — or null if Turnstile is off, blocked, or fails to load.
+  function renderTurnstileWidget(container) {
+    if (!turnstileEnabled()) return Promise.resolve(null);
+    return loadTurnstileScript().then(function (ts) {
+      if (!ts) return null;
+      var widgetId = ts.render(container, { sitekey: window.WN_TURNSTILE_SITE_KEY });
+      return {
+        getToken: function () { return ts.getResponse(widgetId) || ''; },
+        reset: function () { ts.reset(widgetId); },
+      };
+    }).catch(function () { return null; });
+  }
+  window.WNTurnstile = { enabled: turnstileEnabled, render: renderTurnstileWidget };
+
   // ---- email capture forms (newsletter) ----
   // isValidEmail mirrors the server-side rule; form-utils.js is module-only so
   // we inline a matching guard here for the non-module site.js context.
@@ -133,6 +176,16 @@
   // callers that don't pass one (none currently) stay silent.
   function wireEmailForm(selector, endpoint, successMsg, eventName) {
     document.querySelectorAll(selector).forEach(function (form) {
+      // Mount once per form (not per submit) — a no-op promise resolving to null
+      // when Turnstile is off, so the rest of the flow is identical either way.
+      var widgetPromise = null;
+      if (window.WNTurnstile && window.WNTurnstile.enabled()) {
+        var box = document.createElement('div');
+        box.className = 'wn-turnstile-box';
+        box.style.margin = '10px 0 0';
+        if (form.parentNode) form.parentNode.insertBefore(box, form.nextSibling);
+        widgetPromise = window.WNTurnstile.render(box);
+      }
       form.addEventListener('submit', async function (e) {
         e.preventDefault();
         var emailInput = form.querySelector('input[type="email"], input[name="email"]');
@@ -144,11 +197,17 @@
           return;
         }
         if (submitBtn) submitBtn.disabled = true;
+        var payload = { email: email };
+        var widget = widgetPromise ? await widgetPromise : null;
+        if (widget) {
+          var token = widget.getToken();
+          if (token) payload.turnstileToken = token;
+        }
         try {
           var res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email }),
+            body: JSON.stringify(payload),
           });
           if (res.ok) {
             if (note) { note.textContent = successMsg; note.style.color = ''; }
@@ -160,6 +219,7 @@
         } catch {
           if (note) { note.textContent = 'Could not reach the server. Please try again shortly.'; note.style.color = 'var(--error,#c0392b)'; }
         } finally {
+          if (widget) widget.reset();
           if (submitBtn) submitBtn.disabled = false;
         }
       });

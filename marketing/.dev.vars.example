@@ -25,3 +25,10 @@ PROXY_SESSION_SECRET=replace-with-shared-session-secret
 TRIAL_AI_ENABLED=false
 # HMAC secret used to salt CF-Connecting-IP for the per-IP trial-grant cap (never the raw IP).
 IP_HASH_SECRET=replace-with-ip-hash-secret
+# ── Cloudflare Turnstile (Phase 1 permissive rollout) ──
+# Secret key for siteverify. Unset → no Turnstile check anywhere (today's behavior).
+# 1x0000000000000000000000000000000AA is Cloudflare's dummy "always passes" test secret.
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# 'true' rejects trial-session first-grants without a token (Phase 3 flip). Any other
+# value (or absent) is Phase 1 permissive mode: missing tokens are allowed, logged only.
+TURNSTILE_ENFORCED=false

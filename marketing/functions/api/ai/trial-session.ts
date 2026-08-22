@@ -18,9 +18,11 @@ import { buildToken, hashIp } from "../../_lib/ai-token";
 import { getCorsHeaders, handleOptions } from "../../_lib/cors";
 import { PER_IP_DAILY_GRANT_CAP, TRIAL_ALLOWANCE } from "../../_lib/credits";
 import { AiEnv, makeServiceClient } from "../../_lib/supabase";
+import { verifyTurnstileToken } from "../../_lib/turnstile";
 
 interface TrialSessionBody {
   trialKey?: unknown;
+  turnstileToken?: unknown;
 }
 
 interface SubscriptionStatusRow {
@@ -31,6 +33,45 @@ export const onRequestOptions: PagesFunction<AiEnv> = (context) => {
   return handleOptions(context.request);
 };
 
+/**
+ * Phase 1 permissive gate for the FIRST GRANT path only (re-exchange never calls this).
+ * Returns a Response to short-circuit with, or null to let the grant proceed.
+ *   - TURNSTILE_SECRET_KEY unset            → today's behavior, always null.
+ *   - token present                         → verify; 403 turnstile_failed on failure.
+ *   - token absent, TURNSTILE_ENFORCED=true → 403 update_required (Phase 3).
+ *   - token absent, otherwise               → allow through, log telemetry (Phase 1).
+ */
+async function checkTurnstileFirstGrant(
+  env: AiEnv,
+  token: string | null,
+  ip: string,
+  cors: Record<string, string>,
+): Promise<Response | null> {
+  if (!env.TURNSTILE_SECRET_KEY) return null;
+
+  if (token) {
+    const verified = await verifyTurnstileToken(token, env.TURNSTILE_SECRET_KEY, ip || undefined);
+    if (verified.success) return null;
+    return new Response(JSON.stringify({ error: "turnstile_failed" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
+
+  if (env.TURNSTILE_ENFORCED === "true") {
+    return new Response(
+      JSON.stringify({
+        error: "update_required",
+        message: "Please update WritersNook to activate the free trial.",
+      }),
+      { status: 403, headers: { "Content-Type": "application/json", ...cors } },
+    );
+  }
+
+  console.log("trial-session: no turnstile token (permissive)");
+  return null;
+}
+
 export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const cors = getCorsHeaders(context.request);
   const env = context.env;
@@ -40,6 +81,10 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
   const trialKey =
     typeof body.trialKey === "string" && body.trialKey.trim() !== ""
       ? body.trialKey
+      : null;
+  const turnstileToken =
+    typeof body.turnstileToken === "string" && body.turnstileToken.trim() !== ""
+      ? body.turnstileToken
       : null;
 
   if (trialKey !== null) {
@@ -77,6 +122,10 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     });
   }
 
+  const ip = context.request.headers.get("CF-Connecting-IP") ?? "";
+  const turnstileResponse = await checkTurnstileFirstGrant(env, turnstileToken, ip, cors);
+  if (turnstileResponse) return turnstileResponse;
+
   const newKey = "trial_" + crypto.randomUUID();
   const ipHashSecret = env.IP_HASH_SECRET;
   if (!ipHashSecret) {
@@ -86,7 +135,6 @@ export const onRequestPost: PagesFunction<AiEnv> = async (context) => {
     // (mirrors buildToken's required-secret posture). Set IP_HASH_SECRET to enable grants.
     return new Response("Internal Server Error", { status: 500, headers: cors });
   }
-  const ip = context.request.headers.get("CF-Connecting-IP") ?? "";
   const ipHash = await hashIp(ip, ipHashSecret);
 
   const { data: grantData } = await db.rpc("grant_trial", {
