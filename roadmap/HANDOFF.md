@@ -420,6 +420,48 @@ keyboard down and up).
   conflict clause would zero a locally correct count on every meta apply. Pinned
   by a test in `mobile/src/db/mobileStores.test.ts`.
 
+### Sync device list, and what it exposed about the model (2026-08-21, fifth batch)
+
+Cole could not tell whether unpairing his dev phone had worked, because the
+emulator was on the same key and the panel said only "synced with your other
+device". Built the list; answering the rest of his questions turned up a real
+gap.
+
+- **The device list is in** (`src/sync/deviceRoster.ts`, `Settings.devices.tsx`).
+  Hello gained optional `name`/`platform`; each engine keeps a roster in
+  `app_meta.sync_device_roster` with first-seen, last-seen and an online window
+  of 150s (two-and-a-half 60s sweeps, so one missed sweep is not "gone").
+  Verified in the running dev app: `CUCUMBER / Windows / this device`, with
+  `firstSeenAt` from an earlier session and `lastSeenAt` from this one, so
+  persistence is real and not a fresh stamp. Mobile reports `Platform.constants.Model`,
+  which is what finally separates a Pixel 3 XL from `sdk_gphone64_x86_64`.
+- **The panel refuses to imply access control**, because it has none. The room
+  id is HKDF(masterKey) and `RelayRoom` broadcasts to every socket in it, so the
+  key IS the identity and possession IS authorisation. "Remove from list" is
+  local bookkeeping; the caption says a device holding the key will reappear.
+- **Many devices already work; the transport was never 1:1.** What was missing
+  was memory, not capability.
+- **Desktop-to-desktop works and has been measured** (the 63s sweep note in
+  `engine.ts` came from a desktop-to-desktop run). No platform gating anywhere —
+  same panel, same flow, Windows or macOS.
+- **REAL GAP FOUND — a project created on a JOINED device never replicates.**
+  `ensureAllProjectMetas` and `ensureAllProjectBibles` both early-return when
+  `getSyncRole() === "joined"` (`meta/bridge.ts:104`, `bible/desktopBibleBridge.ts:48`),
+  they are the only callers of `bootstrapProjectMeta`/`bootstrapProjectBible`,
+  and they run at engine start only. Nothing in the project-creation path
+  bootstraps. `bridge.ts:36` states the consequence outright: "Projects without a
+  bootstrapped row stay inert." So the origin's library flows outward and edits
+  to already-replicated projects converge both ways, but a manuscript BORN on a
+  joined device is stranded with no error. Mobile is always joined. Not fixed —
+  it needs a ruling on whether "origin" should stay a per-device role at all.
+- **Revocation needs key rotation, not accounts.** Adding accounts would not by
+  itself evict a device: the room key is what grants read access, so a removed
+  device stays able to decrypt until the key changes. The architecture-preserving
+  fix is a first-class "Reset pairing key" on the origin — generate a new master
+  key, show the new string, re-pair the devices you keep. Accounts would add a
+  server, a login, password reset and a privacy surface, and still need the
+  rotation. Recommendation stands unless Cole wants accounts for other reasons.
+
 ### Mobile UX pass (2026-08-21, fourth batch)
 
 A full device run-through produced ~25 items. Several collapsed into single
