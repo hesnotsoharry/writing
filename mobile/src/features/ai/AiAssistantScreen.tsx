@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
+import Animated, { LinearTransition } from "react-native-reanimated";
 
 import { Icon, type IconName, Screen } from "../../components";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -77,8 +77,8 @@ function VerbButton({ onPress, selected, verb }: {
       accessibilityLabel={AI_VERBS[verb].label} onPress={onPress} style={[styles.verb, tint]}>
       <Icon name={VERB_ICONS[verb]} size={19}
         color={selected ? theme.label.clay : theme.colors.ink3} />
-      {selected ? <Animated.Text entering={FadeIn.duration(VERB_SLIDE_MS)} numberOfLines={1}
-        style={[TYPE.bodySmallStrong, { color: theme.label.clay }]}>{AI_VERBS[verb].label}</Animated.Text> : null}
+      {selected ? <Text numberOfLines={1}
+        style={[TYPE.bodySmallStrong, styles.verbLabel, { color: theme.label.clay }]}>{AI_VERBS[verb].label}</Text> : null}
     </Pressable>
   </Animated.View>;
 }
@@ -191,13 +191,19 @@ const styles = StyleSheet.create({
   grow: { flex: 1 }, messages: { flexGrow: 1, padding: 16, gap: 14 }, empty: { textAlign: "center", opacity: 0.62, marginTop: 48 },
   chips: { flexDirection: "row", justifyContent: "center", paddingHorizontal: 14, paddingBottom: 4, gap: 10 },
   verb: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+    flexDirection: "row", alignItems: "center", gap: 7,
     minWidth: HIT_SLOP_MIN, height: HIT_SLOP_MIN, paddingHorizontal: 12,
     borderRadius: RADIUS.pill, borderWidth: 1,
-    // Clipped so the label is uncovered by the chip growing outward from the
-    // icon, instead of arriving at full width and reading as a slide-in.
-    overflow: "hidden",
+    // `flex-start`, NOT `center`. Centring the contents meant that as the chip
+    // widened the icon drifted left and the label came in beside it — the whole
+    // pill appeared to slide. Pinned to the start, the icon does not move and
+    // the label is uncovered to its right by the chip growing, which is the
+    // only thing that should animate. `hidden` is what does the uncovering.
+    justifyContent: "flex-start", overflow: "hidden",
   },
+  // Never wraps or compresses while the chip is mid-grow, so the reveal is the
+  // chip's width and nothing else.
+  verbLabel: { flexShrink: 0 },
   composer: { paddingHorizontal: 12, paddingBottom: 12, paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
   // `center` keeps the send glyph on the field's axis; `flex-end` pinned it to
   // the bottom and left the bar looking bottom-heavy. No vertical padding here
