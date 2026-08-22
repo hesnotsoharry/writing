@@ -36,6 +36,19 @@ function useBoardsSyncRefresh(reload: () => void) {
   }, [reload]);
 }
 
+// The fixed legacy id re-attaches Phase 1's single board doc, but boards.id
+// is a bare TEXT PRIMARY KEY with no project scope, so it can be claimed by
+// exactly one project. The conflict used to be swallowed outright, leaving
+// every project after the first boardless — fall back to a fresh id instead.
+async function seedDefaultBoard(projectId: string): Promise<void> {
+  const base = { project_id: projectId, title: "Default Board", sort: 0 };
+  try {
+    await boardsStore.create({ id: "brainstorm-default", ...base });
+  } catch {
+    await boardsStore.create({ id: crypto.randomUUID(), ...base });
+  }
+}
+
 function useBoardsList(projectId: string | null) {
   const [boards, setBoards] = useState<BoardRow[]>([]);
   const seeded = useRef(false);
@@ -47,13 +60,7 @@ function useBoardsList(projectId: string | null) {
         if (rows.length > 0) { setBoards(rows); return; }
         if (seeded.current) { setBoards([]); return; }
         seeded.current = true;
-        // Seed the legacy default board so Phase 1 data is preserved on upgrade.
-        try {
-          await boardsStore.create({
-            id: "brainstorm-default", project_id: projectId,
-            title: "Default Board", sort: 0,
-          });
-        } catch { /* PK conflict — row already exists, skip */ }
+        await seedDefaultBoard(projectId);
         setBoards(await boardsStore.list(projectId));
       })
       .catch((e: unknown) => { console.error("[BrainstormSection] boards load", e); });

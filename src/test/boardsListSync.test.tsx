@@ -56,6 +56,22 @@ describe("BrainstormSection — boards list re-fetches on sync apply", () => {
     await waitFor(() => expect(screen.getByText("Synced board")).toBeInTheDocument());
   });
 
+  it("seeds a fresh-id default board when the legacy id is claimed by another project", async () => {
+    // p1's insert in beforeEach doesn't matter here; claim the legacy id for it.
+    await db.execute(
+      "INSERT INTO boards (id, project_id, title, sort) VALUES ($1, $2, $3, $4)",
+      ["brainstorm-default", "p1", "Default Board", 0],
+    );
+    render(<BrainstormSection activeProjectId="p2" onOpenBoard={vi.fn()} />);
+
+    await screen.findByText("Default Board");
+    const rows = await db.select<Array<{ id: string; project_id: string }>>(
+      "SELECT id, project_id FROM boards WHERE project_id = $1", ["p2"],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).not.toBe("brainstorm-default");
+  });
+
   it("ignores SYNC_ROWS_APPLIED_EVENT for an unrelated domain", async () => {
     render(<BrainstormSection activeProjectId="p1" onOpenBoard={vi.fn()} />);
     await screen.findByText("Existing board");
