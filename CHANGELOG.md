@@ -1,6 +1,10 @@
 # Changelog
 
-## [0.13.0] — Unreleased · WritersNook goes mobile
+## [1.0.0] — Unreleased · WritersNook goes mobile
+
+> Parked here until the companion app is in stores and Device Sync is
+> enabled in release builds. Stamp the date and re-check every claim at
+> publish time.
 
 ### Added
 - **WritersNook Companion — your novel, on your phone.** Write and edit
@@ -16,6 +20,13 @@
   time offline, and careful conflict handling: if two devices edit the same
   note at once, the other version is kept in your Inbox instead of thrown
   away.
+
+## [0.13.0] — Unreleased · goals repair + trial activation
+
+This release also carries a large amount of under-the-hood groundwork for
+Device Sync (off by default; nothing changes until you opt in when it ships).
+
+### Added
 - **AI trial activation** — starting the free AI trial is now a clear one-time
   step in the Assistant panel (with a quick automated check), instead of a
   silent background grant. Existing trials and subscriptions are unaffected.
