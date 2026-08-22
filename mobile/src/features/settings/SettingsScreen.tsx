@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Card, Hairline, Icon, ListRow, Screen, SectionLabel, Segmented, Toggle, Topbar } from "../../components";
 import type { RootStackParamList } from "../../navigation/routes";
@@ -10,6 +10,7 @@ import { useTheme, useThemePreference } from "../../theme/ThemeProvider";
 import { RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import { formatCreditDollars } from "../ai/aiLogic";
+import { clearAiCredential } from "../ai/credentialHandoff";
 import { useManagedAi } from "../ai/useManagedAi";
 import type { DeviceSettings } from "./deviceSettings";
 import { DEVICE_SETTINGS_DEFAULTS } from "./deviceSettings";
@@ -31,6 +32,21 @@ function ProseSizeControl({ onChange, value }: { onChange(value: number): void; 
 
 function Group({ children, label }: { children: React.ReactNode; label: string }) {
   return <View style={styles.group}><SectionLabel>{label}</SectionLabel><Card style={styles.groupCard}>{children}</Card></View>;
+}
+
+const REMOVE_AI_CAPTION = "Deletes the AI credential and trial key stored on this phone. "
+  + "The assistant becomes unavailable until your desktop offers it again.";
+
+/** Removing AI access is local-only: it deletes the handed-off credential and
+ *  trial key from this phone (this device holds no account of its own), and
+ *  the assistant shows its unavailable notice on the next screen that checks,
+ *  no restart needed. This is the mobile half of the app-store data-deletion
+ *  requirement. */
+function confirmRemoveAiAccess(onRemoved: () => void): void {
+  Alert.alert("Remove AI access?", "The assistant becomes unavailable until your desktop offers it again.", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Remove", style: "destructive", onPress: () => { void clearAiCredential().then(onRemoved); } },
+  ]);
 }
 
 export function SettingsScreen({ navigation, route }: Props) {
@@ -65,7 +81,9 @@ export function SettingsScreen({ navigation, route }: Props) {
         <Hairline /><Toggle label="Spell check" value={settings.spellCheck} onChange={(value) => update("spellCheck", value)} /></Group>
       <Group label="Assistant"><Toggle label="AI features" description="Inherited access from desktop; this switch is local to this phone." value={settings.aiEnabled} onChange={(value) => update("aiEnabled", value)} />
         <Hairline /><Toggle label="Sync AI conversations" description="Copies prompts and model replies to the paired device." value={settings.syncAiConversations} onChange={(value) => update("syncAiConversations", value)} />
-        <Hairline /><ListRow title="Balance" meta={balance} trailing={<Text style={[TYPE.meta, { color: theme.colors.accent }]}>Manage</Text>} onPress={() => navigation.navigate("AiLimits", { projectId: route.params?.projectId ?? "", reason: "out-of-credit" })} /></Group>
+        <Hairline /><ListRow title="Balance" meta={balance} trailing={<Text style={[TYPE.meta, { color: theme.colors.accent }]}>Manage</Text>} onPress={() => navigation.navigate("AiLimits", { projectId: route.params?.projectId ?? "", reason: "out-of-credit" })} />
+        <Hairline /><ListRow title="Remove AI access" meta={REMOVE_AI_CAPTION} destructive
+          onPress={() => confirmRemoveAiAccess(managed.refresh)} /></Group>
       <Group label="This device"><Toggle label="Offline copies" description="All projects are kept on this phone." value={settings.offlineCopies} onChange={(value) => update("offlineCopies", value)} />
         <Hairline /><ListRow title="About" meta="WritersNook mobile" trailing={<Icon color={theme.colors.ink3} name="chevRight" size={16} />} onPress={() => { void Linking.openURL("https://writersnook.app"); }} /></Group>
       <Text style={[TYPE.metaSmall, styles.footer, { color: theme.colors.ink3 }]}>Theme, prose size, spell check and focus choices stay on this device. Compile/export, replace-across-scenes, label definition, and BYOK API-key entry stay on desktop.</Text>

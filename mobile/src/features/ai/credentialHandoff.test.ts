@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  clearSessionFromMemory, consumeCredentialOffer, markByokOnlyUnavailable,
+  clearAiCredential, clearSessionFromMemory, consumeCredentialOffer, getManagedAiAccess,
+  markByokOnlyUnavailable,
 } from "./credentialHandoff";
 import { createDevTrialOffer } from "./devTrialOffer";
 
@@ -74,5 +75,21 @@ describe("managed credential handoff", () => {
     });
     expect(deps.secureStore.setItemAsync).not.toHaveBeenCalled();
     expect(deps.client.acquireSession).not.toHaveBeenCalled();
+  });
+
+  it("clearAiCredential deletes the stored credential and shows unavailable immediately", async () => {
+    const deps = harness();
+    const offer = { t: "credential-offer", id: "offer-1", managed: {
+      aiLicenseKey: "license", aiModel: "claude-sonnet-5", aiEnabled: true,
+    } };
+    await consumeCredentialOffer(offer, deps);
+
+    await clearAiCredential(deps);
+
+    expect(deps.secureStore.deleteItemAsync).toHaveBeenCalledOnce();
+    expect(deps.secureStore.deleteItemAsync).toHaveBeenCalledWith("writersnook.managed-ai.v1");
+    const access = await getManagedAiAccess(deps);
+    expect(access).toEqual({ state: "unavailable", message: "Set up managed AI on desktop" });
+    expect(deps.client.acquireSession).toHaveBeenCalledOnce();
   });
 });

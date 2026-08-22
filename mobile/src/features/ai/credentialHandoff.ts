@@ -134,8 +134,19 @@ export async function currentManagedModel(deps: CredentialConsumerDeps = {}): Pr
 
 export function clearSessionFromMemory(): void { sessionCache = null; }
 
-export async function markByokOnlyUnavailable(deps: CredentialConsumerDeps = {}): Promise<void> {
+/** Deletes every locally persisted AI credential — the SecureStore entry
+ *  (license/trial key, model choice, seen-offer ids), the minted session
+ *  cache, and the in-memory availability flag — so the assistant shows its
+ *  "unavailable" notice immediately, without an app restart. This device
+ *  never held an account, only this handed-off credential, so removing it is
+ *  the full local footprint (used by Settings → "Remove AI access", the
+ *  app-store data-deletion action). */
+export async function clearAiCredential(deps: CredentialConsumerDeps = {}): Promise<void> {
   sessionCache = null;
   unavailableInMemory = true;
   await (await storePort(deps)).deleteItemAsync(SECURE_KEY);
+}
+
+export async function markByokOnlyUnavailable(deps: CredentialConsumerDeps = {}): Promise<void> {
+  await clearAiCredential(deps);
 }

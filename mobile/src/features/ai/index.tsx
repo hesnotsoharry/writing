@@ -3,6 +3,7 @@ export { AiContextScreen } from "./AiContextScreen";
 export { AiLimitsScreen } from "./AiLimitsScreen";
 export { AiModelScreen } from "./AiModelScreen";
 export {
+  clearAiCredential,
   consumeCredentialOffer,
   getManagedAiAccess,
   markByokOnlyUnavailable,

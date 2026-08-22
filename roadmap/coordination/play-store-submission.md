@@ -11,7 +11,7 @@
 | Release signing = debug keystore | **One Cole command** (below). EAS generates and holds the upload keystore; Play App Signing re-signs anyway. Never hand-edit `build.gradle` — prebuild regenerates it. |
 | Stale privacy policy | **Done** — privacy.html now covers the phone app, camera/QR pairing, share sheet, Device Sync E2E, mobile AI credential handoff, and Fathom (site-only). Live once master is pushed. |
 | Store listing / data safety / age rating | **Drafted below** — paste into Play Console. |
-| No in-app account deletion | **Still open — the one real remaining gap.** Required once trial/AI credential state exists on device (Google "account deletion" policy). Shape: a Settings action that clears the AI credential + trial key locally and points at support@writersnook.app for server-side deletion, plus a web deletion-request URL (Play requires a URL; a simple `writersnook.app/delete-account.html` explaining the email path satisfies it because there is no real account system). Build before submitting. |
+| No in-app account deletion | **Done.** Settings has a "Remove AI access" action (`clearAiCredential()` in `mobile/src/features/ai/credentialHandoff.ts`) that deletes the SecureStore credential/trial key and clears in-memory session state, with a destructive confirm. The deletion URL is `https://writersnook.app/delete-account.html`. Reasoning: this app has no account-creation flow, so Google/Apple's strict account-deletion mandate (delete the whole account in-app) doesn't literally apply — the credential handed off from desktop is the entire local footprint, and the web page covers the server-side email/name/order-history/license-key/credit-balance data held only if something was bought or trialed. This is the proportionate compliance surface, not a full account-deletion flow. |
 | Splash migration unverified on device | Verify on the Pixel during the next device session (cold launch, light + dark). |
 
 ## The one interactive command (Cole)
@@ -70,7 +70,9 @@ After that, the production AAB is a normal cloud build (agents can run it):
     If reviewers push back on the AI path, the fallback declaration is
     "Other in-app messages — shared, ephemeral, user-initiated, optional".
 - Data encrypted in transit? **Yes** (TLS + E2E). Deletion mechanism? **Data is
-  on-device; delete by uninstalling / in-app deletion (once built)**.
+  on-device; delete by uninstalling, or use Settings → "Remove AI access" for the
+  AI credential specifically. Server-side data (only if you bought or trialed
+  something) via https://writersnook.app/delete-account.html.**
 - Security practices: independent review **No**.
 
 ## Content rating (IARC)
