@@ -415,6 +415,50 @@ keyboard down and up).
   conflict clause would zero a locally correct count on every meta apply. Pinned
   by a test in `mobile/src/db/mobileStores.test.ts`.
 
+### Mobile UX pass (2026-08-21, fourth batch)
+
+A full device run-through produced ~25 items. Several collapsed into single
+root causes, which is the useful part of the record:
+
+- **One bug, ten screens.** The "random gap" at the bottom of corkboard, inbox,
+  storyboard, bible detail and outliner was `Screen` claiming the bottom
+  safe-area inset while the footer below it claimed the same one. It only
+  *looked* like a gap where a screen's background differed from the container's;
+  five more screens paid the same wasted height invisibly. Fixed by giving the
+  bottom inset exactly one owner, which is app-root chrome, never `Screen`.
+- **The keyboard covered every input because nothing scrolled.** Android was
+  configured correctly all along (`softwareKeyboardLayoutMode: "resize"`); the
+  input screens simply had no scroll container, so shrinking the window had
+  nowhere to put the field. `Screen`'s scroll branch now uses
+  `KeyboardAwareScrollView`; the outliner followed, dropping `FlatList`.
+- **"Does nothing" was three different diagnoses.** The editor's sparkle was
+  selection-gated and silently returned (the assistant was reachable from
+  exactly one place in the app, only via a selection — it now opens the chat).
+  Storyboard panning was genuinely broken. The manuscript dropdown and the
+  outliner Columns pill had never been wired at all. `research/mobile-noop-inventory.md`
+  has the full audit.
+- **Renaming already existed** — long-press in the binder, inline in the
+  outliner. What was missing was being asked at creation, so every create path
+  now prompts, and creating a scene lets you choose its chapter.
+- **Swipe-back was never broken.** native-stack hard-disables the JS gesture on
+  Android because there the swipe IS the OS gesture; the report was taken on a
+  phone in two-button mode, which has no edge swipe. Verified working under
+  gesture nav on both edges, with the binder drawer not swallowing the left one.
+- **The debug footer was shipping to users.** `__DEV__`-gated now — carefully,
+  because that footer owned the bottom inset and a naive third `&&` would have
+  left release builds with zero owners.
+- Boards gained card create/edit/delete. Mobile never authors free-form x/y;
+  new cards take the next free grid slot pitched to desktop's card width,
+  because a position chosen on a phone means nothing on desktop's unbounded
+  canvas. Desktop compatibility comes from calling desktop's own `boardDoc`
+  helpers rather than reimplementing the Yjs shapes.
+
+**Lesson worth keeping:** an animation complaint was misdiagnosed twice from
+reasoning and solved in one pass by measurement — slowing the transition to 2.5s
+and screenshotting mid-flight showed the label already fully drawn on frame one,
+which pointed straight at the layout animation and the clip being on different
+views. Slow it down and look before theorising.
+
 ### The cold pair, and what it caught (2026-08-21, third batch)
 
 A virgin emulator paired to the desktop through the real pairing UI
