@@ -13,8 +13,8 @@ import type { MutableRefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionResult } from "../features/ai/ai.client";
-import { acquireAnyToken } from "../features/ai/ai.trialToken";
-import { getTweak } from "../features/settings/settings.store";
+import { acquireAnyToken, TrialActivationRequiredError } from "../features/ai/ai.trialToken";
+import { getTweak, setStoredTweak } from "../features/settings/settings.store";
 
 // Mock the settings boundary — lets each test control aiLicenseKey independently.
 vi.mock("../features/settings/settings.store", () => ({
@@ -127,7 +127,12 @@ describe("Finding 2b — reverse-transition (subscriber→trial): fresh subscrib
     // ref.current is now a fresh subscriber token.
 
     // Step 2 — clear the license key (simulates the "Change license key" button).
-    vi.mocked(getTweak).mockImplementation((_key, fallback) => fallback as string);
+    // A stored aiTrialKey simulates an already-activated trial user (Phase 2: with no
+    // stored key, acquireAnyToken now throws TrialActivationRequiredError instead of
+    // silently first-granting — re-exchange of an existing key is unaffected).
+    vi.mocked(getTweak).mockImplementation((key, fallback) =>
+      key === "aiTrialKey" ? "trial_existing" : (fallback as string),
+    );
     const trialFetchSpy = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ token: "trial-token-fresh", expiresAt: Date.now() + 3_600_000 }),
@@ -141,5 +146,47 @@ describe("Finding 2b — reverse-transition (subscriber→trial): fresh subscrib
     const [url] = trialFetchSpy.mock.calls[0] as [string, RequestInit];
     expect(String(url)).toMatch(/\/api\/ai\/trial-session$/);
     expect(String(url)).not.toMatch(/\/api\/ai\/session$/); // NOT the subscriber endpoint
+  });
+});
+
+describe("Turnstile Phase 2 — acquireAnyToken no longer silently first-grants", () => {
+  it("throws TrialActivationRequiredError (no fetch) when aiLicenseKey and aiTrialKey are both empty", async () => {
+    const ref: MutableRefObject<SessionResult | null> = { current: null };
+    vi.mocked(getTweak).mockImplementation((_key, fallback) => fallback as string); // both empty
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(acquireAnyToken(ref)).rejects.toThrow(TrialActivationRequiredError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("re-exchanges (no first-grant fallback) when a stored aiTrialKey exists — existing users see zero change", async () => {
+    const ref: MutableRefObject<SessionResult | null> = { current: null };
+    vi.mocked(getTweak).mockImplementation((key, fallback) =>
+      key === "aiTrialKey" ? "trial_existing" : (fallback as string),
+    );
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ trialKey: "trial_existing", token: "reexchanged.tok", expiresAt: Date.now() + 3_600_000 }),
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const token = await acquireAnyToken(ref);
+
+    expect(token).toBe("reexchanged.tok");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({ trialKey: "trial_existing" });
+  });
+
+  it("clears the stale key and throws TrialActivationRequiredError when re-exchange of a stored key fails (no silent re-grant)", async () => {
+    const ref: MutableRefObject<SessionResult | null> = { current: null };
+    vi.mocked(getTweak).mockImplementation((key, fallback) =>
+      key === "aiTrialKey" ? "trial_stale" : (fallback as string),
+    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+
+    await expect(acquireAnyToken(ref)).rejects.toThrow(TrialActivationRequiredError);
+    expect(setStoredTweak).toHaveBeenCalledWith("aiTrialKey", "");
   });
 });

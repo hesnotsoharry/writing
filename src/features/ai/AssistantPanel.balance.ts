@@ -8,12 +8,14 @@ import type { GateStatus } from "../license/license.gate";
 import { getTweak } from "../settings/settings.store";
 import { getBalance, type SessionResult } from "./ai.client";
 import { computeUsedPct, formatResetLabel } from "./ai.helpers";
-import { acquireAnyToken } from "./ai.trialToken";
+import { acquireAnyToken, TrialActivationRequiredError } from "./ai.trialToken";
 
 export interface BalanceSetters {
   setUsedPct: (v: number) => void; setCreditsBalance: (v: number) => void;
   setMonthlyAllowance: (v: number) => void; setPlan: (v: "active" | "trial" | "expired") => void;
   setResetLabel: (v: string) => void; setOffline: (v: boolean) => void;
+  /** True when the trial path has no usable token yet — panel shows the Turnstile activation card. */
+  setNeedsActivation: (v: boolean) => void;
 }
 
 // Backoff schedule covering the ~87s webhook-settle window for new subscribers.
@@ -44,9 +46,15 @@ export async function fetchBalance(
     opts.setters.setPlan(data.status);
     opts.setters.setResetLabel(formatResetLabel(data.resetAt));
     opts.setters.setOffline(false);
+    opts.setters.setNeedsActivation(false);
     opts.scheduleRetry(data.creditsBalance, key);
   } catch (err: unknown) {
     if (opts.getCancelled()) return;
+    if (err instanceof TrialActivationRequiredError) {
+      opts.setters.setNeedsActivation(true);
+      opts.setters.setOffline(false);
+      return;
+    }
     const msg = err instanceof Error ? err.message : "";
     if (msg.includes("403")) { opts.setters.setPlan("expired"); opts.setters.setOffline(false); }
     else { opts.setters.setOffline(true); }

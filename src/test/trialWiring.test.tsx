@@ -12,7 +12,7 @@
  * persists aiTrialKey. acquireTrialSession's own behavior (POST body, throw-on-!ok) is
  * verified separately in src/test/trialSession.client.acceptance.test.ts against a stubbed fetch.
  */
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // ── Module mocks (hoisted before imports) ─────────────────────────────────────
@@ -47,6 +47,10 @@ vi.mock("../features/ai/ai.context", () => ({
     entitySummaries: [], about: null, selectionText: null,
     boundaryLine: null, sceneExcerptTruncated: false,
   }),
+  // Pre-existing gap surfaced by the new DOM-querying activation tests below (PanelReady's
+  // useContextAssembly calls this unconditionally) — sceneEntityGroups is always [] here, so a
+  // pass-through empty-groups stub is sufficient (mirrors the real filter's shape, not its logic).
+  filterAiEntities: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock("../features/ai/AiComponents", () => ({
@@ -127,10 +131,36 @@ afterEach(() => {
 // ── Trial token path ──────────────────────────────────────────────────────────
 
 describe("useAiBalance — trial token path (aiLicenseKey empty, gateStatus='trial')", () => {
-  it("calls acquireTrialSession (not acquireSession) and persists aiTrialKey on first trial use", async () => {
+  it("Phase 2: does NOT silently first-grant — renders the activation card instead", async () => {
     // Set consent so useAiBalance fires its load()
     localStorage.setItem(`${SETTINGS_NS}aiConsentGiven`, JSON.stringify(true));
-    // aiLicenseKey stays empty (default) — trial path must activate
+    // aiLicenseKey and aiTrialKey both stay empty — no stored trial key to re-exchange
+
+    const store = makeMockStore();
+    const result = wrapInspectorSlot(<div />, {
+      selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
+      storyBibleStore: store,
+      aiEnabled: true,
+      gateStatus: "trial",
+    });
+
+    await act(async () => { render(<>{result}</>); });
+    fireEvent.click(screen.getByRole("button", { name: /Assistant/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Activate free trial" })).toBeTruthy();
+    });
+
+    // No network call fired automatically — acquireTrialSession only runs on explicit user action.
+    expect(mockAcquireTrialSession).not.toHaveBeenCalled();
+    expect(mockAcquireSession).not.toHaveBeenCalled();
+  });
+
+  it("Phase 2: clicking Activate calls acquireTrialSession(undefined, token) and persists aiTrialKey", async () => {
+    localStorage.setItem(`${SETTINGS_NS}aiConsentGiven`, JSON.stringify(true));
 
     mockAcquireTrialSession.mockResolvedValue({
       trialKey: "trial_abc123",
@@ -157,23 +187,56 @@ describe("useAiBalance — trial token path (aiLicenseKey empty, gateStatus='tri
     });
 
     await act(async () => { render(<>{result}</>); });
+    fireEvent.click(screen.getByRole("button", { name: /Assistant/i }));
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Activate free trial" })).toBeTruthy(); });
 
-    // Wait for the async useEffect (load()) to fire
-    await waitFor(() => {
-      expect(mockAcquireTrialSession).toHaveBeenCalledTimes(1);
+    // Simulate the hosted challenge page (turnstile-challenge.html) reporting a token.
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: "https://writersnook.app",
+        data: { type: "wn-turnstile-token", token: "cf-token-xyz" },
+      }));
     });
 
-    // acquireSession (the subscriber path) must NOT have been called
+    fireEvent.click(screen.getByRole("button", { name: "Activate free trial" }));
+
+    await waitFor(() => { expect(mockAcquireTrialSession).toHaveBeenCalledTimes(1); });
+    expect(mockAcquireTrialSession).toHaveBeenCalledWith(undefined, "cf-token-xyz");
     expect(mockAcquireSession).not.toHaveBeenCalled();
 
-    // Trial session called with NO argument (first-grant — aiTrialKey was empty)
-    expect(mockAcquireTrialSession).toHaveBeenCalledWith(/* undefined — first grant */);
-    const [calledArg] = mockAcquireTrialSession.mock.calls[0] as [string | undefined];
-    expect(calledArg).toBeUndefined();
+    // aiTrialKey must be persisted so re-exchange fires on next load.
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem(`${SETTINGS_NS}aiTrialKey`) ?? "null");
+      expect(stored).toBe("trial_abc123");
+    });
+  });
 
-    // aiTrialKey must be persisted so re-exchange fires on next load
-    const stored = JSON.parse(localStorage.getItem(`${SETTINGS_NS}aiTrialKey`) ?? "null");
-    expect(stored).toBe("trial_abc123");
+  it("wrong-origin postMessage is ignored — Activate stays disabled", async () => {
+    localStorage.setItem(`${SETTINGS_NS}aiConsentGiven`, JSON.stringify(true));
+
+    const store = makeMockStore();
+    const result = wrapInspectorSlot(<div />, {
+      selectedSceneId: null,
+      activeScene: null,
+      tree: { chapters: [], shortPieces: [] } as unknown as Parameters<typeof wrapInspectorSlot>[1]["tree"],
+      activeProjectId: null,
+      storyBibleStore: store,
+      aiEnabled: true,
+      gateStatus: "trial",
+    });
+
+    await act(async () => { render(<>{result}</>); });
+    fireEvent.click(screen.getByRole("button", { name: /Assistant/i }));
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Activate free trial" })).toBeTruthy(); });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: "https://evil.example",
+        data: { type: "wn-turnstile-token", token: "spoofed" },
+      }));
+    });
+
+    expect(screen.getByRole("button", { name: "Activate free trial" })).toBeDisabled();
   });
 
   it("re-exchanges a stored aiTrialKey on subsequent balance loads", async () => {
@@ -252,6 +315,7 @@ const FOOTER_BASE = {
   streamingId: null as string | null, onSend: () => {}, onStop: () => {},
   est: { pct: 0, tokens: 0 }, onToast: () => {},
   byokActive: false, byokKeys: { anthropic: false, openai: false },
+  needsActivation: false, onActivated: () => {},
 };
 
 describe("PanelFooter exhaustion guard routing (resolveExhaustedGuard)", () => {

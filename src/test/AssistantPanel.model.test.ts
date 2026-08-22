@@ -10,7 +10,7 @@
  * Also tests the providerRegistry pure utilities: getModelEntry, getBadgeLabel,
  * and registry shape.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Module mocks (network boundary only) ──────────────────────────────────────
 
@@ -61,6 +61,7 @@ import {
   getModelEntry,
   PROVIDER_REGISTRY,
 } from "../features/ai/providerRegistry";
+import { SETTINGS_NS } from "../features/settings/settings.store";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,14 @@ function makeArgs(model: ManagedModel): ExecSendArgs {
 function makeByokArgs(model: ManagedModel, byokKeys: { anthropic: boolean; openai: boolean }): ExecSendArgs {
   return { ...makeArgs(model), byokActive: true, byokKeys };
 }
+
+// Phase 2: acquireAnyToken no longer silently first-grants a trial token — it re-exchanges a
+// STORED aiTrialKey (or throws TrialActivationRequiredError with none stored). These tests are
+// about model/BYOK routing, not activation, so seed a stored key to keep the managed (non-BYOK)
+// path exercising streamChat exactly as before.
+beforeEach(() => {
+  localStorage.setItem(`${SETTINGS_NS}aiTrialKey`, JSON.stringify("trial_existing"));
+});
 
 afterEach(() => {
   localStorage.clear();

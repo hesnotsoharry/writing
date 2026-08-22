@@ -19,7 +19,7 @@ import { getTweak, setStoredTweak } from "../settings/settings.store";
 import { type AiMessage, type NormalizedEvent, type SessionResult,streamChat } from "./ai.client";
 import { assembleContext,filterAiEntities } from "./ai.context";
 import { aiConvoId, aiEstimate, aiMsgId } from "./ai.helpers";
-import { acquireAnyToken } from "./ai.trialToken";
+import { acquireAnyToken, TrialActivationRequiredError } from "./ai.trialToken";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
@@ -138,6 +138,11 @@ export function toAiTree(tree: BinderTree): AiManuscriptTree {
   };
 }
 
+/** Composer gating — extracted so PanelReady's own complexity stays within the lint cap. */
+export function computeCanCompose(a: { offline: boolean; plan: "active" | "trial" | "expired"; usedPct: number; needsActivation: boolean }): boolean {
+  return !a.offline && a.plan !== "expired" && a.usedPct < 100 && !a.needsActivation;
+}
+
 export function buildCtxSnapshot(a: CtxArgs, sceneId: string | null): ContextSnapshot {
   return {
     sceneId: sceneId ?? "",
@@ -222,6 +227,12 @@ function buildStreamArgs(a: ExecSendArgs, token: string, ctrl: AbortController, 
 
 function onSendCatch(err: unknown, ctrl: AbortController, cid: string, r: { msgId: string; setConvos: Dispatch<SetStateAction<ConversationRecord[]>>; onNetworkError?: () => void }): void {
   if (ctrl.signal.aborted) return;
+  if (err instanceof TrialActivationRequiredError) {
+    // Defensive only — the composer is normally replaced by the activation card
+    // before send is reachable. Not a network fault, so onNetworkError is skipped.
+    r.setConvos(patchMessage(cid, r.msgId, { streaming: false, text: "[Activate the free trial above to send messages]" }));
+    return;
+  }
   const is403 = (err instanceof Error ? err.message : "").includes("403");
   r.setConvos(patchMessage(cid, r.msgId, { streaming: false, text: is403 ? "[Session expired — check your subscription]" : "[Connection failed — try again]" }));
   if (!is403) r.onNetworkError?.();

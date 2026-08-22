@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verifying…</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #f4eee2; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="wn-box"></div>
+<script>
+// Public Turnstile site key (not secret) — same placeholder literal as marketing/public/site.js,
+// so one sed patches both once Cole registers the real widget in the Cloudflare dashboard.
+var WN_TURNSTILE_SITE_KEY = "PLACEHOLDER_TURNSTILE_SITE_KEY";
+
+// This page is loaded inside a small iframe embedded in the WritersNook desktop app's Assistant
+// panel (Tauri 2 / WebView2 on Windows, WKWebView on macOS). The parent's origin is either
+// https://tauri.localhost or tauri://localhost depending on platform, which postMessage's
+// targetOrigin argument can't express portably — "*" is used below. This is safe: the token is
+// single-use, short-lived, and only redeemable against our own server secret.
+function postToParent(msg) {
+  window.parent.postMessage(msg, "*");
+}
+
+(function start() {
+  if (!WN_TURNSTILE_SITE_KEY || WN_TURNSTILE_SITE_KEY === "PLACEHOLDER_TURNSTILE_SITE_KEY") {
+    postToParent({ type: "wn-turnstile-unavailable" });
+    return;
+  }
+
+  window.wnTurnstileOnLoad = function () {
+    if (!window.turnstile) { postToParent({ type: "wn-turnstile-unavailable" }); return; }
+    window.turnstile.render(document.getElementById("wn-box"), {
+      sitekey: WN_TURNSTILE_SITE_KEY,
+      callback: function (token) { postToParent({ type: "wn-turnstile-token", token: token }); },
+      "error-callback": function () { postToParent({ type: "wn-turnstile-unavailable" }); },
+      "expired-callback": function () { postToParent({ type: "wn-turnstile-unavailable" }); },
+    });
+  };
+
+  var s = document.createElement("script");
+  s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=wnTurnstileOnLoad&render=explicit";
+  s.defer = true;
+  s.onerror = function () { postToParent({ type: "wn-turnstile-unavailable" }); };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>

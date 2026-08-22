@@ -2169,6 +2169,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; border: none; ba
 .ai-guard .gacts { display: flex; gap: 6px; margin-top: 2px; }
 .ai-guard .gacts .btn { font-size: var(--text-2xs); padding: 5px 10px; }
 
+/* Turnstile trial-activation card (Phase 2) — hosted challenge page in a small borderless iframe. */
+.ai-activation-frame { width: 300px; max-width: 100%; height: 80px; border: none; background: transparent; }
+
 /* ---- Floating "Ask" pill over a prose selection -------------------------------- */
 .ai-askpill {
   position: fixed; z-index: 50; transform: translateX(-50%);

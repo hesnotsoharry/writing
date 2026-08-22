@@ -77,18 +77,38 @@ export async function acquireSession(licenseKey: string): Promise<SessionResult>
 }
 
 /**
+ * Extracts a readable message from a failed trial-session response — the server
+ * answers 403 with { error: "turnstile_failed" } or { error: "update_required",
+ * message }. Falls back to a generic status line when the body isn't JSON (or the
+ * ok:false mock in trialSession.client.acceptance.test.ts, which has no .json()).
+ */
+async function describeTrialSessionError(res: Response, status: number): Promise<string> {
+  try {
+    const data = (await res.json()) as { error?: string; message?: string };
+    if (data.message) return data.message;
+    if (data.error) return data.error;
+  } catch { /* non-JSON or missing body — fall through */ }
+  return `Trial session failed: ${status}`;
+}
+
+/**
  * Mint (or re-exchange) a trial session token.
- * - No trialKey → first-grant: POST with empty body.
- * - trialKey provided → re-exchange: POST with { trialKey }.
+ * - No trialKey → first-grant: POST with empty body (+ turnstileToken, when the
+ *   Turnstile activation card supplied one — Phase 2, desktop-only).
+ * - trialKey provided → re-exchange: POST with { trialKey }. Turnstile is never
+ *   sent on re-exchange — it costs zero new budget and must never disrupt
+ *   already-activated users (Phase 2 rollout rule).
  * Throws on non-ok response so the caller can clear the stale key and re-grant.
  */
-export async function acquireTrialSession(trialKey?: string): Promise<TrialSessionResult> {
+export async function acquireTrialSession(trialKey?: string, turnstileToken?: string): Promise<TrialSessionResult> {
+  const body: Record<string, unknown> = trialKey ? { trialKey } : {};
+  if (!trialKey && turnstileToken) body.turnstileToken = turnstileToken;
   const res = await fetch(`${API_BASE}/api/ai/trial-session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(trialKey ? { trialKey } : {}),
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Trial session failed: ${res.status}`);
+  if (!res.ok) throw new Error(await describeTrialSessionError(res, res.status));
   return res.json() as Promise<TrialSessionResult>;
 }
 

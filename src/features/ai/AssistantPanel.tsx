@@ -21,7 +21,7 @@ import { SETTINGS_CHANGED_EVENT } from "../../lib/settings";
 import type { GateStatus } from "../license/license.gate";
 import { BRAINSTORM_ADD_CARD, getTweak } from "../settings/settings.store";
 import type { SessionResult } from "./ai.client";
-import { applyEntityToggle, applySceneExclusionToggle, buildEntityChips, computeUsedPct, readSceneExcluded, shouldRetryBalance } from "./ai.helpers";
+import { applySceneExclusionToggle, computeUsedPct, readSceneExcluded, shouldRetryBalance } from "./ai.helpers";
 import {
   type AiCtxConfig,
   type AiManuscriptTree,
@@ -34,12 +34,14 @@ import {
   type ProseSelection,
   type VerbKey,
 } from "./ai.types";
-import { AiDormant, AiMeter } from "./AiComponents";
+import { AiDormant } from "./AiComponents";
 import { AiErrorBoundary } from "./AiErrorBoundary";
 import { AiConsent, AiContextPicker } from "./AiOverlays";
+import { TrialActivationCard } from "./AssistantPanel.activation";
 import { BALANCE_RETRY_DELAYS, type BalanceSetters, fetchBalance } from "./AssistantPanel.balance";
-import { type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
-import { AiToast, ContextStripPanel, OfflineBanner, PanelFooter, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
+import { PanelFoot, type PanelFootProps } from "./AssistantPanel.foot";
+import { computeCanCompose, type CtxArgs, toAiTree, useContextAssembly, usePanelMessages, usePanelState } from "./AssistantPanel.hooks";
+import { AiToast, OfflineBanner, type PanelFooterHandle, PanelNav, PanelThread } from "./AssistantPanel.parts";
 import { useAiPanelSeed, useAiSlotHandlers, useEntityRefreshKey, useManuscriptAbout, useProseSelection, useSceneEntityGroups } from "./AssistantPanel.slot";
 import { getBadgeLabel, PROVIDER_REGISTRY,type ProviderId } from "./providerRegistry";
 import { useByokKeys } from "./useByokKeys";
@@ -69,6 +71,7 @@ export interface AssistantPanelProps {
   neverNames: string[]; toggleNever: (name: string) => void;
   usedPct: number; creditsBalance: number; resetLabel: string;
   plan: "active" | "trial" | "expired"; offline: boolean; consented: boolean;
+  needsActivation: boolean; onActivated: () => void; // Phase 2: Turnstile activation-card state (see AssistantPanel.activation.tsx)
   sel?: ProseSelection | null; initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
   onOpenConsent: () => void; onOpenContext: () => void; onToast: (msg: string) => void; onSaveNote: (body: string) => void;
   onAddToBoard?: (m: AiMessageRecord) => void; onStreamDone?: () => void; onNetworkError?: () => void;
@@ -104,6 +107,7 @@ interface SlotPanelProps {
   convStore: AiConversationStore; projectId: string | null; onAddToBoard?: (m: AiMessageRecord) => void;
   usedPct: number; creditsBalance: number; resetLabel: string;
   plan: "active" | "trial" | "expired"; offline: boolean;
+  needsActivation: boolean; onActivated: () => void; // Phase 2: Turnstile activation-card state
   onStreamDone: () => void; onNetworkError?: () => void;
   monthlyAllowance: number; onBalanceAfter?: (b: number) => void;
   sel?: ProseSelection | null; initialVerb?: VerbKey; initialSel?: Pick<ProseSelection, "text" | "words"> | null;
@@ -124,39 +128,6 @@ export function computeEffectiveByokModel(model: ManagedModel, byokActive: boole
   return (km.find((m) => m.id === model)?.id ?? model) as ManagedModel;
 }
 
-type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
-interface PanelFootProps {
-  p: AssistantPanelProps; ctx: ReturnType<typeof useContextAssembly>;
-  attachedSel: Pick<ProseSelection, "text" | "words"> | null; setAttachedSel: (s: Pick<ProseSelection, "text" | "words"> | null) => void;
-  footerRef: React.RefObject<PanelFooterHandle | null>; model: ManagedModel; effectiveByokModel: ManagedModel;
-  prompt: string; setPrompt: (v: string) => void; verb: VerbKey; verbPop: boolean; setVerbPop: Setter<boolean>;
-  setVerb: (v: VerbKey) => void; modelPop: boolean; setModelPop: Setter<boolean>; setModel: (v: ManagedModel) => void;
-  streamingId: string | null; send: () => void; stop: () => void;
-}
-
-function PanelFoot({ p, ctx, attachedSel, setAttachedSel, footerRef, model, effectiveByokModel, prompt, setPrompt, verb, verbPop, setVerbPop, setVerb, modelPop, setModelPop, setModel, streamingId, send, stop }: PanelFootProps) {
-  const showTrialNudge = p.gateStatus === "trial" && p.plan === "active" && !p.byokActive && !!getTweak("aiLicenseKey", "");
-  return (
-    <div className="ai-foot">
-      <ContextStripPanel sceneName={p.sceneName} extras={ctx.extras} linked={ctx.linked}
-        attachedSel={attachedSel} sel={p.sel} hasAbout={ctx.hasAbout} aiCtx={p.aiCtx}
-        boundaryLabel={ctx.boundaryLabel} setAttachedSel={setAttachedSel} onOpenContext={p.onOpenContext} sceneExcludedFromAi={p.sceneExcludedFromAi} onToggleSceneExclusion={p.onToggleSceneExclusion} entityChips={buildEntityChips(p.sceneEntityGroups, p.aiCtx.offEntityNames)} onToggleEntity={(n: string) => p.setAiCtx(applyEntityToggle(p.aiCtx, n))} />
-      <PanelFooter ref={footerRef} plan={p.plan} usedPct={p.usedPct} offline={p.offline}
-        prompt={prompt} setPrompt={setPrompt} verb={verb} verbPop={verbPop} setVerbPop={setVerbPop} setVerb={setVerb} model={effectiveByokModel} modelPop={modelPop} setModelPop={setModelPop} setModel={setModel} streamingId={streamingId} onSend={send} onStop={stop}
-        est={ctx.est} onToast={p.onToast} resetLabel={p.resetLabel} byokActive={p.byokActive} byokKeys={p.byokKeys} />
-      {!p.byokActive && <AiMeter usedPct={p.usedPct} resetLabel={p.resetLabel} creditsBalance={p.creditsBalance} model={model} plan={p.plan} />}
-      {/* Trial-app + active-AI-subscription nudge: shows when the app is in its 14-day trial
-          but the user already has a managed AI subscription. Nudges purchase before trial ends.
-          Not shown for BYOK users or users who have already purchased. */}
-      {showTrialNudge && (
-        <div className="ai-trial-nudge">
-          Your AI subscription is active. Purchase WritersNook before your trial ends to keep using it.
-        </div>
-      )}
-    </div>
-  );
-}
-
 function PanelReady(p: AssistantPanelProps) {
   const { verb, setVerb, prompt, setPrompt, verbPop, setVerbPop, attachedSel, setAttachedSel, streamingId, setStreamingId, model, setModel, modelPop, setModelPop, abortRef, sessionRef } = usePanelState(p.initialVerb, p.initialSel);
   const effectiveByokModel = useMemo(() => computeEffectiveByokModel(model, p.byokActive, p.byokKeys), [model, p.byokActive, p.byokKeys]);
@@ -166,7 +137,7 @@ function PanelReady(p: AssistantPanelProps) {
   const effectiveAiCtx: AiCtxConfig = { ...p.aiCtx, offEntityNames: [...new Set([...p.aiCtx.offEntityNames, ...p.neverNames])] };
   const ctx = useContextAssembly({ sceneId: p.sceneId, sceneWords: p.sceneWords, aiCtx: effectiveAiCtx, neverNames: p.neverNames, tree: p.tree, about: p.about, active, sceneEntityGroups: p.sceneEntityGroups, model: effectiveByokModel, monthlyAllowance: p.monthlyAllowance });
   const ctxArgs: CtxArgs = { sceneName: p.sceneName, sceneWords: p.sceneWords, linked: ctx.linked, extras: ctx.extras, attachedSel, aiCtx: effectiveAiCtx, hasAbout: ctx.hasAbout, boundaryLabel: ctx.boundaryLabel };
-  const canCompose = !p.offline && p.plan !== "expired" && p.usedPct < 100;
+  const canCompose = computeCanCompose(p);
   const { send, stop, copyMsg, saveMsg, newConvo, deleteConvo } = usePanelMessages({
     convos: p.convos, setConvos: p.setConvos, activeId: p.activeId, setActiveId: p.setActiveId,
     prompt, setPrompt, verb, model: effectiveByokModel, attachedSel, setAttachedSel, streamingId, setStreamingId,
@@ -186,12 +157,16 @@ function PanelReady(p: AssistantPanelProps) {
       {p.offline && <OfflineBanner />}
       {/* W49 Phase 4: badge names the active model's provider (getBadgeLabel), not just the keyed providers. */}
       <div className="ai-byok-bar" hidden={!p.byokActive}><span className="ai-chip"><Icon name="shield" className="ic" /><span>{getBadgeLabel(effectiveByokModel)}</span></span></div>
-      <PanelNav active={active} onBack={() => p.setActiveId(null)} onNew={newConvo} />
-      <PanelThread msgCount={msgCount} lastLen={lastLen} activeId={p.activeId} listMode={listMode}
-        active={active} convos={p.convos} verb={verb} setVerb={setVerb} onOpen={p.setActiveId}
-        onNew={newConvo} onDelete={deleteConvo} streamingId={streamingId} onCopy={copyMsg}
-        onSaveNote={saveMsg} onAddToBoard={p.onAddToBoard} onStarter={(s) => { setPrompt(s); footerRef.current?.focusInput(); }} onFocusInput={() => footerRef.current?.focusInput()} />
-      {!listMode && <PanelFoot {...footProps} />}
+      {/* Phase 2: no trial token yet — conversation list + composer both need one, so the
+          activation card replaces the whole body (only reachable pre-subscription). */}
+      {p.needsActivation ? <TrialActivationCard onActivated={p.onActivated} /> : <>
+        <PanelNav active={active} onBack={() => p.setActiveId(null)} onNew={newConvo} />
+        <PanelThread msgCount={msgCount} lastLen={lastLen} activeId={p.activeId} listMode={listMode}
+          active={active} convos={p.convos} verb={verb} setVerb={setVerb} onOpen={p.setActiveId}
+          onNew={newConvo} onDelete={deleteConvo} streamingId={streamingId} onCopy={copyMsg}
+          onSaveNote={saveMsg} onAddToBoard={p.onAddToBoard} onStarter={(s) => { setPrompt(s); footerRef.current?.focusInput(); }} onFocusInput={() => footerRef.current?.focusInput()} />
+        {!listMode && <PanelFoot {...footProps} />}
+      </>}
     </div>
   );
 }
@@ -280,6 +255,7 @@ function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateS
   const [plan, setPlan] = useState<"active" | "trial" | "expired">("active");
   const [resetLabel, setResetLabel] = useState("soon");
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [needsActivation, setNeedsActivation] = useState(false);
   const [balanceKey, setBalanceKey] = useState(0);
   const sessionRef = useRef<SessionResult | null>(null);
   const licenseKeyRef = useRef(getTweak("aiLicenseKey", ""));
@@ -288,7 +264,7 @@ function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateS
     let cancelled = false;
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    const setters: BalanceSetters = { setUsedPct, setCreditsBalance, setMonthlyAllowance, setPlan, setResetLabel, setOffline };
+    const setters: BalanceSetters = { setUsedPct, setCreditsBalance, setMonthlyAllowance, setPlan, setResetLabel, setOffline, setNeedsActivation };
     const scheduleRetry = (balance: number, key: string) => {
       if (!shouldRetryBalance(!!key, balance, attempt, BALANCE_RETRY_DELAYS.length)) return;
       const delay = BALANCE_RETRY_DELAYS[attempt];
@@ -307,7 +283,9 @@ function useAiBalance(consented: boolean, byokActive: boolean, gateStatus: GateS
   const refresh = useCallback(() => setBalanceKey((k) => k + 1), []); const applyBalance = useCallback((b: number) => { setCreditsBalance(b); if (monthlyAllowance > 0) setUsedPct(computeUsedPct(monthlyAllowance, b)); }, [monthlyAllowance]);
   useEffect(() => { if (byokActive) return; const h = () => { const cur = getTweak("aiLicenseKey", ""); if (cur !== licenseKeyRef.current) { licenseKeyRef.current = cur; refresh(); } }; window.addEventListener(SETTINGS_CHANGED_EVENT, h); return () => { window.removeEventListener(SETTINGS_CHANGED_EVENT, h); }; }, [byokActive, refresh]);
   // D4: BYOK has no managed meter; return safe no-ops so canCompose stays true.
-  return byokActive ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, setOffline: () => {}, refresh: () => {}, monthlyAllowance: 0, applyBalance: () => {} } : { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance };
+  return byokActive
+    ? { usedPct: 0, creditsBalance: 0, plan: "active" as const, resetLabel: "", offline: false, needsActivation: false, setOffline: () => {}, refresh: () => {}, monthlyAllowance: 0, applyBalance: () => {} }
+    : { usedPct, creditsBalance, plan, resetLabel, offline, needsActivation, setOffline, refresh, monthlyAllowance, applyBalance };
 }
 // ── AiSlot + SlotPanel (internal) ─────────────────────────────────────────────
 /** Derives neverNames from persisted exclude_from_ai and provides a toggleNever
@@ -331,6 +309,7 @@ function SlotPanel(p: SlotPanelProps) {
     convos={p.convos} setConvos={p.setConvos} activeId={p.activeId} setActiveId={p.setActiveId}
     about={p.about} setAbout={p.setAbout} aiCtx={p.aiCtx} setAiCtx={p.setAiCtx} neverNames={p.neverNames} toggleNever={p.toggleNever}
     usedPct={p.usedPct} creditsBalance={p.creditsBalance} resetLabel={p.resetLabel} plan={p.plan} offline={p.offline}
+    needsActivation={p.needsActivation} onActivated={p.onActivated}
     consented={p.consented} sel={p.sel} initialVerb={p.initialVerb} initialSel={p.initialSel}
     onOpenConsent={p.onOpenConsent} onOpenContext={p.onOpenContext} onToast={p.onToast} onSaveNote={p.onSaveNote} onStreamDone={p.onStreamDone} onNetworkError={p.onNetworkError} onBalanceAfter={p.onBalanceAfter} monthlyAllowance={p.monthlyAllowance}
     convStore={p.convStore} projectId={p.projectId} doc={p.doc ?? null} byokActive={p.byokActive} byokKeys={p.byokKeys}
@@ -347,7 +326,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
   // W52 Phase 4: exclusion refresh counter — bump after setEntityExclusion to reload entity groups.
   const [exclusionRefreshKey, setExclusionRefreshKey] = useState(0); const entityRefreshKey = useEntityRefreshKey(p.storyBibleStore) + exclusionRefreshKey;
   const { toast, onToast, onSaveNote, handleEnable } = useAiSlotHandlers(p.activeProjectId, setOverlay, setInspTab); const consented = getTweak("aiConsentGiven", false);
-  const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, setOffline, refresh, monthlyAllowance, applyBalance } = useAiBalance(consented, byokActive, p.gateStatus);
+  const { byokActive, ...byokKeys } = useByokKeys(); const { usedPct, creditsBalance, plan, resetLabel, offline, needsActivation, setOffline, refresh, monthlyAllowance, applyBalance } = useAiBalance(consented, byokActive, p.gateStatus);
   const { panelKey, initialVerb, initialSel } = useAiPanelSeed(setInspTab, setActiveId);
   const liveSel = useProseSelection(); const aiTree = toAiTree(p.tree);
   const sceneId = p.selectedSceneId; const sceneName = p.activeScene?.title ?? null; const sceneWords = p.activeScene?.word_count ?? 0; const sceneExcludedFromAi = readSceneExcluded(p.activeScene);
@@ -364,7 +343,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
         doc={p.doc} store={p.storyBibleStore} onOpenConsent={() => setOverlay("consent")}
         onOpenContext={() => setOverlay("context")} onToast={onToast} onSaveNote={onSaveNote}
         convStore={convStore} projectId={p.activeProjectId}
-        usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline}
+        usedPct={usedPct} creditsBalance={creditsBalance} resetLabel={resetLabel} plan={plan} offline={offline} needsActivation={needsActivation} onActivated={refresh}
         onStreamDone={refresh} onNetworkError={() => { setOffline(true); }} onBalanceAfter={applyBalance} monthlyAllowance={monthlyAllowance} sel={liveSel} initialVerb={initialVerb} initialSel={initialSel} byokActive={byokActive} byokKeys={byokKeys}
         gateStatus={p.gateStatus} onAddToBoard={BOARD_ADD_HANDLERS[p.view!]} sceneExcludedFromAi={sceneExcludedFromAi} onToggleSceneExclusion={() => applySceneExclusionToggle(p.onSetSceneExcludedFromAi, sceneId, sceneExcludedFromAi)} />
     } />

@@ -15,20 +15,40 @@ function isFresh(ref: MutableRefObject<SessionResult | null>): boolean {
 }
 
 /**
+ * Thrown by acquireTrialTokenCached when there is no stored trial key (or the
+ * stored one turned out to be stale) — the caller must show the Turnstile
+ * activation card and complete an explicit first grant via acquireTrialSession
+ * before a token can be minted. Phase 2: no silent background first-grant.
+ */
+export class TrialActivationRequiredError extends Error {
+  constructor() {
+    super("Trial not yet activated — explicit activation required.");
+    this.name = "TrialActivationRequiredError";
+  }
+}
+
+/**
  * Acquire a trial session token, reusing a cached one when still fresh.
- * Re-exchanges the stored `aiTrialKey` on re-launch; falls back to a first-grant
- * (empty-body POST) when the stored key is absent or stale (throws on re-exchange).
+ * Re-exchanges the stored `aiTrialKey` on re-launch (identical to pre-Phase-2
+ * behavior — existing activated users see zero change). When no key is stored,
+ * or the stored key turns out to be stale (re-exchange rejected — cleared so the
+ * next activation starts clean), throws TrialActivationRequiredError instead of
+ * silently first-granting. Callers surface an activation UI and call
+ * acquireTrialSession(undefined, turnstileToken) explicitly on user action.
  */
 export async function acquireTrialTokenCached(ref: MutableRefObject<SessionResult | null>): Promise<string> {
   if (isFresh(ref)) return ref.current!.token;
   const stored = getTweak("aiTrialKey", "");
   if (stored) {
-    try { const r = await acquireTrialSession(stored); ref.current = { token: r.token, expiresAt: r.expiresAt }; return r.token; } catch { /* stale — fall through to first-grant */ }
+    try {
+      const r = await acquireTrialSession(stored);
+      ref.current = { token: r.token, expiresAt: r.expiresAt };
+      return r.token;
+    } catch {
+      setStoredTweak("aiTrialKey", ""); // stale key — clear so the next activation is a clean first grant
+    }
   }
-  const r = await acquireTrialSession();
-  if (r.trialKey) setStoredTweak("aiTrialKey", r.trialKey);
-  ref.current = { token: r.token, expiresAt: r.expiresAt };
-  return r.token;
+  throw new TrialActivationRequiredError();
 }
 
 /**
