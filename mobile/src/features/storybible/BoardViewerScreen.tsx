@@ -12,9 +12,9 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
 import { BoardCanvas } from "./BoardCanvas";
-import type { BoardCardDraft } from "./BoardCardSheet";
+import type { BoardCardDraft, LinkTarget } from "./BoardCardSheet";
 import { BoardCardSheet } from "./BoardCardSheet";
-import { addBoardCard, decodeBoardDoc, deleteBoardCard, encodeBoardDoc, setBoardCardText } from "./boardEdits";
+import { addBoardCard, decodeBoardDoc, deleteBoardCard, encodeBoardDoc, setBoardCardText, toggleBoardConnection } from "./boardEdits";
 import type { BoardCard, BoardViewModel } from "./boardModel";
 import { decodeBoard } from "./boardModel";
 
@@ -89,8 +89,8 @@ function BoardFooter({ onBack }: { onBack: () => void }) {
   const theme = useTheme();
   return <View style={[styles.footer, { backgroundColor: theme.colors.paper, borderTopColor: theme.colors.line }]}>
     <Text style={[TYPE.meta, styles.footerText, { color: theme.colors.ink3 }]}>
-      Drag to pan, pinch to zoom. Tap a card to rewrite or delete it; new cards take the next free
-      slot on the grid. Moving cards and drawing links stays on desktop.
+      Drag to pan, pinch to zoom. Tap a card to rewrite it, link it to another card, or delete it;
+      new cards take the next free slot on the grid. Moving cards stays on desktop.
     </Text>
     <Pressable onPress={onBack} style={[styles.boardsButton, { backgroundColor: theme.colors.parchment }]}>
       <Icon color={theme.colors.ink2} name="chevDown" size={14} />
@@ -118,7 +118,29 @@ function useCardEditing(boardId: string | undefined, projectId: string, reload: 
       if (draft?.id) setBoardCardText(doc, draft.id, text); else addBoardCard(doc, text);
     }),
     remove: (id: string) => run((doc) => { deleteBoardCard(doc, id); }),
+    // Keeps the sheet open: linking several cards in a row is the normal case,
+    // and dismissing after each tap would make it four gestures instead of one.
+    toggleLink: (targetId: string) => {
+      const from = draft?.id;
+      if (!from || !boardId) return;
+      void queueBoardEdit(boardId, projectId, (doc) => { toggleBoardConnection(doc, from, targetId); })
+        .then(reload)
+        .catch((error: unknown) => { console.error("[BoardViewer] link toggle failed", error); });
+    },
   };
+}
+
+/** The other cards on this board, each flagged with whether it is already
+ *  joined to the one being edited. Entity cards are included: desktop lets an
+ *  edge touch them, and excluding them here would silently differ. */
+function linkTargets(model: BoardViewModel, cardId: string | undefined): LinkTarget[] {
+  if (!cardId) return [];
+  const linked = new Set(model.connections
+    .filter((edge) => edge.from === cardId || edge.to === cardId)
+    .map((edge) => edge.from === cardId ? edge.to : edge.from));
+  return model.cards
+    .filter((card) => card.id !== cardId)
+    .map((card) => ({ id: card.id, text: card.text, linked: linked.has(card.id) }));
 }
 
 export function BoardViewerScreen({ navigation, route }: Props) {
@@ -140,7 +162,9 @@ export function BoardViewerScreen({ navigation, route }: Props) {
     <BoardFooter onBack={() => navigation.goBack()} />
     {/* Mounted only while open so the draft text never survives a dismissal. */}
     {editing.draft ? <BoardCardSheet draft={editing.draft} key={editing.draft.id ?? "new"}
-      onDelete={editing.remove} onDismiss={editing.dismiss} onSave={editing.save} open /> : null}
+      links={linkTargets(data.model, editing.draft.id)} onDelete={editing.remove}
+      onDismiss={editing.dismiss} onSave={editing.save} onToggleLink={editing.toggleLink}
+      open /> : null}
   </Screen>;
 }
 

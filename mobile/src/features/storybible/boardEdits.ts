@@ -19,7 +19,7 @@
  */
 import * as Y from "yjs";
 
-import { createBoardCard, plainTextToCardFragment, removeCard, removeConnectionsForCard } from "../../shared/boardDoc";
+import { addConnection, createBoardCard, plainTextToCardFragment, removeCard, removeConnection, removeConnectionsForCard } from "../../shared/boardDoc";
 import { applyEncoded, encodeDoc } from "../../shared/serialize";
 import type { CardPoint } from "./boardPlacement";
 import { nextCardSlot } from "./boardPlacement";
@@ -80,4 +80,44 @@ export function deleteBoardCard(doc: Y.Doc, cardId: string): void {
     removeConnectionsForCard(doc, cardId);
     removeCard(doc, cardId);
   });
+}
+
+interface StoredConnection { from?: unknown; to?: unknown }
+
+/**
+ * Ids of every connection joining these two cards, in either direction.
+ *
+ * Direction is deliberately ignored. Desktop stores `{ from, to }` and draws an
+ * edge between the two nodes; nothing in the renderer or the data model treats
+ * A→B as different from B→A. Reading them as one link is what lets a phone
+ * offer a single toggle instead of asking which way round the user meant.
+ */
+function connectionsBetween(doc: Y.Doc, a: string, b: string): string[] {
+  return [...doc.getMap<StoredConnection>("connections").entries()]
+    .filter(([, meta]) => (meta.from === a && meta.to === b) || (meta.from === b && meta.to === a))
+    .map(([id]) => id);
+}
+
+export function areCardsConnected(doc: Y.Doc, a: string, b: string): boolean {
+  return connectionsBetween(doc, a, b).length > 0;
+}
+
+/**
+ * Link or unlink two cards, returning the state it left them in.
+ *
+ * Linking a card to itself is refused: desktop's renderer would be asked for an
+ * edge from a node to itself, and it means nothing on a brainstorm board.
+ * Unlinking removes EVERY matching connection rather than the first — a board
+ * edited on two devices can hold a duplicate pair, and leaving one behind would
+ * make the toggle look broken.
+ */
+export function toggleBoardConnection(doc: Y.Doc, a: string, b: string): boolean {
+  if (a === b) return false;
+  const existing = connectionsBetween(doc, a, b);
+  if (existing.length > 0) {
+    doc.transact(() => { for (const id of existing) removeConnection(doc, id); });
+    return false;
+  }
+  doc.transact(() => { addConnection(doc, crypto.randomUUID(), a, b); });
+  return true;
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
-import { addBoardCard, decodeBoardDoc, deleteBoardCard, encodeBoardDoc, setBoardCardText } from "./boardEdits";
+import { addBoardCard, areCardsConnected, decodeBoardDoc, deleteBoardCard, encodeBoardDoc, setBoardCardText, toggleBoardConnection } from "./boardEdits";
 import { decodeBoard } from "./boardModel";
 import { BOARD_GRID_ORIGIN } from "./boardPlacement";
 
@@ -127,5 +127,83 @@ describe("deleteBoardCard", () => {
     expect(model.cards.map((card) => card.id).sort()).toEqual(["card-2", "card-3"]);
     expect(model.connections).toEqual([{ id: "edge-other", from: "card-2", to: "card-3" }]);
     expect(reopen(doc).getXmlFragment("card-card-1").length).toBe(0);
+  });
+});
+
+
+describe("toggleBoardConnection", () => {
+  function twoCards(): Y.Doc {
+    const doc = new Y.Doc();
+    addBoardCard(doc, "The lighthouse", "card-a");
+    addBoardCard(doc, "The keeper", "card-b");
+    return doc;
+  }
+
+  it("writes desktop's connection shape — plain JSON {from, to}, not a Y type", () => {
+    const doc = twoCards();
+    toggleBoardConnection(doc, "card-a", "card-b");
+    const entries = [...reopen(doc).getMap("connections").entries()];
+    expect(entries).toHaveLength(1);
+    const [id, meta] = entries[0];
+    expect(typeof id).toBe("string");
+    expect(meta).toEqual({ from: "card-a", to: "card-b" });
+    expect(meta).not.toBeInstanceOf(Y.Map);
+  });
+
+  it("survives the base64 round trip and reads back through the view model", () => {
+    const doc = twoCards();
+    toggleBoardConnection(doc, "card-a", "card-b");
+    const model = decodeBoard(encodeBoardDoc(doc));
+    expect(model.connections).toHaveLength(1);
+    expect(model.connections[0]).toMatchObject({ from: "card-a", to: "card-b" });
+  });
+
+  it("is a toggle, and reports the state it left behind", () => {
+    const doc = twoCards();
+    expect(toggleBoardConnection(doc, "card-a", "card-b")).toBe(true);
+    expect(areCardsConnected(doc, "card-a", "card-b")).toBe(true);
+    expect(toggleBoardConnection(doc, "card-a", "card-b")).toBe(false);
+    expect(areCardsConnected(doc, "card-a", "card-b")).toBe(false);
+    expect([...doc.getMap("connections").keys()]).toEqual([]);
+  });
+
+  it("treats a link as undirected, so the toggle works from either card", () => {
+    const doc = twoCards();
+    toggleBoardConnection(doc, "card-a", "card-b");
+    expect(areCardsConnected(doc, "card-b", "card-a")).toBe(true);
+    // Tapping from the other end must remove the link, not add a mirror of it.
+    expect(toggleBoardConnection(doc, "card-b", "card-a")).toBe(false);
+    expect([...doc.getMap("connections").keys()]).toEqual([]);
+  });
+
+  it("clears duplicate pairs a two-device edit can leave behind", () => {
+    const doc = twoCards();
+    doc.getMap("connections").set("dup-1", { from: "card-a", to: "card-b" });
+    doc.getMap("connections").set("dup-2", { from: "card-b", to: "card-a" });
+    expect(toggleBoardConnection(doc, "card-a", "card-b")).toBe(false);
+    expect([...doc.getMap("connections").keys()]).toEqual([]);
+  });
+
+  it("refuses to link a card to itself", () => {
+    const doc = twoCards();
+    expect(toggleBoardConnection(doc, "card-a", "card-a")).toBe(false);
+    expect([...doc.getMap("connections").keys()]).toEqual([]);
+  });
+
+  it("leaves other cards' links alone", () => {
+    const doc = twoCards();
+    addBoardCard(doc, "The boat", "card-c");
+    toggleBoardConnection(doc, "card-a", "card-b");
+    toggleBoardConnection(doc, "card-a", "card-c");
+    toggleBoardConnection(doc, "card-a", "card-b");
+    expect(areCardsConnected(doc, "card-a", "card-c")).toBe(true);
+    expect(areCardsConnected(doc, "card-a", "card-b")).toBe(false);
+  });
+
+  it("is cascaded away when a linked card is deleted", () => {
+    const doc = twoCards();
+    toggleBoardConnection(doc, "card-a", "card-b");
+    deleteBoardCard(doc, "card-b");
+    expect(decodeBoard(encodeBoardDoc(doc)).connections).toEqual([]);
   });
 });
