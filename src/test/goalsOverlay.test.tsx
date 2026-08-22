@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GoalsStore } from "../db/sqliteGoalsStore";
 import type { GoalsInitialScope } from "../features/goals/Goals";
 import { Goals } from "../features/goals/Goals";
-import { readGoalConfig, writeGoalConfig } from "../features/goals/goalStorage";
+import { readGoalConfig, writeGoalConfig, writeGoalsOn } from "../features/goals/goalStorage";
+import { GOALS_CHANGED_EVENT } from "../lib/settings";
 
 /**
  * Goals overlay acceptance tests (updated Wave 27 — GoalsManager pattern).
@@ -69,6 +70,24 @@ describe("Goals overlay — list mode (Wave 27)", () => {
     );
     await user.click(screen.getByRole("switch"));
     expect(setGoalsOn).toHaveBeenCalledWith(true);
+  });
+
+  it("toggling the master switch dispatches GOALS_CHANGED_EVENT (Problem B item 1)", async () => {
+    const user = userEvent.setup();
+    const listener = vi.fn();
+    window.addEventListener(GOALS_CHANGED_EVENT, listener);
+    render(
+      <Goals
+        onClose={() => {}}
+        goalsOn={false}
+        setGoalsOn={vi.fn()}
+        activeProjectId="p1"
+        store={fakeStore()}
+      />
+    );
+    await user.click(screen.getByRole("switch"));
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(GOALS_CHANGED_EVENT, listener);
   });
 
   it("Done closes and writes legacy goal target to localStorage", async () => {
@@ -255,6 +274,7 @@ describe("Goals overlay — scope config (Wave 25 back-compat)", () => {
   });
 
   it("writing to chapter scope config persists via writeGoalConfig", () => {
+    writeGoalsOn(true); // master switch must be on for a per-scope on:true to read back on
     writeGoalConfig("proj-scope", "chapter", { on: true, target: 300 });
     const cfg = readGoalConfig("proj-scope", "chapter");
     expect(cfg).toEqual({ on: true, target: 300 });
@@ -274,12 +294,21 @@ describe("Goals overlay — delete goal calls store and removes row (Finding 2 f
    */
   it("delete button calls store.deleteGoal with the goal id (a) and removes the row from the list (b)", async () => {
     const user = userEvent.setup();
+    // Stateful (not a static mockResolvedValue): handleDeleteGoal dispatches
+    // GOALS_CHANGED_EVENT after a successful delete, which useGoalsFromDb's
+    // own re-fetch listener (Problem A) picks up — a static mock would
+    // resurrect "goal-1" via that re-fetch, clobbering the optimistic removal.
+    const rows = [
+      { id: "goal-1", project_id: "p1", goal_type: "daily", target: 500, enabled: 1, created_at: 0 },
+    ];
     const store: FakeStore = {
-      getGoals: vi.fn().mockResolvedValue([
-        { id: "goal-1", project_id: "p1", goal_type: "daily", target: 500, enabled: 1, created_at: 0 },
-      ]),
+      getGoals: vi.fn().mockImplementation(() => Promise.resolve([...rows])),
       upsertGoal: vi.fn().mockResolvedValue({} as never),
-      deleteGoal: vi.fn().mockResolvedValue(undefined),
+      deleteGoal: vi.fn().mockImplementation((id: string) => {
+        const idx = rows.findIndex((r) => r.id === id);
+        if (idx >= 0) rows.splice(idx, 1);
+        return Promise.resolve(undefined);
+      }),
     } as unknown as FakeStore;
 
     render(
@@ -305,5 +334,44 @@ describe("Goals overlay — delete goal calls store and removes row (Finding 2 f
     await waitFor(() => {
       expect(screen.queryByText("Daily word count")).toBeNull();
     });
+  });
+});
+
+describe("Goals overlay — per-goal enable toggle (Problem B item 2)", () => {
+  it("clicking the row toggle upserts enabled=false through the store, greys the row, and preserves config_json", async () => {
+    const user = userEvent.setup();
+    // A stateful fake (not a single static mockResolvedValue): the toggle
+    // dispatches GOALS_CHANGED_EVENT, which useGoalsFromDb's own listener
+    // re-fetches on — a static mock would clobber the optimistic UI update
+    // with stale data on that re-fetch, unlike the real store it stands in for.
+    const row = {
+      id: "goal-1", project_id: "p1", goal_type: "streak", target: 30, enabled: 1, created_at: 0,
+      config_json: JSON.stringify({ milestone: 30, qualifies: "daily", qualifyAmount: 500 }),
+    };
+    const upsertGoal = vi.fn().mockImplementation((input: { enabled: boolean; config?: Record<string, unknown> }) => {
+      row.enabled = input.enabled ? 1 : 0;
+      if (input.config) row.config_json = JSON.stringify(input.config);
+      return Promise.resolve(row);
+    });
+    const store: FakeStore = {
+      getGoals: vi.fn().mockImplementation(() => Promise.resolve([row])),
+      upsertGoal,
+      deleteGoal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FakeStore;
+
+    render(
+      <Goals onClose={() => {}} goalsOn setGoalsOn={vi.fn()} activeProjectId="p1" store={store} />,
+    );
+
+    await screen.findByText("Writing streak");
+    await user.click(screen.getByTitle("Turn this goal off"));
+
+    await waitFor(() => expect(store.upsertGoal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "p1", goalType: "streak", enabled: false, target: 30,
+        config: expect.objectContaining({ milestone: 30, qualifies: "daily", qualifyAmount: 500 }),
+      }),
+    ));
+    await waitFor(() => expect(screen.getByText(/Writing streak · off/)).toBeInTheDocument());
   });
 });

@@ -33,7 +33,9 @@ const GOALS_DDL = `
     goal_type TEXT NOT NULL,
     target INTEGER NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT
   )
 `;
 

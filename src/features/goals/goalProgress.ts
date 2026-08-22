@@ -48,6 +48,15 @@ export interface GoalRecord {
   streakDays?: number;
   best?: number;
   week?: boolean[];
+  /** Per-goal on/off (the goals table's `enabled` column) — distinct from the
+   *  per-scope master switch in goalStorage.ts. Absent on records that were
+   *  never round-tripped through the DB (e.g. a fresh in-editor draft);
+   *  readers should treat that as enabled. */
+  enabled?: boolean;
+  /** Whether a day with no writing still counts toward a streak/daily goal.
+   *  Round-tripped through config_json for parity with mobile; desktop's own
+   *  streak/daily calculations don't yet act on it. */
+  countDaysOff?: boolean;
 }
 
 export type GoalProgress =

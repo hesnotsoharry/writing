@@ -34,8 +34,16 @@ function goalConfigKey(projectId: string, scope: GoalScope): string {
  * Read the goal config for a given project + scope.
  * Falls back to the global target/on keys when scope is 'manuscript' and no
  * per-scope record exists yet, ensuring back-compat for existing sessions.
+ *
+ * `writing.goalsOn` is a true master switch: the returned `on` is always
+ * ANDed with it, so turning goals off globally silences every scope even
+ * when a per-scope record still says `on: true` (e.g. the manuscript scope
+ * was never rewritten because the Goals dialog was closed without hitting
+ * Done — see handleToggle in Goals.tsx). Global on is necessary but not
+ * sufficient: a scope can still be off on its own.
  */
 export function readGoalConfig(projectId: string, scope: GoalScope): GoalConfig {
+  const globalOn = readGoalsOn();
   const raw = localStorage.getItem(goalConfigKey(projectId, scope));
   if (raw !== null) {
     try {
@@ -44,7 +52,7 @@ export function readGoalConfig(projectId: string, scope: GoalScope): GoalConfig 
       const target = typeof parsed.target === "number" && Number.isFinite(parsed.target)
         ? parsed.target
         : 0;
-      return { on, target };
+      return { on: on && globalOn, target };
     } catch {
       // malformed — fall through to defaults
     }
@@ -52,7 +60,7 @@ export function readGoalConfig(projectId: string, scope: GoalScope): GoalConfig 
 
   // Back-compat: for manuscript scope, fall back to the global keys
   if (scope === "manuscript") {
-    return { on: readGoalsOn(), target: readGoalTarget() };
+    return { on: globalOn, target: readGoalTarget() };
   }
 
   // Other scopes default to off / 0

@@ -13,6 +13,7 @@ import { SqliteGoalsStore } from "../../db/sqliteGoalsStore";
 import { GOALS_CHANGED_EVENT } from "../../lib/settings";
 import type { GoalRecord, GoalScope } from "./goalModel";
 import { goalProgress, goalSummary } from "./goalModel";
+import { goalConfigForRow, goalRecordFromRow } from "./goalRowMapping";
 import { GoalEditor, isoOf } from "./goalsEditorParts";
 import { readGoalConfig, writeGoalConfig, writeGoalsOn, writeGoalTarget } from "./goalStorage";
 import type { GoalTypeId } from "./goalTypes";
@@ -52,19 +53,25 @@ function GoalRowMini({ goal }: { goal: GoalRecord }): ReactElement {
 
 // ── List view sub-components ──────────────────────────────────────────────────
 
-function GoalRow({ goal, onEdit, onDelete }: {
+function GoalRow({ goal, onEdit, onDelete, onToggleEnabled }: {
   goal: GoalRecord; onEdit: (g: GoalRecord) => void; onDelete: (id: string) => void;
+  onToggleEnabled: (g: GoalRecord) => void;
 }): ReactElement {
   const m = GOAL_META[goal.type];
+  const enabled = goal.enabled !== false;
   return (
-    <div className="goal-row">
+    <div className="goal-row" style={{ opacity: enabled ? 1 : 0.5 }}>
       <span className="gr-ic"><Icon name={m.ic} className="ic" /></span>
       <div className="gr-main">
-        <div className="gr-name">{m.name}</div>
+        <div className="gr-name">{m.name}{!enabled && " · off"}</div>
         <div className="gr-sum">{goalSummary(goal)}</div>
       </div>
       <GoalRowMini goal={goal} />
       <div className="gr-acts">
+        <button className="iconbtn" title={enabled ? "Turn this goal off" : "Turn this goal on"}
+          role="switch" aria-checked={enabled} onClick={() => onToggleEnabled(goal)}>
+          <Icon name={enabled ? "check" : "x"} className="ic" style={{ width: 15, height: 15 }} />
+        </button>
         <button className="iconbtn" title="Edit goal" onClick={() => onEdit(goal)}>
           <Icon name="edit" className="ic" style={{ width: 15, height: 15 }} />
         </button>
@@ -76,9 +83,10 @@ function GoalRow({ goal, onEdit, onDelete }: {
   );
 }
 
-function GoalListSection({ goals, goalsOn, onNewGoal, onEditGoal, onDeleteGoal }: {
+function GoalListSection({ goals, goalsOn, onNewGoal, onEditGoal, onDeleteGoal, onToggleEnabled }: {
   goals: GoalRecord[]; goalsOn: boolean;
   onNewGoal: () => void; onEditGoal: (g: GoalRecord) => void; onDeleteGoal: (id: string) => void;
+  onToggleEnabled: (g: GoalRecord) => void;
 }): ReactElement {
   return (
     <div style={{ opacity: goalsOn ? 1 : 0.45, pointerEvents: goalsOn ? "auto" : "none", transition: "opacity .2s" }}>
@@ -90,7 +98,9 @@ function GoalListSection({ goals, goalsOn, onNewGoal, onEditGoal, onDeleteGoal }
         </div>
       )}
       <div className="goal-list">
-        {goals.map((g) => <GoalRow key={g.id} goal={g} onEdit={onEditGoal} onDelete={onDeleteGoal} />)}
+        {goals.map((g) => (
+          <GoalRow key={g.id} goal={g} onEdit={onEditGoal} onDelete={onDeleteGoal} onToggleEnabled={onToggleEnabled} />
+        ))}
       </div>
       <button className="goal-add" onClick={onNewGoal}>
         <Icon name="plus" className="ic" style={{ width: 15, height: 15 }} /> New goal
@@ -114,18 +124,19 @@ function GoalsToggleRow({ goalsOn, onToggle }: { goalsOn: boolean; onToggle: () 
   );
 }
 
-function GoalListView({ goalsOn, onToggle, onClose, goals, projectId, onNewGoal, onEditGoal, onDeleteGoal, onNewGoalForDay, streakCount }: {
+function GoalListView({ goalsOn, onToggle, onClose, goals, projectId, onNewGoal, onEditGoal, onDeleteGoal, onToggleEnabled, onNewGoalForDay, streakCount }: {
   goalsOn: boolean; onToggle: () => void; onClose: () => void;
   goals: GoalRecord[]; projectId: string | null;
   onNewGoal: () => void; onEditGoal: (g: GoalRecord) => void;
-  onDeleteGoal: (id: string) => void; streakCount: number;
+  onDeleteGoal: (id: string) => void; onToggleEnabled: (g: GoalRecord) => void; streakCount: number;
   onNewGoalForDay: (type: GoalTypeId, iso: string) => void;
 }): ReactElement {
   return (
     <>
       <div className="sheet-body">
         <GoalsToggleRow goalsOn={goalsOn} onToggle={onToggle} />
-        <GoalListSection goals={goals} goalsOn={goalsOn} onNewGoal={onNewGoal} onEditGoal={onEditGoal} onDeleteGoal={onDeleteGoal} />
+        <GoalListSection goals={goals} goalsOn={goalsOn} onNewGoal={onNewGoal} onEditGoal={onEditGoal}
+          onDeleteGoal={onDeleteGoal} onToggleEnabled={onToggleEnabled} />
         {projectId && <CalHeatMap projectId={projectId} onNewGoalForDay={onNewGoalForDay} />}
       </div>
       <div className="sheet-foot">
@@ -179,14 +190,32 @@ interface GoalCtx {
   target: number; store: GoalsStore;
 }
 
+/** The flat `target` column value for a goal — deadline uses finalWords,
+ *  streak uses milestone, amount types use words/minutes. Mirrors mobile's
+ *  newGoalModel.targetOf. */
+function targetOf(g: GoalRecord, fallback: number): number {
+  const meta = GOAL_META[g.type];
+  if (meta?.family === "deadline") return g.finalWords ?? fallback;
+  if (meta?.family === "streak") return g.milestone ?? fallback;
+  return g.words ?? g.minutes ?? fallback;
+}
+
+function upsertGoalRecord(g: GoalRecord, ctx: GoalCtx, target: number): Promise<unknown> {
+  if (!ctx.projectId) return Promise.resolve();
+  return ctx.store.upsertGoal({
+    projectId: ctx.projectId, goalType: g.type, target,
+    enabled: g.enabled ?? true, config: goalConfigForRow(g),
+  })
+    .then(() => window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)))
+    .catch((err: unknown) => console.error("[goals] upsertGoal failed", err));
+}
+
 function saveGoal(g: GoalRecord, ctx: GoalCtx): void {
-  const t = g.words ?? g.minutes ?? ctx.target;
+  const t = targetOf(g, ctx.target);
   if (ctx.projectId) {
     writeGoalConfig(ctx.projectId, ctx.scope, { on: ctx.goalsOn, target: t });
     writeGoalTarget(t);
-    void ctx.store.upsertGoal({ projectId: ctx.projectId, goalType: g.type, target: t, enabled: ctx.goalsOn })
-      .then(() => window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)))
-      .catch((err) => console.error("[goals] upsertGoal failed", err));
+    void upsertGoalRecord(g, ctx, t);
   }
 }
 
@@ -194,10 +223,8 @@ function finishGoal(goals: GoalRecord[], ctx: GoalCtx, onClose: () => void): voi
   if (ctx.projectId) writeGoalConfig(ctx.projectId, ctx.scope, { on: ctx.goalsOn, target: ctx.target });
   writeGoalTarget(ctx.target); writeGoalsOn(ctx.goalsOn);
   if (ctx.projectId && goals.length > 0) {
-    const p = goals[0]; const t = p.words ?? p.minutes ?? ctx.target;
-    void ctx.store.upsertGoal({ projectId: ctx.projectId, goalType: p.type, target: t, enabled: ctx.goalsOn })
-      .then(() => window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)))
-      .catch((err) => console.error("[goals] upsertGoal failed", err)).finally(onClose);
+    const p = goals[0]; const t = targetOf(p, ctx.target);
+    void upsertGoalRecord(p, ctx, t).finally(onClose);
   } else { onClose(); }
 }
 
@@ -209,17 +236,24 @@ type GoalsProps = {
 
 function useGoalsFromDb(projectId: string | null, store: GoalsStore) {
   const [goals, setGoals] = useState<GoalRecord[]>([]);
+  const [version, setVersion] = useState(0);
+  // Re-fetch when a remote sync apply lands a goals row (mirrors useInspectorGoals).
+  useEffect(() => {
+    const h = () => { setVersion((v) => v + 1); };
+    window.addEventListener(GOALS_CHANGED_EVENT, h);
+    return () => { window.removeEventListener(GOALS_CHANGED_EVENT, h); };
+  }, []);
   useEffect(() => {
     if (!projectId) return;
     let alive = true;
     store.getGoals(projectId)
       .then((dbGoals) => {
         if (!alive) return;
-        setGoals(dbGoals.map((g) => ({ id: g.id, type: g.goal_type as GoalTypeId, words: g.target })));
+        setGoals(dbGoals.map((g) => goalRecordFromRow(g)));
       })
       .catch((e: unknown) => { console.error("[goals] getGoals failed", e); });
     return () => { alive = false; };
-  }, [projectId, store]);
+  }, [projectId, store, version]);
   return { goals, setGoals };
 }
 
@@ -238,14 +272,21 @@ function useGoalEditorNav(editGoalId: string | undefined, goals: GoalRecord[]) {
   return { mode, editing, initial, goBack, openNew, openEdit, openNewForDay };
 }
 
-export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = defaultGoalsStore, initialScope, editGoalId, manuscriptTotal = 0 }: GoalsProps): ReactElement {
-  const { goals, setGoals } = useGoalsFromDb(activeProjectId, store);
-  const scope = initialScope?.scope ?? "manuscript";
-  const [target] = useState(() => initialTarget(activeProjectId, scope));
-  const streakCount = readStreak().count;
-  const ctx: GoalCtx = { projectId: activeProjectId, scope, goalsOn, target, store };
-  const { mode, editing, initial, goBack, openNew, openEdit, openNewForDay } = useGoalEditorNav(editGoalId, goals);
-  const handleToggle = () => { const next = !goalsOn; setGoalsOn(next); writeGoalsOn(next); };
+interface GoalHandlersArgs {
+  goals: GoalRecord[];
+  setGoals: Dispatch<SetStateAction<GoalRecord[]>>;
+  ctx: GoalCtx;
+  store: GoalsStore;
+  onClose: () => void;
+  goBack: () => void;
+  setGoalsOn: Dispatch<SetStateAction<boolean>>;
+}
+
+function useGoalHandlers({ goals, setGoals, ctx, store, onClose, goBack, setGoalsOn }: GoalHandlersArgs) {
+  const handleToggle = () => {
+    const next = !ctx.goalsOn; setGoalsOn(next); writeGoalsOn(next);
+    window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT));
+  };
   const handleSave = (g: GoalRecord) => {
     setGoals((prev) => { const idx = prev.findIndex((x) => x.id === g.id);
       return idx >= 0 ? [...prev.slice(0, idx), g, ...prev.slice(idx + 1)] : [...prev, g]; });
@@ -257,6 +298,23 @@ export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = d
       .then(() => { setGoals((p) => p.filter((g) => g.id !== id)); window.dispatchEvent(new CustomEvent(GOALS_CHANGED_EVENT)); })
       .catch(console.error);
   };
+  const handleToggleEnabled = (g: GoalRecord) => {
+    const next: GoalRecord = { ...g, enabled: !(g.enabled ?? true) };
+    setGoals((prev) => prev.map((x) => x.id === g.id ? next : x));
+    void upsertGoalRecord(next, ctx, targetOf(next, ctx.target));
+  };
+  return { handleToggle, handleSave, handleDone, handleDeleteGoal, handleToggleEnabled };
+}
+
+export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = defaultGoalsStore, initialScope, editGoalId, manuscriptTotal = 0 }: GoalsProps): ReactElement {
+  const { goals, setGoals } = useGoalsFromDb(activeProjectId, store);
+  const scope = initialScope?.scope ?? "manuscript";
+  const [target] = useState(() => initialTarget(activeProjectId, scope));
+  const streakCount = readStreak().count;
+  const ctx: GoalCtx = { projectId: activeProjectId, scope, goalsOn, target, store };
+  const { mode, editing, initial, goBack, openNew, openEdit, openNewForDay } = useGoalEditorNav(editGoalId, goals);
+  const { handleToggle, handleSave, handleDone, handleDeleteGoal, handleToggleEnabled } =
+    useGoalHandlers({ goals, setGoals, ctx, store, onClose, goBack, setGoalsOn });
   return (
     <div className="scrim" onClick={onClose}>
       <div className="sheet" style={{ width: 600 }} onClick={(e) => e.stopPropagation()}>
@@ -265,6 +323,7 @@ export function Goals({ onClose, goalsOn, setGoalsOn, activeProjectId, store = d
           ? <GoalListView goalsOn={goalsOn} onToggle={handleToggle} onClose={handleDone}
               goals={goals} projectId={activeProjectId}
               onNewGoal={openNew} onEditGoal={openEdit} onDeleteGoal={handleDeleteGoal}
+              onToggleEnabled={handleToggleEnabled}
               onNewGoalForDay={openNewForDay} streakCount={streakCount} />
           : <GoalEditor goal={editing} goals={goals} projectWords={manuscriptTotal}
               onSave={handleSave} onCancel={goBack} initial={initial ?? undefined} />

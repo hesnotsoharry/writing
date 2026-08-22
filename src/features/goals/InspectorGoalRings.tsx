@@ -20,8 +20,8 @@ import { InspGroup } from "../../inspector/InspGroup";
 import { GOALS_CHANGED_EVENT } from "../../lib/settings";
 import type { GoalProgress, GoalRecord, GoalScope } from "./goalModel";
 import { goalProgress } from "./goalModel";
+import { goalRecordFromRow } from "./goalRowMapping";
 import { readGoalConfig } from "./goalStorage";
-import type { GoalTypeId } from "./goalTypes";
 import { useDailyGoalProgress } from "./useDailyGoalProgress";
 
 // ── Module-level store (lazy getDb — no side-effects at import time) ──────────
@@ -87,7 +87,7 @@ function useInspectorGoals(projectId: string): { goals: GoalRecord[]; loaded: bo
     inspectorGoalsStore.getGoals(projectId)
       .then((dbGoals) => {
         if (!alive) return;
-        setGoals(dbGoals.map((g) => ({ id: g.id, type: g.goal_type as GoalTypeId, words: g.target })));
+        setGoals(dbGoals.map((g) => goalRecordFromRow(g)));
         setLoaded(true);
       })
       // Do NOT set loaded=true on failure — a load error is not evidence of
@@ -136,10 +136,15 @@ export function GoalGroup({
   projectId, sceneId, manuscriptTotal, chapterId, chapterTotal, sceneWordCount, onGoalMenu,
 }: GoalGroupProps): ReactElement | null {
   const { goals: dbGoals, loaded } = useInspectorGoals(projectId);
-  // Once the DB load has resolved, hide the section if no goals remain.
+  // A goal with enabled=false (desktop's own per-goal toggle, or a disabled
+  // goal synced from mobile) doesn't count toward ring visibility or the
+  // right-click target — it's still listed (and re-enable-able) in the Goals
+  // dialog, just not surfaced here.
+  const enabledGoals = dbGoals.filter((g) => g.enabled !== false);
+  // Once the DB load has resolved, hide the section if no enabled goals remain.
   // Guards against the stale-ring defect after inspector context-menu delete.
-  if (loaded && dbGoals.length === 0) return null;
-  const dbGoal = dbGoals.length > 0 ? dbGoals[0] : undefined;
+  if (loaded && enabledGoals.length === 0) return null;
+  const dbGoal = enabledGoals.length > 0 ? enabledGoals[0] : undefined;
   return (
     <InspGroup gkey="goals" icon="target" label="Today's goal">
       <ScopedGoalRing projectId={projectId} scope="manuscript" targetId={null}

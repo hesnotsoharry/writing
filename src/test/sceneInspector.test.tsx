@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Scene } from "../db/binderStore";
 import { InMemoryStoryBibleStore } from "../db/inMemoryStoryBibleStore";
-import { writeGoalConfig } from "../features/goals/goalStorage";
+import { writeGoalConfig, writeGoalsOn } from "../features/goals/goalStorage";
 import { GoalGroup, GoalRing } from "../features/goals/InspectorGoalRings";
 import { SceneInspector } from "../inspector/SceneInspector";
 
@@ -318,6 +318,14 @@ describe("SceneInspector", () => {
     const store = new InMemoryStoryBibleStore();
     writeGoalConfig("p1", "chapter", { on: true, target: 500 });
     writeGoalConfig("p1", "manuscript", { on: false, target: 0 });
+    // writeGoalConfig("manuscript", ...) mirrors its `on` into the legacy
+    // global writing.goalsOn key (back-compat) — that mirror just set the
+    // global master switch off. readGoalConfig now ANDs every scope against
+    // that master switch (Problem B item 1: turning goals off globally must
+    // silence every scope, not just manuscript), so re-assert it true here
+    // to model "the app-level Goals toggle is on, but the manuscript scope
+    // itself is off while chapter is on" — the state this test exercises.
+    writeGoalsOn(true);
 
     render(
       <SceneInspector

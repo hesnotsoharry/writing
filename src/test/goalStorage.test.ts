@@ -28,6 +28,7 @@ describe("readGoalConfig / writeGoalConfig — per-scope API", () => {
   });
 
   it("roundtrips on=true, target=250 for chapter scope", () => {
+    writeGoalsOn(true); // master switch must be on for a per-scope on:true to read back on
     writeGoalConfig(PROJECT, "chapter", { on: true, target: 250 });
     const cfg = readGoalConfig(PROJECT, "chapter");
     expect(cfg).toEqual({ on: true, target: 250 });
@@ -40,6 +41,7 @@ describe("readGoalConfig / writeGoalConfig — per-scope API", () => {
   });
 
   it("chapter and scene scopes are stored independently", () => {
+    writeGoalsOn(true);
     writeGoalConfig(PROJECT, "chapter", { on: true, target: 300 });
     writeGoalConfig(PROJECT, "scene", { on: false, target: 100 });
     expect(readGoalConfig(PROJECT, "chapter")).toEqual({ on: true, target: 300 });
@@ -47,6 +49,7 @@ describe("readGoalConfig / writeGoalConfig — per-scope API", () => {
   });
 
   it("different projects have independent configs for the same scope", () => {
+    writeGoalsOn(true);
     writeGoalConfig("proj-a", "chapter", { on: true, target: 500 });
     writeGoalConfig("proj-b", "chapter", { on: false, target: 200 });
     expect(readGoalConfig("proj-a", "chapter")).toEqual({ on: true, target: 500 });
@@ -58,6 +61,29 @@ describe("readGoalConfig / writeGoalConfig — per-scope API", () => {
     // Legacy global readers should reflect the same value
     expect(readGoalsOn()).toBe(true);
     expect(readGoalTarget()).toBe(750);
+  });
+});
+
+describe("readGoalConfig — global writing.goalsOn is a true master switch", () => {
+  it("masks a per-scope on:true when the global switch is off", () => {
+    writeGoalsOn(true);
+    writeGoalConfig(PROJECT, "chapter", { on: true, target: 250 });
+    // Global flips off later (e.g. handleToggle) without rewriting the
+    // per-scope record — the scope must now read off too.
+    writeGoalsOn(false);
+    expect(readGoalConfig(PROJECT, "chapter")).toEqual({ on: false, target: 250 });
+  });
+
+  it("a per-scope on:false stays off regardless of the global switch", () => {
+    writeGoalsOn(true);
+    writeGoalConfig(PROJECT, "chapter", { on: false, target: 250 });
+    expect(readGoalConfig(PROJECT, "chapter")).toEqual({ on: false, target: 250 });
+  });
+
+  it("manuscript scope back-compat fallback also obeys the global switch", () => {
+    writeGoalsOn(false);
+    writeGoalTarget(400);
+    expect(readGoalConfig(PROJECT, "manuscript")).toEqual({ on: false, target: 400 });
   });
 });
 

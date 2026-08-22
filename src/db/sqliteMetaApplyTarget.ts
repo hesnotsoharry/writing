@@ -4,6 +4,7 @@ import type {
   DeleteOp, LabelOp, SortOrderRewrite, SqlProjectionSnapshot,
 } from "../sync/meta/applyPlan";
 import type { MetaProject } from "../sync/meta/metaDoc";
+import { dispatchProjectsChanged } from "../sync/syncEvents";
 import type { DbClient } from "./dbClient";
 import type { LabelColor } from "./labelStore";
 import { getDb } from "./schema";
@@ -58,6 +59,7 @@ export class SqliteMetaApplyTarget implements MetaApplyTarget {
        updated_at=excluded.updated_at`,
       [project.id, project.title, project.type, rows[0]?.sort_order ?? 1000, now]
     );
+    dispatchProjectsChanged();
   }
   async load(projectId: string): Promise<SqlProjectionSnapshot> {
     return loadProjection(await getDb(), projectId);
@@ -70,6 +72,7 @@ export class SqliteMetaApplyTarget implements MetaApplyTarget {
        title=excluded.title, sort_order=excluded.sort_order`,
       [row.id, row.project_id, row.title, row.sort_order]
     );
+    dispatchProjectsChanged();
   }
   async upsertScene(row: SqlProjectionSnapshot["scenes"][number]): Promise<void> {
     const db = await getDb();
@@ -80,6 +83,7 @@ export class SqliteMetaApplyTarget implements MetaApplyTarget {
        title=excluded.title, synopsis=excluded.synopsis, status=excluded.status`,
       [row.id, row.project_id, row.folder_id, row.title, row.synopsis, row.sort_order, row.status]
     );
+    dispatchProjectsChanged();
   }
   async applyLabel(op: LabelOp): Promise<void> {
     const db = await getDb();
@@ -97,11 +101,15 @@ export class SqliteMetaApplyTarget implements MetaApplyTarget {
       "DELETE FROM scene_labels WHERE scene_id = $1 AND label_id = $2", [op.sceneId, op.labelId]
     );
   }
-  async delete(op: DeleteOp): Promise<void> { await applyDelete(await getDb(), op); }
+  async delete(op: DeleteOp): Promise<void> {
+    await applyDelete(await getDb(), op);
+    if (op.kind !== "label" && op.kind !== "sceneLabel") dispatchProjectsChanged();
+  }
   async rewriteSort(op: SortOrderRewrite): Promise<void> {
     const db = await getDb();
     const table = op.kind === "folder" ? "folders" : op.kind === "scene" ? "scenes" : "labels";
     const column = op.kind === "label" ? "sort" : "sort_order";
     await db.execute(`UPDATE ${table} SET ${column} = $1 WHERE id = $2`, [op.sortOrder, op.id]);
+    if (op.kind !== "label") dispatchProjectsChanged();
   }
 }

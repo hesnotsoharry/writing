@@ -137,18 +137,46 @@ interface UseInboxNotesArgs {
   onAfterPromote?: () => void;
 }
 
-function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectivePromote, onAfterPromote }: UseInboxNotesArgs) {
+function useInboxLoad(activeProjectId: string | null, store: UseInboxNotesArgs["store"]) {
   // null = not yet loaded; [] = loaded, empty; [...] = loaded with notes.
   const [notes, setNotes] = useState<QuickNote[] | null>(null);
 
   useEffect(() => {
     if (activeProjectId === null) return;
     let cancelled = false;
-    store.listUnfiled(activeProjectId).then((rows) => {
-      if (!cancelled) setNotes(rows);
-    }).catch((e) => console.error("[inbox] listUnfiled failed", e));
-    return () => { cancelled = true; };
+    const load = () => {
+      store.listUnfiled(activeProjectId).then((rows) => {
+        if (!cancelled) setNotes(rows);
+      }).catch((e) => console.error("[inbox] listUnfiled failed", e));
+    };
+    load();
+    // A note captured on another device lands in SQLite via sync with no
+    // local state update — re-fetch when that happens so the sheet doesn't
+    // stay stale until the next open.
+    window.addEventListener(QUICK_NOTES_CHANGED_EVENT, load);
+    return () => { cancelled = true; window.removeEventListener(QUICK_NOTES_CHANGED_EVENT, load); };
   }, [activeProjectId, store]);
+
+  return { notes, setNotes };
+}
+
+/** Removes `id` from local state, updates the has-items badge, and tells other
+ *  listeners (this sheet's own re-fetch, other surfaces) the set changed. */
+function removeNoteAndNotify(
+  setNotes: Dispatch<SetStateAction<QuickNote[] | null>>,
+  setHasQuickItems: Dispatch<SetStateAction<boolean>>,
+  id: string,
+) {
+  setNotes((prev) => {
+    const remaining = (prev ?? []).filter((n) => n.id !== id);
+    setHasQuickItems(remaining.length > 0);
+    return remaining;
+  });
+  window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT));
+}
+
+function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectivePromote, onAfterPromote }: UseInboxNotesArgs) {
+  const { notes, setNotes } = useInboxLoad(activeProjectId, store);
 
   async function handleEdit(id: string, body: string) {
     try {
@@ -160,41 +188,58 @@ function useInboxNotes({ activeProjectId, setHasQuickItems, store, effectiveProm
   async function handleDelete(id: string) {
     try {
       await store.delete(id);
-      setNotes((prev) => {
-        const remaining = (prev ?? []).filter((n) => n.id !== id);
-        setHasQuickItems(remaining.length > 0);
-        return remaining;
-      });
-      window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT));
+      removeNoteAndNotify(setNotes, setHasQuickItems, id);
     } catch (e) { console.error("[inbox] delete failed", e); }
   }
 
   async function handlePromote(note: QuickNote) {
     try {
       await effectivePromote(note);
-      setNotes((prev) => {
-        const remaining = (prev ?? []).filter((n) => n.id !== note.id);
-        setHasQuickItems(remaining.length > 0);
-        return remaining;
-      });
-      window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT)); onAfterPromote?.();
+      removeNoteAndNotify(setNotes, setHasQuickItems, note.id);
+      onAfterPromote?.();
     } catch (e) { console.error("[inbox] promote failed", e); }
   }
 
   return { notes, handleEdit, handleDelete, handlePromote };
 }
 
-export function Inbox({ onClose, activeProjectId, setHasQuickItems, store = defaultStore, promote, onAfterPromote }: InboxProps) {
+function InboxSheetHead({ notes, onClose }: { notes: QuickNote[] | null; onClose: () => void }) {
+  return (
+    <div className="sheet-head">
+      <div>
+        <div className="sheet-title"><Icon name="inbox" className="ic" />Quick notes</div>
+        <div className="sheet-sub">Click any note to edit · promote into a scene or delete</div>
+      </div>
+      {notes !== null && (
+        <span style={{ fontSize: 12, color: "var(--ink-3)", marginRight: 8, whiteSpace: "nowrap" }}>
+          {notes.length} unsorted
+        </span>
+      )}
+      <button className="iconbtn sheet-x" type="button" onClick={onClose}>
+        <Icon name="x" className="ic" />
+      </button>
+    </div>
+  );
+}
+
+function useEffectivePromote(
+  promote: InboxProps["promote"],
+  activeProjectId: string | null,
+  store: UseInboxNotesArgs["store"],
+) {
   // Default promote: real orchestration. Promote does NOT live-refresh the binder tree
   // (the new scene appears on next project load) — setTree lives in the frozen App.tsx.
-  const effectivePromote = promote ?? ((note: QuickNote) => {
+  return promote ?? ((note: QuickNote) => {
     if (activeProjectId === null) return Promise.resolve();
     return promoteNoteToScene(
       { binderStore, sceneDocStore, quickNoteStore: store },
       { note, projectId: activeProjectId }
     ).then(() => undefined);
   });
+}
 
+export function Inbox({ onClose, activeProjectId, setHasQuickItems, store = defaultStore, promote, onAfterPromote }: InboxProps) {
+  const effectivePromote = useEffectivePromote(promote, activeProjectId, store);
   const { notes, handleEdit, handleDelete, handlePromote } = useInboxNotes({
     activeProjectId, setHasQuickItems, store, effectivePromote, onAfterPromote,
   });
@@ -202,15 +247,7 @@ export function Inbox({ onClose, activeProjectId, setHasQuickItems, store = defa
   return (
     <div className="scrim" onClick={onClose}>
       <div className="sheet" style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head">
-          <div>
-            <div className="sheet-title"><Icon name="inbox" className="ic" />Quick notes</div>
-            <div className="sheet-sub">Click any note to edit · promote into a scene or delete</div>
-          </div>
-          <button className="iconbtn sheet-x" type="button" onClick={onClose}>
-            <Icon name="x" className="ic" />
-          </button>
-        </div>
+        <InboxSheetHead notes={notes} onClose={onClose} />
         <div className="sheet-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {notes !== null && notes.length === 0 && (
             <div className="empty-hint" style={{ textAlign: "center", padding: 28 }}>

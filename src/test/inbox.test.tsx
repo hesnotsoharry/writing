@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Inbox } from "../features/inbox/Inbox";
 import type { QuickNote } from "../features/quickcapture/SqliteQuickNoteStore";
+import { QUICK_NOTES_CHANGED_EVENT } from "../lib/settings";
 
 afterEach(cleanup);
 
@@ -18,12 +19,27 @@ function makeNote(over: Partial<QuickNote> = {}): QuickNote {
   };
 }
 
+// Stateful (not a single static mockResolvedValue): delete/markFiled mutate
+// `notes` in place, so a re-fetch after the QUICK_NOTES_CHANGED_EVENT the
+// Inbox now dispatches (and listens for — see Problem A) sees the same
+// removal the real store would, instead of resurrecting the note from a
+// stale snapshot.
 function makeStore(notes: QuickNote[] = [makeNote()]) {
+  const remove = (id: string) => {
+    const idx = notes.findIndex((n) => n.id === id);
+    if (idx >= 0) notes.splice(idx, 1);
+    return Promise.resolve();
+  };
   return {
-    listUnfiled: vi.fn().mockResolvedValue(notes),
+    // Return a fresh copy each call: `notes` is mutated in place by
+    // delete/markFiled, and resolving with that same array reference twice
+    // in a row (once pre-mutation, once post-) can collide with React's
+    // same-reference state bailout across the two setNotes calls in flight
+    // (the local optimistic update and the event-triggered re-fetch).
+    listUnfiled: vi.fn().mockImplementation(() => Promise.resolve([...notes])),
     updateBody: vi.fn().mockResolvedValue(undefined),
-    delete: vi.fn().mockResolvedValue(undefined),
-    markFiled: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockImplementation(remove),
+    markFiled: vi.fn().mockImplementation(remove),
   };
 }
 
@@ -81,7 +97,10 @@ describe("Inbox", () => {
   it("promote: calls injected promote(note), removes note from list, and calls setHasQuickItems", async () => {
     const note = makeNote({ id: "n1", body: "Promote me" });
     const store = makeStore([note]);
-    const promote = vi.fn().mockResolvedValue(undefined);
+    // Mirrors production's promoteNoteToScene, which files the note through
+    // the store as part of promotion — otherwise the re-fetch this dispatch
+    // triggers (see Problem A) would resurrect the note from a stale list.
+    const promote = vi.fn().mockImplementation((n: QuickNote) => store.markFiled(n.id));
     const setHasQuickItems = vi.fn();
     render(
       <Inbox onClose={vi.fn()} activeProjectId="p1" setHasQuickItems={setHasQuickItems}
@@ -151,6 +170,40 @@ describe("Inbox", () => {
     fireEvent.blur(textarea);
     await vi.waitFor(() => expect(store.listUnfiled).toHaveBeenCalled());
     expect(store.updateBody).not.toHaveBeenCalled();
+  });
+
+  it("shows an 'N unsorted' count once notes have loaded (Problem B item 4)", async () => {
+    const notes = [makeNote({ id: "n1", body: "First" }), makeNote({ id: "n2", body: "Second" })];
+    const store = makeStore(notes);
+    render(
+      <Inbox onClose={vi.fn()} activeProjectId="p1" setHasQuickItems={vi.fn()} store={store} />
+    );
+    await screen.findByText("First");
+    expect(screen.getByText("2 unsorted")).toBeInTheDocument();
+  });
+
+  it("re-fetches listUnfiled when QUICK_NOTES_CHANGED_EVENT fires (a phone-captured note lands via sync)", async () => {
+    const store = {
+      listUnfiled: vi.fn()
+        .mockResolvedValueOnce([makeNote({ id: "n1", body: "Local note" })])
+        .mockResolvedValueOnce([
+          makeNote({ id: "n1", body: "Local note" }),
+          makeNote({ id: "n2", body: "Synced from phone" }),
+        ]),
+      updateBody: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+      markFiled: vi.fn().mockResolvedValue(undefined),
+    };
+    render(
+      <Inbox onClose={vi.fn()} activeProjectId="p1" setHasQuickItems={vi.fn()} store={store} />
+    );
+    await screen.findByText("Local note");
+    expect(store.listUnfiled).toHaveBeenCalledTimes(1);
+
+    act(() => { window.dispatchEvent(new CustomEvent(QUICK_NOTES_CHANGED_EVENT)); });
+
+    await screen.findByText("Synced from phone");
+    expect(store.listUnfiled).toHaveBeenCalledTimes(2);
   });
 
   it("Ctrl+Enter commits exactly once (doneRef blocks the blur double-write)", async () => {

@@ -10,6 +10,7 @@ import { Icon } from "../components/Icon";
 import type { MenuDescriptor } from "../components/menu/ContextMenu";
 import { ContextMenu } from "../components/menu/ContextMenu";
 import { SqliteBoardsStore } from "../db/sqliteBoardsStore";
+import { SYNC_ROWS_APPLIED_EVENT, type SyncRowsAppliedDetail } from "../sync/syncEvents";
 import { DeleteConfirm, InlineRename } from "./BinderCrud";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -21,6 +22,19 @@ type BoardRow = { id: string; project_id: string; title: string; sort: number };
 const boardsStore = new SqliteBoardsStore();
 
 // ── useBoardsList ─────────────────────────────────────────────────────────────
+
+// A board created/renamed/deleted on another device lands in SQLite via
+// sync with no local state update — re-fetch when that happens.
+function useBoardsSyncRefresh(reload: () => void) {
+  useEffect(() => {
+    const onRowsApplied = (e: Event) => {
+      const detail = (e as CustomEvent<SyncRowsAppliedDetail>).detail;
+      if (detail?.domain === "boards") reload();
+    };
+    window.addEventListener(SYNC_ROWS_APPLIED_EVENT, onRowsApplied);
+    return () => { window.removeEventListener(SYNC_ROWS_APPLIED_EVENT, onRowsApplied); };
+  }, [reload]);
+}
 
 function useBoardsList(projectId: string | null) {
   const [boards, setBoards] = useState<BoardRow[]>([]);
@@ -47,6 +61,7 @@ function useBoardsList(projectId: string | null) {
 
   useEffect(() => { seeded.current = false; }, [projectId]);
   useEffect(() => { reload(); }, [reload]);
+  useBoardsSyncRefresh(reload);
 
   const createBoard = useCallback((pid: string) => {
     boardsStore.create({

@@ -23,9 +23,14 @@ class DbQuickNoteStore implements QuickNoteStore {
   async create(projectId: string, body: string): Promise<string> {
     const id = crypto.randomUUID();
     const created_at = Date.now();
+    // source/state written explicitly rather than relying on the column
+    // DEFAULT — desktop has one capture path (⌘K) so source is always null,
+    // but a divergent default between desktop and mobile's own explicit
+    // writes (mobile/src/db/mobileQuickNoteStore.ts) is the kind of thing
+    // that's cheap to keep aligned and expensive to debug later.
     await this.db.execute(
-      "INSERT INTO quick_notes (id, project_id, body, created_at, filed) VALUES ($1,$2,$3,$4,0)",
-      [id, projectId, body, created_at]
+      "INSERT INTO quick_notes (id, project_id, body, created_at, filed, source, state) VALUES ($1,$2,$3,$4,0,$5,$6)",
+      [id, projectId, body, created_at, null, "inbox"]
     );
     return id;
   }
@@ -53,8 +58,12 @@ class DbQuickNoteStore implements QuickNoteStore {
   }
 
   async markFiled(id: string): Promise<void> {
+    // `state` is the column mobile actually queries by (state = 'inbox') —
+    // leaving it at 'inbox' after a desktop file meant a desktop-filed note
+    // counted as unfiled forever on mobile. Set both so either side's query
+    // agrees on filed status.
     await this.db.execute(
-      "UPDATE quick_notes SET filed=1 WHERE id=$1",
+      "UPDATE quick_notes SET filed=1, state='filed' WHERE id=$1",
       [id]
     );
   }

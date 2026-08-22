@@ -8,6 +8,7 @@ import type { BinderCallbacks } from "./binder/BinderCrud";
 import type { DragCallbacks } from "./binder/BinderDrag";
 import type { BinderTree } from "./binder/buildTree";
 import { buildTree } from "./binder/buildTree";
+import type { Project } from "./db/binderStore";
 import type { SqliteBinderStore } from "./db/sqliteBinderStore";
 import type { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
 
@@ -22,6 +23,32 @@ export async function reloadTree(
 ): Promise<void> {
   const { folders, scenes } = await binderStore.loadProject(projectId);
   setTree(buildTree(folders, scenes));
+}
+
+/** `reloadTree`/`refreshProjects` re-fetch helpers for the active project —
+ *  factored out of App.tsx's useAppWiring to keep that hook and file under
+ *  the line-count budget. */
+export function useTreeAndProjectRefresh(
+  binderStore: SqliteBinderStore,
+  activeProjectIdRef: MutableRefObject<string | null>,
+  setTree: (tree: BinderTree | null) => void,
+  setProjects: (projects: Project[]) => void,
+) {
+  function doReloadTree() {
+    const id = activeProjectIdRef.current;
+    if (!id) return;
+    reloadTree(binderStore, id, setTree as (t: BinderTree) => void)
+      .catch((e) => console.error("[wiring] reloadTree failed", e));
+  }
+  // A remote meta-doc apply (e.g. a project created on another device) lands
+  // straight in SQLite with no local state update — refetch the list so a
+  // brand-new project shows up in the switcher without a restart.
+  function doRefreshProjects() {
+    binderStore.listProjects()
+      .then(setProjects)
+      .catch((e) => console.error("[wiring] refreshProjects failed", e));
+  }
+  return { doReloadTree, doRefreshProjects };
 }
 
 interface CrudDeps {

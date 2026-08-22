@@ -1,5 +1,6 @@
 import type { DbClient } from "../../db/dbClient";
 import type { LwwDomainAdapter, LwwSeedRow } from "../lww/registry";
+import { dispatchRowsApplied } from "../syncEvents";
 
 /**
  * How to enumerate a domain's pre-existing rows for the first-sync ledger seed.
@@ -106,9 +107,11 @@ export function createSqlDomainAdapter(
          ON CONFLICT(${definition.key}) DO UPDATE SET ${assignments}`,
         definition.columns.map((column) => row[column]),
       );
+      dispatchRowsApplied(definition.domain);
     },
     async applyTombstone(rowId) {
       await db.execute(`DELETE FROM ${definition.table} WHERE ${definition.key} = ?`, [rowId]);
+      dispatchRowsApplied(definition.domain);
     },
     ...(seed ? { listSeedRows: () => listSeedRows(db, definition, seed) } : {}),
   };

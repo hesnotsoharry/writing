@@ -5,7 +5,7 @@ import * as Y from "yjs";
 import { useAutoSnapHooks } from "./App.autoSnap";
 import { AppContent } from "./App.content";
 import { useDetectionWiring } from "./App.detection";
-import { reloadTree, useCrudHandlers, useDragHandlers } from "./App.handlers";
+import { reloadTree, useCrudHandlers, useDragHandlers, useTreeAndProjectRefresh } from "./App.handlers";
 import { backfillSnapshotWordCounts, fetchSnapshotText, snapCapture, type SnapCtx, snapDelete, snapRename, snapRestore, snapshotStore, snapTakeFromMenu, snapUndoReplace, useActiveSceneSnapshots } from "./App.snapshots";
 import { useAppState, useProjectActions } from "./App.state";
 import { useSyncCallbacks } from "./App.sync";
@@ -186,7 +186,7 @@ interface AppWiring {
   callbacks: BinderCallbacks; dragCallbacks: ReturnType<typeof useDragHandlers>;
   onSwitchProject: (id: string) => void; onCreateProject: (title: string) => void;
   onEntitiesChanged: () => void; handleSelectScene: (sceneId: string) => void;
-  reloadTree: () => void;
+  reloadTree: () => void; refreshProjects: () => void;
 }
 
 function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
@@ -220,14 +220,10 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     onArchived: bumpArchivedVersion,
   });
   const dragCallbacks = useDragHandlers({ binderStore, activeProjectIdRef, setTree });
-  function doReloadTree() {
-    const id = activeProjectIdRef.current;
-    if (!id) return;
-    reloadTree(binderStore, id, setTree as (t: BinderTree) => void)
-      .catch((e) => console.error("[wiring] reloadTree failed", e));
-  }
+  const { doReloadTree, doRefreshProjects } =
+    useTreeAndProjectRefresh(binderStore, activeProjectIdRef, setTree, setProjects);
   return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
-    handleSelectScene: selectScene, reloadTree: doReloadTree };
+    handleSelectScene: selectScene, reloadTree: doReloadTree, refreshProjects: doRefreshProjects };
 }
 function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, showHistory: boolean, historySceneId: string | null) {
   const [historySnapshots, setHistorySnapshots] = useState<Snapshot[]>([]);
@@ -251,7 +247,7 @@ function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, sho
 function useAppCore() {
   const state = useAppState(); useStartupUpdateCheck((u) => state.setPendingUpdate(u));
   const { setTheme, setAccent } = useTheme();
-  const wiring = useAppWiring(state); useSyncCallbacks(state.selectedSceneId, wiring.reloadTree, wiring.handleSelectScene);
+  const wiring = useAppWiring(state); useSyncCallbacks(state.selectedSceneId, wiring.reloadTree, wiring.handleSelectScene, wiring.refreshProjects);
   const { doc, selectedSceneId, showHistory, historySceneId } = state;
   const snap = useSnapshotState(doc, selectedSceneId, showHistory, historySceneId);
   const [railRefreshKey, setRailRefreshKey] = useState(0); const bumpRailKey = useCallback(() => setRailRefreshKey((k) => k + 1), []);

@@ -14,6 +14,7 @@ import type {
   Relation,
   StoryBibleStore,
 } from "../db/storyBibleStore";
+import { BIBLE_CHANGED_EVENT } from "../sync/syncEvents";
 import type { EntityTypeDef } from "./BibleTypes";
 import { BibleTier, BUILT_IN_TYPES } from "./BibleTypes";
 import { CustomTypeCreator } from "./CustomTypeCreator";
@@ -75,6 +76,26 @@ export function useStoryBibleLists(store: StoryBibleStore, projectId: string, on
     const alive = { v: true };
     loadAll(alive);
     return () => { alive.v = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, projectId]);
+
+  // A remote bible-doc apply (entity/field/link/relation from another device)
+  // lands straight in SQLite with no local state update — re-fetch when that
+  // happens so a new entity doesn't wait for a view remount to show up.
+  // Debounced: one doc merge can dispatch once per upserted row.
+  useEffect(() => {
+    const alive = { v: true };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onChanged = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => loadAll(alive), 250);
+    };
+    window.addEventListener(BIBLE_CHANGED_EVENT, onChanged);
+    return () => {
+      alive.v = false;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener(BIBLE_CHANGED_EVENT, onChanged);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store, projectId]);
 
