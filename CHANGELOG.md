@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.12.9] — 2026-08-22 · goals repair + trial activation
+
+### Added
+- **AI trial activation** — starting the free AI trial is now a clear one-time
+  step in the Assistant panel (with a quick automated check), instead of a
+  silent background grant. Existing trials and subscriptions are unaffected.
+- **What's new** — release notes now appear once after each update, and any
+  time from Settings.
+- **Inbox count** — Quick notes shows how many unsorted notes it holds.
+
+### Fixed
+- **Goals** — the master switch now truly turns goals off everywhere (no more
+  phantom "0 / 1000 words"); each goal can be switched off individually
+  without deleting it; streak and deadline goals display their real settings
+  instead of an empty shell.
+- **Boards** — every project now gets its own Default Board. Previously only
+  the first project ever did; later projects opened Brainstorm empty.
+- **Quick notes** — filing a note now marks it filed everywhere, so it stops
+  counting as unsorted on a paired device.
+
+*(Versions 0.3.0 through 0.12.8 shipped without changelog entries — see the
+GitHub release tags for that history. Entries are mandatory from here on:
+the release pipeline refuses to publish a version without one.)*
+
 ## [0.2.1] — 2026-06-08 · Wave 28: story-planning salvage
 
 Fix-sweep bringing the eight Wave 27 story-planning features to spec, each verified live in a CDP smoke.

@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useState } from "react";
 
@@ -5,6 +6,9 @@ import { Icon } from "../../components/Icon";
 import { runUpdateCheck } from "../../lib/updater";
 import type { AccentPalette, Theme } from "../../theme/useTheme";
 import { ACCENT_KEY, DEFAULT_ACCENT, THEME_KEY } from "../../theme/useTheme";
+import { changelogMarkdown } from "../updater/changelogSource";
+import { getNotesForVersion } from "../updater/whatsNew";
+import { WhatsNewModal } from "../updater/WhatsNewModal";
 import { SetRow } from "./Settings.primitives";
 import {
   AboutSection,
@@ -154,18 +158,15 @@ interface RouterProps {
   onOpenGoals: () => void;
   onCheckUpdates?: () => void;
   isCheckingUpdates?: boolean;
+  onOpenWhatsNew: () => void;
 }
 
-function SectionRouter({ sec, tweaks, setTweak, theme, accent, onThemeChange, onAccentChange, showToast, onOpenGoals, onCheckUpdates, isCheckingUpdates }: RouterProps) {
-  if (sec === "appearance") return <AppearanceSection tweaks={tweaks} setTweak={setTweak} theme={theme} accent={accent} onThemeChange={onThemeChange} onAccentChange={onAccentChange} />;
-  if (sec === "editor")     return <EditorSection tweaks={tweaks} setTweak={setTweak} />;
-  if (sec === "writing")    return <WritingSection tweaks={tweaks} setTweak={setTweak} onOpenGoals={onOpenGoals} />;
-  if (sec === "ai")         return <AiSection tweaks={tweaks} setTweak={setTweak} />;
-  if (sec === "sync")       return <SyncSection tweaks={tweaks} setTweak={setTweak} />;
-  if (sec === "backup")     return <BackupSection showToast={showToast} />;
+function AboutUpdatesRows({ onCheckUpdates, isCheckingUpdates, onOpenWhatsNew }: Pick<RouterProps, "onCheckUpdates" | "isCheckingUpdates" | "onOpenWhatsNew">) {
   return (
     <>
-      <AboutSection />
+      <SetRow label="What's new" desc="Release notes for this version.">
+        <button className="btn btn-soft" onClick={onOpenWhatsNew}>View</button>
+      </SetRow>
       {onCheckUpdates && (
         <SetRow label="App updates" desc="Check for a newer version of Writers Nook." last>
           <button className="btn btn-soft" onClick={onCheckUpdates} disabled={isCheckingUpdates}>
@@ -177,10 +178,39 @@ function SectionRouter({ sec, tweaks, setTweak, theme, accent, onThemeChange, on
   );
 }
 
+function SectionRouter({ sec, tweaks, setTweak, theme, accent, onThemeChange, onAccentChange, showToast, onOpenGoals, onCheckUpdates, isCheckingUpdates, onOpenWhatsNew }: RouterProps) {
+  if (sec === "appearance") return <AppearanceSection tweaks={tweaks} setTweak={setTweak} theme={theme} accent={accent} onThemeChange={onThemeChange} onAccentChange={onAccentChange} />;
+  if (sec === "editor")     return <EditorSection tweaks={tweaks} setTweak={setTweak} />;
+  if (sec === "writing")    return <WritingSection tweaks={tweaks} setTweak={setTweak} onOpenGoals={onOpenGoals} />;
+  if (sec === "ai")         return <AiSection tweaks={tweaks} setTweak={setTweak} />;
+  if (sec === "sync")       return <SyncSection tweaks={tweaks} setTweak={setTweak} />;
+  if (sec === "backup")     return <BackupSection showToast={showToast} />;
+  return (
+    <>
+      <AboutSection />
+      <AboutUpdatesRows onCheckUpdates={onCheckUpdates} isCheckingUpdates={isCheckingUpdates} onOpenWhatsNew={onOpenWhatsNew} />
+    </>
+  );
+}
+
+// ── What's new (on-demand; never writes writing.lastSeenVersion) ─────────────
+
+function useWhatsNewEntry() {
+  const [open, setOpen] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open || version) return;
+    getVersion().then(setVersion).catch(() => setVersion(null));
+  }, [open, version]);
+  const notes = version ? getNotesForVersion(version, changelogMarkdown) : null;
+  return { open, setOpen, version, notes };
+}
+
 // ── Settings root export ──────────────────────────────────────────────────────
 
 export function Settings({ onClose, setTheme, setAccent, onOpenGoals, onUpdateFound }: SettingsProps) {
   const { sec, setSec, tweaks, setTweak, theme, accent, toast, handleTheme, handleAccent, showToast, isCheckingUpdates, onCheckUpdates } = useSettingsState(setTheme, setAccent, onUpdateFound);
+  const whatsNewEntry = useWhatsNewEntry();
 
   function handleGoals() {
     if (onOpenGoals) { onOpenGoals(); } else { showToast("Open Writing Goals from the toolbar"); }
@@ -207,11 +237,14 @@ export function Settings({ onClose, setTheme, setAccent, onOpenGoals, onUpdateFo
             <button className="iconbtn" onClick={onClose}><Icon name="x" className="ic" /></button>
           </div>
           <div className="set-main-body">
-            <SectionRouter sec={sec} tweaks={tweaks} setTweak={setTweak} theme={theme} accent={accent} onThemeChange={handleTheme} onAccentChange={handleAccent} showToast={showToast} onOpenGoals={handleGoals} onCheckUpdates={onCheckUpdates} isCheckingUpdates={isCheckingUpdates} />
+            <SectionRouter sec={sec} tweaks={tweaks} setTweak={setTweak} theme={theme} accent={accent} onThemeChange={handleTheme} onAccentChange={handleAccent} showToast={showToast} onOpenGoals={handleGoals} onCheckUpdates={onCheckUpdates} isCheckingUpdates={isCheckingUpdates} onOpenWhatsNew={() => whatsNewEntry.setOpen(true)} />
           </div>
         </div>
       </div>
       <ToastOverlay msg={toast} />
+      {whatsNewEntry.open && whatsNewEntry.version && (
+        <WhatsNewModal version={whatsNewEntry.version} notes={whatsNewEntry.notes} onClose={() => whatsNewEntry.setOpen(false)} />
+      )}
     </div>
   );
 }

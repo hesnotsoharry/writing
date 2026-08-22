@@ -22,6 +22,8 @@ import { Inbox } from "./features/inbox/Inbox";
 import { QuickCapture } from "./features/quickcapture/QuickCapture";
 import { Settings } from "./features/settings/Settings";
 import { UpdateModal } from "./features/updater/UpdateModal";
+import { useWhatsNew } from "./features/updater/useWhatsNew";
+import { WhatsNewModal } from "./features/updater/WhatsNewModal";
 import { VersionHistory } from "./storybible/VersionHistory";
 import type { AccentPalette, Theme } from "./theme/useTheme";
 
@@ -181,12 +183,18 @@ interface UpdateLayerProps {
 }
 
 function UpdateLayer({ pendingUpdate, onDismiss, onInstallError, appInstallError, onClearError }: UpdateLayerProps) {
+  // Gated on pendingUpdate so the "What's new" popup never stacks on top of
+  // UpdateModal — see useWhatsNew's `blocked` param.
+  const whatsNew = useWhatsNew(pendingUpdate !== null);
   return (
     <>
       {pendingUpdate && (
         <UpdateModal update={pendingUpdate} onDismiss={onDismiss} onInstallError={onInstallError} />
       )}
       <AppInstallErrorToast msg={appInstallError} onClose={onClearError} />
+      {whatsNew.open && whatsNew.version && (
+        <WhatsNewModal version={whatsNew.version} notes={whatsNew.notes} onClose={whatsNew.dismiss} />
+      )}
     </>
   );
 }

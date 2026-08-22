@@ -87,7 +87,7 @@ function NotesBlockView({ block }: { block: NotesBlock }) {
   return <p className="upd-notes-p">{block.text}</p>;
 }
 
-function ReleaseNotes({ text }: { text: string }) {
+export function ReleaseNotes({ text }: { text: string }) {
   const blocks = parseReleaseNotes(text);
   if (blocks.length === 0) return null;
   return (
