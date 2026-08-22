@@ -14,6 +14,8 @@ import { STATUS_ORDER } from "../../shared/status";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import type { CreatePromptResult } from "../binder/createPromptModel";
+import { CreatePromptSheet } from "../binder/CreatePromptSheet";
 import type { OutlineItem } from "./outlinerModel";
 import { applyOptimisticOrder, buildOutlineGroups, deriveStickyHeaderIndices, flattenOutline, reorderGroupIds, summarizeOutline } from "./outlinerModel";
 import { OutlinerRow } from "./OutlinerRow";
@@ -95,18 +97,44 @@ function useOrderedGroups(data: ReturnType<typeof useOutlinerData>) {
   return { groups, reorder };
 }
 
+function persistOutlinerScene(projectId: string, result: CreatePromptResult, reload: () => void): void {
+  void getBinderStore().then((store) => store.createScene({
+    projectId, folderId: result.folderId, title: result.title,
+  })).then(reload);
+}
+
+function OutlinerTopbar({ onBack }: { onBack: () => void }) {
+  const theme = useTheme();
+  return <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={onBack} />} title="Outliner"
+    trailing={<Pressable accessibilityLabel="Column options" style={[styles.columns, { backgroundColor: theme.colors.parchment }]}>
+      <Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Columns</Text>
+      <Icon color={theme.colors.ink2} name="chevDown" size={13} />
+    </Pressable>} />;
+}
+
+function OutlinerFooter({ onCreate, scenes }: {
+  onCreate: () => void; scenes: ReturnType<typeof useOutlinerData>["scenes"];
+}) {
+  const theme = useTheme();
+  return <View style={styles.bottom}>
+    <Pressable onPress={onCreate} style={styles.newScene}>
+      <Icon color={theme.colors.accent} name="plus" size={16} />
+      <Text style={[TYPE.bodySmallStrong, { color: theme.colors.accent }]}>New scene</Text>
+    </Pressable>
+    <StatusSummary scenes={scenes} />
+  </View>;
+}
+
 function OutlinerBody({ navigation, projectId }: Pick<Props, "navigation"> & { projectId: string }) {
   const theme = useTheme();
   const data = useOutlinerData(projectId);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const { groups, reorder } = useOrderedGroups(data);
   const items = useMemo(() => flattenOutline(groups), [groups]);
   const sticky = useMemo(() => deriveStickyHeaderIndices(items), [items]);
   const scrollGesture = useMemo(() => Gesture.Native(), []);
   const drag = useOutlinerDrag(groups, reorder);
-  const create = () => {
-    void getBinderStore().then((store) => store.createScene({ projectId, folderId: data.folders[0]?.id ?? null, title: "Untitled scene" })).then(data.reload);
-  };
   const renderItem = ({ item }: { item: (typeof items)[number] }) => {
     if (item.kind === "header") return <ChapterHeader group={item.group} reload={data.reload} />;
     const group = groups.find(({ id }) => id === item.groupId);
@@ -120,11 +148,14 @@ function OutlinerBody({ navigation, projectId }: Pick<Props, "navigation"> & { p
   };
   return (
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.paper }]}>
-      <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Outliner" trailing={<Pressable accessibilityLabel="Column options" style={[styles.columns, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Columns</Text><Icon color={theme.colors.ink2} name="chevDown" size={13} /></Pressable>} />
+      <OutlinerTopbar onBack={navigation.goBack} />
       {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <OutlinerDragContext.Provider value={drag}><GestureDetector gesture={scrollGesture}>
         <FlatList CellRendererComponent={OutlineCell} data={items} keyExtractor={({ key }) => key} renderItem={renderItem} stickyHeaderIndices={sticky} />
       </GestureDetector></OutlinerDragContext.Provider>}
-      <View style={styles.bottom}><Pressable onPress={create} style={styles.newScene}><Icon color={theme.colors.accent} name="plus" size={16} /><Text style={[TYPE.bodySmallStrong, { color: theme.colors.accent }]}>New scene</Text></Pressable><StatusSummary scenes={data.scenes} /></View>
+      <OutlinerFooter onCreate={() => { setCreating(true); }} scenes={data.scenes} />
+      {creating && <CreatePromptSheet folders={data.folders} kind="scene" open
+        onConfirm={(result) => { setCreating(false); persistOutlinerScene(projectId, result, data.reload); }}
+        onDismiss={() => { setCreating(false); }} />}
     </Screen>
   );
 }

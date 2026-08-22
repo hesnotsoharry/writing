@@ -13,13 +13,13 @@ import { PALETTE } from "../../theme/palette";
 import { useTheme } from "../../theme/ThemeProvider";
 import type { BinderRow, BinderSceneItem } from "./binderQueries";
 import { buildBinderRows, listBinder } from "./binderQueries";
+import type { CreatePromptRequest, CreatePromptResult } from "./createPromptModel";
+import { CreatePromptSheet } from "./CreatePromptSheet";
 import { SceneActionsSheet } from "./SceneActionsSheet";
 import { useBinderDrawerData } from "./useBinderDrawerData";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProjectBinder">;
 type LoadState = "loading" | "ready" | "error";
-
-const NEW_SCENE_TITLE = "Untitled scene";
 
 interface BinderLoadHandlers {
   onSuccess: (rows: BinderRow[]) => void;
@@ -46,15 +46,16 @@ function useBinderColors() {
 /** Desktop creates the scene in place and selects it; mobile's equivalent of
  *  selecting is opening the editor on it. */
 async function createAndOpenScene(args: {
-  folderId: string | null; navigation: Props["navigation"]; projectId: string; refresh: () => void;
+  folderId: string | null; navigation: Props["navigation"]; projectId: string;
+  refresh: () => void; title: string;
 }): Promise<void> {
   const store = await getBinderStore();
   const sceneId = await store.createScene({
-    projectId: args.projectId, folderId: args.folderId, title: NEW_SCENE_TITLE,
+    projectId: args.projectId, folderId: args.folderId, title: args.title,
   });
   args.refresh();
   args.navigation.navigate("Scene", {
-    projectId: args.projectId, sceneId, sceneTitle: NEW_SCENE_TITLE,
+    projectId: args.projectId, sceneId, sceneTitle: args.title,
   });
 }
 
@@ -194,43 +195,51 @@ function useBinderLoad(projectId: string) {
   return { errorMessage, load, onError, onSuccess, rows, state };
 }
 
-export function ProjectBinderScreen({ navigation, route }: Props) {
-  const { projectId } = route.params;
-  const binder = useBinderLoad(projectId);
-  const [actionScene, setActionScene] = useState<Scene | null>(null);
-  const drawerData = useBinderDrawerData(projectId);
-  const reloadDrawer = drawerData.reload;
-  const onOpenScene = useCallback((scene: BinderSceneItem) => {
-    navigation.navigate("Scene", { projectId, sceneId: scene.id, sceneTitle: scene.title });
-  }, [navigation, projectId]);
-  const refresh = useCallback(() => {
+function useBinderRefresh(projectId: string, binder: ReturnType<typeof useBinderLoad>, reloadDrawer: () => void) {
+  return useCallback(() => {
     fetchBinder(projectId, { onSuccess: binder.onSuccess, onError: binder.onError });
     reloadDrawer();
   }, [binder.onError, binder.onSuccess, projectId, reloadDrawer]);
+}
+
+function ProjectBinderLoaded({ navigation, projectId }: {
+  navigation: Props["navigation"]; projectId: string;
+}) {
+  const binder = useBinderLoad(projectId);
+  const [actionScene, setActionScene] = useState<Scene | null>(null);
+  const [prompt, setPrompt] = useState<CreatePromptRequest | null>(null);
+  const drawerData = useBinderDrawerData(projectId);
+  const refresh = useBinderRefresh(projectId, binder, drawerData.reload);
+  const onOpenScene = useCallback((scene: BinderSceneItem) => {
+    navigation.navigate("Scene", { projectId, sceneId: scene.id, sceneTitle: scene.title });
+  }, [navigation, projectId]);
   const onActions = useCallback((scene: BinderSceneItem) => {
     const loaded = drawerData.scenes.find(({ id }) => id === scene.id);
     if (loaded) { setActionScene(loaded); return; }
     void getBinderStore().then((store) => store.loadProject(projectId))
       .then((data) => { setActionScene(data.scenes.find(({ id }) => id === scene.id) ?? null); });
   }, [drawerData.scenes, projectId]);
-  const afterDelete = useCallback(() => {
-    setActionScene(null);
-    refresh();
-  }, [refresh]);
-  const onAddScene = useCallback((folderId: string | null) => {
-    void createAndOpenScene({ folderId, navigation, projectId, refresh });
+  const onConfirmCreate = useCallback((result: CreatePromptResult) => {
+    setPrompt(null);
+    void createAndOpenScene({ folderId: result.folderId, navigation, projectId, refresh, title: result.title });
   }, [navigation, projectId, refresh]);
-
   return <>
     <BinderContent archived={drawerData.archived} errorMessage={binder.errorMessage} load={binder.load}
-      onActions={onActions} onAddScene={onAddScene}
+      onActions={onActions} onAddScene={(folderId) => { setPrompt({ kind: "scene", impliedFolderId: folderId }); }}
       onOpenArchive={() => navigation.navigate("Archive", { projectId })}
       onOpenScene={onOpenScene} rows={binder.rows} state={binder.state} />
+    {prompt !== null && <CreatePromptSheet folders={drawerData.folders} impliedFolderId={prompt.impliedFolderId}
+      kind={prompt.kind} onConfirm={onConfirmCreate} onDismiss={() => { setPrompt(null); }} open />}
     <SceneActionsSheet key={actionScene?.id ?? "none"} open={actionScene !== null}
       projectId={projectId} scene={actionScene} labels={drawerData.labels}
       assigned={actionScene ? drawerData.sceneLabels[actionScene.id] ?? [] : []}
-      onDismiss={() => { setActionScene(null); }} onChanged={refresh} onDeleted={afterDelete} />
+      onDismiss={() => { setActionScene(null); }} onChanged={refresh}
+      onDeleted={() => { setActionScene(null); refresh(); }} />
   </>;
+}
+
+export function ProjectBinderScreen({ navigation, route }: Props) {
+  return <ProjectBinderLoaded navigation={navigation} projectId={route.params.projectId} />;
 }
 
 const styles = StyleSheet.create({

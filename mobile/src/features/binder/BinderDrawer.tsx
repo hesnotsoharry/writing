@@ -10,6 +10,8 @@ import type { Folder, Scene } from "../../shared/binderStore";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import type { CreateKind, CreatePromptRequest, CreatePromptResult } from "./createPromptModel";
+import { CreatePromptSheet } from "./CreatePromptSheet";
 import {
   BINDER_DRAWER_WIDTH, BINDER_EDGE_WIDTH, CLOSED_DRAWER_STATE,
   type DrawerAction, type DrawerState, reduceDrawer,
@@ -127,12 +129,19 @@ function ProjectHeader({ data }: { data: BinderDrawerData }) {
 }
 
 interface BinderListProps {
-  data: BinderDrawerData; activeSceneId: string; projectId: string;
+  data: BinderDrawerData; activeSceneId: string;
   onScene(scene: Scene): void; onActions(scene: Scene): void;
   onReorder(scene: Scene, delta: number): void;
+  onNewScene(): void; onNewChapter(): void;
+}
+function AddBinderRow({ label, onPress }: { label: string; onPress(): void }) {
+  const theme = useTheme();
+  return <Pressable onPress={onPress} style={[styles.newChapter, { borderColor: theme.colors.parchmentEdge }]}>
+    <Icon name="plus" size={14} color={theme.colors.ink3} />
+    <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>{label}</Text>
+  </Pressable>;
 }
 function BinderList(props: BinderListProps) {
-  const theme = useTheme();
   // Short pieces = folder_id-less scenes PLUS scenes whose folder_id names a
   // folder this project does not have. Same rescue rule as buildBinderTree —
   // an orphan dropped here is a scene the drawer can never open.
@@ -149,28 +158,17 @@ function BinderList(props: BinderListProps) {
       active={scene.id === props.activeSceneId} onPress={() => { props.onScene(scene); }}
       onLongPress={() => { props.onActions(scene); }}
       onReorder={(delta) => { props.onReorder(scene, delta); }} />)}
-    <Pressable onPress={() => { void getBinderStore().then((store) => store.createScene({
-      projectId: props.projectId, folderId: props.data.folders[0]?.id ?? null, title: "Untitled scene",
-    })).then(props.data.reload); }}
-      style={[styles.newChapter, { borderColor: theme.colors.parchmentEdge }]}>
-      <Icon name="plus" size={14} color={theme.colors.ink3} />
-      <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>New scene</Text>
-    </Pressable>
-    <Pressable onPress={() => { void getBinderStore().then((store) => store.createFolder({
-      projectId: props.projectId, title: "New chapter",
-    })).then(props.data.reload); }}
-      style={[styles.newChapter, { borderColor: theme.colors.parchmentEdge }]}>
-      <Icon name="plus" size={14} color={theme.colors.ink3} />
-      <Text style={[TYPE.meta, { color: theme.colors.ink3 }]}>New chapter</Text>
-    </Pressable>
+    <AddBinderRow label="New scene" onPress={props.onNewScene} />
+    <AddBinderRow label="New chapter" onPress={props.onNewChapter} />
   </ScrollView>;
 }
 
 interface DrawerPanelProps {
   data: BinderDrawerData; insetsTop: number; state: DrawerState;
-  activeSceneId: string; projectId: string;
+  activeSceneId: string;
   onActions(scene: Scene): void; onInbox(): void; onArchive(): void;
   onReorder(scene: Scene, delta: number): void; onOpenScene(scene: Scene): void;
+  onNewScene(): void; onNewChapter(): void;
 }
 function DrawerPanel(props: DrawerPanelProps) {
   const theme = useTheme();
@@ -179,8 +177,9 @@ function DrawerPanel(props: DrawerPanelProps) {
     backgroundColor: theme.colors.parchment, borderColor: theme.colors.parchmentEdge,
   }]}>
     <ProjectHeader data={props.data} />
-    <BinderList data={props.data} activeSceneId={props.activeSceneId} projectId={props.projectId}
-      onScene={props.onOpenScene} onActions={props.onActions} onReorder={props.onReorder} />
+    <BinderList data={props.data} activeSceneId={props.activeSceneId}
+      onScene={props.onOpenScene} onActions={props.onActions} onReorder={props.onReorder}
+      onNewScene={props.onNewScene} onNewChapter={props.onNewChapter} />
     <Pressable onPress={props.onInbox} style={[styles.footer, { borderColor: theme.colors.lineSoft }]}>
       <Icon name="inbox" size={17} color={theme.colors.ink3} />
       <Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink2 }]}>Quick notes</Text>
@@ -198,11 +197,40 @@ function DrawerPanel(props: DrawerPanelProps) {
   </View>;
 }
 
+function persistDrawerCreate(args: {
+  kind: CreateKind; projectId: string; reload: () => void; result: CreatePromptResult;
+}): void {
+  const { kind, projectId, reload, result } = args;
+  void getBinderStore().then((store) => (kind === "chapter"
+    ? store.createFolder({ projectId, title: result.title })
+    : store.createScene({ projectId, folderId: result.folderId, title: result.title })
+  )).then(reload);
+}
+
+function DrawerSheets(props: {
+  actionScene: Scene | null; data: BinderDrawerData; onDeleted: () => void;
+  onConfirm: (result: CreatePromptResult) => void; projectId: string;
+  prompt: CreatePromptRequest | null; setActionScene: (scene: Scene | null) => void;
+  setPrompt: (prompt: CreatePromptRequest | null) => void;
+}) {
+  return <>
+    {props.prompt !== null && <CreatePromptSheet folders={props.data.folders}
+      impliedFolderId={props.prompt.impliedFolderId} kind={props.prompt.kind}
+      onConfirm={props.onConfirm} onDismiss={() => { props.setPrompt(null); }} open />}
+    <SceneActionsSheet key={props.actionScene?.id ?? "none"} open={props.actionScene !== null}
+      projectId={props.projectId} scene={props.actionScene} labels={props.data.labels}
+      assigned={props.actionScene ? props.data.sceneLabels[props.actionScene.id] ?? [] : []}
+      onDismiss={() => { props.setActionScene(null); }} onChanged={props.data.reload}
+      onDeleted={props.onDeleted} />
+  </>;
+}
+
 export function BinderDrawer(props: BinderDrawerProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const data = useBinderDrawerData(props.projectId);
   const [actionScene, setActionScene] = useState<Scene | null>(null);
+  const [prompt, setPrompt] = useState<CreatePromptRequest | null>(null);
   const pan = useDrawerPan(props.state, props.dispatch);
   const moveScene = (scene: Scene, delta: number): void => {
     const siblings = data.scenes.filter(({ folder_id }) => folder_id === scene.folder_id);
@@ -218,19 +246,22 @@ export function BinderDrawer(props: BinderDrawerProps) {
     setActionScene(null); data.reload();
     if (deletedActive && next) props.onOpenScene(next);
   };
+  const onConfirm = (result: CreatePromptResult): void => {
+    const kind = prompt?.kind;
+    setPrompt(null);
+    if (kind) persistDrawerCreate({ kind, projectId: props.projectId, reload: data.reload, result });
+  };
   return <View pointerEvents="box-none" style={StyleSheet.absoluteFill} {...pan.panHandlers}>
     {props.state.offset > 0 && <Pressable onPress={() => { props.dispatch({ type: "close" }); }}
       style={[styles.scrim, { left: props.state.offset, backgroundColor: theme.colors.scrimStrong }]} />}
     <DrawerPanel data={data} insetsTop={insets.top} state={props.state}
-      activeSceneId={props.activeSceneId} projectId={props.projectId}
-      onActions={setActionScene} onInbox={props.onOpenInbox} onArchive={props.onOpenArchive}
-      onReorder={moveScene} onOpenScene={props.onOpenScene} />
+      activeSceneId={props.activeSceneId} onActions={setActionScene}
+      onInbox={props.onOpenInbox} onArchive={props.onOpenArchive} onReorder={moveScene}
+      onOpenScene={props.onOpenScene} onNewScene={() => { setPrompt({ kind: "scene" }); }}
+      onNewChapter={() => { setPrompt({ kind: "chapter" }); }} />
     <View pointerEvents={props.state.offset === 0 ? "auto" : "none"} style={styles.edge} />
-    <SceneActionsSheet key={actionScene?.id ?? "none"} open={actionScene !== null}
-      projectId={props.projectId} scene={actionScene} labels={data.labels}
-      assigned={actionScene ? data.sceneLabels[actionScene.id] ?? [] : []}
-      onDismiss={() => { setActionScene(null); }} onChanged={data.reload}
-      onDeleted={afterDelete} />
+    <DrawerSheets actionScene={actionScene} data={data} onConfirm={onConfirm} onDeleted={afterDelete}
+      projectId={props.projectId} prompt={prompt} setActionScene={setActionScene} setPrompt={setPrompt} />
   </View>;
 }
 

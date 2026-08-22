@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon, PrimaryButton, Screen, SectionLabel } from "../../components";
@@ -9,6 +9,8 @@ import type { RootStackParamList } from "../../navigation/routes";
 import { useTheme } from "../../theme/ThemeProvider";
 import { HIT_SLOP_MIN, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import type { CreateFolderOption, CreatePromptResult } from "../binder/createPromptModel";
+import { CreatePromptSheet } from "../binder/CreatePromptSheet";
 import { HubFooter, HubHeader } from "./HubChrome";
 import { useHubModel } from "./useHubModel";
 
@@ -29,31 +31,56 @@ function StartRow(props: StartRowProps) {
   );
 }
 
+function persistFirstScene(
+  navigation: Props["navigation"], projectId: string, result: CreatePromptResult,
+): void {
+  void getBinderStore().then((store) => store.createScene({
+    projectId, folderId: result.folderId, title: result.title,
+  })).then((sceneId) => navigation.replace("Scene", {
+    projectId, sceneId, sceneTitle: result.title,
+  }));
+}
+
+function useProjectFolders(projectId: string): CreateFolderOption[] | null {
+  const [folders, setFolders] = useState<CreateFolderOption[] | null>(null);
+  useEffect(() => {
+    void getBinderStore().then((store) => store.loadProject(projectId))
+      .then((data) => { setFolders(data.folders); })
+      .catch(() => { setFolders([]); });
+  }, [projectId]);
+  return folders;
+}
+
+function EmptyHero({ onWriteFirst }: { onWriteFirst: () => void }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.hero}>
+      <Icon color={theme.colors.ink4} name="feather" size={52} strokeWidth={1.2} />
+      <Text style={[styles.headline, { color: theme.colors.ink }]}>A clean page</Text>
+      <Text style={[styles.reassurance, { color: theme.colors.ink2 }]}>Start anywhere. You can move things around later — nothing you do now is a commitment.</Text>
+      <PrimaryButton onPress={onWriteFirst}>Write the first scene</PrimaryButton>
+    </View>
+  );
+}
+
 export function EmptyProjectScreen({ navigation, route }: Props) {
   const theme = useTheme();
   const { projectId, projectTitle } = route.params;
   const { model } = useHubModel(projectId);
+  const folders = useProjectFolders(projectId);
+  const [creating, setCreating] = useState(false);
   useEffect(() => {
     if (model && !model.empty) navigation.replace("Hub", { projectId, projectTitle });
   }, [model, navigation, projectId, projectTitle]);
   // A project can have chapters and still be empty of prose — start the first
   // scene inside the first chapter when there is one (the binder drawer's
   // "New scene" does the same), otherwise it lands in Short pieces.
-  const firstFolderId = model?.firstFolderId ?? null;
-  const writeFirst = useCallback(() => {
-    void getBinderStore().then((store) => store.createScene({ projectId, folderId: firstFolderId, title: "Untitled scene" }))
-      .then((sceneId) => navigation.replace("Scene", { projectId, sceneId, sceneTitle: "Untitled scene" }));
-  }, [firstFolderId, navigation, projectId]);
+  const impliedFolderId = model?.firstFolderId ?? null;
   return (
     <Screen contentStyle={styles.screen}>
       <View style={styles.content}>
         <HubHeader onSettings={() => navigation.navigate("Settings", { projectId })} onSwitchProject={() => navigation.navigate("ProjectList")} projectTitle={projectTitle} subtitle="Nothing written yet" />
-        <View style={styles.hero}>
-          <Icon color={theme.colors.ink4} name="feather" size={52} strokeWidth={1.2} />
-          <Text style={[styles.headline, { color: theme.colors.ink }]}>A clean page</Text>
-          <Text style={[styles.reassurance, { color: theme.colors.ink2 }]}>Start anywhere. You can move things around later — nothing you do now is a commitment.</Text>
-          <PrimaryButton onPress={writeFirst}>Write the first scene</PrimaryButton>
-        </View>
+        <EmptyHero onWriteFirst={() => { setCreating(true); }} />
         <View style={styles.alternatives}>
           <SectionLabel>Or start from</SectionLabel>
           <StartRow color={theme.colors.note} icon="grid" onPress={() => navigation.navigate("Corkboard", { projectId, projectTitle })} subtitle="Sketch the shape before the prose" title="Cards on a corkboard" />
@@ -62,6 +89,10 @@ export function EmptyProjectScreen({ navigation, route }: Props) {
         </View>
       </View>
       <HubFooter onCapture={() => navigation.navigate("Inbox", { projectId })} />
+      {creating && folders !== null && <CreatePromptSheet folders={folders}
+        impliedFolderId={impliedFolderId} kind="scene"
+        onConfirm={(result) => { setCreating(false); persistFirstScene(navigation, projectId, result); }}
+        onDismiss={() => { setCreating(false); }} open />}
     </Screen>
   );
 }
