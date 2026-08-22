@@ -25,7 +25,7 @@ export function ActivationGate({ onActivated, trialExpired = true }: GateProps) 
     try { await (await getLicenseStore()).write({ licenseKey: key, instanceId: result.instanceId, activatedAt: new Date().toISOString() }); onActivated(); }
     catch { setBusy(false); setError({ kind: "rejected", message: "Your license was accepted, but couldn’t be saved on this device. Try again." }); }
   };
-  return <Screen contentStyle={styles.screen}><View style={styles.content}><BookSpine />
+  return <Screen scroll contentStyle={styles.screen}><View style={styles.content}><BookSpine />
     <Text style={[TYPE.screenTitle, styles.title, { color: theme.colors.ink }]}>{trialExpired ? "Your trial has ended" : "Activate WritersNook"}</Text>
     <Text style={[TYPE.body, styles.reassurance, { color: theme.colors.ink2 }]}>{trialExpired ? "Fourteen days are up. Enter your license key to keep writing — everything you’ve written is still here, on this device." : "Enter your license key. Your writing stays safe on this device."}</Text>
     <View style={styles.form}><Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>License key</Text>
@@ -45,7 +45,10 @@ export function ActivationScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingHorizontal: 24, paddingVertical: SPACE.s8 }, content: { flex: 1, justifyContent: "center" },
+  // No flex:1 on `screen`: it is the scroll content container (Screen already gives it
+  // flexGrow:1), and pinning it to the viewport height would stop it scrolling the
+  // license input clear of the keyboard.
+  screen: { paddingHorizontal: 24, paddingVertical: SPACE.s8 }, content: { flex: 1, justifyContent: "center" },
   title: { marginTop: 22 }, reassurance: { lineHeight: 24, marginTop: 10 }, form: { marginTop: 30, gap: SPACE.s3 },
   input: { borderWidth: 1.5, borderRadius: RADIUS.lg, paddingHorizontal: 15, paddingVertical: 14 },
   error: { flexDirection: "row", alignItems: "flex-start", gap: 9, borderWidth: 1, borderRadius: RADIUS.lg, padding: 13 },

@@ -208,8 +208,11 @@ export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
   }
 
   if (pairing.mode === "manual") {
+    // scroll: the pairing-string input sits in the bottom half of the screen, where the
+    // software keyboard would otherwise cover it. No flex:1 on the content style here —
+    // Screen's own flexGrow:1 fills the viewport while still letting content grow/scroll.
     return (
-      <Screen contentStyle={styles.screen}><PairingHeader />
+      <Screen scroll contentStyle={styles.manualScreen}><PairingHeader />
         {pairing.phase === "error" && (
           <Text style={[styles.errorText, { color: theme.colors.danger }]} role="alert">{pairing.errorMessage}</Text>
         )}
@@ -228,6 +231,7 @@ export function PairScreen({ onPairedSuccessfully }: PairScreenProps) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
+  manualScreen: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   center: {
     flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14,
   },

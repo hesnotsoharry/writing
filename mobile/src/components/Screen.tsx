@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { ScrollViewProps, StyleProp, ViewStyle } from "react-native";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useTheme } from "../theme/ThemeProvider";
@@ -23,8 +24,22 @@ import { useTheme } from "../theme/ThemeProvider";
  */
 const EDGES = ["top", "left", "right"] as const;
 
+/**
+ * Breathing room between the focused input's bottom edge and the top of the
+ * keyboard. Without it an input can end up flush against the keyboard, which
+ * reads as "still covered" even though it technically isn't.
+ */
+const KEYBOARD_BOTTOM_OFFSET = 24;
+
 export interface ScreenProps {
   children: ReactNode;
+  /**
+   * Opts the screen into a KeyboardAwareScrollView (react-native-keyboard-controller,
+   * driven by the app-wide KeyboardProvider in App.tsx). It scrolls the focused
+   * TextInput clear of the software keyboard, which a plain ScrollView never
+   * does — on a short phone, inputs in the bottom half sit under the keyboard.
+   * Any screen with a text input should turn this on.
+   */
   scroll?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   scrollProps?: Omit<ScrollViewProps, "contentContainerStyle">;
@@ -36,13 +51,14 @@ export function Screen({ children, contentStyle, scroll = false, scrollProps }: 
   if (scroll) {
     return (
       <SafeAreaView edges={EDGES} style={[styles.safe, background]}>
-        <ScrollView
+        <KeyboardAwareScrollView
           {...scrollProps}
+          bottomOffset={KEYBOARD_BOTTOM_OFFSET}
           contentContainerStyle={[styles.content, contentStyle]}
           keyboardShouldPersistTaps="handled"
         >
           {children}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     );
   }

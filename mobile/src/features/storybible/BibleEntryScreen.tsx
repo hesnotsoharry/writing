@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Screen } from "../../components";
 import type { RootStackParamList } from "../../navigation/routes";
@@ -18,6 +19,9 @@ import { EntrySections } from "./EntrySections";
 import { EntryTopbar } from "./EntryTopbar";
 import { buildEntryModel } from "./typeModel";
 import { useEntryData } from "./useEntryData";
+
+/** Gap kept between the focused input and the keyboard; mirrors Screen's own offset. */
+const KEYBOARD_BOTTOM_OFFSET = 24;
 
 type EntryRoute = "BibleEntry" | "BibleEntryScrolled" | "BibleEntryLocation";
 type Props = NativeStackScreenProps<RootStackParamList, EntryRoute>;
@@ -47,7 +51,9 @@ export function BibleEntryScreen({ navigation, route }: Props) {
   return (
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <EntryTopbar compact={scrolled} name={data.entity.name} onBack={() => navigation.goBack()} onDelete={() => confirmDelete(data.entity?.name ?? "entry", remove)} type={model.type} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
+      {/* Keyboard-aware: this screen owns its own scroll container, so Screen's scroll mode
+          cannot lift the fact/section inputs clear of the software keyboard for it. */}
+      <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
         onScroll={(event) => setScrolled(event.nativeEvent.contentOffset.y > 140)} scrollEventThrottle={32}>
         <EntryHero entity={data.entity} onRename={(value) => { if (value.trim()) void data.store?.renameEntity(type, entityId, value.trim()); }}
           onRole={(value) => saveField("fact", ROLE_KEY, value)} role={model.role} type={model.type} />
@@ -60,7 +66,7 @@ export function BibleEntryScreen({ navigation, route }: Props) {
           onDelete={(id) => { void data.store?.deleteRelation(id); }} onLabel={(id, label) => { void data.store?.updateRelationLabel(id, label); }}
           onMap={() => navigation.navigate("RelationshipMap", { projectId, selectedEntityId: entityId })} onOpen={openPeer} />
         <EntryAppearsIn onOpen={openScene} rows={data.appearsIn} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }
