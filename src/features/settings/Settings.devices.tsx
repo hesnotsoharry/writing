@@ -76,11 +76,17 @@ export interface DeviceListProps {
  *  genuinely dangerous thing this panel could do. */
 export function DeviceList({ devices, connected, onForget }: DeviceListProps) {
   const now = useNow();
+  const [explaining, setExplaining] = useState(false);
   const others = devices.filter((device) => !device.self).length;
   return (
     <div className="sync-devices">
       <div className="sync-devices-heading">
-        Devices on this key{others > 0 ? ` (${others + 1})` : ""}
+        <span>Devices on this key{others > 0 ? ` (${others + 1})` : ""}</span>
+        {/* A disclosure, not a hover tooltip: the text is four lines about who can
+            read your writing, and hover hides it from touch and keyboard alike. */}
+        <button aria-expanded={explaining} className="sync-devices-help"
+          aria-label="What does this list mean?" title="What does this list mean?"
+          onClick={() => setExplaining((open) => !open)}>?</button>
       </div>
       <ul className="sync-device-list">
         {devices.map((device) => (
@@ -89,13 +95,14 @@ export function DeviceList({ devices, connected, onForget }: DeviceListProps) {
         ))}
       </ul>
       {others === 0 && (
-        <p className="sync-devices-empty">No other device has connected yet. A device appears
-          here the first time it reaches this one.</p>
+        <p className="sync-devices-empty">No other device has connected yet.</p>
       )}
-      <p className="sync-devices-note">Any device holding your pairing string can join, so this
-        list records what has connected &mdash; it does not control access. Removing an entry only
-        clears it here; if that device still has the key it will reappear. To lock a lost device
-        out, turn sync off on every device and pair again with a fresh key.</p>
+      {explaining && (
+        <p className="sync-devices-note">Any device holding your pairing string can join, so this
+          list records what has connected &mdash; it does not control access. Removing an entry
+          only clears it here; if that device still has the key it will reappear. To lock a lost
+          device out, turn sync off on every device and pair again with a fresh key.</p>
+      )}
     </div>
   );
 }

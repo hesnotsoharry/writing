@@ -163,8 +163,31 @@ describe("SyncSection", () => {
     expect(await screen.findByText(/last seen 3h ago/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove from list" }));
     expect(mocks.forgetDevice).toHaveBeenCalledWith("phone");
-    // The panel must never imply this evicts the device — it cannot.
+  });
+
+  it("keeps the access explainer behind a disclosure rather than in the panel", async () => {
+    mocks.status.state = "connected";
+    mocks.status.devices = [device("self", "Cole-PC", new Date().toISOString(), true)];
+    mocks.getKey.mockResolvedValue(MASTER_KEY);
+    renderSection();
+    const help = await screen.findByRole("button", { name: "What does this list mean?" });
+    expect(screen.queryByText(/it does not control access/i)).toBeNull();
+    fireEvent.click(help);
+    // The panel must never imply the list evicts a device — it cannot.
     expect(screen.getByText(/it does not control access/i)).toBeTruthy();
+    fireEvent.click(help);
+    expect(screen.queryByText(/it does not control access/i)).toBeNull();
+  });
+
+  it("closes the pairing string when the button is pressed again", async () => {
+    mocks.getKey.mockResolvedValue(MASTER_KEY);
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Show pairing string" }));
+    const hide = await screen.findByRole("button", { name: "Hide pairing string" });
+    expect(screen.getByText(/Scan with your phone/i)).toBeTruthy();
+    fireEvent.click(hide);
+    await waitFor(() => expect(screen.queryByText(/Scan with your phone/i)).toBeNull());
+    expect(screen.getByRole("button", { name: "Show pairing string" })).toBeTruthy();
   });
 
   it("gently rejects a garbage pairing string", async () => {

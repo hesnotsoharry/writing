@@ -167,7 +167,10 @@ function ReadyKey(props: ReadyKeyProps) {
       <DeviceList devices={props.status.devices ?? []}
         connected={props.status.state === "connected"} onForget={props.onForget} />
       <div className="sync-actions">
-        <button className="btn btn-soft" onClick={props.onShowPairing}>Show pairing string</button>
+        <button className="btn btn-soft" aria-expanded={Boolean(props.pairingString)}
+          onClick={props.onShowPairing}>
+          {props.pairingString ? "Hide pairing string" : "Show pairing string"}
+        </button>
         {!props.confirmingOff && <button className="btn" onClick={props.onRequestOff}>
           Turn off sync on this device
         </button>}
@@ -241,17 +244,22 @@ function useSyncActions(
     setters.setJoinOpen(false);
     setBusy(false);
   }
-  async function showPairing(): Promise<void> {
+  /** Toggles. The button is the only way back out of a visible pairing string,
+   *  and a QR of your sync key is not something to leave on screen by accident. */
+  async function showPairing(shown: boolean): Promise<void> {
+    if (shown) return hidePairing();
     const key = await getSyncMasterKey();
     if (key) await showKeyAsPairing(key);
+  }
+  function hidePairing(): void {
+    setters.setPairingString(null); setters.setPairingPayload(null);
   }
   async function turnOff(): Promise<void> {
     syncEngine.stop();
     await clearSyncMasterKey();
     await clearSyncRole();
     setTweak("syncExperimental", "off");
-    setters.setPairingString(null);
-    setters.setPairingPayload(null);
+    hidePairing();
     setters.setConfirmingOff(false);
     setters.setKeyState("missing");
   }
@@ -280,7 +288,8 @@ export function SyncSection({ tweaks, setTweak }: SyncSectionProps) {
   const body = keyState === "ready"
     ? <ReadyKey status={status} pairingString={pairingString} pairingPayload={pairingPayload}
       confirmingOff={confirmingOff}
-      onShowPairing={() => { void actions.showPairing(); }} onRequestOff={() => setConfirmingOff(true)}
+      onShowPairing={() => { void actions.showPairing(Boolean(pairingString)); }}
+      onRequestOff={() => setConfirmingOff(true)}
       onCancelOff={() => setConfirmingOff(false)} onTurnOff={() => { void actions.turnOff(); }}
       onForget={(id) => { void syncEngine.forgetDevice(id); }} />
     : <MissingKey joinOpen={joinOpen} busy={actions.busy}
