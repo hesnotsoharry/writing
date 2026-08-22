@@ -110,14 +110,21 @@ async function grantDevTrial(refresh: () => void): Promise<void> {
   }
 }
 
-/** Send lives inside the field, so the bar is one object rather than two. */
-function Composer({ onSend, sending, verb }: {
-  onSend(question: string): void; sending: boolean; verb: VerbKey;
+/**
+ * Send lives inside the field, so the bar is one object rather than two.
+ *
+ * `sending` and `canSend` are deliberately separate. They used to be one flag,
+ * so a device with managed AI not yet set up got a composer that could not be
+ * typed into at all — no cursor, no keyboard, no reason given. Typing is
+ * always allowed; only the send action is gated.
+ */
+function Composer({ canSend, onSend, sending, verb }: {
+  canSend: boolean; onSend(question: string): void; sending: boolean; verb: VerbKey;
 }) {
   const theme = useTheme();
   const [question, setQuestion] = useState("");
   const [focused, setFocused] = useState(false);
-  const ready = question.trim() !== "" && !sending;
+  const ready = question.trim() !== "" && !sending && canSend;
   const send = (): void => { if (!ready) return; onSend(question.trim()); setQuestion(""); };
   return <View style={[styles.composer, { borderTopColor: theme.colors.line }]}>
     <View style={[styles.inputBar, { backgroundColor: theme.colors.paper,
@@ -170,7 +177,8 @@ export function AiAssistantScreen({ navigation, route }: Props) {
     </ScrollView>
     <KeyboardStickyView>
       <VerbChips selected={verb} onSelect={setVerb} />
-      <Composer verb={verb} sending={conversation.sending || managed.access?.state !== "available"} onSend={send} />
+      <Composer verb={verb} sending={conversation.sending}
+        canSend={managed.access?.state === "available"} onSend={send} />
     </KeyboardStickyView>
   </Screen>;
 }
@@ -186,6 +194,9 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
     minWidth: HIT_SLOP_MIN, height: HIT_SLOP_MIN, paddingHorizontal: 12,
     borderRadius: RADIUS.pill, borderWidth: 1,
+    // Clipped so the label is uncovered by the chip growing outward from the
+    // icon, instead of arriving at full width and reading as a slide-in.
+    overflow: "hidden",
   },
   composer: { paddingHorizontal: 12, paddingBottom: 12, paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth },
   // `center` keeps the send glyph on the field's axis; `flex-end` pinned it to
@@ -196,6 +207,8 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: RADIUS.sheet,
     paddingLeft: 14, paddingRight: 4,
   },
-  input: { ...TYPE.body, flex: 1, minHeight: 52, maxHeight: 132, paddingVertical: 12, textAlignVertical: "top" },
+  // `center`, not `top`: `multiline` otherwise pins the first line — and the
+  // placeholder — to the top of a field that is taller than one line.
+  input: { ...TYPE.body, flex: 1, minHeight: 52, maxHeight: 132, paddingVertical: 12, textAlignVertical: "center" },
   send: { width: HIT_SLOP_MIN, height: HIT_SLOP_MIN, alignItems: "center", justifyContent: "center" },
 });
