@@ -1,13 +1,11 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Card, Hairline, Icon, ListRow, Screen, SectionLabel, Segmented, Toggle, Topbar } from "../../components";
 import type { RootStackParamList } from "../../navigation/routes";
 import { mobileEngine, setMobileAiConversationsSyncEnabled } from "../../sync/mobileEngine";
-import { clearSyncMasterKey } from "../../sync/mobileKeyStorage";
-import { clearDeviceJoined } from "../../sync/mobileSyncRole";
-import { clearPairedDeviceName, getPairedDeviceName } from "../../sync/pairedDevice";
+import { getPairedDeviceName } from "../../sync/pairedDevice";
 import { useTheme, useThemePreference } from "../../theme/ThemeProvider";
 import { RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
@@ -16,6 +14,7 @@ import { useManagedAi } from "../ai/useManagedAi";
 import type { DeviceSettings } from "./deviceSettings";
 import { DEVICE_SETTINGS_DEFAULTS } from "./deviceSettings";
 import { getDeviceSettingsStore } from "./deviceSettingsAccess";
+import { confirmUnpair, PairedSyncCard, UnpairedSyncCard, usePairedState } from "./SyncCard";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
@@ -34,18 +33,6 @@ function Group({ children, label }: { children: React.ReactNode; label: string }
   return <View style={styles.group}><SectionLabel>{label}</SectionLabel><Card style={styles.groupCard}>{children}</Card></View>;
 }
 
-function SyncCard({ deviceName, onReviewQueue, onSync, onUnpair, status }: {
-  deviceName: string; onReviewQueue?: () => void; onSync(): void; onUnpair(): void; status: string;
-}) {
-  const theme = useTheme();
-  return <Card style={styles.syncCard}><View style={styles.syncTitle}><Icon color={theme.colors.good} name="cloud" size={20} />
-    <View style={styles.copy}><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink }]}>Synced with {deviceName}</Text>
-      <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{status}</Text></View></View>
-    <View style={styles.syncActions}><Pressable onPress={onSync} style={[styles.softButton, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Sync now</Text></Pressable>
-      {onReviewQueue && <Pressable onPress={onReviewQueue} style={[styles.softButton, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.ink2 }]}>Review queue</Text></Pressable>}
-      <Pressable onPress={onUnpair} style={[styles.softButton, { backgroundColor: theme.colors.parchment }]}><Text style={[TYPE.meta, { color: theme.colors.danger }]}>Unpair</Text></Pressable></View></Card>;
-}
-
 export function SettingsScreen({ navigation, route }: Props) {
   const theme = useTheme();
   const { preference, setPreference } = useThemePreference();
@@ -53,6 +40,7 @@ export function SettingsScreen({ navigation, route }: Props) {
   const [settings, setSettings] = useState<DeviceSettings>(DEVICE_SETTINGS_DEFAULTS);
   const [deviceName, setDeviceName] = useState("Desktop");
   const [syncState, setSyncState] = useState(mobileEngine.status());
+  const [paired, setPaired] = usePairedState();
   useEffect(() => { void getDeviceSettingsStore().then((store) => store.read()).then((value) => {
     setSettings(value); setMobileAiConversationsSyncEnabled(value.syncAiConversations);
   }); }, []);
@@ -63,17 +51,14 @@ export function SettingsScreen({ navigation, route }: Props) {
     if (key === "syncAiConversations") setMobileAiConversationsSyncEnabled(Boolean(value));
     void getDeviceSettingsStore().then((store) => store.write(next));
   };
-  const unpair = () => Alert.alert("Unpair this phone?", "Local copies stay on this phone.", [
-    { text: "Cancel", style: "cancel" }, { text: "Unpair", style: "destructive", onPress: () => {
-      mobileEngine.stop(); void Promise.all([clearSyncMasterKey(), clearDeviceJoined(), clearPairedDeviceName()]);
-    } },
-  ]);
+  const unpair = () => confirmUnpair(() => setPaired(false));
   const balance = managed.balance ? `${formatCreditDollars(managed.balance.creditsBalance)} remaining` : "Set up on desktop";
   const status = syncState.state === "connected" ? "Live · changes sync continuously" : "Offline · changes are queued";
   return <Screen scroll contentStyle={styles.screen}><Topbar title="Settings" />
-    <View style={styles.content}><SyncCard deviceName={deviceName} status={status}
-      onReviewQueue={() => navigation.navigate("OfflineCatchUp")}
-      onSync={() => { void mobileEngine.syncNow(); }} onUnpair={unpair} />
+    <View style={styles.content}>{paired
+      ? <PairedSyncCard deviceName={deviceName} status={status} onUnpair={unpair}
+        onReviewQueue={() => navigation.navigate("OfflineCatchUp")} onSync={() => { void mobileEngine.syncNow(); }} />
+      : <UnpairedSyncCard onPair={() => navigation.navigate("Pair")} />}
       <Group label="Writing"><View style={styles.row}><Text style={[TYPE.bodySmall, { color: theme.colors.ink }]}>Theme</Text>
         <View style={styles.segment}><Segmented options={[{ label: "Light", value: "light" }, { label: "Dark", value: "dark" }, { label: "Auto", value: "system" }]} value={preference} onChange={setPreference} /></View></View>
         <Hairline /><View style={styles.row}><Text style={[TYPE.bodySmall, { color: theme.colors.ink }]}>Prose size</Text><ProseSizeControl value={settings.proseSize} onChange={(value) => update("proseSize", value)} /></View>
