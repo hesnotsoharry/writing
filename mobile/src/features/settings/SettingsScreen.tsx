@@ -68,7 +68,7 @@ export function SettingsScreen({ navigation, route }: Props) {
         <Hairline /><ListRow title="Balance" meta={balance} trailing={<Text style={[TYPE.meta, { color: theme.colors.accent }]}>Manage</Text>} onPress={() => navigation.navigate("AiLimits", { projectId: route.params?.projectId ?? "", reason: "out-of-credit" })} /></Group>
       <Group label="This device"><Toggle label="Offline copies" description="All projects are kept on this phone." value={settings.offlineCopies} onChange={(value) => update("offlineCopies", value)} />
         <Hairline /><ListRow title="About" meta="WritersNook mobile" trailing={<Icon color={theme.colors.ink3} name="chevRight" size={16} />} onPress={() => { void Linking.openURL("https://writersnook.app"); }} /></Group>
-      <Text style={[TYPE.metaSmall, styles.footer, { color: theme.colors.ink3 }]}>Theme, prose size, spell check and focus choices stay on this device. Compile/export, replace-across-scenes, label definition, relationship-map editing, and BYOK API-key entry stay on desktop.</Text>
+      <Text style={[TYPE.metaSmall, styles.footer, { color: theme.colors.ink3 }]}>Theme, prose size, spell check and focus choices stay on this device. Compile/export, replace-across-scenes, label definition, and BYOK API-key entry stay on desktop.</Text>
     </View></Screen>;
 }
 

@@ -96,7 +96,8 @@ and dark, label palette and tints, status dots, shadows, spacing, radii.
 Desktop-only, and the UI must say so where the design says so: compile/export,
 replace-across-scenes (search works, bulk replace does not), label and
 entity-type *definition* (applying them works), BYOK API-key entry.
-Relationship map and brainstorm boards are **view-only** on mobile.
+Relationship map and brainstorm boards support link editing on mobile; node/card
+layout stays desktop-only.
 
 ## Phase ownership
 
