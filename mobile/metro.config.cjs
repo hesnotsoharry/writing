@@ -9,6 +9,17 @@ const webcryptoShim = path.resolve(projectRoot, "src/shims/isomorphicWebcrypto.c
 config.resolver.assetExts.push("html");
 
 config.watchFolders = [repositoryRoot];
+// The repo-root watch pulls in src-tauri/target, which cargo churns during
+// desktop dev builds — the watcher crashes on incremental files that vanish
+// mid-crawl (ENOENT). blockList also feeds the file-map's ignore pattern.
+config.resolver.blockList = new RegExp(
+  [
+    config.resolver.blockList instanceof RegExp ? config.resolver.blockList.source : null,
+    /src-tauri[\\/]target[\\/]/.source,
+  ]
+    .filter(Boolean)
+    .join("|"),
+);
 // Hierarchical lookup stays OFF so shared repo-root source (src/sync, src/db)
 // can never resolve a second yjs/js-base64 copy out of the desktop's
 // node_modules — one Yjs instance is correctness-critical. The cost: npm's
