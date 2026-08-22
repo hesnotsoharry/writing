@@ -1,6 +1,9 @@
 # Changelog
 
-## [0.12.9] — 2026-08-22 · goals repair + trial activation
+## [0.13.0] — 2026-08-22 · goals repair + trial activation
+
+This release also carries a large amount of under-the-hood groundwork for
+Device Sync (off by default; nothing changes until you opt in when it ships).
 
 ### Added
 - **AI trial activation** — starting the free AI trial is now a clear one-time

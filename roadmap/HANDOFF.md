@@ -56,7 +56,7 @@ re-queried. Fixes, all committed and gated:
 
 ### What landed today (2026-08-22 — items 2–5 of the priority list, in one pass)
 
-- **v0.12.9 is prepped and tagged; Cole runs the publish.** The release carries
+- **v0.13.0 (renamed from 0.12.9 at Cole's call, 2026-08-22 — "a lot of changes") is prepped and tagged; Cole runs the publish.** The release carries
   the sync-ledger backfill desktop-side (the "older desktop never seeds" gap)
   plus today's joined-device fix. Sync stays gated off (`syncExperimental`), so
   shipping it risks nothing. Run `.\publish.ps1`, then `publish-mac.sh` on the
@@ -87,7 +87,7 @@ re-queried. Fixes, all committed and gated:
   outright once `TURNSTILE_SECRET_KEY` exists (they deploy in lockstep with
   their forms). Widgets render only once the placeholder site key in
   `marketing/public/site.js` is replaced. **Phase 2 is also built** (same day,
-  `2672950`, in v0.12.9): the desktop client no longer first-grants silently —
+  `2672950`, in v0.13.0): the desktop client no longer first-grants silently —
   the assistant panel shows a one-time activation card hosting the challenge
   page in an iframe, usable even when the widget is unavailable while the
   server stays permissive. Existing trials (stored key) see zero change.
@@ -95,7 +95,7 @@ re-queried. Fixes, all committed and gated:
   API token lacks Turnstile scope and the Chrome extension was offline), set
   the Pages secret, patch the placeholder site key in `site.js` AND
   `turnstile-challenge.html` — then the phase-3 `TURNSTILE_ENFORCED` flip
-  once the v0.12.9 updater adoption soaks.
+  once the v0.13.0 updater adoption soaks.
 - **Play submission plumbing** (`1fccd62`): privacy.html now covers the phone
   app (camera/QR, share sheet, E2E sync, AI credential handoff, Fathom
   site-only), mobile is `1.0.0`, and
@@ -740,13 +740,13 @@ After the fix the cold-paired emulator holds `boards: brainstorm-default`, all
 
 ### Still open
 
-1. **Ship v0.12.9** (Cole: `.\publish.ps1`, then `publish-mac.sh`). It carries
+1. **Ship v0.13.0** (Cole: `.\publish.ps1`, then `publish-mac.sh`). It carries
    the sync-ledger backfill AND the joined-device bootstrap fix desktop-side —
    both are only real once desktop ships. Prepped and tagged 2026-08-22.
 2. **Mobile is still running a dev bundle from Metro.** The cold-pair proof used
    the dev client, not a release build. A release-build pair is still unrun.
 3. **Turnstile: phases 1 AND 2 built; still dark** (see 2026-08-22 above).
-   Next: widget + secret + site keys, ship v0.12.9, then the enforcement
+   Next: widget + secret + site keys, ship v0.13.0, then the enforcement
    flip. Still: never enforce on `master` in one step.
 
 ### Mobile: still not submittable
