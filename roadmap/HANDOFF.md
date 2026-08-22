@@ -1,9 +1,59 @@
 ---
 project: writing
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 
 ## Current state
+
+### What landed today (2026-08-22 — items 2–5 of the priority list, in one pass)
+
+- **v0.12.9 is prepped and tagged; Cole runs the publish.** The release carries
+  the sync-ledger backfill desktop-side (the "older desktop never seeds" gap)
+  plus today's joined-device fix. Sync stays gated off (`syncExperimental`), so
+  shipping it risks nothing. Run `.\publish.ps1`, then `publish-mac.sh` on the
+  Mac. The release gate is green again: the 6 stale wave-46 eval-harness
+  assertions were updated to the current contract (0-10 judge scale, 600-cell
+  pilot), so `npm run test` exits 0 — 2226 pass, 0 fail.
+- **The joined-device stranding is fixed without the origin-role ruling**
+  (`27a32f3`). The discriminator moved from device role to doc existence: a
+  project received via sync always has a meta doc (the apply target builds the
+  `projects` row FROM it), so "no doc" reliably means "born locally, never
+  bootstrapped". `createProject` now bootstraps meta+bible docs at creation on
+  both platforms, bootstrap is idempotent (overwriting an existing doc erases
+  tombstones and resets epochs — the resurrection bug, now pinned by tests),
+  and the startup sweeps run on any role, which retroactively rescues projects
+  already stranded on joined devices. Mobile also gained its first bible
+  bootstrap — a mobile-born project's Story Bible was stranded even though its
+  binder replicated. The "should origin stay a per-device role" question is
+  DEFERRED, not answered: nothing needed it.
+- **Relationship-map links are editable on mobile** (`9e0b080`) — the one
+  non-deliberate parity gap, ported in the board-links shape: tap a node →
+  Links → checkbox sheet. Creates use the "Related to" default; deletes clear
+  every joining row both directions. No sync work needed — `entity_relations`
+  already replicates through the bible doc. Label editing stays on the entry
+  screen; node layout stays on desktop.
+- **Turnstile phase 1 is built and dark** (`b76aad7`). `/api/ai/trial-session`
+  verifies a token when present, grants without one until `TURNSTILE_ENFORCED`
+  flips; the re-exchange path never checks. Contact + newsletter enforce
+  outright once `TURNSTILE_SECRET_KEY` exists (they deploy in lockstep with
+  their forms). Widgets render only once the placeholder site key in
+  `marketing/public/site.js` is replaced. **Still needed:** create the widget
+  in the Cloudflare dashboard (the stored API token lacks Turnstile scope and
+  the Chrome extension was offline), set the Pages secret, patch the site key
+  — then phase 2 (desktop client flow, needs Cole's UX pick from the scout
+  memo §7) and the phase-3 flag flip after that release soaks.
+- **Play submission plumbing** (`1fccd62`): privacy.html now covers the phone
+  app (camera/QR, share sheet, E2E sync, AI credential handoff, Fathom
+  site-only), mobile is `1.0.0`, and
+  `roadmap/coordination/play-store-submission.md` has the listing draft,
+  data-safety answers, and the one interactive EAS keystore command. Remaining
+  submission blockers: EAS keystore (Cole, one command), in-app account
+  deletion + a `delete-account.html` URL, screenshots/feature graphic, splash
+  verification on device.
+- **Gate truth:** desktop tsc/lint clean, full vitest 2226 pass / 0 fail (one
+  known sql.js OOM flake in `sweepFullSync.test.ts` under full-suite parallel
+  load only — passes in isolation). Mobile tsc/lint clean, 370 pass / 1
+  pre-existing skip. Marketing 347 pass (up 15: new Turnstile suites).
 
 **Mobile has moved from feature QA into distribution plumbing.** The features
 were in good shape; the *shippable artifact* had never been built. As of
@@ -444,7 +494,7 @@ gap.
 - **Desktop-to-desktop works and has been measured** (the 63s sweep note in
   `engine.ts` came from a desktop-to-desktop run). No platform gating anywhere —
   same panel, same flow, Windows or macOS.
-- **REAL GAP FOUND — a project created on a JOINED device never replicates.**
+- **REAL GAP FOUND (FIXED 2026-08-22, see top) — a project created on a JOINED device never replicates.**
   `ensureAllProjectMetas` and `ensureAllProjectBibles` both early-return when
   `getSyncRole() === "joined"` (`meta/bridge.ts:104`, `bible/desktopBibleBridge.ts:48`),
   they are the only callers of `bootstrapProjectMeta`/`bootstrapProjectBible`,
@@ -496,7 +546,7 @@ gap.
 | Compile / export | yes — a desktop job |
 | Replace across scenes | yes |
 | Label *definition* (applying labels works) | yes |
-| Relationship-map editing and link-drawing | no — same shape as the board fix, portable |
+| Relationship-map editing and link-drawing | **CLOSED 2026-08-22** — link toggling shipped on mobile; only node layout stays on desktop |
 | Moving board cards (positions) | yes — a phone-chosen x/y means nothing on desktop's unbounded canvas |
 | BYOK API-key entry | yes — mobile never receives provider keys |
 | Subscription / top-ups | yes — companion-only, Apple 3.1.1 and Play Billing |
@@ -628,14 +678,14 @@ After the fix the cold-paired emulator holds `boards: brainstorm-default`, all
 
 ### Still open
 
-1. **Ship the desktop side of the sync backfill first.** A new phone paired to a
-   desktop on an older build still misses pre-existing rows, because that
-   desktop never seeds its ledger. No wire change, so nothing regresses — but
-   the fix is only real once desktop ships.
+1. **Ship v0.12.9** (Cole: `.\publish.ps1`, then `publish-mac.sh`). It carries
+   the sync-ledger backfill AND the joined-device bootstrap fix desktop-side —
+   both are only real once desktop ships. Prepped and tagged 2026-08-22.
 2. **Mobile is still running a dev bundle from Metro.** The cold-pair proof used
    the dev client, not a release build. A release-build pair is still unrun.
-3. **Turnstile itself is unbuilt** — only scoped. Follow the memo's three-phase
-   rollout; do not enforce on `master` in one step.
+3. **Turnstile: phase 1 built and dark** (see 2026-08-22 above). Next: widget +
+   secret + site key, then the desktop client flow (Cole's UX pick), then the
+   enforcement flip. Still: never enforce on `master` in one step.
 
 ### Mobile: still not submittable
 
