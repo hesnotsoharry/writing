@@ -83,9 +83,9 @@ desktop for all three.
   only subscription while the $14.99/mo AI assistant had been selling since
   2026-06-14. Both rewritten: AI subscription and credit sections, a
   "Your writing and AI" section, a liability cap with a consumer-law carve-out,
-  and a governing-law clause. **Not deployed — the governing-law clause still
-  reads `PROVINCE_PLACEHOLDER`** because the site only ever states "Canada" and
-  a jurisdiction must not be guessed. 332 marketing tests still pass.
+  and a governing-law clause. 332 marketing tests still pass.
+  **Superseded 2026-08-21:** the jurisdiction is Ontario, the clause names it,
+  and the pages are deployed.
 - **Mobile is companion-only (decision, Cole 2026-08-20).** Both "Buy a license"
   links, the "Top up" button that opened the Lemon Squeezy portal, and the
   now-unreferenced `getPortalUrl` were removed. Apple 3.1.1 and Play Billing
@@ -337,11 +337,16 @@ keyboard down and up).
 
 ### Blocked on Cole
 
-0. **Four answers unblock the current work:** (a) the **province** for the
-   governing-law clause, (b) go-ahead to **push** — pushing master deploys the
-   live marketing site, (c) whether there is a paid **Apple Developer
-   membership** (EAS builds iOS in the cloud, so a Mac is not required, but the
-   membership has no workaround), (d) an hour for the **sync session** below.
+0. **Three of those four are answered (Cole, 2026-08-21) — do not re-ask them.**
+   (a) Governing law is **Ontario**, and `marketing/public/terms.html:130`
+   already carried it; the `PROVINCE_PLACEHOLDER` note below was stale, not a
+   real blocker. (b) **Push approved** — done, so the corrected terms and
+   refunds pages are live. (c) The **Apple Developer Program membership is
+   active and paid**: Apple ID `colestacey@icloud.com`, signing held by EAS
+   (CLI authed as `codingmagic`), no Mac required. This is recorded in
+   `~/.claude/notes/environment.md`, which is the file to check before asking
+   Cole anything about accounts, devices, or paid memberships. (d) The **sync
+   session** is the one still outstanding.
 
 1. **Sync checks need Cole.** #2/3 pairing + clone, #10 reorder convergence,
    #13 entity to desktop, #22 convergence and the end-to-end half of #23 need a
@@ -453,6 +458,14 @@ root causes, which is the useful part of the record:
   canvas. Desktop compatibility comes from calling desktop's own `boardDoc`
   helpers rather than reimplementing the Yjs shapes.
 
+- **The AI-conversations toggle was never crashing** (Cole, 2026-08-21). It was
+  reported as killing the app; it turned out to be an app update resetting
+  state. That matches the code — every inbound sync path is wrapped in a
+  `.catch()`, so an ordinary JS error there cannot take the process down.
+  Closed, no fix needed.
+- **Two duplicate "Untitled scene" / "New chapter" rows in The Salt Road are
+  Cole's own test creations**, not a naming-prompt regression. Not a bug.
+
 **Lesson worth keeping:** an animation complaint was misdiagnosed twice from
 reasoning and solved in one pass by measurement — slowing the transition to 2.5s
 and screenshotting mid-flight showed the label already fully drawn on frame one,
@@ -508,7 +521,8 @@ After the fix the cold-paired emulator holds `boards: brainstorm-default`, all
 - **Release signing is the debug keystore** (`android/app/build.gradle`, stock
   `androiddebugkey`). Do NOT fix this by editing build.gradle — prebuild owns
   that file and regenerates it. Use **EAS-managed credentials** so EAS holds the
-  upload keystore; that needs Cole's Expo account.
+  upload keystore. The Expo account is not a blocker — the `eas` CLI is already
+  authed as `codingmagic` (orgs `codingmagic`, `codingmagics-team`).
 - **iOS does not exist.** No `mobile/ios/` tree; never prebuilt or run.
 - `version` is still `0.1.0` / `versionCode 1`. The EAS `production` profile
   auto-increments, but the marketing version needs a real number.
