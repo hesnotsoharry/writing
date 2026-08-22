@@ -3,6 +3,7 @@ import { computeReorder } from "../shared/computeReorder";
 import type { DbClient } from "../shared/dbClient";
 import { normalizeStatus } from "../shared/status";
 import { MobileArchiveStore } from "./mobileArchiveStore";
+import { bootstrapMobileProjectBible } from "./mobileBibleLocalBridge";
 import {
   bootstrapMobileProjectMeta,
   bridgeMobileFolder,
@@ -32,7 +33,10 @@ export class MobileBinderStore implements BinderStore {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [id, args.title, args.type, ((rows[0]?.count ?? 0) + 1) * 1000, now, now],
     );
-    await bootstrapMobileProjectMeta({ id, title: args.title, type: args.type });
+    await Promise.all([
+      bootstrapMobileProjectMeta({ id, title: args.title, type: args.type }),
+      bootstrapMobileProjectBible(id),
+    ]);
     return id;
   }
 

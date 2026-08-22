@@ -6,7 +6,6 @@ import { getDb } from "../../db/schema";
 import { SqliteProjectMetaDocStore } from "../../db/sqliteProjectMetaDocStore";
 import { normalizeStatus } from "../../lib/status";
 import { applyEncoded, encodeDoc } from "../../yjs/serialize";
-import { getSyncRole } from "../syncRole";
 import {
   buildFromSql, bumpEpoch, type EpochStamp, getDocEpochs, type SqlMetaRows,
 } from "./metaDoc";
@@ -91,17 +90,36 @@ async function loadSqlRows(projectId: string): Promise<SqlMetaRows> {
   };
 }
 
-/** Create or replace one project's meta doc from its current SQLite projection. */
+/**
+ * Create one project's meta doc from its current SQLite projection.
+ *
+ * Idempotent: returns early if a doc already exists (mirrors
+ * bootstrapProjectBible). Doc existence — not device role — is the
+ * discriminator: a doc received via sync already exists (the apply target
+ * creates the `projects` row FROM the doc), so "no doc" reliably means "born
+ * locally, never bootstrapped." Overwriting an existing doc from SQL would
+ * erase its tombstones and reset its epochs/clientIDs, so this must never
+ * run against a project that already has one.
+ */
 export function bootstrapProjectMeta(projectId: string): Promise<void> {
   return runExclusive(projectId, async () => {
+    if (await store.load(projectId) !== null) return;
     const doc = buildFromSql(await loadSqlRows(projectId));
     await store.save(projectId, encodeDoc(doc));
+    const epochs = getDocEpochs(doc);
+    saveListeners.forEach((listener) => listener(projectId, epochs));
   });
 }
 
-/** Bootstrap meta docs for every local project. Reserved for sync-engine startup. */
+/**
+ * Backfill meta docs for every local project that doesn't have one yet.
+ * Safe on any device role — the doc-existence guard in bootstrapProjectMeta
+ * means this never touches a project that already has a doc, whether that
+ * doc was bootstrapped locally or received via sync. Run at sync-engine
+ * startup; this also rescues projects that were created on a joined device
+ * before creation-time bootstrapping existed (SqliteBinderStore.createProject).
+ */
 export async function ensureAllProjectMetas(): Promise<void> {
-  if (await getSyncRole() === "joined") return;
   const db = await getDb();
   const [projects, existing] = await Promise.all([
     db.select<Array<{ id: string }>>("SELECT id FROM projects"), store.listAll(),

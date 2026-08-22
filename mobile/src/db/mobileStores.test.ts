@@ -10,14 +10,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runMigrations } from "../shared/migrations";
 import { MobileAiContextStore } from "./mobileAiContextStore";
 import { MobileAiConversationStore } from "./mobileAiConversationStore";
-import { subscribeMobileBibleSaves } from "./mobileBibleLocalBridge";
+import { ensureAllMobileProjectBibles, subscribeMobileBibleSaves } from "./mobileBibleLocalBridge";
 import { MobileBinderStore } from "./mobileBinderStore";
 import { MobileBoardsStore } from "./mobileBoardsStore";
 import { MobileGoalsStore } from "./mobileGoalsStore";
 import { MobileLabelStore } from "./mobileLabelStore";
 import { mobileLocalWrites } from "./mobileLocalWriteBridge";
 import { MobileMetaApplyTarget } from "./mobileMetaApplyTarget";
-import { subscribeMobileMetaSaves } from "./mobileMetaBridge";
+import { ensureAllMobileProjectMetas, subscribeMobileMetaSaves } from "./mobileMetaBridge";
 import { MobileQuickNoteStore } from "./mobileQuickNoteStore";
 import { MobileSearchStore } from "./mobileSearchStore";
 import { MobileSnapshotStore } from "./mobileSnapshotStore";
@@ -35,6 +35,7 @@ import {
   getSnapshotStore,
   getStoryBibleStore,
 } from "./stores";
+import { MobileProjectMetaDocStore } from "./syncStores/mobileProjectMetaDocStore";
 
 let db: SqlJsTestDb;
 vi.mock("./database", () => ({ getMobileDb: () => Promise.resolve(db) }));
@@ -301,6 +302,46 @@ describe("local-write ping-pong guard", () => {
     await mobileLocalWrites.runRemote(() => mutate(projectId));
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
+  });
+});
+
+describe("mobile creation-time and ensure-sweep bootstrap", () => {
+  it("bootstraps both a meta doc and an empty bible doc when a project is created", async () => {
+    const projectId = await project(new MobileBinderStore(db));
+    expect(await new MobileProjectMetaDocStore().load(projectId)).not.toBeNull();
+    const bible = await new DbProjectDomainDocStore(db).load("bible", projectId);
+    expect(bible).not.toBeNull();
+  });
+
+  it("ensure sweeps backfill a project with SQL rows but no docs yet", async () => {
+    // Simulate a project stranded before creation-time bootstrap existed: insert
+    // the SQL row directly, bypassing MobileBinderStore.createProject.
+    const now = new Date().toISOString();
+    await db.execute(
+      "INSERT INTO projects (id, title, type, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ["stranded", "Stranded", "novel", 1000, now, now],
+    );
+    await ensureAllMobileProjectMetas();
+    await ensureAllMobileProjectBibles();
+    expect(await new MobileProjectMetaDocStore().load("stranded")).not.toBeNull();
+    expect(await new DbProjectDomainDocStore(db).load("bible", "stranded")).not.toBeNull();
+  });
+
+  it("ensure sweeps do not touch or overwrite a project's existing docs", async () => {
+    const binder = new MobileBinderStore(db);
+    const projectId = await project(binder);
+    const sceneId = await binder.createScene({ projectId, folderId: null, title: "Scene" });
+    await binder.renameScene(sceneId, "Renamed before sweep");
+    await new MobileStoryBibleStore(db).createCharacter(projectId, "Mara", null);
+
+    const metaBefore = await new MobileProjectMetaDocStore().load(projectId);
+    const bibleBefore = await new DbProjectDomainDocStore(db).load("bible", projectId);
+
+    await ensureAllMobileProjectMetas();
+    await ensureAllMobileProjectBibles();
+
+    expect(await new MobileProjectMetaDocStore().load(projectId)).toBe(metaBefore);
+    expect(await new DbProjectDomainDocStore(db).load("bible", projectId)).toBe(bibleBefore);
   });
 });
 

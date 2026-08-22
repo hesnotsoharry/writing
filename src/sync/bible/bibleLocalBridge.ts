@@ -41,6 +41,11 @@ export class BibleLocalBridge {
     this.listeners.add(listener); return () => this.listeners.delete(listener);
   }
 
+  /** Announce content written outside `mutate` (e.g. bootstrap) to subscribers. */
+  notify(projectId: string, stateBase64: string): void {
+    this.listeners.forEach((listener) => listener(projectId, stateBase64));
+  }
+
   mutate<T>(
     projectId: string, sqlWrite: () => Promise<T>, mutateDoc: BibleDocMutation<T>,
   ): Promise<T> {

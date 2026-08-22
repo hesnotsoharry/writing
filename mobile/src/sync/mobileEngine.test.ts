@@ -26,6 +26,7 @@ vi.mock("../db/mobileMetaBridge", () => ({
     engineCapture.metaSaveListeners.add(listener);
     return () => engineCapture.metaSaveListeners.delete(listener);
   },
+  ensureAllMobileProjectMetas: vi.fn(async () => undefined),
 }));
 vi.mock("../shared/provider", () => ({ RelayProvider: class {} }));
 vi.mock("./mobileKeyStorage", () => ({ getSyncMasterKey: vi.fn() }));
@@ -52,6 +53,8 @@ describe("mobile engine replication wiring", () => {
     expect(engineCapture.options?.subscribeMetaSaves).toBeTypeOf("function");
     expect(engineCapture.options?.subscribeBibleSaves).toBeTypeOf("function");
     expect(engineCapture.options?.bibleApplyTarget).toBeDefined();
+    expect(engineCapture.options?.ensureProjectMetas).toBeTypeOf("function");
+    expect(engineCapture.options?.ensureProjectBibles).toBeTypeOf("function");
 
     const mutation = {
       domain: "goals" as const,

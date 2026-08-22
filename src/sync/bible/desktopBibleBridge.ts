@@ -3,7 +3,6 @@ import * as Y from "yjs";
 
 import { getDb } from "../../db/schema";
 import { SqliteProjectDomainDocStore } from "../../db/sqliteProjectDomainDocStore";
-import { getSyncRole } from "../syncRole";
 import { buildBibleFromSql } from "./bibleDoc";
 import type { BibleContentListener, BibleLocalWriteDependencies } from "./bibleLocalBridge";
 import { BibleLocalBridge, bridgeBibleLocalWriteWith } from "./bibleLocalBridge";
@@ -36,16 +35,32 @@ export async function bridgeBibleLocalWrite<T>(
   });
 }
 
+/**
+ * Create one project's bible doc from its current SQLite projection.
+ *
+ * Idempotent: returns early if a doc already exists. Doc existence — not
+ * device role — is the discriminator: a doc received via sync already
+ * exists, so "no doc" reliably means "born locally, never bootstrapped."
+ * Notifies the engine's save-listener seam so a freshly bootstrapped doc is
+ * advertised immediately, same as a normal local write.
+ */
 export async function bootstrapProjectBible(projectId: string): Promise<void> {
   const store = new SqliteProjectDomainDocStore();
   if (await store.load("bible", projectId)) return;
   const doc = buildBibleFromSql(await loadBibleProjection(await getDb(), projectId));
-  await store.save("bible", projectId, fromUint8Array(Y.encodeStateAsUpdate(doc)));
+  const stateBase64 = fromUint8Array(Y.encodeStateAsUpdate(doc));
+  await store.save("bible", projectId, stateBase64);
+  desktopBridge.notify(projectId, stateBase64);
 }
 
-/** Bootstrap only the origin's local projects; joined devices learn docs from their peer. */
+/**
+ * Backfill bible docs for every local project that doesn't have one yet.
+ * Safe on any device role — bootstrapProjectBible's doc-existence guard
+ * means this never touches a project that already has a doc. Run at
+ * sync-engine startup; this also rescues bibles stranded on a joined device
+ * before creation-time bootstrapping existed (SqliteBinderStore.createProject).
+ */
 export async function ensureAllProjectBibles(): Promise<void> {
-  if (await getSyncRole() === "joined") return;
   const db = await getDb();
   const projects = await db.select<Array<{ id: string }>>("SELECT id FROM projects");
   await Promise.all(projects.map(({ id }) => bootstrapProjectBible(id)));

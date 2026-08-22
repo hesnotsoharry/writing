@@ -91,29 +91,34 @@ describe("project meta local bridge", () => {
     expect(folders).toEqual([{ project_id: "remote-project" }]);
   });
 
-  it("does not bootstrap existing projects on a joined device", async () => {
-    const projectId = await binder.createProject({ title: "Local", type: "novel" });
+  it("bootstraps a project's meta doc at creation time, regardless of device role", async () => {
     await db.execute("INSERT INTO app_meta (key, value) VALUES ('sync_role', 'joined')");
-    await ensureAllProjectMetas();
-    expect(await new SqliteProjectMetaDocStore().load(projectId)).toBeNull();
-  });
-
-  it("bootstraps every existing project on an origin device", async () => {
-    const projectId = await binder.createProject({ title: "Origin", type: "novel" });
-    await db.execute("INSERT INTO app_meta (key, value) VALUES ('sync_role', 'origin')");
-    await ensureAllProjectMetas();
+    const projectId = await binder.createProject({ title: "Local", type: "novel" });
     expect(await new SqliteProjectMetaDocStore().load(projectId)).not.toBeNull();
   });
 
-  it("is inert until a project meta row has been bootstrapped", async () => {
-    const projectId = await binder.createProject({ title: "Local", type: "novel" });
-    await binder.createFolder({ projectId, title: "Chapter" });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    const rows = await db.select<Array<{ project_id: string }>>(
-      "SELECT project_id FROM project_meta_docs WHERE project_id=$1", [projectId]
+  it("ensure-sweep backfills a docless project regardless of device role", async () => {
+    // Simulate a project stranded before creation-time bootstrap existed: insert
+    // the SQL row directly, bypassing SqliteBinderStore.createProject.
+    await db.execute(
+      "INSERT INTO projects (id, title, type, sort_order, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6)",
+      ["stranded", "Stranded", "novel", 1000, "2024-01-01", "2024-01-01"]
     );
-    expect(rows).toEqual([]);
+    await db.execute("INSERT INTO app_meta (key, value) VALUES ('sync_role', 'joined')");
+    await ensureAllProjectMetas();
+    expect(await new SqliteProjectMetaDocStore().load("stranded")).not.toBeNull();
+  });
+
+  it("ensure-sweep does not touch or overwrite a project's existing meta doc", async () => {
+    const { projectId } = await createBootstrappedProject();
+    await withProjectMeta(projectId, (doc) => setScene(doc, {
+      id: "manual-scene", projectId, folderId: null, title: "Manual",
+      synopsis: null, status: "blank", sortKey: "a0",
+    }));
+    const before = await new SqliteProjectMetaDocStore().load(projectId);
+    await ensureAllProjectMetas();
+    const after = await new SqliteProjectMetaDocStore().load(projectId);
+    expect(after).toBe(before);
   });
 
   it("mirrors create, rename, status, synopsis, and move with stable neighbor keys", async () => {

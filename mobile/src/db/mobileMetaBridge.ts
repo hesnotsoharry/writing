@@ -20,6 +20,7 @@ import * as Y from "yjs";
 import type { SceneStatus } from "../shared/binderStore";
 import type { LabelColor } from "../shared/labelStore";
 import { applyEncoded, encodeDoc } from "../shared/serialize";
+import { getMobileDb } from "./database";
 import { MobileProjectMetaDocStore } from "./syncStores/mobileProjectMetaDocStore";
 
 export interface MobileFolderRow { id: string; projectId: string; title: string }
@@ -69,6 +70,7 @@ export function bootstrapMobileProjectMeta(project: {
   id: string; title: string; type: string;
 }): Promise<void> {
   return runExclusive(project.id, async () => {
+    if (await store.load(project.id) !== null) return;
     const doc = buildFromSql({
       project, folders: [], scenes: [], labels: [], sceneLabels: [],
     });
@@ -76,6 +78,26 @@ export function bootstrapMobileProjectMeta(project: {
     const epochs = getDocEpochs(doc);
     saveListeners.forEach((listener) => listener(project.id, epochs));
   });
+}
+
+/**
+ * Backfill meta docs for every local project that doesn't have one yet.
+ * Safe on any device role — bootstrapMobileProjectMeta's doc-existence guard
+ * (above) means this never touches a project that already has a doc, whether
+ * bootstrapped locally or received via sync. Rescues projects stranded
+ * before bootstrap-at-creation existed.
+ */
+export async function ensureAllMobileProjectMetas(): Promise<void> {
+  const db = await getMobileDb();
+  const [projects, existing] = await Promise.all([
+    db.select<Array<{ id: string; title: string; type: string }>>(
+      "SELECT id, title, type FROM projects"
+    ),
+    store.listAll(),
+  ]);
+  const existingIds = new Set(existing.map(({ id }) => id));
+  await Promise.all(projects.filter(({ id }) => !existingIds.has(id))
+    .map((project) => bootstrapMobileProjectMeta(project)));
 }
 
 function freshKey<T extends { id: string; sortKey: string }>(rows: T[], order: string[], id: string): string {

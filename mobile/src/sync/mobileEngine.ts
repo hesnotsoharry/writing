@@ -8,10 +8,10 @@ import { registerLwwDomains } from "@writersnook/sync/lwwDomains";
 
 import { getMobileDb } from "../db/database";
 import { MobileBibleApplyTarget } from "../db/mobileBibleApplyTarget";
-import { subscribeMobileBibleSaves } from "../db/mobileBibleLocalBridge";
+import { ensureAllMobileProjectBibles, subscribeMobileBibleSaves } from "../db/mobileBibleLocalBridge";
 import { mobileLocalWrites } from "../db/mobileLocalWriteBridge";
 import { MobileMetaApplyTarget } from "../db/mobileMetaApplyTarget";
-import { subscribeMobileMetaSaves } from "../db/mobileMetaBridge";
+import { ensureAllMobileProjectMetas, subscribeMobileMetaSaves } from "../db/mobileMetaBridge";
 import { MobileBoardDocStore } from "../db/syncStores/mobileBoardDocStore";
 import { MobileEpochStore } from "../db/syncStores/mobileEpochStore";
 import { MobilePendingReplacementStore } from "../db/syncStores/mobilePendingReplacementStore";
@@ -67,6 +67,7 @@ function buildMobileEngineOptions(): EngineOptions {
     domainDocStore: new MobileProjectDomainDocStore(mobileDb),
     bibleApplyTarget: new MobileBibleApplyTarget(),
     subscribeBibleSaves: subscribeMobileBibleSaves,
+    ensureProjectBibles: ensureAllMobileProjectBibles,
     lwwStore: new MobileSyncLwwStore(mobileDb),
     lwwRegistry: mobileLwwRegistry,
     outboxStore: new MobileSyncOutboxStore(mobileDb),
@@ -80,6 +81,7 @@ function buildMobileEngineOptions(): EngineOptions {
       identity: () => Promise.resolve(deviceIdentity),
     },
     subscribeMetaSaves: subscribeMobileMetaSaves,
+    ensureProjectMetas: ensureAllMobileProjectMetas,
     readMasterKey: getSyncMasterKey,
     getDeviceId: getOrCreateMobileDeviceId,
     providerFactory: (url, room, device) => new RelayProvider(url, room, device),

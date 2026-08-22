@@ -1,5 +1,7 @@
 import { computeReorder } from "../binder/computeReorder";
 import { normalizeStatus } from "../lib/status";
+import { bootstrapProjectBible } from "../sync/bible/desktopBibleBridge";
+import { bootstrapProjectMeta } from "../sync/meta/bridge";
 import {
   bridgeFolder,
   bridgeRemoved,
@@ -50,6 +52,9 @@ export class SqliteBinderStore implements BinderStore {
       "INSERT INTO projects (id, title, type, sort_order, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)",
       [id, args.title, args.type, sort_order, now, now]
     );
+    // Mirrors mobileBinderStore.createProject: a project without a bootstrapped
+    // meta/bible doc appears in no hello docs[] and never replicates.
+    await Promise.all([bootstrapProjectMeta(id), bootstrapProjectBible(id)]);
     return id;
   }
 
