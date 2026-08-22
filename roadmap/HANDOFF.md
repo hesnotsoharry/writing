@@ -5,6 +5,55 @@ updated: 2026-08-22
 
 ## Current state
 
+### What landed today (2026-08-22, second wave — Cole's live sync session, diagnosed and fixed)
+
+Cole ran the sync-session runbook on the real pair. Every "sync failure" he
+reported turned out to be **UI staleness**: the phone-born project, its bible
+doc, the goals rows and the notes were all byte-identical in both DBs within
+seconds (verified by pulling both DBs mid-session) — desktop views just never
+re-queried. Fixes, all committed and gated:
+
+- **Live refresh** (`5cbf9a6`): the LWW row adapter, meta apply target and
+  bible apply target now dispatch window events (`src/sync/syncEvents.ts`);
+  project list, binder, goals dialog, inspector rings, inbox, boards list and
+  bible list subscribe. Mobile GoalsScreen subscribes to engine applies the
+  way useHubModel always did.
+- **Goals read the synced rows, not localStorage fiction** (`5cbf9a6`): the
+  master switch ANDs into every scope (kills the phantom "0 / 1000" with
+  goals off), `enabled` gates and is toggleable per goal on BOTH platforms,
+  `config_json` round-trips so mobile-created streak/deadline goals render on
+  desktop. Mobile gains per-goal enable/edit/delete (`cc7c25c`) — it was
+  create-only, and its "Session goal" checkbox was the device-local sitting
+  tracker mislabeled (now "Track this sitting / THIS DEVICE ONLY").
+  **Honest gap:** streak/session COUNTING is still unimplemented on mobile —
+  definitions sync, counters never move (`recordGoalDay` has no callers). And
+  desktop's manuscript/chapter/scene scope is still localStorage-only (needs
+  a schema column). Both deliberate deferrals.
+- **Relationship map rebuilt on the board canvas machinery** (`8fbbc8a`):
+  edges and nodes shared no transform origin (lines floated when zoomed) and
+  the 360-pass force layout re-ran per touch frame. One 1×1 world layer, UI-
+  thread gestures via the shared `useBoardTransform`, constant layout radius.
+- **Mobile project creation** (`ff161cd`): name prompt via the standard
+  create-prompt sheet, and a Default Board seeded per project (fresh UUID id);
+  the board viewer self-heals boardless projects. This exposed a real desktop
+  bug — the lazy seed's fixed `brainstorm-default` id can be claimed by only
+  ONE project (unscoped PK, swallowed conflict), so every later project was
+  boardless. Fixed with a UUID fallback (`e73b05b`).
+- **Metro + cargo coexistence** (`3c806d0`): Metro's repo-root watcher died
+  on vanishing `src-tauri/target` incrementals whenever the desktop dev build
+  ran; blockList now excludes it. Also: commits to shared src/ hot-reload the
+  phone dev client mid-test — hold writes while Cole is device-testing.
+- **In flight elsewhere: iOS TestFlight registration** (separate agent, Cole-
+  initiated). It renamed the app identity `com.coles.writersnook` →
+  `app.writersnook` in `mobile/app.json` (+ EAS project id, iOS
+  ShareExtension entitlements). Docs and adb tooling references to the old
+  package id go stale at next prebuild — sweep them once that work settles.
+  `mobile/app.json` is intentionally left uncommitted here.
+- **Gate truth:** desktop tsc/lint clean, 2271 pass (sql.js OOM flake
+  transient under full-suite load only); mobile tsc/lint clean, 382 pass.
+  Runbook items #6/#7 (reconnect convergence, keep-both conflict) remain
+  unrun — they need a session where Metro restarts don't matter.
+
 ### What landed today (2026-08-22 — items 2–5 of the priority list, in one pass)
 
 - **v0.12.9 is prepped and tagged; Cole runs the publish.** The release carries
