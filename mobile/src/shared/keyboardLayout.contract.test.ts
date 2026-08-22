@@ -33,11 +33,21 @@ it("installs KeyboardProvider inside the app's SafeAreaProvider", () => {
   expect(app).toMatch(/<SafeAreaProvider>\s*[\s\S]*?<KeyboardProvider(?:\s[^>]*)?>/);
 });
 
-it("removes the diagnostic footer from keyboard-open layout", () => {
+it("removes the diagnostic footer from keyboard-open layout and from release builds", () => {
   const app = readFileSync(APP, "utf8");
 
   expect(app).toMatch(/useKeyboardState\(\(state\) => state\.isVisible\)/);
-  expect(app).toMatch(/\{!keyboardVisible && <DevFooter\b/);
+  // The footer is diagnostics chrome: hidden while the keyboard is up, and
+  // absent altogether from a release bundle (`__DEV__` is false there).
+  expect(app).toMatch(/const showDevFooter = __DEV__ && !keyboardVisible;/);
+  // Regression guard for the bottom inset: whenever the footer is NOT drawn,
+  // the spacer must take its place, so exactly one element still owns the
+  // inset. A bare `{showDevFooter && <DevFooter …>}` would leave zero owners
+  // in release and cost every screen its nav-bar clearance.
+  expect(app).toMatch(
+    /\{showDevFooter\s*\?\s*<DevFooter\b[\s\S]*?:\s*<SafeAreaView edges=\{BOTTOM_EDGES\}[^\n]*\/>\}/
+  );
+  expect(app).not.toMatch(/\{showDevFooter && </);
 });
 
 it("does not import the legacy per-mount keyboard hook in production source", () => {

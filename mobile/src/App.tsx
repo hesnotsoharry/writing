@@ -37,7 +37,15 @@ function syncStatusLine(status: SyncStatus): string {
   return `sync ${status.state} · peer ${peer} · last ${last}`;
 }
 
-/** Exactly one element per branch owns the bottom inset — see Screen.tsx. */
+/**
+ * Exactly one element per branch owns the bottom inset — see Screen.tsx.
+ *
+ * "Exactly one" means never zero either. DevFooter is the bottom-most chrome
+ * only while it renders, and it renders in development only; whenever it is
+ * absent — a release build, or the keyboard being up — this spacer must take
+ * the inset over, or every screen loses its nav-bar clearance. Keep the two in
+ * a single ternary so no future edit can drop both.
+ */
 const BOTTOM_EDGES = ["bottom"] as const;
 
 export default function App() {
@@ -103,6 +111,9 @@ function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTree
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const gate = useMobileLicenseGate(dbReady);
   const statusStyle = theme.name === "dark" ? "light" : "dark";
+  // Diagnostics chrome, never shipped: `__DEV__` is false in a release bundle.
+  // It must stay an if/else with the spacer, not a bare `&&` — see BOTTOM_EDGES.
+  const showDevFooter = __DEV__ && !keyboardVisible;
   const background = { backgroundColor: theme.colors.parchment };
   if (!fontsLoaded) {
     return <><StatusBar style={statusStyle} /><View style={[styles.root, background]} /></>;
@@ -126,8 +137,9 @@ function AppTree({ dbLine, dbReady, fontsLoaded, onPaired, syncStatus }: AppTree
           if (navigationRef.isReady()) navigationRef.navigate("OfflineCatchUp", { projectId });
         }} />
       </TrialDaysProvider>
-      {!keyboardVisible && <DevFooter dbLine={dbLine} status={syncStatus} />}
-      {keyboardVisible && <SafeAreaView edges={BOTTOM_EDGES} style={background} />}
+      {showDevFooter
+        ? <DevFooter dbLine={dbLine} status={syncStatus} />
+        : <SafeAreaView edges={BOTTOM_EDGES} style={background} />}
     </View>
   );
 }
@@ -137,7 +149,7 @@ function DevFooter({ dbLine, status }: { dbLine: string; status: SyncStatus }) {
   const footer = { backgroundColor: theme.colors.paper, borderTopColor: theme.colors.parchmentEdge };
   const text = { color: theme.colors.ink3 };
   return (
-    <SafeAreaView edges={["bottom"]} style={[styles.devFooter, footer]}>
+    <SafeAreaView edges={BOTTOM_EDGES} style={[styles.devFooter, footer]}>
       <Text style={[styles.devFooterText, text]}>WRITERSNOOK MOBILE · {SyncEngine.name} loaded · {dbLine}</Text>
       <Text style={[styles.devFooterText, text]}>{syncStatusLine(status)}</Text>
     </SafeAreaView>

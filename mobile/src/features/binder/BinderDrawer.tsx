@@ -16,6 +16,7 @@ import {
   BINDER_DRAWER_WIDTH, BINDER_EDGE_WIDTH, CLOSED_DRAWER_STATE,
   type DrawerAction, type DrawerState, reduceDrawer,
 } from "./drawerState";
+import { ProjectSwitcherSheet, useProjectSwitcher } from "./ProjectSwitcherSheet";
 import { SceneActionsSheet } from "./SceneActionsSheet";
 import { type BinderDrawerData, useBinderDrawerData } from "./useBinderDrawerData";
 
@@ -113,10 +114,16 @@ function useDrawerPan(state: DrawerState, dispatch: BinderDrawerProps["dispatch"
   }), [dispatch, state.offset]);
 }
 
-function ProjectHeader({ data }: { data: BinderDrawerData }) {
+/** `onSwitch` is null when there is no second manuscript to switch to — then
+ *  the header drops the chevron and stays a plain View, rather than offering a
+ *  dropdown that opens a sheet listing only the project you are already in. */
+function ProjectHeader({ data, onSwitch }: {
+  data: BinderDrawerData; onSwitch: (() => void) | null;
+}) {
   const theme = useTheme();
   const words = data.scenes.reduce((sum, scene) => sum + scene.word_count, 0);
-  return <View style={[styles.projectHeader, { borderColor: theme.colors.line }]}>
+  const rowStyle = [styles.projectHeader, { borderColor: theme.colors.line }];
+  const body = <>
     <BookSpine variant="hub" />
     <View style={styles.projectCopy}>
       <Text numberOfLines={1} style={[TYPE.bodySmallStrong, { color: theme.colors.ink }]}>
@@ -124,8 +131,11 @@ function ProjectHeader({ data }: { data: BinderDrawerData }) {
       </Text>
       <Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>{words.toLocaleString()} words</Text>
     </View>
-    <Icon name="chevDown" size={17} color={theme.colors.ink3} />
-  </View>;
+    {onSwitch !== null && <Icon name="chevDown" size={17} color={theme.colors.ink3} />}
+  </>;
+  if (onSwitch === null) return <View style={rowStyle}>{body}</View>;
+  return <Pressable accessibilityLabel="Switch manuscript" accessibilityRole="button"
+    onPress={onSwitch} style={rowStyle}>{body}</Pressable>;
 }
 
 interface BinderListProps {
@@ -168,7 +178,7 @@ interface DrawerPanelProps {
   activeSceneId: string;
   onActions(scene: Scene): void; onInbox(): void; onArchive(): void;
   onReorder(scene: Scene, delta: number): void; onOpenScene(scene: Scene): void;
-  onNewScene(): void; onNewChapter(): void;
+  onNewScene(): void; onNewChapter(): void; onSwitchProject: (() => void) | null;
 }
 function DrawerPanel(props: DrawerPanelProps) {
   const theme = useTheme();
@@ -176,7 +186,7 @@ function DrawerPanel(props: DrawerPanelProps) {
     paddingTop: props.insetsTop, transform: [{ translateX: props.state.offset - BINDER_DRAWER_WIDTH }],
     backgroundColor: theme.colors.parchment, borderColor: theme.colors.parchmentEdge,
   }]}>
-    <ProjectHeader data={props.data} />
+    <ProjectHeader data={props.data} onSwitch={props.onSwitchProject} />
     <BinderList data={props.data} activeSceneId={props.activeSceneId}
       onScene={props.onOpenScene} onActions={props.onActions} onReorder={props.onReorder}
       onNewScene={props.onNewScene} onNewChapter={props.onNewChapter} />
@@ -207,6 +217,17 @@ function persistDrawerCreate(args: {
   )).then(reload);
 }
 
+function persistSceneMove(args: {
+  delta: number; reload: () => void; scene: Scene; scenes: Scene[];
+}): void {
+  const { delta, reload, scene, scenes } = args;
+  const siblings = scenes.filter(({ folder_id }) => folder_id === scene.folder_id);
+  const index = siblings.findIndex(({ id }) => id === scene.id);
+  const next = Math.max(0, Math.min(siblings.length - 1, index + delta));
+  if (next === index) return;
+  void getBinderStore().then((store) => store.moveScene(scene.id, scene.folder_id, next)).then(reload);
+}
+
 function DrawerSheets(props: {
   actionScene: Scene | null; data: BinderDrawerData; onDeleted: () => void;
   onConfirm: (result: CreatePromptResult) => void; projectId: string;
@@ -232,14 +253,7 @@ export function BinderDrawer(props: BinderDrawerProps) {
   const [actionScene, setActionScene] = useState<Scene | null>(null);
   const [prompt, setPrompt] = useState<CreatePromptRequest | null>(null);
   const pan = useDrawerPan(props.state, props.dispatch);
-  const moveScene = (scene: Scene, delta: number): void => {
-    const siblings = data.scenes.filter(({ folder_id }) => folder_id === scene.folder_id);
-    const index = siblings.findIndex(({ id }) => id === scene.id);
-    const next = Math.max(0, Math.min(siblings.length - 1, index + delta));
-    if (next !== index) void getBinderStore().then((store) => store.moveScene(
-      scene.id, scene.folder_id, next,
-    )).then(data.reload);
-  };
+  const switcher = useProjectSwitcher(props.projectId);
   const afterDelete = (): void => {
     const next = data.scenes.find(({ id }) => id !== actionScene?.id);
     const deletedActive = actionScene?.id === props.activeSceneId;
@@ -256,12 +270,16 @@ export function BinderDrawer(props: BinderDrawerProps) {
       style={[styles.scrim, { left: props.state.offset, backgroundColor: theme.colors.scrimStrong }]} />}
     <DrawerPanel data={data} insetsTop={insets.top} state={props.state}
       activeSceneId={props.activeSceneId} onActions={setActionScene}
-      onInbox={props.onOpenInbox} onArchive={props.onOpenArchive} onReorder={moveScene}
+      onInbox={props.onOpenInbox} onArchive={props.onOpenArchive}
+      onReorder={(scene, delta) => { persistSceneMove({ delta, reload: data.reload, scene, scenes: data.scenes }); }}
       onOpenScene={props.onOpenScene} onNewScene={() => { setPrompt({ kind: "scene" }); }}
+      onSwitchProject={switcher.canSwitch ? switcher.open : null}
       onNewChapter={() => { setPrompt({ kind: "chapter" }); }} />
     <View pointerEvents={props.state.offset === 0 ? "auto" : "none"} style={styles.edge} />
     <DrawerSheets actionScene={actionScene} data={data} onConfirm={onConfirm} onDeleted={afterDelete}
       projectId={props.projectId} prompt={prompt} setActionScene={setActionScene} setPrompt={setPrompt} />
+    <ProjectSwitcherSheet currentProjectId={props.projectId} onDismiss={switcher.close}
+      onSelect={switcher.select} open={switcher.isOpen} projects={switcher.projects} />
   </View>;
 }
 
