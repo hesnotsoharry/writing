@@ -61,10 +61,22 @@ const VERB_ICONS: Record<VerbKey, IconName> = {
 };
 
 /**
+ * The layout animation and the clip MUST be on the same view.
+ *
+ * This was a wrapper `Animated.View` around a plain `Pressable`: the wrapper's
+ * frame animated while the Pressable inside was sized by its content and so
+ * rendered at full width on the first frame, label and all. `overflow: hidden`
+ * sat on the Pressable, where there was nothing left to clip. The result was a
+ * fully-formed pill being carried into position — exactly the "slides in from
+ * the right" it was supposed to replace. Animating the Pressable itself makes
+ * its own frame grow, so its clipped contents are uncovered as it does.
+ *
  * Icon only until selected, then the label slides out beside it. Without that
  * the row is five unlabelled glyphs and the mode you are in is a guess — the
  * label is the only thing that says what the assistant will actually do.
  */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 function VerbButton({ onPress, selected, verb }: {
   onPress(): void; selected: boolean; verb: VerbKey;
 }) {
@@ -72,15 +84,14 @@ function VerbButton({ onPress, selected, verb }: {
   const tint = selected
     ? { backgroundColor: theme.labelTint.clay, borderColor: theme.label.clay }
     : { backgroundColor: theme.colors.paper, borderColor: theme.colors.parchmentEdge };
-  return <Animated.View layout={LinearTransition.duration(VERB_SLIDE_MS)}>
-    <Pressable accessibilityRole="button" accessibilityState={{ selected }}
-      accessibilityLabel={AI_VERBS[verb].label} onPress={onPress} style={[styles.verb, tint]}>
-      <Icon name={VERB_ICONS[verb]} size={19}
-        color={selected ? theme.label.clay : theme.colors.ink3} />
-      {selected ? <Text numberOfLines={1}
-        style={[TYPE.bodySmallStrong, styles.verbLabel, { color: theme.label.clay }]}>{AI_VERBS[verb].label}</Text> : null}
-    </Pressable>
-  </Animated.View>;
+  return <AnimatedPressable accessibilityRole="button" accessibilityState={{ selected }}
+    accessibilityLabel={AI_VERBS[verb].label} onPress={onPress}
+    layout={LinearTransition.duration(VERB_SLIDE_MS)} style={[styles.verb, tint]}>
+    <Icon name={VERB_ICONS[verb]} size={19}
+      color={selected ? theme.label.clay : theme.colors.ink3} />
+    {selected ? <Text numberOfLines={1}
+      style={[TYPE.bodySmallStrong, styles.verbLabel, { color: theme.label.clay }]}>{AI_VERBS[verb].label}</Text> : null}
+  </AnimatedPressable>;
 }
 
 function VerbChips({ selected, onSelect }: { selected: VerbKey; onSelect(verb: VerbKey): void }) {
