@@ -462,6 +462,34 @@ gap.
   server, a login, password reset and a privacy surface, and still need the
   rotation. Recommendation stands unless Cole wants accounts for other reasons.
 
+### Conflict handling for LWW rows — recommendation, not yet built
+
+Cole asked whether the user can pick a winner for the row domains where work
+can be lost (quick notes, goals, archive, snapshots, boards, manuscript About,
+AI conversations — all whole-row LWW by HLC).
+
+**Recommendation: keep both, never ask.** A picker forces a decision at the
+worst moment, needs a diff UI per domain, and buys little for rows this small.
+Where a picker genuinely pays — scene prose after a restore — one already
+exists (the epoch banner's "Catch up now" / "Review what I wrote", with a
+safety snapshot taken first).
+
+**The prerequisite is the same either way: stop discarding the loser.** Today
+`projectReceived` upserts over the local row (`sqlDomain.ts:105`) and the
+displaced payload is gone, so no UI could offer a choice even if one existed.
+
+Proposed, one seam: in `LwwReconciler.receiveRow`, when `putIfNewer` accepts an
+incoming row AND that row is still pending in the outbox, the local version was
+never seen by the peer — that is a genuine concurrent edit, not a stale copy.
+LWW carries no causality, but "still unacked in our own outbox" is a precise
+proxy we already maintain (`onConverged` -> `acknowledgeItem`). Record the
+displaced payload before applying, then surface it where the data lives: for
+quick notes, as a new Inbox note marked "conflicting version from <device>",
+which needs no new UI because the Inbox is already a triage list. A generic
+"Sync conflicts" list in Settings covers the rest.
+
+Not built. Wants Cole's go-ahead on the keep-both shape first.
+
 ### Mobile UX pass (2026-08-21, fourth batch)
 
 A full device run-through produced ~25 items. Several collapsed into single
