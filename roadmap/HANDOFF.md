@@ -439,6 +439,14 @@ keyboard down and up).
 
 ## What's next
 
+- **iOS TestFlight is live (2026-08-22):** first build (1.0.0 #8) built on EAS and
+  submitted to App Store Connect; install it from the TestFlight app once Apple's
+  processing email arrives, then run the iOS leg of the device checks. Pipeline,
+  credentials layout, and every trap hit on the way: `.claude/vendor-gotchas/eas-expo.md`.
+  Rerun anytime from `mobile/`: `EAS_NO_VCS=1` + `eas build -p ios -e production
+  --auto-submit --non-interactive`. Play Console app also created (`app.writersnook`);
+  Android still needs a release upload keystore + first `.aab` when we get there.
+
 ### Blocked on Cole
 
 0. **Three of those four are answered (Cole, 2026-08-21) — do not re-ask them.**
