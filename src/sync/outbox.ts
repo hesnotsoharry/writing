@@ -36,6 +36,20 @@ export class DurableOutbox {
     await this.store.removeItem(domain, itemId); await this.emit();
   }
 
+  /**
+   * Whether this device still has an unacknowledged change for a row.
+   *
+   * LWW carries no causality, so "concurrent edit" and "stale copy I already
+   * sent" are indistinguishable from the version stamps alone. Still being in
+   * our own outbox is the difference: it means the peer has never seen our
+   * version, so a remote row that beats it is a genuine collision rather than
+   * an echo of our own change coming back.
+   */
+  async hasPending(domain: string, itemId: string): Promise<boolean> {
+    return (await this.store.listPending())
+      .some((entry) => entry.domain === domain && entry.itemId === itemId);
+  }
+
   async flush(send: (message: InnerMessage) => Promise<void>): Promise<void> {
     for (const entry of await this.store.listPending()) {
       const message = parsePayload(entry.payload);

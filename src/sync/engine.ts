@@ -20,7 +20,8 @@ import { type EngineLiveScenePort, LiveSceneBindings } from "./liveSceneBindings
 import { LiveSceneUpdateRouter } from "./liveSceneUpdateRouter";
 import { LocalContentSubscriptions } from "./localContentSubscriptions";
 import { type LocalRowMutation, LwwPublisher } from "./lww/publisher";
-import { LwwReconciler } from "./lww/reconciler";
+import type { LwwReconciler } from "./lww/reconciler";
+import { buildRowReconciler } from "./lww/reconcilerWiring";
 import { LwwDomainRegistry } from "./lww/registry";
 import { type HelloMessage, type InnerMessage, isInnerMessage, metaChannel, parseChannel, sceneChannel } from "./messages";
 import { DurableOutbox } from "./outbox";
@@ -77,12 +78,10 @@ export class SyncEngine {
     this.rowPublisher = options.lwwStore && this.outbox
       ? new LwwPublisher({ store: options.lwwStore, registry, outbox: this.outbox,
         send: (message) => this.sendMessage(message), deviceId: () => this.deviceId }) : null;
-    this.lww = options.lwwStore
-      ? new LwwReconciler(options.lwwStore, registry,
-        (message) => this.sendMessage(message),
-        { onConverged: (domain, rowId) => this.outbox?.acknowledgeItem(domain, rowId)
-          ?? Promise.resolve(), onObserved: (hlc) => this.rowPublisher?.observe(hlc) })
-      : null;
+    this.lww = buildRowReconciler({ store: options.lwwStore, registry,
+      send: (message) => this.sendMessage(message), outbox: () => this.outbox,
+      observe: (hlc) => this.rowPublisher?.observe(hlc),
+      publish: (mutation) => this.publishRow(mutation) });
     this.catchUp = new CatchUpCoordinator(
       this.epochs, this.liveScenes, this.outbox, (sceneId) => this.docReplaced?.(sceneId),
     );

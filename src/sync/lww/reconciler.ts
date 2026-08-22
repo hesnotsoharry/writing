@@ -2,6 +2,7 @@ import type { SyncLwwRow, SyncLwwStore } from "../../db/syncLwwStore";
 import {
 ROW_SUMMARY_LIMIT,
   type RowAckMessage, type RowHelloMessage, type RowMessage, } from "../messages";
+import type { DisplacedRow } from "./displacedRows";
 import { compareVersion } from "./hlc";
 import type { LwwDomainRegistry } from "./registry";
 
@@ -174,16 +175,35 @@ export class LwwReconciler {
       deleted: row.deleted, payload };
   }
 
+  /**
+   * The local version this row is about to replace, or null when there is
+   * nothing to keep: no pending change of ours (so the peer has seen our
+   * version and this is not a collision), a tombstone-vs-tombstone, or a row we
+   * hold nothing for. Returning null is the overwhelmingly common path.
+   */
+  private async readDisplaced(message: RowMessage): Promise<DisplacedRow | null> {
+    if (!this.callbacks.onDisplaced || !this.callbacks.hasPending) return null;
+    if (!await this.callbacks.hasPending(message.domain, message.row)) return null;
+    const payloadJson = await this.registry.get(message.domain)?.readPayload(message.row) ?? null;
+    if (payloadJson === null || payloadJson === message.payload) return null;
+    return { domain: message.domain, rowId: message.row, projectId: message.project,
+      payloadJson, winnerDevice: message.device };
+  }
+
   async receiveRow(message: RowMessage): Promise<RowAckMessage | null> {
     const adapter = this.registry.get(message.domain);
     if (!adapter) return null;
     this.callbacks.onObserved?.(message.hlc);
+    // Read BEFORE putIfNewer decides and before the apply below overwrites: the
+    // whole point is to hold on to what this device had.
+    const displaced = await this.readDisplaced(message);
     const accepted = await this.store.putIfNewer({
       domain: message.domain, projectId: message.project, rowId: message.row,
       hlc: message.hlc, deviceId: message.device, deleted: message.deleted,
       payloadJson: message.payload, updatedAt: new Date().toISOString(),
     });
     if (accepted) {
+      if (displaced) await this.callbacks.onDisplaced?.(displaced);
       if (message.deleted) await adapter.applyTombstone(message.row, message.project);
       else if (message.payload !== null) {
         await adapter.projectReceived(message.row, message.project, message.payload);
@@ -197,6 +217,13 @@ export class LwwReconciler {
 interface ReconcilerCallbacks {
   onConverged?: (domain: string, rowId: string) => Promise<void>;
   onObserved?: (hlc: string) => void;
+  /** Fired when an accepted remote row is about to overwrite a local version
+   *  the peer never saw. See `displacedRows.ts`. */
+  onDisplaced?: (row: DisplacedRow) => Promise<void>;
+  /** Whether this device still owes the peer a change for this row. Absent in
+   *  the tests and engines that wire no outbox, where nothing is ever pending
+   *  and every apply is therefore an ordinary one. */
+  hasPending?: (domain: string, rowId: string) => Promise<boolean>;
 }
 
 function scopeKey(domain: string, projectId: string | null): string {
