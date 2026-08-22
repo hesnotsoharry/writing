@@ -1,11 +1,21 @@
 # Changelog
 
-## [0.13.0] — 2026-08-22 · goals repair + trial activation
-
-This release also carries a large amount of under-the-hood groundwork for
-Device Sync (off by default; nothing changes until you opt in when it ships).
+## [0.13.0] — Unreleased · WritersNook goes mobile
 
 ### Added
+- **WritersNook Companion — your novel, on your phone.** Write and edit
+  scenes, rearrange your outline and corkboard, browse and edit your story
+  bible (relationship links included), work your brainstorm boards, and track
+  writing goals — wherever you are. Share text from any app straight into
+  your Inbox with the share sheet. Local-first like the desktop app: no
+  account, no ads, no analytics.
+- **Device Sync.** Pair your phone — or another computer — by scanning a QR
+  code, and your changes travel between devices end-to-end encrypted. The
+  relay only passes encrypted changes along; your words are never stored on
+  our servers. Includes a device list in Settings, automatic catch-up after
+  time offline, and careful conflict handling: if two devices edit the same
+  note at once, the other version is kept in your Inbox instead of thrown
+  away.
 - **AI trial activation** — starting the free AI trial is now a clear one-time
   step in the Assistant panel (with a quick automated check), instead of a
   silent background grant. Existing trials and subscriptions are unaffected.
