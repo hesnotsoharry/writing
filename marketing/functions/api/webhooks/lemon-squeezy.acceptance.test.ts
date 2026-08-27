@@ -280,6 +280,17 @@ describe("Lemon Squeezy webhook contract (m4)", () => {
     expect(purchaseWrites[1].row.license_key).toBe("WNOOK-KEY-FOR-777");
   });
 
+  it("out-of-order delivery: order_created after license_key_created must not wipe the key", async () => {
+    await post(licenseKeyCreatedBody(4242, "WNOOK-KEY-FOR-4242"), "license_key_created");
+    await post(orderCreatedBody("4242"), "order_created");
+
+    expect(purchaseWrites).toHaveLength(2);
+    // The upsert updates every column it supplies (onConflict order_id), and LS neither
+    // orders nor exactly-onces deliveries: the order row must OMIT license_key entirely —
+    // supplying license_key: null overwrites the stored key with NULL.
+    expect("license_key" in purchaseWrites[1].row).toBe(false);
+  });
+
   // ---- unknown events -------------------------------------------------------
 
   it("ignores an unhandled event: 200, no ledger row, no purchases write", async () => {

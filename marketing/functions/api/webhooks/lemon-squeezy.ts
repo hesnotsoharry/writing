@@ -35,7 +35,11 @@ type LSPayload = OrderPayload | LicenseKeyPayload;
 
 function extractOrderRow(p: OrderPayload) {
   const a = p.data.attributes;
-  return { email: a.user_email, order_id: p.data.id, license_key: null as string | null,
+  // No license_key column here: LS does not order deliveries, so order_created can land
+  // (or be retried) after license_key_created — and the upsert runs before the dedupe
+  // ledger check. Supplying license_key: null would wipe an already-stored key on conflict;
+  // an absent column is left untouched.
+  return { email: a.user_email, order_id: p.data.id,
     product_name: a.first_order_item?.product_name ?? null, user_name: a.user_name,
     total: a.total, status: a.status ?? null };
 }
