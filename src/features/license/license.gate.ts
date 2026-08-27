@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { loadActivation } from "./license.store";
 import { computeTrialStatus, TRIAL_DURATION_DAYS } from "./trial";
-import { loadTrial, saveTrial } from "./trial.store";
+import { loadTrialDetailed, saveTrial } from "./trial.store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,35 +36,59 @@ export interface LicenseGateResult {
 
 type GateResolution = Omit<LicenseGateResult, "onActivated">;
 
+const ACTIVATION_READ_ATTEMPTS = 3;
+
+/** 'error' means the record may exist but could not be read (transient SQLite
+ *  failure). Callers must NOT route 'error' into the trial path: an activated
+ *  customer permanently carries a stale expired-trial row (activation never
+ *  clears it), so a read hiccup at boot would hard-lock a paying user out of
+ *  their own manuscript (audit P10.1). */
+async function loadActivationWithRetry(): Promise<"licensed" | "none" | "error"> {
+  for (let attempt = 0; attempt < ACTIVATION_READ_ATTEMPTS; attempt += 1) {
+    try {
+      return (await loadActivation()) !== null ? "licensed" : "none";
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+    }
+  }
+  return "error";
+}
+
 /**
  * Determine the full gate state from current DB contents and wall-clock time.
- * loadActivation errors fall through to the trial path (no crash on DB error).
+ * A persistently unreadable activation record fails OPEN for the session:
+ * blocking the editor over an I/O hiccup is the worse failure for a
+ * local-first writing app, and an unlicensed user with a broken DB gets a
+ * broken app regardless.
  */
 async function resolveGate(now: Date): Promise<GateResolution> {
-  let hasLicense = false;
-  try {
-    const rec = await loadActivation();
-    hasLicense = rec !== null;
-  } catch { /* fall through to trial path on DB error */ }
-
-  if (hasLicense) {
+  const activation = await loadActivationWithRetry();
+  if (activation === "licensed" || activation === "error") {
+    if (activation === "error") {
+      console.error("[license] activation record unreadable after retries — failing open this session");
+    }
     return { gateStatus: "cleared", daysLeft: null, trialExpired: false };
   }
 
-  const trial = await loadTrial();
+  const trial = await loadTrialDetailed();
   const nowISO = now.toISOString();
 
-  if (trial === null) {
+  if (trial.kind === "corrupt") {
+    // A legitimate install never writes a corrupt row — do not re-grant 14
+    // days on a mangled one (audit P10.2). Show the buy/activate gate.
+    return { gateStatus: "needed", daysLeft: null, trialExpired: true };
+  }
+  if (trial.kind === "missing") {
     await saveTrial({ trialStartedAt: nowISO, lastSeenAt: nowISO });
     return { gateStatus: "trial", daysLeft: TRIAL_DURATION_DAYS, trialExpired: false };
   }
 
-  const { state, daysLeft } = computeTrialStatus(trial, now);
+  const { state, daysLeft } = computeTrialStatus(trial.record, now);
   // Persist lastSeenAt bump: monotonically non-decreasing (clock-rollback defence).
   const newLastSeenAt = new Date(
-    Math.max(now.getTime(), Date.parse(trial.lastSeenAt)),
+    Math.max(now.getTime(), Date.parse(trial.record.lastSeenAt)),
   ).toISOString();
-  await saveTrial({ trialStartedAt: trial.trialStartedAt, lastSeenAt: newLastSeenAt });
+  await saveTrial({ trialStartedAt: trial.record.trialStartedAt, lastSeenAt: newLastSeenAt });
 
   if (state === "expired") {
     return { gateStatus: "needed", daysLeft: null, trialExpired: true };

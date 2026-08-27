@@ -18,9 +18,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockLoadActivation, mockLoadTrial, mockSaveTrial } = vi.hoisted(() => ({
+const { mockLoadActivation, mockLoadTrial, mockLoadTrialDetailed, mockSaveTrial } = vi.hoisted(() => ({
   mockLoadActivation: vi.fn(),
   mockLoadTrial: vi.fn(),
+  mockLoadTrialDetailed: vi.fn(),
   mockSaveTrial: vi.fn(),
 }));
 
@@ -30,6 +31,7 @@ vi.mock("../features/license/license.store", () => ({
 
 vi.mock("../features/license/trial.store", () => ({
   loadTrial: mockLoadTrial,
+  loadTrialDetailed: mockLoadTrialDetailed,
   saveTrial: mockSaveTrial,
 }));
 
@@ -57,6 +59,16 @@ const STORED_TRIAL_WITH_FUTURE_LASTSEEN = {
   trialStartedAt: "2026-05-20T00:00:00.000Z",
   lastSeenAt: "2026-06-15T00:00:00.000Z", // future relative to mocked now
 };
+
+beforeEach(() => {
+  // Default: loadTrialDetailed mirrors loadTrial (missing vs record), so the
+  // pre-P10.2 cases keep configuring mockLoadTrial alone. Corrupt-row cases
+  // override this mock directly.
+  mockLoadTrialDetailed.mockImplementation(async () => {
+    const value = (await mockLoadTrial()) as { trialStartedAt: string; lastSeenAt: string } | null;
+    return value === null ? { kind: "missing" } : { kind: "record", record: value };
+  });
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -261,23 +273,47 @@ describe("useLicenseGate — Case 7: onActivated during trial", () => {
   });
 });
 
-// ─── Case 8: loadActivation rejects → fallthrough to trial path ──────────────
+// ─── Case 8: loadActivation errors are NOT "no license" (audit P10.1) ────────
+// An activated customer permanently carries a stale expired-trial row, so
+// routing a transient read failure into the trial path hard-locked a paying
+// user out of their manuscript. Persistent failure now fails OPEN.
 
 describe("useLicenseGate — Case 8: loadActivation rejection", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-06-11T00:00:00.000Z"));
-  });
-
-  it("falls through to trial path when loadActivation rejects", async () => {
+  it("retries and fails open (cleared) when the activation read keeps failing", async () => {
     mockLoadActivation.mockRejectedValue(new Error("db error"));
     mockLoadTrial.mockResolvedValue(null);
-    mockSaveTrial.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useLicenseGate(true));
-    await waitFor(() => expect(result.current.gateStatus).toBe("trial"));
+    await waitFor(() => expect(result.current.gateStatus).toBe("cleared"), { timeout: 3000 });
 
-    expect(mockLoadTrial).toHaveBeenCalledTimes(1);
-    expect(mockSaveTrial).toHaveBeenCalledTimes(1);
+    expect(mockLoadActivation).toHaveBeenCalledTimes(3);
+    // The trial path must never run on a read error — it would show the
+    // expired-trial lockout to an activated customer.
+    expect(mockLoadTrialDetailed).not.toHaveBeenCalled();
+    expect(mockSaveTrial).not.toHaveBeenCalled();
+  });
+
+  it("recovers when a retry succeeds and reports the real license", async () => {
+    mockLoadActivation
+      .mockRejectedValueOnce(new Error("busy"))
+      .mockResolvedValue(STORED_ACTIVATION);
+
+    const { result } = renderHook(() => useLicenseGate(true));
+    await waitFor(() => expect(result.current.gateStatus).toBe("cleared"), { timeout: 3000 });
+    expect(mockLoadActivation).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ─── Case 9: corrupt trial row must not re-grant a trial (audit P10.2) ───────
+
+describe("useLicenseGate — Case 9: corrupt trial row", () => {
+  it("shows the buy gate and writes no fresh trial record", async () => {
+    mockLoadActivation.mockResolvedValue(null);
+    mockLoadTrialDetailed.mockResolvedValue({ kind: "corrupt" });
+
+    const { result } = renderHook(() => useLicenseGate(true));
+    await waitFor(() => expect(result.current.gateStatus).toBe("needed"));
+    expect(result.current.trialExpired).toBe(true);
+    expect(mockSaveTrial).not.toHaveBeenCalled();
   });
 });
