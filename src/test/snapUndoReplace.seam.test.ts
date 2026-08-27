@@ -37,7 +37,7 @@ describe("snapUndoReplace — reloadScene fires after DB restore resolves", () =
     vi.spyOn(snapshotStore, "listSnapshots").mockResolvedValue([snap]);
     vi.spyOn(snapshotStore, "getSnapshot").mockResolvedValue({ meta: snap, stateBase64: "state-a" });
 
-    snapUndoReplace(["s-1"], save, () => null, reloadScene);
+    snapUndoReplace([{ sceneId: "s-1", snapshotId: null }], save, () => null, reloadScene);
 
     // Allow listSnapshots + getSnapshot microtasks to settle; save is called but not yet resolved.
     await flushAsync();
@@ -57,7 +57,7 @@ describe("snapUndoReplace — reloadScene fires after DB restore resolves", () =
     const reloadScene = vi.fn();
     vi.spyOn(snapshotStore, "listSnapshots").mockResolvedValue([]);
 
-    snapUndoReplace(["s-no-snap"], save, () => null, reloadScene);
+    snapUndoReplace([{ sceneId: "s-no-snap", snapshotId: null }], save, () => null, reloadScene);
 
     await flushAsync();
 

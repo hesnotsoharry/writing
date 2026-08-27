@@ -7,6 +7,7 @@ import type {
 } from "../../db/projectDomainDocStore";
 import { buildBibleFromSql, readBibleDoc, setEntity } from "../../sync/bible/bibleDoc";
 import { BibleLocalBridge } from "../../sync/bible/bibleLocalBridge";
+import { exclusiveDomainDoc } from "../../sync/exclusiveLock";
 
 class MemoryDomainStore implements ProjectDomainDocStore {
   value: string | null = null;
@@ -40,5 +41,40 @@ describe("Bible explicit local-write bridge", () => {
     let sqlWrites = 0; let pushes = 0; bridge.subscribe(() => { pushes += 1; });
     await bridge.mutate("local-only", async () => { sqlWrites += 1; }, () => undefined);
     expect({ sqlWrites, pushes, doc: store.value }).toEqual({ sqlWrites: 1, pushes: 0, doc: null });
+  });
+
+  it("holds the domain lock across sqlWrite so a queued apply cannot empty the delta", async () => {
+    const store = new MemoryDomainStore();
+    const bridge = new BibleLocalBridge(store);
+    store.value = btoa(String.fromCharCode(...Y.encodeStateAsUpdate(buildBibleFromSql({
+      entities: [{
+        id: "c1", projectId: "p1", storage: "character", entityType: "character",
+        name: "Bob", notes: null, aliases: null, excludeFromAi: false,
+      }],
+      entityTypes: [], fields: [], sceneLinks: [], entityLinks: [], relations: [],
+    }))));
+    let release: () => void = () => undefined;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    const seen: string[] = [];
+    const local = bridge.mutate("p1", async () => {
+      seen.push("sql");
+      await hold;
+    }, (doc) => setEntity(doc, {
+      id: "c1", projectId: "p1", storage: "character", entityType: "character",
+      name: "Robert", notes: null, aliases: null, excludeFromAi: false,
+    }));
+    let applyStarted = false;
+    const remote = exclusiveDomainDoc("bible", "p1", async () => {
+      applyStarted = true;
+      seen.push("apply");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect({ applyStarted, seen }).toEqual({ applyStarted: false, seen: ["sql"] });
+    release();
+    await Promise.all([local, remote]);
+    expect(seen).toEqual(["sql", "apply"]);
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, toUint8Array(store.value!));
+    expect(readBibleDoc(doc).entities[0]?.name).toBe("Robert");
   });
 });

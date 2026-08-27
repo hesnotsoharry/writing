@@ -1,3 +1,9 @@
+import {
+  applyFolderMutation,
+  applyRemoved,
+  applySceneMutation,
+} from "@writersnook/sync/meta/localMutators";
+
 import type { BinderStore, Folder, Project, Scene, SceneStatus } from "../shared/binderStore";
 import { computeReorder } from "../shared/computeReorder";
 import type { DbClient } from "../shared/dbClient";
@@ -7,9 +13,7 @@ import { bootstrapMobileProjectBible } from "./mobileBibleLocalBridge";
 import { MobileBoardsStore } from "./mobileBoardsStore";
 import {
   bootstrapMobileProjectMeta,
-  bridgeMobileFolder,
-  bridgeMobileRemoved,
-  bridgeMobileScene,
+  runMobileMetaWrite,
 } from "./mobileMetaBridge";
 
 interface RawScene extends Omit<Scene, "status" | "excludeFromAi"> {
@@ -49,26 +53,30 @@ export class MobileBinderStore implements BinderStore {
   async createFolder(args: { projectId: string; title: string }): Promise<string> {
     const id = crypto.randomUUID();
     const rows = await this.containerRows("folders", args.projectId, null);
-    await this.db.execute(
-      "INSERT INTO folders (id, project_id, title, sort_order) VALUES (?, ?, ?, ?)",
-      [id, args.projectId, args.title, nextSortFrom(rows)],
-    );
-    await bridgeMobileFolder({ id, projectId: args.projectId, title: args.title }, [...idsOf(rows), id]);
+    const order = [...idsOf(rows), id];
+    await runMobileMetaWrite(args.projectId, async () => {
+      await this.db.execute(
+        "INSERT INTO folders (id, project_id, title, sort_order) VALUES (?, ?, ?, ?)",
+        [id, args.projectId, args.title, nextSortFrom(rows)],
+      );
+    }, (doc) => applyFolderMutation(doc, { id, projectId: args.projectId, title: args.title }, order));
     return id;
   }
 
   async createScene(args: { projectId: string; folderId: string | null; title: string }): Promise<string> {
     const id = crypto.randomUUID();
     const rows = await this.containerRows("scenes", args.projectId, args.folderId);
-    await this.db.execute(
-      `INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status)
-       VALUES (?, ?, ?, ?, NULL, ?, 0, 'blank')`,
-      [id, args.projectId, args.folderId, args.title, nextSortFrom(rows)],
-    );
-    await bridgeMobileScene({
+    const order = [...idsOf(rows), id];
+    await runMobileMetaWrite(args.projectId, async () => {
+      await this.db.execute(
+        `INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status)
+         VALUES (?, ?, ?, ?, NULL, ?, 0, 'blank')`,
+        [id, args.projectId, args.folderId, args.title, nextSortFrom(rows)],
+      );
+    }, (doc) => applySceneMutation(doc, {
       id, projectId: args.projectId, folderId: args.folderId,
       title: args.title, synopsis: null, status: "blank",
-    }, [...idsOf(rows), id]);
+    }, order));
     return id;
   }
 
@@ -109,10 +117,15 @@ export class MobileBinderStore implements BinderStore {
     );
     const folder = folders[0];
     if (!folder) return;
-    const relocated = await this.appendFolderScenesToShortPieces(folderId, folder.project_id);
-    await this.db.execute("DELETE FROM folders WHERE id = ?", [folderId]);
-    await bridgeMobileRemoved(folder.project_id, [{ kind: "folder", id: folderId }]);
-    for (const sceneId of relocated.movedIds) await this.bridgeSceneById(sceneId, relocated.order);
+    await runMobileMetaWrite(folder.project_id, async () => {
+      const relocated = await this.appendFolderScenesToShortPieces(folderId, folder.project_id);
+      await this.db.execute("DELETE FROM folders WHERE id = ?", [folderId]);
+      const scenes = await this.scenesByIds(relocated.movedIds);
+      return { order: relocated.order, scenes };
+    }, (doc, { order, scenes }) => {
+      applyRemoved(doc, [{ kind: "folder", id: folderId }]);
+      for (const scene of scenes) applySceneMutation(doc, scene, order);
+    });
   }
 
   private async appendFolderScenesToShortPieces(
@@ -134,20 +147,20 @@ export class MobileBinderStore implements BinderStore {
   }
 
   async renameFolder(folderId: string, title: string): Promise<void> {
-    await this.db.execute("UPDATE folders SET title = ? WHERE id = ?", [title, folderId]);
     const rows = await this.db.select<Folder[]>("SELECT id, project_id, title, sort_order FROM folders WHERE id = ?", [folderId]);
     const row = rows[0];
-    if (row) await bridgeMobileFolder({ id: row.id, projectId: row.project_id, title: row.title });
+    if (!row) return;
+    await runMobileMetaWrite(row.project_id, async () => {
+      await this.db.execute("UPDATE folders SET title = ? WHERE id = ?", [title, folderId]);
+    }, (doc) => applyFolderMutation(doc, { id: row.id, projectId: row.project_id, title }));
   }
 
   async renameScene(sceneId: string, title: string): Promise<void> {
-    await this.db.execute("UPDATE scenes SET title = ? WHERE id = ?", [title, sceneId]);
-    await this.bridgeSceneById(sceneId);
+    await this.boundSceneSql(sceneId, () => this.db.execute("UPDATE scenes SET title = ? WHERE id = ?", [title, sceneId]));
   }
 
   async setSceneStatus(sceneId: string, status: SceneStatus): Promise<void> {
-    await this.db.execute("UPDATE scenes SET status = ? WHERE id = ?", [status, sceneId]);
-    await this.bridgeSceneById(sceneId);
+    await this.boundSceneSql(sceneId, () => this.db.execute("UPDATE scenes SET status = ? WHERE id = ?", [status, sceneId]));
   }
 
   async setSceneExcludedFromAi(sceneId: string, exclude: boolean): Promise<void> {
@@ -155,8 +168,7 @@ export class MobileBinderStore implements BinderStore {
   }
 
   async setSceneSynopsis(sceneId: string, synopsis: string | null): Promise<void> {
-    await this.db.execute("UPDATE scenes SET synopsis = ? WHERE id = ?", [synopsis, sceneId]);
-    await this.bridgeSceneById(sceneId);
+    await this.boundSceneSql(sceneId, () => this.db.execute("UPDATE scenes SET synopsis = ? WHERE id = ?", [synopsis, sceneId]));
   }
 
   async setSceneWordCount(sceneId: string, wordCount: number): Promise<boolean> {
@@ -165,45 +177,76 @@ export class MobileBinderStore implements BinderStore {
 
   async deleteScene(sceneId: string): Promise<void> {
     const rows = await this.db.select<{ project_id: string }[]>("SELECT project_id FROM scenes WHERE id = ?", [sceneId]);
-    await deleteMobileSceneDependents(this.db, sceneId);
-    await this.db.execute("DELETE FROM scenes WHERE id = ?", [sceneId]);
-    if (rows[0]) await bridgeMobileRemoved(rows[0].project_id, [{ kind: "scene", id: sceneId }]);
+    const projectId = rows[0]?.project_id;
+    if (!projectId) {
+      await deleteMobileSceneDependents(this.db, sceneId);
+      await this.db.execute("DELETE FROM scenes WHERE id = ?", [sceneId]);
+      return;
+    }
+    await runMobileMetaWrite(projectId, async () => {
+      await deleteMobileSceneDependents(this.db, sceneId);
+      await this.db.execute("DELETE FROM scenes WHERE id = ?", [sceneId]);
+    }, (doc) => applyRemoved(doc, [{ kind: "scene", id: sceneId }]));
   }
 
   async moveScene(sceneId: string, toFolderId: string | null, toIndex: number): Promise<void> {
-    const rows = await this.db.select<{ project_id: string }[]>("SELECT project_id FROM scenes WHERE id = ?", [sceneId]);
-    const projectId = rows[0]?.project_id;
+    const projectId = (await this.db.select<{ project_id: string }[]>(
+      "SELECT project_id FROM scenes WHERE id = ?", [sceneId],
+    ))[0]?.project_id;
     if (!projectId) return;
-    await this.db.execute("UPDATE scenes SET folder_id = ? WHERE id = ?", [toFolderId, sceneId]);
-    const ids = await this.containerIds("scenes", projectId, toFolderId);
-    const updates = computeReorder(ids.map((id) => ({ id })), sceneId, toIndex);
-    for (const row of updates) await this.db.execute("UPDATE scenes SET sort_order = ? WHERE id = ?", [row.sort_order, row.id]);
-    await this.bridgeSceneById(sceneId, updates.map(({ id }) => id));
+    await runMobileMetaWrite(projectId, async () => {
+      await this.db.execute("UPDATE scenes SET folder_id = ? WHERE id = ?", [toFolderId, sceneId]);
+      const ids = await this.containerIds("scenes", projectId, toFolderId);
+      const updates = computeReorder(ids.map((id) => ({ id })), sceneId, toIndex);
+      for (const row of updates) {
+        await this.db.execute("UPDATE scenes SET sort_order = ? WHERE id = ?", [row.sort_order, row.id]);
+      }
+      return { order: updates.map(({ id }) => id), scene: (await this.scenesByIds([sceneId]))[0] };
+    }, (doc, result) => {
+      if (result.scene) applySceneMutation(doc, result.scene, result.order);
+    });
   }
 
   async moveFolder(folderId: string, toIndex: number): Promise<void> {
     const rows = await this.db.select<Folder[]>("SELECT id, project_id, title, sort_order FROM folders WHERE id = ?", [folderId]);
     const folder = rows[0];
     if (!folder) return;
-    const ids = await this.containerIds("folders", folder.project_id, null);
-    const updates = computeReorder(ids.map((id) => ({ id })), folderId, toIndex);
-    for (const row of updates) await this.db.execute("UPDATE folders SET sort_order = ? WHERE id = ?", [row.sort_order, row.id]);
-    await bridgeMobileFolder(
-      { id: folder.id, projectId: folder.project_id, title: folder.title },
-      updates.map(({ id }) => id),
-    );
+    await runMobileMetaWrite(folder.project_id, async () => {
+      const ids = await this.containerIds("folders", folder.project_id, null);
+      const updates = computeReorder(ids.map((id) => ({ id })), folderId, toIndex);
+      for (const row of updates) {
+        await this.db.execute("UPDATE folders SET sort_order = ? WHERE id = ?", [row.sort_order, row.id]);
+      }
+      return updates.map(({ id }) => id);
+    }, (doc, order) => applyFolderMutation(doc, {
+      id: folder.id, projectId: folder.project_id, title: folder.title,
+    }, order));
   }
 
-  private async bridgeSceneById(sceneId: string, order?: string[]): Promise<void> {
+  private async boundSceneSql(sceneId: string, sqlWrite: () => Promise<unknown>): Promise<void> {
+    const projectId = (await this.db.select<{ project_id: string }[]>(
+      "SELECT project_id FROM scenes WHERE id = ?", [sceneId],
+    ))[0]?.project_id;
+    if (!projectId) { await sqlWrite(); return; }
+    await runMobileMetaWrite(projectId, async () => {
+      await sqlWrite();
+      return (await this.scenesByIds([sceneId]))[0];
+    }, (doc, scene) => { if (scene) applySceneMutation(doc, scene); });
+  }
+
+  private async scenesByIds(ids: string[]): Promise<Array<{
+    id: string; projectId: string; folderId: string | null; title: string;
+    synopsis: string | null; status: SceneStatus;
+  }>> {
+    if (ids.length === 0) return [];
     const rows = await this.db.select<RawScene[]>(
       `SELECT id, project_id, folder_id, title, synopsis, sort_order, word_count, status, exclude_from_ai
-       FROM scenes WHERE id = ?`, [sceneId],
+       FROM scenes WHERE id IN (${ids.map(() => "?").join(",")})`, ids,
     );
-    const row = rows[0];
-    if (row) await bridgeMobileScene({
+    return rows.map((row) => ({
       id: row.id, projectId: row.project_id, folderId: row.folder_id,
       title: row.title, synopsis: row.synopsis, status: normalizeStatus(row.status),
-    }, order);
+    }));
   }
 
   async duplicateScene(sceneId: string): Promise<string | null> {
@@ -214,18 +257,19 @@ export class MobileBinderStore implements BinderStore {
     const source = rows[0];
     if (!source) return null;
     const id = await this.createScene({ projectId: source.project_id, folderId: source.folder_id, title: `${source.title} copy` });
-    await this.db.execute(
-      "UPDATE scenes SET synopsis = ?, word_count = ?, status = ?, exclude_from_ai = ? WHERE id = ?",
-      [source.synopsis, source.word_count, normalizeStatus(source.status), source.exclude_from_ai, id],
-    );
     const docs = await this.db.select<{ state_base64: string; plaintext_projection: string | null }[]>(
       "SELECT state_base64, plaintext_projection FROM scene_docs WHERE scene_id = ?", [sceneId],
     );
-    if (docs[0]) await this.db.execute(
-      "INSERT INTO scene_docs (scene_id, state_base64, plaintext_projection) VALUES (?, ?, ?)",
-      [id, docs[0].state_base64, docs[0].plaintext_projection],
-    );
-    await this.bridgeSceneById(id);
+    await this.boundSceneSql(id, async () => {
+      await this.db.execute(
+        "UPDATE scenes SET synopsis = ?, word_count = ?, status = ?, exclude_from_ai = ? WHERE id = ?",
+        [source.synopsis, source.word_count, normalizeStatus(source.status), source.exclude_from_ai, id],
+      );
+      if (docs[0]) await this.db.execute(
+        "INSERT INTO scene_docs (scene_id, state_base64, plaintext_projection) VALUES (?, ?, ?)",
+        [id, docs[0].state_base64, docs[0].plaintext_projection],
+      );
+    });
     return id;
   }
 

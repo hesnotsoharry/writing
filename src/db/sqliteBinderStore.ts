@@ -1,12 +1,12 @@
 import { computeReorder } from "../binder/computeReorder";
 import { normalizeStatus } from "../lib/status";
 import { bootstrapProjectBible } from "../sync/bible/desktopBibleBridge";
-import { bootstrapProjectMeta } from "../sync/meta/bridge";
+import { bootstrapProjectMeta, runLocalMetaWrite } from "../sync/meta/bridge";
 import {
-  bridgeFolder,
-  bridgeRemoved,
-  bridgeScene,
-} from "../sync/meta/localBridge";
+  applyFolderMutation,
+  applyRemoved,
+  applySceneMutation,
+} from "../sync/meta/localMutators";
 import type { ArchivedItem, BinderStore, Folder, Project, Scene, SceneStatus } from "./binderStore";
 import { getDb } from "./schema";
 import {
@@ -18,11 +18,11 @@ import {
   sqliteRestoreArchived,
 } from "./sqliteArchiveHelpers";
 import {
-  bridgeFolderById,
-  bridgeRootMoves,
-  bridgeSceneById,
+  boundFolderSql,
+  boundSceneDelete,
+  boundSceneSql,
   captureFolderDelete,
-  captureSceneDelete,
+  loadRootScenes,
 } from "./sqliteBinderMeta";
 import {
   deleteSceneDependents,
@@ -75,14 +75,15 @@ export class SqliteBinderStore implements BinderStore {
       [args.projectId]
     );
     const sort_order = nextSortOrder(rows);
-    await db.execute(
-      "INSERT INTO folders (id, project_id, title, sort_order) VALUES ($1, $2, $3, $4)",
-      [id, args.projectId, args.title, sort_order]
-    );
-    bridgeFolder(
-      { id, projectId: args.projectId, title: args.title },
-      [...rows.map((row) => row.id), id]
-    );
+    const orderedIds = [...rows.map((row) => row.id), id];
+    await runLocalMetaWrite(args.projectId, async () => {
+      await db.execute(
+        "INSERT INTO folders (id, project_id, title, sort_order) VALUES ($1, $2, $3, $4)",
+        [id, args.projectId, args.title, sort_order]
+      );
+    }, (doc) => applyFolderMutation(doc, {
+      id, projectId: args.projectId, title: args.title,
+    }, orderedIds));
     return id;
   }
 
@@ -95,14 +96,16 @@ export class SqliteBinderStore implements BinderStore {
     const id = crypto.randomUUID();
     const rows = await loadContainerScenes(db, args.projectId, args.folderId);
     const sort_order = nextSortOrder(rows);
-    await db.execute(
-      "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status) VALUES ($1, $2, $3, $4, NULL, $5, 0, 'blank')",
-      [id, args.projectId, args.folderId, args.title, sort_order]
-    );
-    bridgeScene({
+    const orderedIds = [...rows.map((row) => row.id), id];
+    await runLocalMetaWrite(args.projectId, async () => {
+      await db.execute(
+        "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status) VALUES ($1, $2, $3, $4, NULL, $5, 0, 'blank')",
+        [id, args.projectId, args.folderId, args.title, sort_order]
+      );
+    }, (doc) => applySceneMutation(doc, {
       id, projectId: args.projectId, folderId: args.folderId, title: args.title,
       synopsis: null, status: "blank",
-    }, [...rows.map((row) => row.id), id]);
+    }, orderedIds));
     return id;
   }
 
@@ -131,43 +134,44 @@ export class SqliteBinderStore implements BinderStore {
   async deleteFolder(folderId: string): Promise<void> {
     const db = await getDb();
     const captured = await captureFolderDelete(folderId);
-    if (captured) {
-      await relocateFolderScenes(db, folderId, captured.projectId, captured.sceneIds);
-    } else {
+    if (!captured) {
       await db.execute("UPDATE scenes SET folder_id = NULL WHERE folder_id = $1", [folderId]);
+      await db.execute("DELETE FROM folders WHERE id = $1", [folderId]);
+      return;
     }
-    await db.execute("DELETE FROM folders WHERE id = $1", [folderId]);
-    if (captured) {
-      bridgeRemoved(captured.projectId, [{ kind: "folder", id: folderId }], "folder delete");
-      bridgeRootMoves(captured.projectId, captured.sceneIds);
-    }
+    await runLocalMetaWrite(captured.projectId, async () => {
+      await relocateFolderScenes(db, folderId, captured.projectId, captured.sceneIds);
+      await db.execute("DELETE FROM folders WHERE id = $1", [folderId]);
+      return loadRootScenes(captured.projectId);
+    }, (doc, scenes) => {
+      applyRemoved(doc, [{ kind: "folder", id: folderId }]);
+      const moved = new Set(captured.sceneIds);
+      const order = scenes.map((scene) => scene.id);
+      for (const scene of scenes) {
+        if (moved.has(scene.id)) applySceneMutation(doc, scene, order);
+      }
+    });
   }
 
   async renameFolder(folderId: string, title: string): Promise<void> {
     const db = await getDb();
-    await db.execute("UPDATE folders SET title=$1 WHERE id=$2", [
-      title,
-      folderId,
-    ]);
-    bridgeFolderById(folderId, "folder rename");
+    await boundFolderSql(folderId, () => db.execute("UPDATE folders SET title=$1 WHERE id=$2", [
+      title, folderId,
+    ]));
   }
 
   async renameScene(sceneId: string, title: string): Promise<void> {
     const db = await getDb();
-    await db.execute("UPDATE scenes SET title=$1 WHERE id=$2", [
-      title,
-      sceneId,
-    ]);
-    bridgeSceneById(sceneId, "scene rename");
+    await boundSceneSql(sceneId, () => db.execute("UPDATE scenes SET title=$1 WHERE id=$2", [
+      title, sceneId,
+    ]));
   }
 
   async setSceneStatus(sceneId: string, status: SceneStatus): Promise<void> {
     const db = await getDb();
-    await db.execute("UPDATE scenes SET status=$1 WHERE id=$2", [
-      status,
-      sceneId,
-    ]);
-    bridgeSceneById(sceneId, "scene status");
+    await boundSceneSql(sceneId, () => db.execute("UPDATE scenes SET status=$1 WHERE id=$2", [
+      status, sceneId,
+    ]));
   }
 
   async setSceneExcludedFromAi(sceneId: string, exclude: boolean): Promise<void> {
@@ -180,11 +184,9 @@ export class SqliteBinderStore implements BinderStore {
 
   async setSceneSynopsis(sceneId: string, synopsis: string | null): Promise<void> {
     const db = await getDb();
-    await db.execute("UPDATE scenes SET synopsis=$1 WHERE id=$2", [
-      synopsis,
-      sceneId,
-    ]);
-    bridgeSceneById(sceneId, "scene synopsis");
+    await boundSceneSql(sceneId, () => db.execute("UPDATE scenes SET synopsis=$1 WHERE id=$2", [
+      synopsis, sceneId,
+    ]));
   }
 
   async setSceneWordCount(sceneId: string, wordCount: number): Promise<boolean> {
@@ -198,10 +200,10 @@ export class SqliteBinderStore implements BinderStore {
 
   async deleteScene(sceneId: string): Promise<void> {
     const db = await getDb();
-    const projectId = await captureSceneDelete(sceneId);
-    await deleteSceneDependents(db, sceneId);
-    await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
-    if (projectId) bridgeRemoved(projectId, [{ kind: "scene", id: sceneId }], "scene delete");
+    await boundSceneDelete(sceneId, async () => {
+      await deleteSceneDependents(db, sceneId);
+      await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
+    });
   }
 
   async moveScene(sceneId: string, toFolderId: string | null, toIndex: number): Promise<void> {
@@ -211,36 +213,19 @@ export class SqliteBinderStore implements BinderStore {
       [sceneId]
     );
     if (rows.length === 0) return;
-    const { project_id } = rows[0];
-    await db.execute("UPDATE scenes SET folder_id=$1 WHERE id=$2", [
-      toFolderId,
-      sceneId,
-    ]);
-    let container: { id: string }[];
-    if (toFolderId !== null) {
-      container = await db.select<{ id: string }[]>(
-        "SELECT id FROM scenes WHERE project_id=$1 AND folder_id=$2 ORDER BY sort_order ASC",
-        [project_id, toFolderId]
-      );
-    } else {
-      container = await db.select<{ id: string }[]>(
-        "SELECT id FROM scenes WHERE project_id=$1 AND folder_id IS NULL ORDER BY sort_order ASC",
-        [project_id]
-      );
-    }
-    // Renormalize sort_orders.
-    const updates = computeReorder(container, sceneId, toIndex);
-    for (const u of updates) {
-      await db.execute("UPDATE scenes SET sort_order=$1 WHERE id=$2", [
-        u.sort_order,
-        u.id,
-      ]);
-    }
     const scene = rows[0];
-    bridgeScene({
+    await runLocalMetaWrite(scene.project_id, async () => {
+      await db.execute("UPDATE scenes SET folder_id=$1 WHERE id=$2", [toFolderId, sceneId]);
+      const container = await loadContainerScenes(db, scene.project_id, toFolderId);
+      const updates = computeReorder(container, sceneId, toIndex);
+      for (const update of updates) {
+        await db.execute("UPDATE scenes SET sort_order=$1 WHERE id=$2", [update.sort_order, update.id]);
+      }
+      return updates.map(({ id }) => id);
+    }, (doc, orderedIds) => applySceneMutation(doc, {
       id: scene.id, projectId: scene.project_id, folderId: toFolderId, title: scene.title,
       synopsis: scene.synopsis, status: normalizeStatus(scene.status),
-    }, updates.map(({ id }) => id));
+    }, orderedIds));
   }
 
   async moveFolder(folderId: string, toIndex: number): Promise<void> {
@@ -250,23 +235,20 @@ export class SqliteBinderStore implements BinderStore {
       [folderId]
     );
     if (folderRows.length === 0) return;
-    const { project_id } = folderRows[0];
-    // Load all folders for this project in current sort_order.
-    const siblings = await db.select<{ id: string }[]>(
-      "SELECT id FROM folders WHERE project_id=$1 ORDER BY sort_order ASC",
-      [project_id]
-    );
-    // Renormalize sort_orders.
-    const updates = computeReorder(siblings, folderId, toIndex);
-    for (const u of updates) {
-      await db.execute("UPDATE folders SET sort_order=$1 WHERE id=$2", [
-        u.sort_order,
-        u.id,
-      ]);
-    }
     const folder = folderRows[0];
-    bridgeFolder({ id: folder.id, projectId: folder.project_id, title: folder.title },
-      updates.map(({ id }) => id));
+    await runLocalMetaWrite(folder.project_id, async () => {
+      const siblings = await db.select<{ id: string }[]>(
+        "SELECT id FROM folders WHERE project_id=$1 ORDER BY sort_order ASC",
+        [folder.project_id]
+      );
+      const updates = computeReorder(siblings, folderId, toIndex);
+      for (const update of updates) {
+        await db.execute("UPDATE folders SET sort_order=$1 WHERE id=$2", [update.sort_order, update.id]);
+      }
+      return updates.map(({ id }) => id);
+    }, (doc, orderedIds) => applyFolderMutation(doc, {
+      id: folder.id, projectId: folder.project_id, title: folder.title,
+    }, orderedIds));
   }
 
   // -------------------------------------------------------------------------

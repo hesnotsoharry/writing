@@ -3,6 +3,7 @@ import * as Y from "yjs";
 
 import type { DbClient } from "../../db/dbClient";
 import type { ProjectDomainDocStore } from "../../db/projectDomainDocStore";
+import { exclusiveDomainDoc } from "../exclusiveLock";
 import { applyBibleSqlDelta, type SqlBibleRows } from "./bibleDoc";
 import { loadBibleProjection } from "./dbBibleApplyTarget";
 
@@ -33,7 +34,6 @@ export type BibleDocMutation<T = void> = (doc: Y.Doc, result: T) => void | Promi
  * so applying a peer update cannot notify the engine and ping-pong it back.
  */
 export class BibleLocalBridge {
-  private readonly tails = new Map<string, Promise<void>>();
   private readonly listeners = new Set<BibleContentListener>();
   constructor(private readonly store: ProjectDomainDocStore) {}
 
@@ -49,7 +49,7 @@ export class BibleLocalBridge {
   mutate<T>(
     projectId: string, sqlWrite: () => Promise<T>, mutateDoc: BibleDocMutation<T>,
   ): Promise<T> {
-    return this.exclusive(projectId, async () => {
+    return exclusiveDomainDoc("bible", projectId, async () => {
       const result = await sqlWrite();
       const encoded = await this.store.load("bible", projectId);
       if (encoded === null) return result; // Unpaired projects remain SQL-only and behavior-identical.
@@ -61,16 +61,6 @@ export class BibleLocalBridge {
       this.listeners.forEach((listener) => listener(projectId, stateBase64));
       return result;
     });
-  }
-
-  private exclusive<T>(projectId: string, operation: () => Promise<T>): Promise<T> {
-    const prior = this.tails.get(projectId) ?? Promise.resolve();
-    const current = prior.catch(() => undefined).then(operation);
-    const tail = current.then(() => undefined, () => undefined);
-    this.tails.set(projectId, tail);
-    const clear = (): void => { if (this.tails.get(projectId) === tail) this.tails.delete(projectId); };
-    void tail.then(clear);
-    return current;
   }
 }
 

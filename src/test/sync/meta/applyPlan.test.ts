@@ -88,4 +88,40 @@ describe("meta-doc SQL application plan", () => {
       folderUpserts: [], sceneUpserts: [], labelOps: [], deletes: [], sortOrderRewrites: [],
     });
   });
+
+  it("parks a scene whose folder is tombstoned at root", () => {
+    const doc = docFrom();
+    removeWithTombstone(doc, "folder", "f1");
+    const sql: SqlProjectionSnapshot = {
+      folders: [{ id: "f1", project_id: "p1", title: "Chapter", sort_order: 1000 }],
+      scenes: snapshot().scenes, labels: [], sceneLabels: [],
+    };
+    const plan = planMetaDocApplication(doc, sql);
+    expect(plan.sceneUpserts.every((row) => row.folder_id === null)).toBe(true);
+    expect(plan.deletes).toContainEqual({ kind: "folder", id: "f1" });
+  });
+
+  it("rewrites gapped survivor sort_order onto the canonical scale", () => {
+    const sql: SqlProjectionSnapshot = {
+      folders: snapshot().folders,
+      scenes: [
+        { id: "a", project_id: "p1", folder_id: "f1", title: "A", synopsis: null,
+          status: "draft", sort_order: 1000 },
+        { id: "e", project_id: "p1", folder_id: "f1", title: "E", synopsis: null,
+          status: "draft", sort_order: 5000 },
+      ],
+      labels: [], sceneLabels: [],
+    };
+    const doc = buildFromSql({ ...sql, sceneLabels: [] });
+    const [a, e] = getScenes(doc).sort((x, y) => x.sortKey < y.sortKey ? -1 : 1);
+    setScene(doc, { ...e, id: "x", title: "X", sortKey: keyBetween(e.sortKey, null) });
+    expect(a.id).toBe("a");
+    const plan = planMetaDocApplication(doc, sql);
+    const xUpsert = plan.sceneUpserts.find((row) => row.id === "x");
+    expect(xUpsert?.sort_order).toBe(3000);
+    expect(plan.sortOrderRewrites).toEqual(expect.arrayContaining([
+      { kind: "scene", id: "e", sortOrder: 2000 },
+      { kind: "scene", id: "x", sortOrder: 3000 },
+    ]));
+  });
 });

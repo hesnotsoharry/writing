@@ -4,16 +4,21 @@
  * Not exported from the module barrel — archive-internal only.
  */
 
+import type * as Y from "yjs";
+
 import { normalizeStatus } from "../lib/status";
 import { desktopLwwBridges } from "../sync/desktopLwwBridges";
+import { runLocalMetaWrite } from "../sync/meta/bridge";
 import {
-  bridgeRemoved,
-  bridgeRestored,
+  applyFolderMutation,
+  applyRemoved,
+  applySceneMutation,
   type LocalFolderRow,
   type LocalSceneRow,
-} from "../sync/meta/localBridge";
+} from "../sync/meta/localMutators";
 import { sceneLabelId } from "../sync/meta/metaDoc";
 import type { ArchivedItem, Folder, Scene } from "./binderStore";
+import type { DbClient } from "./dbClient";
 import { getDb } from "./schema";
 import {
   restoreChapterRow,
@@ -26,9 +31,7 @@ export type { SceneManifestEntry };
 
 const sceneDocStore = new SqliteSceneDocStore();
 
-function reportLookup(operation: string, task: Promise<void>): void {
-  void task.catch((error: unknown) => console.error(`[sync-meta] ${operation}`, error));
-}
+
 
 /**
  * Resolve the `sub` label for a scene archive row.
@@ -125,15 +128,38 @@ async function loadRestoredScenes(sceneIds: string[]): Promise<LocalSceneRow[]> 
   return result;
 }
 
-async function bridgeArchiveRestore(
-  projectId: string, folderIds: string[], sceneIds: string[]
-): Promise<void> {
+interface RestorePayload {
+  folders: LocalFolderRow[]; scenes: LocalSceneRow[];
+  folderOrder: string[]; sceneOrders: Map<string, string[]>;
+}
+
+async function loadRestorePayload(
+  projectId: string, folderIds: string[], sceneIds: string[],
+): Promise<RestorePayload> {
   const db = await getDb();
-  const folders = await loadRestoredFolders(folderIds);
   const scenes = await loadRestoredScenes(sceneIds);
   const orderedFolders = await db.select<Array<{ id: string }>>(
     "SELECT id FROM folders WHERE project_id=$1 ORDER BY sort_order ASC", [projectId]
   );
+  return {
+    folders: await loadRestoredFolders(folderIds), scenes,
+    folderOrder: orderedFolders.map(({ id }) => id),
+    sceneOrders: await loadSceneOrders(db, projectId, scenes),
+  };
+}
+
+function applyRestorePayload(doc: Y.Doc, payload: RestorePayload): void {
+  for (const folder of payload.folders) applyFolderMutation(doc, folder, payload.folderOrder);
+  for (const scene of payload.scenes) {
+    applySceneMutation(doc, scene, payload.sceneOrders.get(scene.folderId ?? "") ?? [scene.id]);
+  }
+}
+
+async function loadSceneOrders(
+  db: DbClient,
+  projectId: string,
+  scenes: LocalSceneRow[],
+): Promise<Map<string, string[]>> {
   const sceneOrders = new Map<string, string[]>();
   for (const folderId of new Set(scenes.map((scene) => scene.folderId))) {
     const sql = folderId === null
@@ -143,11 +169,7 @@ async function bridgeArchiveRestore(
     const ordered = await db.select<Array<{ id: string }>>(sql, params);
     sceneOrders.set(folderId ?? "", ordered.map(({ id }) => id));
   }
-  bridgeRestored(
-    projectId, folders, scenes, {
-      folders: orderedFolders.map(({ id }) => id), scenes: sceneOrders,
-    }
-  );
+  return sceneOrders;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,13 +195,16 @@ export async function sqliteArchiveScene(sceneId: string, projectId: string): Pr
     meta: { synopsis: scene.synopsis, status: normalizeStatus(scene.status), sort_order: scene.sort_order, word_count: scene.word_count },
     doc,
   });
-  const archiveId = crypto.randomUUID(); await db.execute(
-    "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-    [archiveId, projectId, "scene", sceneId, scene.title, sub, manifest, Date.now()]
-  ); await desktopLwwBridges.archive.saved(projectId, archiveId);
-  await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
-  await sceneDocStore.delete(sceneId);
-  bridgeRemoved(projectId, [{ kind: "scene", id: sceneId }, ...assignmentRows], "scene archive");
+  const archiveId = crypto.randomUUID();
+  await runLocalMetaWrite(projectId, async () => {
+    await db.execute(
+      "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      [archiveId, projectId, "scene", sceneId, scene.title, sub, manifest, Date.now()]
+    );
+    await desktopLwwBridges.archive.saved(projectId, archiveId);
+    await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
+    await sceneDocStore.delete(sceneId);
+  }, (doc) => applyRemoved(doc, [{ kind: "scene", id: sceneId }, ...assignmentRows]));
 }
 
 export async function sqliteArchiveChapter(folderId: string, projectId: string): Promise<void> {
@@ -197,20 +222,21 @@ export async function sqliteArchiveChapter(folderId: string, projectId: string):
   const scenes = await buildSceneManifestEntries(childScenes);
   const assignmentRows = await assignmentTombstones(childScenes.map(({ id }) => id));
   const manifest = JSON.stringify({ folder: { sort_order: folder.sort_order }, scenes });
-  const archiveId = crypto.randomUUID(); await db.execute(
-    "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-    [archiveId, projectId, "chapter", folderId, folder.title, `${childScenes.length} scenes`, manifest, Date.now()]
-  ); await desktopLwwBridges.archive.saved(projectId, archiveId);
-  await db.execute("DELETE FROM scenes WHERE folder_id=$1", [folderId]);
-  await db.execute("DELETE FROM folders WHERE id=$1", [folderId]);
-  for (const scene of childScenes) {
-    await sceneDocStore.delete(scene.id);
-  }
-  bridgeRemoved(projectId, [
+  const archiveId = crypto.randomUUID();
+  await runLocalMetaWrite(projectId, async () => {
+    await db.execute(
+      "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      [archiveId, projectId, "chapter", folderId, folder.title, `${childScenes.length} scenes`, manifest, Date.now()]
+    );
+    await desktopLwwBridges.archive.saved(projectId, archiveId);
+    await db.execute("DELETE FROM scenes WHERE folder_id=$1", [folderId]);
+    await db.execute("DELETE FROM folders WHERE id=$1", [folderId]);
+    for (const scene of childScenes) await sceneDocStore.delete(scene.id);
+  }, (doc) => applyRemoved(doc, [
     { kind: "folder", id: folderId },
     ...childScenes.map(({ id }) => ({ kind: "scene" as const, id })),
     ...assignmentRows,
-  ], "chapter archive");
+  ]));
 }
 
 export async function sqliteListArchived(projectId: string): Promise<ArchivedItem[]> {
@@ -244,18 +270,22 @@ export async function sqliteRestoreArchived(archiveId: string): Promise<void> {
   if (rows.length === 0) return;
   const row = rows[0];
   const manifest = JSON.parse(row.state_base64 ?? "{}") as Record<string, unknown>;
-  let folderIds: string[] = [];
-  let sceneIds: string[] = [];
-  if (row.kind === "scene") {
-    sceneIds = [await restoreSceneRow(row.original_id, row.title, row.project_id, manifest)];
-  } else {
-    const restored = await restoreChapterRow(row.original_id, row.title, row.project_id, manifest);
-    folderIds = [restored.folderId];
-    sceneIds = restored.sceneIds;
-  }
-  await db.execute("DELETE FROM archive WHERE id=$1", [archiveId]);
-  await desktopLwwBridges.archive.deleted(row.project_id, archiveId);
-  reportLookup("archive restore", bridgeArchiveRestore(row.project_id, folderIds, sceneIds));
+  await runLocalMetaWrite(row.project_id, async () => {
+    const ids = row.kind === "scene"
+      ? { folderIds: [] as string[], sceneIds: [await restoreSceneRow(row.original_id, row.title, row.project_id, manifest)] }
+      : await restoreChapterIds(row, manifest);
+    await db.execute("DELETE FROM archive WHERE id=$1", [archiveId]);
+    await desktopLwwBridges.archive.deleted(row.project_id, archiveId);
+    return loadRestorePayload(row.project_id, ids.folderIds, ids.sceneIds);
+  }, applyRestorePayload);
+}
+
+async function restoreChapterIds(
+  row: { original_id: string | null; title: string; project_id: string },
+  manifest: Record<string, unknown>,
+): Promise<{ folderIds: string[]; sceneIds: string[] }> {
+  const restored = await restoreChapterRow(row.original_id, row.title, row.project_id, manifest);
+  return { folderIds: [restored.folderId], sceneIds: restored.sceneIds };
 }
 
 export async function sqlitePurgeArchived(archiveId: string): Promise<void> {

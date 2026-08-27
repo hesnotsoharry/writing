@@ -1,57 +1,79 @@
 import { normalizeStatus } from "../lib/status";
-import { bridgeFolder, bridgeScene } from "../sync/meta/localBridge";
+import { runLocalMetaWrite } from "../sync/meta/bridge";
+import {
+  applyFolderMutation,
+  applyRemoved,
+  applySceneMutation,
+  type LocalSceneRow,
+} from "../sync/meta/localMutators";
 import { getDb } from "./schema";
 
-function report(operation: string, task: Promise<void>): void {
-  void task.catch((error: unknown) => console.error(`[sync-meta] ${operation}`, error));
+type SceneRow = {
+  id: string; project_id: string; folder_id: string | null; title: string;
+  synopsis: string | null; status: string;
+};
+
+function asScene(row: SceneRow): LocalSceneRow {
+  return {
+    id: row.id, projectId: row.project_id, folderId: row.folder_id, title: row.title,
+    synopsis: row.synopsis, status: normalizeStatus(row.status),
+  };
 }
 
-async function loadAndBridgeFolder(folderId: string): Promise<void> {
+async function loadSceneRow(sceneId: string): Promise<LocalSceneRow | undefined> {
+  const db = await getDb();
+  const rows = await db.select<SceneRow[]>(
+    "SELECT id, project_id, folder_id, title, synopsis, status FROM scenes WHERE id=$1",
+    [sceneId]
+  );
+  return rows[0] ? asScene(rows[0]) : undefined;
+}
+
+async function loadFolderRow(folderId: string): Promise<{
+  id: string; projectId: string; title: string;
+} | undefined> {
   const db = await getDb();
   const rows = await db.select<Array<{ id: string; project_id: string; title: string }>>(
     "SELECT id, project_id, title FROM folders WHERE id=$1", [folderId]
   );
   const row = rows[0];
-  if (row) bridgeFolder({ id: row.id, projectId: row.project_id, title: row.title });
+  return row ? { id: row.id, projectId: row.project_id, title: row.title } : undefined;
 }
 
-async function loadAndBridgeScene(sceneId: string, orderedIds?: string[]): Promise<void> {
-  const db = await getDb();
-  const rows = await db.select<Array<{
-    id: string; project_id: string; folder_id: string | null; title: string;
-    synopsis: string | null; status: string;
-  }>>(
-    "SELECT id, project_id, folder_id, title, synopsis, status FROM scenes WHERE id=$1",
-    [sceneId]
-  );
-  const row = rows[0];
-  if (row) bridgeScene({
-    id: row.id, projectId: row.project_id, folderId: row.folder_id, title: row.title,
-    synopsis: row.synopsis, status: normalizeStatus(row.status),
-  }, orderedIds);
+export async function boundSceneSql(
+  sceneId: string,
+  sqlWrite: () => Promise<unknown>,
+  orderedIds?: string[],
+): Promise<void> {
+  const projectId = await captureSceneDelete(sceneId);
+  if (!projectId) { await sqlWrite(); return; }
+  await runLocalMetaWrite(projectId, async () => {
+    await sqlWrite();
+    return loadSceneRow(sceneId);
+  }, (doc, row) => { if (row) applySceneMutation(doc, row, orderedIds); });
 }
 
-async function loadAndBridgeRootMoves(projectId: string, sceneIds: string[]): Promise<void> {
-  const db = await getDb();
-  const ordered = await db.select<Array<{ id: string }>>(
-    `SELECT id FROM scenes WHERE project_id=$1 AND folder_id IS NULL
-     ORDER BY sort_order ASC, id ASC`,
-    [projectId]
-  );
-  const orderedIds = ordered.map(({ id }) => id);
-  for (const sceneId of sceneIds) await loadAndBridgeScene(sceneId, orderedIds);
+export async function boundFolderSql(
+  folderId: string,
+  sqlWrite: () => Promise<unknown>,
+  orderedIds?: string[],
+): Promise<void> {
+  const folder = await loadFolderRow(folderId);
+  if (!folder) { await sqlWrite(); return; }
+  await runLocalMetaWrite(folder.projectId, async () => {
+    await sqlWrite();
+    return loadFolderRow(folderId);
+  }, (doc, row) => { if (row) applyFolderMutation(doc, row, orderedIds); });
 }
 
-export function bridgeFolderById(folderId: string, operation: string): void {
-  report(operation, loadAndBridgeFolder(folderId));
-}
-
-export function bridgeSceneById(sceneId: string, operation: string): void {
-  report(operation, loadAndBridgeScene(sceneId));
-}
-
-export function bridgeRootMoves(projectId: string, sceneIds: string[]): void {
-  report("folder delete scene move", loadAndBridgeRootMoves(projectId, sceneIds));
+export async function boundSceneDelete(
+  sceneId: string, sqlWrite: () => Promise<unknown>,
+): Promise<void> {
+  const projectId = await captureSceneDelete(sceneId);
+  if (!projectId) { await sqlWrite(); return; }
+  await runLocalMetaWrite(projectId, async () => {
+    await sqlWrite();
+  }, (doc) => applyRemoved(doc, [{ kind: "scene", id: sceneId }]));
 }
 
 export async function captureFolderDelete(folderId: string): Promise<{
@@ -85,4 +107,14 @@ export async function captureSceneDelete(sceneId: string): Promise<string | unde
     console.error("[sync-meta] scene delete capture", error);
     return undefined;
   }
+}
+
+export async function loadRootScenes(projectId: string): Promise<LocalSceneRow[]> {
+  const db = await getDb();
+  const rows = await db.select<SceneRow[]>(
+    `SELECT id, project_id, folder_id, title, synopsis, status FROM scenes
+     WHERE project_id=$1 AND folder_id IS NULL ORDER BY sort_order ASC, id ASC`,
+    [projectId]
+  );
+  return rows.map(asScene);
 }

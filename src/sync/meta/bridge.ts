@@ -6,12 +6,12 @@ import { getDb } from "../../db/schema";
 import { SqliteProjectMetaDocStore } from "../../db/sqliteProjectMetaDocStore";
 import { normalizeStatus } from "../../lib/status";
 import { applyEncoded, encodeDoc } from "../../yjs/serialize";
+import { exclusiveMetaDoc } from "../exclusiveLock";
 import {
   buildFromSql, bumpEpoch, type EpochStamp, getDocEpochs, type SqlMetaRows,
 } from "./metaDoc";
 
 const store = new SqliteProjectMetaDocStore();
-const projectTails = new Map<string, Promise<void>>();
 const saveListeners = new Set<(projectId: string, epochs: Record<string, EpochStamp>) => void>();
 
 export function subscribeProjectMetaSaves(
@@ -21,15 +21,17 @@ export function subscribeProjectMetaSaves(
   return () => saveListeners.delete(listener);
 }
 
-function runExclusive(projectId: string, operation: () => Promise<void>): Promise<void> {
-  const prior = projectTails.get(projectId) ?? Promise.resolve();
-  const current = prior.catch(() => undefined).then(operation);
-  projectTails.set(projectId, current);
-  const clear = (): void => {
-    if (projectTails.get(projectId) === current) projectTails.delete(projectId);
-  };
-  void current.then(clear, clear);
-  return current;
+async function persistProjectMeta(
+  projectId: string, mutate: (meta: Y.Doc) => void,
+): Promise<void> {
+  const encoded = await store.load(projectId);
+  if (encoded === null) return;
+  const doc = new Y.Doc();
+  applyEncoded(doc, encoded);
+  doc.transact(() => mutate(doc));
+  await store.save(projectId, encodeDoc(doc));
+  const epochs = getDocEpochs(doc);
+  saveListeners.forEach((listener) => listener(projectId, epochs));
 }
 
 /** Mutate an existing project meta doc. Projects without a bootstrapped row stay inert. */
@@ -37,15 +39,19 @@ export function withProjectMeta(
   projectId: string,
   mutate: (meta: Y.Doc) => void
 ): Promise<void> {
-  return runExclusive(projectId, async () => {
-    const encoded = await store.load(projectId);
-    if (encoded === null) return;
-    const doc = new Y.Doc();
-    applyEncoded(doc, encoded);
-    doc.transact(() => mutate(doc));
-    await store.save(projectId, encodeDoc(doc));
-    const epochs = getDocEpochs(doc);
-    saveListeners.forEach((listener) => listener(projectId, epochs));
+  return exclusiveMetaDoc(projectId, () => persistProjectMeta(projectId, mutate));
+}
+
+/** SQL write + CRDT persist under the same tail inbound merge uses. */
+export function runLocalMetaWrite<T>(
+  projectId: string,
+  sqlWrite: () => Promise<T>,
+  mutate: (meta: Y.Doc, result: T) => void,
+): Promise<T> {
+  return exclusiveMetaDoc(projectId, async () => {
+    const result = await sqlWrite();
+    await persistProjectMeta(projectId, (doc) => mutate(doc, result));
+    return result;
   });
 }
 
@@ -102,7 +108,7 @@ async function loadSqlRows(projectId: string): Promise<SqlMetaRows> {
  * run against a project that already has one.
  */
 export function bootstrapProjectMeta(projectId: string): Promise<void> {
-  return runExclusive(projectId, async () => {
+  return exclusiveMetaDoc(projectId, async () => {
     if (await store.load(projectId) !== null) return;
     const doc = buildFromSql(await loadSqlRows(projectId));
     await store.save(projectId, encodeDoc(doc));

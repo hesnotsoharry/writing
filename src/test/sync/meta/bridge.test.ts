@@ -7,6 +7,7 @@ import { SqliteBinderStore } from "../../../db/sqliteBinderStore";
 import { SqliteLabelStore } from "../../../db/sqliteLabelStore";
 import { SqliteMetaApplyTarget } from "../../../db/sqliteMetaApplyTarget";
 import { SqliteProjectMetaDocStore } from "../../../db/sqliteProjectMetaDocStore";
+import { exclusiveMetaDoc } from "../../../sync/exclusiveLock";
 import { applyMetaDoc } from "../../../sync/meta/applyExec";
 import {
   bootstrapProjectMeta, ensureAllProjectMetas, withProjectMeta,
@@ -18,9 +19,11 @@ import {
   getSceneLabels,
   getScenes,
   getTombstones,
+  removeWithTombstone,
   setScene,
 } from "../../../sync/meta/metaDoc";
 import { keyBetween } from "../../../sync/meta/sortKey";
+import { mergeStoredMeta } from "../../../sync/storedDocMerge";
 import { applyEncoded } from "../../../yjs/serialize";
 import { makeSqlJsDb, type SqlJsTestDb } from "../../support/sqljsDb";
 
@@ -210,6 +213,27 @@ describe("project meta local bridge", () => {
     expect(getFolders(doc).some(({ id }) => id === firstFolder)).toBe(true);
     expect(getScenes(doc).some(({ id }) => id === child)).toBe(true);
   });
+});
+
+it("keeps a local tombstone when a remote merge runs on the same lock", async () => {
+  const { projectId, firstFolder } = await createBootstrappedProject();
+  const sceneId = await binder.createScene({ projectId, folderId: firstFolder, title: "Doomed" });
+  await settle(projectId);
+  const store = new SqliteProjectMetaDocStore();
+  const remote = await readDoc(projectId);
+  setScene(remote, {
+    id: "remote-scene", projectId, folderId: firstFolder, title: "Remote",
+    synopsis: null, status: "blank", sortKey: "zz",
+  });
+  await Promise.all([
+    withProjectMeta(projectId, (doc) => removeWithTombstone(doc, "scene", sceneId)),
+    exclusiveMetaDoc(projectId, () => mergeStoredMeta(
+      store, projectId, Y.encodeStateAsUpdate(remote),
+    )),
+  ]);
+  const doc = await readDoc(projectId);
+  expect(getTombstones(doc)[sceneId]?.kind).toBe("scene");
+  expect(getScenes(doc).some(({ id }) => id === "remote-scene")).toBe(true);
 });
 
 it("merges independent cloned-meta operations to one consistent order", () => {

@@ -3,6 +3,7 @@ import * as Y from "yjs";
 
 import { getDb } from "../../db/schema";
 import { SqliteProjectDomainDocStore } from "../../db/sqliteProjectDomainDocStore";
+import { exclusiveDomainDoc } from "../exclusiveLock";
 import { buildBibleFromSql } from "./bibleDoc";
 import type { BibleContentListener, BibleLocalWriteDependencies } from "./bibleLocalBridge";
 import { BibleLocalBridge, bridgeBibleLocalWriteWith } from "./bibleLocalBridge";
@@ -46,11 +47,14 @@ export async function bridgeBibleLocalWrite<T>(
  */
 export async function bootstrapProjectBible(projectId: string): Promise<void> {
   const store = new SqliteProjectDomainDocStore();
-  if (await store.load("bible", projectId)) return;
-  const doc = buildBibleFromSql(await loadBibleProjection(await getDb(), projectId));
-  const stateBase64 = fromUint8Array(Y.encodeStateAsUpdate(doc));
-  await store.save("bible", projectId, stateBase64);
-  desktopBridge.notify(projectId, stateBase64);
+  let stateBase64: string | null = null;
+  await exclusiveDomainDoc("bible", projectId, async () => {
+    if (await store.load("bible", projectId)) return;
+    const doc = buildBibleFromSql(await loadBibleProjection(await getDb(), projectId));
+    stateBase64 = fromUint8Array(Y.encodeStateAsUpdate(doc));
+    await store.save("bible", projectId, stateBase64);
+  });
+  if (stateBase64) desktopBridge.notify(projectId, stateBase64);
 }
 
 /**

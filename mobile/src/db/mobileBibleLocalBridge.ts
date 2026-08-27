@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { applyBibleSqlDelta, buildBibleFromSql, type SqlBibleRows } from "../../../src/sync/bible/bibleDoc";
 import { BibleLocalBridge } from "../../../src/sync/bible/bibleLocalBridge";
 import { loadBibleProjection } from "../../../src/sync/bible/dbBibleApplyTarget";
+import { exclusiveDomainDoc } from "../../../src/sync/exclusiveLock";
 import type { DbClient } from "../shared/dbClient";
 import { getMobileDb } from "./database";
 import { MobileProjectDomainDocStore } from "./syncStores/mobileProjectDomainDocStore";
@@ -46,13 +47,16 @@ export function subscribeMobileBibleSaves(listener: Listener): () => void {
  * Notifies subscribers so the engine advertises the doc immediately.
  */
 export async function bootstrapMobileProjectBible(projectId: string): Promise<void> {
-  if (await store.load("bible", projectId) !== null) return;
-  const doc = buildBibleFromSql({
-    entities: [], entityTypes: [], fields: [], sceneLinks: [], entityLinks: [], relations: [],
+  let stateBase64: string | null = null;
+  await exclusiveDomainDoc("bible", projectId, async () => {
+    if (await store.load("bible", projectId) !== null) return;
+    const doc = buildBibleFromSql({
+      entities: [], entityTypes: [], fields: [], sceneLinks: [], entityLinks: [], relations: [],
+    });
+    stateBase64 = fromUint8Array(Y.encodeStateAsUpdate(doc));
+    await store.save("bible", projectId, stateBase64);
   });
-  const stateBase64 = fromUint8Array(Y.encodeStateAsUpdate(doc));
-  await store.save("bible", projectId, stateBase64);
-  mobileBridge.notify(projectId, stateBase64);
+  if (stateBase64) mobileBridge.notify(projectId, stateBase64);
 }
 
 /**

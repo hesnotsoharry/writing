@@ -1,15 +1,16 @@
-import { fromUint8Array, toUint8Array } from "js-base64";
+import { toUint8Array } from "js-base64";
 import * as Y from "yjs";
 
 import { applyBibleDoc } from "./bible/bibleApplyExec";
 import type { EngineDocRepository } from "./engineDocRepository";
 import type { EngineOptions } from "./engineTypes";
 import type { EpochManager } from "./epochManager";
+import { exclusiveDomainDoc, exclusiveMetaDoc } from "./exclusiveLock";
 import type { LiveSceneUpdateRouter } from "./liveSceneUpdateRouter";
 import type { DiffMessage, LiveMessage } from "./messages";
 import { parseChannel, sceneChannel } from "./messages";
 import { applyMetaDoc } from "./meta/applyExec";
-import { mergeStoredBoard } from "./storedDocMerge";
+import { mergeStoredBoard, mergeStoredMeta } from "./storedDocMerge";
 
 export class RemoteUpdateRouter {
   constructor(private readonly dependencies: RouterDependencies) {}
@@ -22,29 +23,33 @@ export class RemoteUpdateRouter {
     if (channel.kind === "board") {
       await mergeStoredBoard(this.dependencies.options.boardStore, channel.id, update); return;
     }
-    if (channel.kind === "bible") {
-      const merged = await this.dependencies.docs.mergeDomain("bible", channel.id, update);
-      if (!merged) return;
-      const doc = new Y.Doc(); Y.applyUpdate(doc, merged);
-      if (this.dependencies.options.bibleApplyTarget) {
-        await applyBibleDoc(channel.id, doc, this.dependencies.options.bibleApplyTarget);
-      }
-      return;
-    }
+    if (channel.kind === "bible") { await this.mergeBible(channel.id, update); return; }
     await this.dependencies.scenes.apply(channel.id, message, update);
   }
 
   private async mergeMeta(projectId: string, incoming: Uint8Array): Promise<void> {
     const { options, epochs, requestScene, notifyStructure } = this.dependencies;
-    if (!options.metaStore) return;
-    const stored = await options.metaStore.load(projectId);
-    const merged = stored ? Y.mergeUpdates([toUint8Array(stored), incoming]) : incoming;
-    await options.metaStore.save(projectId, fromUint8Array(merged));
-    const behind = epochs.readMetaUpdate(merged, projectId);
+    const { metaStore, metaApplyTarget } = options;
+    if (!metaStore) return;
+    const behind = await exclusiveMetaDoc(projectId, async () => {
+      const merged = await mergeStoredMeta(metaStore, projectId, incoming);
+      const behindScenes = epochs.readMetaUpdate(merged, projectId);
+      const doc = new Y.Doc(); Y.applyUpdate(doc, merged);
+      if (metaApplyTarget) await applyMetaDoc(projectId, doc, metaApplyTarget);
+      return behindScenes;
+    });
     await Promise.all(behind.map((sceneId) => requestScene(sceneChannel(sceneId))));
-    const doc = new Y.Doc(); Y.applyUpdate(doc, merged);
-    if (options.metaApplyTarget) await applyMetaDoc(projectId, doc, options.metaApplyTarget);
     notifyStructure();
+  }
+
+  private async mergeBible(projectId: string, incoming: Uint8Array): Promise<void> {
+    await exclusiveDomainDoc("bible", projectId, async () => {
+      const merged = await this.dependencies.docs.mergeDomain("bible", projectId, incoming);
+      if (!merged) return;
+      const doc = new Y.Doc(); Y.applyUpdate(doc, merged);
+      const target = this.dependencies.options.bibleApplyTarget;
+      if (target) await applyBibleDoc(projectId, doc, target);
+    });
   }
 }
 

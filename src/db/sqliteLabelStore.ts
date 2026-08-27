@@ -4,12 +4,22 @@
  * Mirrors SqliteSnapshotStore's pattern: getDb(), $1-style params.
  * color is stored as the palette token name, never a hex value.
  */
+import type * as Y from "yjs";
+
+import { allocateSortKeys } from "../sync/meta/allocateSortKey";
+import { runLocalMetaWrite } from "../sync/meta/bridge";
 import {
-  bridgeDeletedLabel,
-  bridgeLabel,
-  bridgeLabelOrder,
-  bridgeSceneLabel,
-} from "../sync/meta/localBridge";
+  applyLabelMutation,
+  applyRemoved,
+  type LocalLabelRow,
+} from "../sync/meta/localMutators";
+import {
+  getLabels,
+  removeWithTombstone,
+  sceneLabelId,
+  setLabel,
+  setSceneLabel,
+} from "../sync/meta/metaDoc";
 import type { Label, LabelColor, LabelStore } from "./labelStore";
 import { getDb } from "./schema";
 
@@ -32,10 +42,6 @@ function mapRow(row: LabelRow): Label {
   };
 }
 
-function reportLookup(operation: string, task: Promise<void>): void {
-  void task.catch((error: unknown) => console.error(`[sync-meta] ${operation}`, error));
-}
-
 async function loadLabel(id: string): Promise<Label | undefined> {
   const db = await getDb();
   const rows = await db.select<LabelRow[]>(
@@ -44,23 +50,25 @@ async function loadLabel(id: string): Promise<Label | undefined> {
   return rows[0] ? mapRow(rows[0]) : undefined;
 }
 
-async function bridgeUpdatedLabel(id: string, fresh: boolean): Promise<void> {
-  const label = await loadLabel(id);
-  if (!label) return;
-  let orderedIds: string[] | undefined;
-  if (fresh) {
-    const db = await getDb();
-    const rows = await db.select<Array<{ id: string }>>(
-      "SELECT id FROM labels WHERE project_id=$1 ORDER BY sort ASC", [label.projectId]
-    );
-    orderedIds = rows.map((row) => row.id);
-  }
-  bridgeLabel(label, orderedIds);
+function asLocal(label: Label): LocalLabelRow {
+  return { id: label.id, projectId: label.projectId, name: label.name, color: label.color };
 }
 
-async function bridgeAssignment(sceneId: string, labelId: string, assigned: boolean): Promise<void> {
-  const label = await loadLabel(labelId);
-  if (label) bridgeSceneLabel(label.projectId, sceneId, labelId, assigned);
+function compareSortKey(left: { sortKey: string }, right: { sortKey: string }): number {
+  return left.sortKey < right.sortKey ? -1 : left.sortKey > right.sortKey ? 1 : 0;
+}
+
+function persistLabelOrder(doc: Y.Doc, rows: LocalLabelRow[]): void {
+  const desired = rows.map(({ id }) => id);
+  const labels = getLabels(doc).sort(compareSortKey);
+  const currentIds = labels.map(({ id }) => id).filter((id) => desired.includes(id));
+  const mismatch = desired.findIndex((id, index) => id !== currentIds[index]);
+  const row = mismatch < 0 ? undefined : rows.find((candidate) => candidate.id === desired[mismatch]);
+  if (!row) return;
+  for (const [rowId, sortKey] of allocateSortKeys(labels, desired, row.id)) {
+    const body = rowId === row.id ? row : labels.find((label) => label.id === rowId);
+    if (body) setLabel(doc, { ...body, sortKey });
+  }
 }
 
 async function captureLabelDelete(id: string): Promise<{
@@ -98,11 +106,13 @@ export class SqliteLabelStore implements LabelStore {
       [projectId]
     );
     const sort = Math.max(-1, ...rows.map((row) => row.sort)) + 1;
-    await db.execute(
-      `INSERT INTO labels (id, project_id, name, color, sort) VALUES ($1, $2, $3, $4, $5)`,
-      [id, projectId, name, color, sort]
-    );
-    bridgeLabel({ id, projectId, name, color }, [...rows.map((row) => row.id), id]);
+    const orderedIds = [...rows.map((row) => row.id), id];
+    await runLocalMetaWrite(projectId, async () => {
+      await db.execute(
+        `INSERT INTO labels (id, project_id, name, color, sort) VALUES ($1, $2, $3, $4, $5)`,
+        [id, projectId, name, color, sort]
+      );
+    }, (doc) => applyLabelMutation(doc, { id, projectId, name, color }, orderedIds));
     return { id, projectId, name, color, sort };
   }
 
@@ -122,39 +132,71 @@ export class SqliteLabelStore implements LabelStore {
     patch: Partial<Pick<Label, "name" | "color" | "sort">>
   ): Promise<void> {
     if (Object.keys(patch).length === 0) return;
+    const existing = await loadLabel(id);
+    if (!existing) return;
     const db = await getDb();
-    await db.execute(
-      `UPDATE labels SET name = COALESCE($1, name), color = COALESCE($2, color), sort = COALESCE($3, sort) WHERE id = $4`,
-      [patch.name ?? null, patch.color ?? null, patch.sort ?? null, id]
-    );
-    reportLookup("label update", bridgeUpdatedLabel(id, patch.sort !== undefined));
+    await runLocalMetaWrite(existing.projectId, async () => {
+      await db.execute(
+        `UPDATE labels SET name = COALESCE($1, name), color = COALESCE($2, color), sort = COALESCE($3, sort) WHERE id = $4`,
+        [patch.name ?? null, patch.color ?? null, patch.sort ?? null, id]
+      );
+      const label = await loadLabel(id);
+      if (!label || patch.sort === undefined) return { label, orderedIds: undefined };
+      const rows = await db.select<Array<{ id: string }>>(
+        "SELECT id FROM labels WHERE project_id=$1 ORDER BY sort ASC", [label.projectId]
+      );
+      return { label, orderedIds: rows.map((row) => row.id) };
+    }, (doc, result) => {
+      if (result.label) applyLabelMutation(doc, asLocal(result.label), result.orderedIds);
+    });
   }
 
   async deleteLabel(id: string): Promise<void> {
     const db = await getDb();
     const captured = await captureLabelDelete(id);
-    await db.execute(`DELETE FROM scene_labels WHERE label_id = $1`, [id]);
-    await db.execute(`DELETE FROM labels WHERE id = $1`, [id]);
-    if (captured) bridgeDeletedLabel(captured.label.projectId, id, captured.sceneIds);
+    if (!captured) {
+      await db.execute(`DELETE FROM scene_labels WHERE label_id = $1`, [id]);
+      await db.execute(`DELETE FROM labels WHERE id = $1`, [id]);
+      return;
+    }
+    await runLocalMetaWrite(captured.label.projectId, async () => {
+      await db.execute(`DELETE FROM scene_labels WHERE label_id = $1`, [id]);
+      await db.execute(`DELETE FROM labels WHERE id = $1`, [id]);
+    }, (doc) => {
+      const rows = captured.sceneIds.map((sceneId) => ({
+        kind: "sceneLabel" as const, id: sceneLabelId(sceneId, id),
+      }));
+      applyRemoved(doc, [{ kind: "label", id }, ...rows]);
+    });
   }
 
   async assignLabel(sceneId: string, labelId: string): Promise<void> {
     const db = await getDb();
     // INSERT OR IGNORE — idempotent: the PK (scene_id, label_id) deduplicates.
-    await db.execute(
-      `INSERT OR IGNORE INTO scene_labels (scene_id, label_id) VALUES ($1, $2)`,
-      [sceneId, labelId]
-    );
-    reportLookup("scene-label assign", bridgeAssignment(sceneId, labelId, true));
+    const label = await loadLabel(labelId);
+    if (!label) return;
+    await runLocalMetaWrite(label.projectId, async () => {
+      await db.execute(
+        `INSERT OR IGNORE INTO scene_labels (scene_id, label_id) VALUES ($1, $2)`,
+        [sceneId, labelId]
+      );
+    }, (doc) => {
+      setSceneLabel(doc, { id: sceneLabelId(sceneId, labelId), sceneId, labelId });
+    });
   }
 
   async unassignLabel(sceneId: string, labelId: string): Promise<void> {
     const db = await getDb();
-    await db.execute(
-      `DELETE FROM scene_labels WHERE scene_id = $1 AND label_id = $2`,
-      [sceneId, labelId]
-    );
-    reportLookup("scene-label unassign", bridgeAssignment(sceneId, labelId, false));
+    const label = await loadLabel(labelId);
+    if (!label) return;
+    await runLocalMetaWrite(label.projectId, async () => {
+      await db.execute(
+        `DELETE FROM scene_labels WHERE scene_id = $1 AND label_id = $2`,
+        [sceneId, labelId]
+      );
+    }, (doc) => {
+      removeWithTombstone(doc, "sceneLabel", sceneLabelId(sceneId, labelId));
+    });
   }
 
   async getSceneLabels(sceneId: string): Promise<Label[]> {
@@ -171,17 +213,17 @@ export class SqliteLabelStore implements LabelStore {
   }
 
   async reorderLabels(ids: string[]): Promise<void> {
-    const db = await getDb();
-    for (let idx = 0; idx < ids.length; idx++) {
-      await db.execute(`UPDATE labels SET sort = $1 WHERE id = $2`, [idx, ids[idx]]);
-    }
     const first = ids[0];
-    if (first) reportLookup("label reorder", (async () => {
-      const label = await loadLabel(first);
-      if (!label) return;
-      const rows = await this.listLabels(label.projectId);
-      bridgeLabelOrder(label.projectId, rows);
-    })());
+    if (!first) return;
+    const label = await loadLabel(first);
+    if (!label) return;
+    const db = await getDb();
+    await runLocalMetaWrite(label.projectId, async () => {
+      for (let idx = 0; idx < ids.length; idx++) {
+        await db.execute(`UPDATE labels SET sort = $1 WHERE id = $2`, [idx, ids[idx]]);
+      }
+      return this.listLabels(label.projectId);
+    }, (doc, rows) => persistLabelOrder(doc, rows.map(asLocal)));
   }
 
   async getAllSceneLabels(): Promise<Record<string, Label[]>> {

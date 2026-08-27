@@ -1,20 +1,18 @@
+import { exclusiveMetaDoc } from "@writersnook/sync/exclusiveLock";
+import {
+  applyFolderMutation,
+  applyLabelMutation,
+  applyRemoved,
+  applySceneMutation,
+} from "@writersnook/sync/meta/localMutators";
 import {
   buildFromSql,
   getDocEpochs,
-  getFolders,
-  getLabels,
-  getScenes,
-  type MetaFolder,
-  type MetaScene,
   removeWithTombstone,
   sceneLabelId,
-  setFolder,
-  setLabel,
-  setScene,
   setSceneLabel,
   type TombstoneKind,
 } from "@writersnook/sync/meta/metaDoc";
-import { keyBetween } from "@writersnook/sync/meta/sortKey";
 import * as Y from "yjs";
 
 import type { SceneStatus } from "../shared/binderStore";
@@ -34,7 +32,6 @@ export interface MobileLabelRow {
 
 type SaveListener = (projectId: string, epochs: ReturnType<typeof getDocEpochs>) => void;
 const store = new MobileProjectMetaDocStore();
-const tails = new Map<string, Promise<void>>();
 const saveListeners = new Set<SaveListener>();
 
 export function subscribeMobileMetaSaves(listener: SaveListener): () => void {
@@ -42,34 +39,37 @@ export function subscribeMobileMetaSaves(listener: SaveListener): () => void {
   return () => saveListeners.delete(listener);
 }
 
-function runExclusive(projectId: string, operation: () => Promise<void>): Promise<void> {
-  const prior = tails.get(projectId) ?? Promise.resolve();
-  const current = prior.catch(() => undefined).then(operation);
-  tails.set(projectId, current);
-  const clear = (): void => {
-    if (tails.get(projectId) === current) tails.delete(projectId);
-  };
-  void current.then(clear, clear);
-  return current;
+async function persistMobileMeta(projectId: string, mutate: (doc: Y.Doc) => void): Promise<void> {
+  const encoded = await store.load(projectId);
+  if (encoded === null) return;
+  const doc = new Y.Doc();
+  applyEncoded(doc, encoded);
+  doc.transact(() => mutate(doc));
+  await store.save(projectId, encodeDoc(doc));
+  const epochs = getDocEpochs(doc);
+  saveListeners.forEach((listener) => listener(projectId, epochs));
 }
 
 export function withMobileProjectMeta(projectId: string, mutate: (doc: Y.Doc) => void): Promise<void> {
-  return runExclusive(projectId, async () => {
-    const encoded = await store.load(projectId);
-    if (encoded === null) return;
-    const doc = new Y.Doc();
-    applyEncoded(doc, encoded);
-    doc.transact(() => mutate(doc));
-    await store.save(projectId, encodeDoc(doc));
-    const epochs = getDocEpochs(doc);
-    saveListeners.forEach((listener) => listener(projectId, epochs));
+  return exclusiveMetaDoc(projectId, () => persistMobileMeta(projectId, mutate));
+}
+
+export async function runMobileMetaWrite<T>(
+  projectId: string,
+  sqlWrite: () => Promise<T>,
+  mutate: (doc: Y.Doc, result: T) => void,
+): Promise<T> {
+  return exclusiveMetaDoc(projectId, async () => {
+    const result = await sqlWrite();
+    await persistMobileMeta(projectId, (doc) => mutate(doc, result));
+    return result;
   });
 }
 
 export function bootstrapMobileProjectMeta(project: {
   id: string; title: string; type: string;
 }): Promise<void> {
-  return runExclusive(project.id, async () => {
+  return exclusiveMetaDoc(project.id, async () => {
     if (await store.load(project.id) !== null) return;
     const doc = buildFromSql({
       project, folders: [], scenes: [], labels: [], sceneLabels: [],
@@ -100,44 +100,20 @@ export async function ensureAllMobileProjectMetas(): Promise<void> {
     .map((project) => bootstrapMobileProjectMeta(project)));
 }
 
-function freshKey<T extends { id: string; sortKey: string }>(rows: T[], order: string[], id: string): string {
-  const peers = new Map(rows.filter((row) => row.id !== id).map((row) => [row.id, row]));
-  const index = order.indexOf(id);
-  const lower = order.slice(0, index).reverse().map((key) => peers.get(key)?.sortKey).find(Boolean) ?? null;
-  const upper = order.slice(index + 1).map((key) => peers.get(key)?.sortKey).find(Boolean) ?? null;
-  return keyBetween(lower, upper);
-}
-
 export function bridgeMobileFolder(row: MobileFolderRow, order?: string[]): Promise<void> {
-  return withMobileProjectMeta(row.projectId, (doc) => {
-    const existing = getFolders(doc).find(({ id }) => id === row.id);
-    const sortKey = order ? freshKey(getFolders(doc), order, row.id) : existing?.sortKey;
-    if (sortKey) setFolder(doc, { ...row, sortKey });
-  });
+  return withMobileProjectMeta(row.projectId, (doc) => applyFolderMutation(doc, row, order));
 }
 
 export function bridgeMobileScene(row: MobileSceneRow, order?: string[]): Promise<void> {
-  return withMobileProjectMeta(row.projectId, (doc) => {
-    const scenes = getScenes(doc);
-    const existing = scenes.find(({ id }) => id === row.id);
-    const siblings = scenes.filter((scene) => scene.folderId === row.folderId);
-    const sortKey = order ? freshKey(siblings, order, row.id) : existing?.sortKey;
-    if (sortKey) setScene(doc, { ...row, sortKey });
-  });
+  return withMobileProjectMeta(row.projectId, (doc) => applySceneMutation(doc, row, order));
 }
 
 export function bridgeMobileLabel(row: MobileLabelRow, order?: string[]): Promise<void> {
-  return withMobileProjectMeta(row.projectId, (doc) => {
-    const existing = getLabels(doc).find(({ id }) => id === row.id);
-    const sortKey = order ? freshKey(getLabels(doc), order, row.id) : existing?.sortKey;
-    if (sortKey) setLabel(doc, { ...row, sortKey });
-  });
+  return withMobileProjectMeta(row.projectId, (doc) => applyLabelMutation(doc, row, order));
 }
 
 export function bridgeMobileRemoved(projectId: string, rows: Array<{ kind: TombstoneKind; id: string }>): Promise<void> {
-  return withMobileProjectMeta(projectId, (doc) => {
-    rows.forEach((row) => removeWithTombstone(doc, row.kind, row.id));
-  });
+  return withMobileProjectMeta(projectId, (doc) => applyRemoved(doc, rows));
 }
 
 export function bridgeMobileSceneLabel(
@@ -157,13 +133,10 @@ export function bridgeMobileRestored(
   orders: { folders: string[]; scenes: Map<string, string[]> },
 ): Promise<void> {
   return withMobileProjectMeta(projectId, (doc) => {
-    folders.forEach((row) => setFolder(doc, {
-      ...row, sortKey: freshKey(getFolders(doc), orders.folders, row.id),
-    } satisfies MetaFolder));
+    folders.forEach((row) => applyFolderMutation(doc, row, orders.folders));
     scenes.forEach((row) => {
-      const siblings = getScenes(doc).filter((scene) => scene.folderId === row.folderId);
       const order = orders.scenes.get(row.folderId ?? "") ?? [row.id];
-      setScene(doc, { ...row, sortKey: freshKey(siblings, order, row.id) } satisfies MetaScene);
+      applySceneMutation(doc, row, order);
     });
   });
 }

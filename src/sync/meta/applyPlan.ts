@@ -49,16 +49,22 @@ function grouped<T>(rows: T[], keyOf: (row: T) => string): Map<string, T[]> {
   return groups;
 }
 
+function canonicalOrder(index: number): number {
+  return (index + 1) * 1000;
+}
+
 function changedIndexes(
-  currentIds: string[], desiredIds: string[], kind: SortOrderRewrite["kind"]
+  current: Array<{ id: string; order: number }>,
+  desiredIds: string[],
+  kind: SortOrderRewrite["kind"]
 ): SortOrderRewrite[] {
-  if (currentIds.join("\0") === desiredIds.join("\0")) return [];
-  const currentIndex = new Map(currentIds.map((id, index) => [id, index]));
+  const byId = new Map(current.map((row) => [row.id, row.order]));
+  const sameIds = current.map((row) => row.id).join("\0") === desiredIds.join("\0");
+  const sameValues = desiredIds.every((id, index) => byId.get(id) === canonicalOrder(index));
+  if (sameIds && sameValues) return [];
   return desiredIds.flatMap((id, index) => {
-    const oldIndex = currentIndex.get(id);
-    return oldIndex !== undefined && oldIndex !== index
-      ? [{ kind, id, sortOrder: (index + 1) * 1000 }]
-      : [];
+    const sortOrder = canonicalOrder(index);
+    return byId.get(id) === sortOrder ? [] : [{ kind, id, sortOrder }];
   });
 }
 
@@ -68,7 +74,9 @@ function folderRewrites(
   const oldGroups = grouped(current, (row) => row.project_id);
   const newGroups = grouped(desired, (row) => row.projectId);
   return Array.from(newGroups, ([projectId, rows]) => changedIndexes(
-    [...(oldGroups.get(projectId) ?? [])].sort((a, b) => a.sort_order - b.sort_order).map((r) => r.id),
+    [...(oldGroups.get(projectId) ?? [])]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((row) => ({ id: row.id, order: row.sort_order })),
     [...rows].sort(bySortKey).map((r) => r.id), "folder"
   )).flat();
 }
@@ -85,7 +93,9 @@ function sceneRewrites(
     project_id: row.projectId, folder_id: row.folderId,
   }));
   return Array.from(newGroups, ([groupId, rows]) => changedIndexes(
-    [...(oldGroups.get(groupId) ?? [])].sort((a, b) => a.sort_order - b.sort_order).map((r) => r.id),
+    [...(oldGroups.get(groupId) ?? [])]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((row) => ({ id: row.id, order: row.sort_order })),
     [...rows].sort(bySortKey).map((r) => r.id), "scene"
   )).flat();
 }
@@ -96,33 +106,53 @@ function labelRewrites(
   const oldGroups = grouped(current, (row) => row.project_id);
   const newGroups = grouped(desired, (row) => row.projectId);
   return Array.from(newGroups, ([projectId, rows]) => changedIndexes(
-    [...(oldGroups.get(projectId) ?? [])].sort((a, b) => a.sort - b.sort).map((r) => r.id),
+    [...(oldGroups.get(projectId) ?? [])]
+      .sort((a, b) => a.sort - b.sort)
+      .map((row) => ({ id: row.id, order: row.sort })),
     [...rows].sort(bySortKey).map((r) => r.id), "label"
   )).flat();
+}
+
+function reachableFolderId(
+  folders: Array<{ id: string }>,
+  tombstones: ReturnType<typeof readMetaDoc>["tombstones"],
+  folderId: string | null,
+): string | null {
+  if (!folderId) return null;
+  if (tombstones[folderId]?.kind === "folder") return null;
+  return folders.some((folder) => folder.id === folderId) ? folderId : null;
+}
+
+function reachableScenes(state: ReturnType<typeof readMetaDoc>): typeof state.scenes {
+  return state.scenes.map((row) => ({
+    ...row, folderId: reachableFolderId(state.folders, state.tombstones, row.folderId),
+  }));
 }
 
 function planFolders(state: ReturnType<typeof readMetaDoc>, sql: SqlProjectionSnapshot): SqlFolderRow[] {
   const current = new Map(sql.folders.map((row) => [row.id, row]));
   return [...state.folders].sort(bySortKey).flatMap((row, index) => {
     const next = { id: row.id, project_id: row.projectId, title: row.title,
-      sort_order: (index + 1) * 1000 };
+      sort_order: canonicalOrder(index) };
     const old = current.get(row.id);
     return !old || differs(old, next, ["project_id", "title"]) ? [next] : [];
   });
 }
 
-function sceneOrders(state: ReturnType<typeof readMetaDoc>): Map<string, number> {
+function sceneOrders(scenes: ReturnType<typeof readMetaDoc>["scenes"]): Map<string, number> {
   const result = new Map<string, number>();
-  for (const rows of grouped(state.scenes, (row) => `${row.projectId}\0${row.folderId ?? ""}`).values()) {
-    [...rows].sort(bySortKey).forEach((row, index) => result.set(row.id, (index + 1) * 1000));
+  for (const rows of grouped(scenes, (row) => `${row.projectId}\0${row.folderId ?? ""}`).values()) {
+    [...rows].sort(bySortKey).forEach((row, index) => result.set(row.id, canonicalOrder(index)));
   }
   return result;
 }
 
-function planScenes(state: ReturnType<typeof readMetaDoc>, sql: SqlProjectionSnapshot): SqlSceneRow[] {
+function planScenes(
+  scenes: ReturnType<typeof readMetaDoc>["scenes"], sql: SqlProjectionSnapshot,
+): SqlSceneRow[] {
   const current = new Map(sql.scenes.map((row) => [row.id, row]));
-  const orders = sceneOrders(state);
-  return state.scenes.flatMap((row) => {
+  const orders = sceneOrders(scenes);
+  return scenes.flatMap((row) => {
     const next = { id: row.id, project_id: row.projectId, folder_id: row.folderId,
       title: row.title, synopsis: row.synopsis, status: row.status, sort_order: orders.get(row.id)! };
     const old = current.get(row.id);
@@ -137,7 +167,7 @@ function planLabels(state: ReturnType<typeof readMetaDoc>, sql: SqlProjectionSna
   const ops: LabelOp[] = [];
   for (const rows of sorted.values()) [...rows].sort(bySortKey).forEach((row, index) => {
     const next = { id: row.id, project_id: row.projectId, name: row.name,
-      color: row.color, sort: (index + 1) * 1000 };
+      color: row.color, sort: canonicalOrder(index) };
     const old = current.get(row.id);
     if (!old || differs(old, next, ["project_id", "name", "color"])) ops.push({ type: "upsert", row: next });
   });
@@ -175,15 +205,16 @@ function unassignOps(deletes: DeleteOp[]): LabelOp[] {
 /** Plan the ordered, idempotent mutations needed to project a meta doc into SQLite. */
 export function planMetaDocApplication(doc: Y.Doc, sql: SqlProjectionSnapshot): ApplyPlan {
   const state = readMetaDoc(doc);
+  const scenes = reachableScenes(state);
   const deletes = planDeletes(state, sql);
   return {
     folderUpserts: planFolders(state, sql),
-    sceneUpserts: planScenes(state, sql),
+    sceneUpserts: planScenes(scenes, sql),
     labelOps: [...planLabels(state, sql), ...unassignOps(deletes)],
     deletes,
     sortOrderRewrites: [
       ...folderRewrites(sql.folders, state.folders),
-      ...sceneRewrites(sql.scenes, state.scenes),
+      ...sceneRewrites(sql.scenes, scenes),
       ...labelRewrites(sql.labels, state.labels),
     ],
   };
