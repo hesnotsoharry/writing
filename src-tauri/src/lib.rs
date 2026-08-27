@@ -29,17 +29,15 @@ fn open_path(_app: tauri::AppHandle, path: &str) -> Result<(), String> {
 /// always points at the active library. Backs the Settings ▸ Backup "Back up now"
 /// button. Local-only by design — there is no cloud component.
 #[tauri::command]
-fn backup_database(app: tauri::AppHandle, dest_path: &str) -> Result<(), String> {
-    let src = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?
-        .join("writing.db");
-    if !src.exists() {
-        return Err(format!("database not found at {}", src.display()));
+fn finalize_backup(tmp_path: &str, dest_path: &str) -> Result<(), String> {
+    // The frontend writes the snapshot to `<dest>.partial` via `VACUUM INTO`
+    // (transactionally consistent, WAL-safe — the old raw fs::copy of the live
+    // db raced concurrent writes into a torn backup, audit P8.3). This swaps
+    // the completed snapshot into place, replacing any prior backup file.
+    if std::path::Path::new(dest_path).exists() {
+        std::fs::remove_file(dest_path).map_err(|e| e.to_string())?;
     }
-    std::fs::copy(&src, dest_path).map_err(|e| e.to_string())?;
-    Ok(())
+    std::fs::rename(tmp_path, dest_path).map_err(|e| e.to_string())
 }
 
 /// Write exported manuscript/chapter/scene bytes to a user-chosen path. The
@@ -172,7 +170,7 @@ pub fn run() {
             greet,
             grammar::lint_text,
             open_path,
-            backup_database,
+            finalize_backup,
             write_export_file,
             set_border_color,
             license::activate_license,

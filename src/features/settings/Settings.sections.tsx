@@ -5,6 +5,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 
 import { Icon } from "../../components/Icon";
+import { getDb } from "../../db/schema";
 import { openPath } from "../../lib/ipc";
 import type { AccentPalette, Theme } from "../../theme/useTheme";
 import type { ActivationRecord } from "../license/license.store";
@@ -216,7 +217,13 @@ async function runBackup(showToast: (msg: string) => void): Promise<void> {
     filters: [{ name: "Writing backup", extensions: ["db"] }],
   });
   if (path === null) return;
-  await invoke("backup_database", { destPath: path });
+  // VACUUM INTO snapshots through SQLite itself — transactionally consistent
+  // and WAL-safe. The old raw file copy raced concurrent writes into a torn
+  // backup (audit P8.3). VACUUM INTO refuses to overwrite, so write a temp
+  // sibling and let the shell swap it into place.
+  const db = await getDb(); const tmpPath = `${path}.partial`;
+  await db.execute(`VACUUM INTO '${tmpPath.replace(/'/g, "''")}'`);
+  await invoke("finalize_backup", { tmpPath, destPath: path });
   showToast(`Backed up to ${path}`);
 }
 
