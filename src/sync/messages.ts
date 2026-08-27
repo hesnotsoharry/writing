@@ -7,9 +7,19 @@ export interface HelloMessage {
    *  peers on builds before the roster send neither, and the validator must not
    *  reject them — an unnamed peer still syncs, it just lists as unnamed. */
   name?: string; platform?: string;
+  /** eXclusive/targeted (v1.4): this hello advertises a subset (one channel per
+   *  local save), so answer ONLY the listed channels. Without it a receiver
+   *  applies the on-connect rule — absent doc = peer lacks it — and answers a
+   *  targeted hello by transmitting full states of the entire library. Old
+   *  peers ignore the flag and keep the old (chatty but correct) behavior. */
+  x?: true;
 }
-export interface DiffMessage { t: "diff"; c: string; u: string; e?: number }
-export interface LiveMessage { t: "live"; c: string; u: string; e?: number }
+/** `e`/`o` (v1.2/v1.4): the sender's known epoch counter and epoch OWNER device
+ *  id for the channel's scene. Ownership on the wire lets a receiver reject a
+ *  same-counter frame from a losing concurrent restorer; absent/empty owner is
+ *  a wildcard (older peers). */
+export interface DiffMessage { t: "diff"; c: string; u: string; e?: number; o?: string }
+export interface LiveMessage { t: "live"; c: string; u: string; e?: number; o?: string }
 
 export interface RowVersionSummary {
   id: string; hlc: string; device: string; deleted: boolean;
@@ -64,12 +74,14 @@ function isHelloDoc(value: unknown): value is HelloDoc {
 export function isHelloMessage(value: unknown): value is HelloMessage {
   return isRecord(value) && value.t === "hello" && typeof value.device === "string"
     && Array.isArray(value.docs) && value.docs.every(isHelloDoc)
-    && (value.capabilities === undefined || isStringArray(value.capabilities));
+    && (value.capabilities === undefined || isStringArray(value.capabilities))
+    && (value.x === undefined || value.x === true);
 }
 function isUpdateMessage(value: unknown, type: "diff" | "live"): boolean {
   return isRecord(value) && value.t === type && typeof value.c === "string"
     && typeof value.u === "string"
-    && (value.e === undefined || (typeof value.e === "number" && Number.isInteger(value.e)));
+    && (value.e === undefined || (typeof value.e === "number" && Number.isInteger(value.e)))
+    && optionalString(value.o);
 }
 export function isDiffMessage(value: unknown): value is DiffMessage {
   return isUpdateMessage(value, "diff");

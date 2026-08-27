@@ -67,3 +67,22 @@ describe("sync channels", () => {
     expect(parseChannel("scene")).toBeNull();
   });
 });
+
+describe("v1.4 wire fields", () => {
+  it("accepts diff/live frames with an owner stamp and rejects non-string owners", async () => {
+    const { isDiffMessage, isLiveMessage } = await import("../../sync/messages");
+    expect(isDiffMessage({ t: "diff", c: "scene:s1", u: "", e: 1, o: "device-a" })).toBe(true);
+    expect(isLiveMessage({ t: "live", c: "scene:s1", u: "", e: 1, o: "device-a" })).toBe(true);
+    expect(isDiffMessage({ t: "diff", c: "scene:s1", u: "", e: 1 })).toBe(true);
+    expect(isDiffMessage({ t: "diff", c: "scene:s1", u: "", e: 1, o: 7 })).toBe(false);
+  });
+
+  it("accepts a targeted hello (x: true) and rejects other x values", async () => {
+    const { isHelloMessage } = await import("../../sync/messages");
+    const base = { t: "hello", device: "d1", docs: [] };
+    expect(isHelloMessage({ ...base, x: true })).toBe(true);
+    expect(isHelloMessage(base)).toBe(true);
+    expect(isHelloMessage({ ...base, x: false })).toBe(false);
+    expect(isHelloMessage({ ...base, x: "yes" })).toBe(false);
+  });
+});

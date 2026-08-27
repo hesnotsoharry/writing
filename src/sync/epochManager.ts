@@ -42,14 +42,21 @@ export class EpochManager {
   }
 
   epoch(sceneId: string): number { return this.knownStamp(sceneId).n; }
+  /** The converged epoch OWNER device id ("" when unowned/unknown). */
+  owner(sceneId: string): string { return this.knownStamp(sceneId).d; }
   isBehind(sceneId: string): boolean {
     return !matches(this.knownStamp(sceneId), this.applied[sceneId] ?? EMPTY_EPOCH);
   }
-  accepts(sceneId: string, epoch: number | undefined): boolean {
-    const known = this.epoch(sceneId);
-    if (known > 0 && epoch !== known) return false;
-    if (epoch !== undefined && epoch < known) return false;
-    return !this.isBehind(sceneId) || epoch === known;
+  accepts(sceneId: string, epoch: number | undefined, owner?: string): boolean {
+    const known = this.knownStamp(sceneId);
+    if (known.n > 0 && epoch !== known.n) return false;
+    if (epoch !== undefined && epoch < known.n) return false;
+    // v1.2 ownership on the wire (audit P1.2): a frame carrying the current
+    // counter but a NON-owner device is a losing concurrent restorer's copy —
+    // the counter alone cannot tell it from the winner's. Absent/empty owner
+    // is a wildcard (older peers).
+    if (epoch === known.n && !ownerMatches(owner, known.d)) return false;
+    return !this.isBehind(sceneId) || epoch === known.n;
   }
   appliesAutomatically(): boolean { return this.options.epochAcceptance !== "manual"; }
 
@@ -109,7 +116,11 @@ export class EpochManager {
     sceneId: string, message: DiffMessage | LiveMessage, liveDoc: Y.Doc | null,
   ): Promise<"none" | "ignored" | "staged" | "replaced"> {
     if (!this.isBehind(sceneId)) return "none";
-    if (message.t !== "diff" || message.e !== this.epoch(sceneId)) return "ignored";
+    // The replacement must come from the converged OWNER (wildcard for older
+    // peers): a losing concurrent restorer's full state carries the same
+    // counter but must not be applied as the replacement (audit P1.2).
+    if (message.t !== "diff" || message.e !== this.epoch(sceneId)
+      || !ownerMatches(message.o, this.owner(sceneId))) return "ignored";
     if (!this.appliesAutomatically()) { await this.stageReplacement(sceneId, message); return "staged"; }
     await this.snapshotLocal(sceneId, liveDoc);
     await this.saveReplacement(sceneId, toUint8Array(message.u));
@@ -184,6 +195,9 @@ export class EpochManager {
 }
 
 const EMPTY_EPOCH: EpochStamp = { n: 0, d: "" };
+function ownerMatches(claimed: string | undefined, known: string): boolean {
+  return claimed === undefined || claimed === "" || known === "" || claimed === known;
+}
 function countWords(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
 }

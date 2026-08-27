@@ -98,3 +98,37 @@ describe("EpochManager ownership self-heal (audit P1.8)", () => {
     expect(manager.isBehind("scene-1")).toBe(true);
   });
 });
+
+describe("EpochManager v1.4 owner-stamped frames (audit P1.2)", () => {
+  it("rejects a same-counter frame from a non-owner device", async () => {
+    const manager = makeManager();
+    await manager.initialize("device-c");
+    const doc = emptyMeta();
+    bumpEpoch(doc, "scene-1", "device-a"); // converged owner: device-a
+    manager.readMetaUpdate(Y.encodeStateAsUpdate(doc), "p1");
+    // device-b lost the concurrent-restore race but stamps the same counter.
+    expect(manager.accepts("scene-1", 1, "device-b")).toBe(false);
+    expect(manager.accepts("scene-1", 1, "device-a")).toBe(true);
+    // Absent/empty owner is a wildcard (v1.1-v1.3 senders keep working).
+    expect(manager.accepts("scene-1", 1, undefined)).toBe(true);
+    expect(manager.accepts("scene-1", 1, "")).toBe(true);
+  });
+
+  it("ignores a behind-frame replacement from a non-owner device", async () => {
+    const manager = makeManager();
+    await manager.initialize("device-c");
+    const doc = emptyMeta();
+    bumpEpoch(doc, "scene-1", "device-a");
+    manager.readMetaUpdate(Y.encodeStateAsUpdate(doc), "p1");
+    expect(manager.isBehind("scene-1")).toBe(true);
+    const update = Y.encodeStateAsUpdate(new Y.Doc());
+    const fromLoser = { t: "diff" as const, c: "scene:scene-1", u: "", e: 1, o: "device-b" };
+    expect(await manager.handleBehindFrame("scene-1", fromLoser, null)).toBe("ignored");
+    const fromOwner = {
+      t: "diff" as const, c: "scene:scene-1",
+      u: Buffer.from(update).toString("base64"), e: 1, o: "device-a",
+    };
+    expect(await manager.handleBehindFrame("scene-1", fromOwner, null)).toBe("replaced");
+    expect(manager.isBehind("scene-1")).toBe(false);
+  });
+});

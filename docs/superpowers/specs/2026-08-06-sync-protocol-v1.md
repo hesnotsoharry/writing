@@ -179,3 +179,25 @@ behind. Catch-up stops publishing the scene, flushes and closes its editor bridg
 persists one safety snapshot, applies the staged owner state wholesale, persists the
 exact `{n,d}` ownership stamp, notifies the editor, clears pending/outbox state, and
 then resumes publishing. There is no merge-anyway path.
+
+## v1.4 additions (ownership on the wire + targeted hello)
+
+**Owner-stamped update frames.** `diff` and `live` messages for an epoch'd scene
+carry `o` (the epoch OWNER device id from the converged `{n, d}` stamp) alongside
+`e`. Receivers reject a frame whose counter matches the known epoch but whose
+owner does not (`accepts` and the behind-frame replacement path both check):
+without `o`, a losing concurrent restorer's full state is indistinguishable from
+the winner's — both carry the new counter. An absent or empty `o` is a wildcard,
+so v1.1–v1.3 senders keep working.
+
+**Targeted hello.** A hello sent for a single channel after a local save carries
+`x: true`. Receivers answer ONLY the listed channels; without the flag the
+on-connect rule (absent doc = peer lacks it = send full state) made every
+targeted hello trigger a full-library broadcast from every peer. Old receivers
+ignore `x` and keep the chatty-but-correct behavior. On-connect hellos remain
+unflagged and keep cold-pair backfill semantics.
+
+**Answered-hello acknowledgement.** A hello answer (sent frame OR nothing owed)
+acknowledges the answering device's durable `sync_outbox` document entry for
+that channel — epoch'd docs always answer full-state, so ack-on-null-only left
+their entries pending forever.

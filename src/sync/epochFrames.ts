@@ -34,6 +34,11 @@ function sceneEpoch(channelName: string, epochs: EpochManager): number {
   return channel?.kind === "scene" ? epochs.epoch(channel.id) : 0;
 }
 
+function sceneOwner(channelName: string, epochs: EpochManager): string {
+  const channel = parseChannel(channelName);
+  return channel?.kind === "scene" ? epochs.owner(channel.id) : "";
+}
+
 /**
  * The diff we owe a peer for one doc given the state vector it advertised, or
  * null when we owe it nothing.
@@ -52,9 +57,12 @@ export function answerFrame(
   const sendFull = !peerVector || epoch > 0;
   const update = sendFull ? state : Y.diffUpdate(state, toUint8Array(peerVector));
   if (!sendFull && update.length <= 2) return null;
+  // v1.4: epoch'd frames carry the OWNER too, so receivers can reject a
+  // same-counter frame from a losing concurrent restorer (audit P1.2).
+  const owner = sceneOwner(doc.channel, epochs);
   return {
     t: "diff", c: doc.channel, u: fromUint8Array(update),
-    ...(epoch > 0 ? { e: epoch } : {}),
+    ...(epoch > 0 ? { e: epoch, ...(owner ? { o: owner } : {}) } : {}),
   };
 }
 

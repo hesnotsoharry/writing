@@ -201,10 +201,10 @@ export class SyncEngine {
     // accept) resurrects it on the device that restored. Stay quiet until
     // handleBehindFrame swaps our copy.
     if (this.epochs.isBehind(sceneId)) return;
-    const epoch = this.epochs.epoch(sceneId);
+    const epoch = this.epochs.epoch(sceneId); const owner = this.epochs.owner(sceneId);
     await this.sendMessage({
       t: "live", c: sceneChannel(sceneId), u: fromUint8Array(update),
-      ...(epoch > 0 ? { e: epoch } : {}),
+      ...(epoch > 0 ? { e: epoch, ...(owner ? { o: owner } : {}) } : {}),
     });
   }
 
@@ -283,15 +283,15 @@ export class SyncEngine {
 
   private async makeHello(docs?: ChannelDoc[]): Promise<HelloMessage> {
     const stored = docs ?? await this.docs.listAll();
+    // A subset hello is marked targeted (x, v1.4) so receivers answer only the
+    // listed channels instead of applying the on-connect absent-doc rule.
     return { t: "hello", device: this.deviceId,
       capabilities: ["domain-docs", "row-lww", "manual-epochs", "managed-credential-schema"],
       ...this.devices.helloFields(),
-      docs: stored.map((d) => helloDoc(d, this.epochs)) };
+      docs: stored.map((d) => helloDoc(d, this.epochs)), ...(docs ? { x: true as const } : {}) };
   }
 
-  private async sendHello(): Promise<void> {
-    await this.sendMessage(await this.makeHello());
-  }
+  private async sendHello(): Promise<void> { await this.sendMessage(await this.makeHello()); }
 
   private async sendTargetedHello(channelName: string): Promise<void> {
     const channel = parseChannel(channelName);
@@ -321,6 +321,10 @@ export class SyncEngine {
   private async answerHello(hello: HelloMessage): Promise<void> {
     const peerVectors = new Map(hello.docs.map((doc) => [doc.c, doc.sv]));
     for (const doc of await this.docs.listAll()) {
+      // Targeted hello (x, v1.4): it advertises ONE channel per local save —
+      // the absent-doc-means-peer-lacks-it rule would answer it by blasting
+      // the entire library as full states on every save (audit P1.4).
+      if (hello.x && !peerVectors.has(doc.channel)) continue;
       const frame = answerFrame(doc, peerVectors.get(doc.channel), this.epochs);
       // Null frame = peer already holds this doc; delivered frame = it just got
       // the full state. Both satisfy the outbox entry (ack-on-null-only left

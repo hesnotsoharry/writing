@@ -21,7 +21,7 @@ export class LiveSceneUpdateRouter {
   ) {}
 
   async apply(sceneId: string, message: DiffMessage | LiveMessage, update: Uint8Array): Promise<void> {
-    if (!this.epochs.accepts(sceneId, message.e)) return;
+    if (!this.epochs.accepts(sceneId, message.e, message.o)) return;
     const openDoc = this.bindings.docFor(sceneId);
     const livePort = this.bindings.portFor(sceneId);
     if (await this.handleBehind(sceneId, message, openDoc, livePort)) return;
