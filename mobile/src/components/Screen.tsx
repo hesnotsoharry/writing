@@ -5,7 +5,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useTheme } from "../theme/ThemeProvider";
-import { KEYBOARD_BOTTOM_OFFSET } from "./keyboard";
+import { useKeyboardAwareScrollProps } from "./keyboard";
 
 /**
  * The app root always renders the chrome that actually touches the window
@@ -41,13 +41,17 @@ export interface ScreenProps {
 
 export function Screen({ children, contentStyle, scroll = false, scrollProps }: ScreenProps) {
   const theme = useTheme();
+  // Called unconditionally — the `if (scroll)` branch below returns early, so
+  // a hook call inside it would violate the rules of hooks (different call
+  // order between a scrolling and non-scrolling render of the same screen).
+  const keyboardAwareScrollProps = useKeyboardAwareScrollProps();
   const background = { backgroundColor: theme.colors.parchment };
   if (scroll) {
     return (
       <SafeAreaView edges={EDGES} style={[styles.safe, background]}>
         <KeyboardAwareScrollView
           {...scrollProps}
-          bottomOffset={KEYBOARD_BOTTOM_OFFSET}
+          {...keyboardAwareScrollProps}
           contentContainerStyle={[styles.content, contentStyle]}
           keyboardShouldPersistTaps="handled"
         >

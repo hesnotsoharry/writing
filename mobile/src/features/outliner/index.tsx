@@ -6,7 +6,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Icon, IconButton, Screen, StatusDot, Topbar } from "../../components";
-import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
+import { useKeyboardAwareScrollProps } from "../../components/keyboard";
 import { getBinderStore, getLabelStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { SceneStatus } from "../../shared/binderStore";
@@ -171,9 +171,10 @@ function OutlineItemView({ context, item }: { context: OutlineRowContext; item: 
 function OutlinerList({ context, items, sticky }: {
   context: OutlineRowContext; items: OutlineItem[]; sticky: number[];
 }) {
+  const keyboardAwareScrollProps = useKeyboardAwareScrollProps();
   return (
     <GestureDetector gesture={context.scrollGesture}>
-      <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET} keyboardShouldPersistTaps="handled"
+      <KeyboardAwareScrollView {...keyboardAwareScrollProps} keyboardShouldPersistTaps="handled"
         mode="layout" stickyHeaderIndices={sticky}>
         {items.map((item) => <OutlineItemView context={context} item={item} key={item.key} />)}
       </KeyboardAwareScrollView>

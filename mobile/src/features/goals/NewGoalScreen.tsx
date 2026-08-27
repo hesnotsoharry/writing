@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Card, Icon, type IconName, Screen, Segmented, TextField, Toggle, Topbar } from "../../components";
-import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
+import { useKeyboardAwareScrollProps } from "../../components/keyboard";
 import { getBinderStore, getGoalsStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import { type GoalDraft, STREAK_QUALIFIERS } from "../../shared/goalsEditorHelpers";
@@ -43,7 +43,8 @@ async function loadExistingGoal(projectId: string, goalId: string): Promise<Exis
 }
 
 export function NewGoalScreen({ navigation, route }: Props) {
-  const theme = useTheme(); const projectId = route.params.projectId; const goalId = route.params.goalId;
+  const theme = useTheme(); const keyboardAwareScrollProps = useKeyboardAwareScrollProps();
+  const projectId = route.params.projectId; const goalId = route.params.goalId;
   const initial = GOAL_TYPES.some(({ id }) => id === route.params.initialType) ? route.params.initialType as GoalTypeId : "daily";
   const [type, setType] = useState<GoalTypeId>(initial); const [draft, setDraft] = useState(() => makeDraft(initial, 0));
   const [countDaysOff, setCountDaysOff] = useState(false); const [enabled, setEnabled] = useState(true);
@@ -71,7 +72,7 @@ export function NewGoalScreen({ navigation, route }: Props) {
     } finally { setSaving(false); }
   };
   const busy = saving || loadingExisting;
-  return <Screen contentStyle={styles.screen}><Topbar leading={<Pressable onPress={navigation.goBack} style={styles.topAction}><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink3 }]}>Cancel</Text></Pressable>} title={goalId ? "Edit goal" : "New goal"} trailing={<Pressable disabled={busy} onPress={() => { void save(); }} style={styles.topAction}><Text style={[TYPE.bodySmallStrong, { color: busy ? theme.colors.ink4 : theme.colors.accent }]}>Save</Text></Pressable>} /><KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>What are you tracking?</Text><GoalTypePicker locked={goalId != null} onSelect={selectType} selected={type} />{goalId != null && <Text style={[TYPE.metaSmall, styles.lockedNote, { color: theme.colors.ink4 }]}>Type can&apos;t be changed after a goal is created — delete it and start a new one instead.</Text>}<Text style={[TYPE.sectionLabel, styles.targetLabel, { color: theme.colors.ink3 }]}>Target</Text><TargetCard countDaysOff={countDaysOff} draft={draft} onDaysOff={setCountDaysOff} setDraft={setDraft} type={type} /><Text style={[TYPE.meta, styles.footer, { color: theme.colors.ink3 }]}>You can run several goals at once — a daily count and a deadline pace work well together.</Text></KeyboardAwareScrollView></Screen>;
+  return <Screen contentStyle={styles.screen}><Topbar leading={<Pressable onPress={navigation.goBack} style={styles.topAction}><Text style={[TYPE.bodySmallStrong, { color: theme.colors.ink3 }]}>Cancel</Text></Pressable>} title={goalId ? "Edit goal" : "New goal"} trailing={<Pressable disabled={busy} onPress={() => { void save(); }} style={styles.topAction}><Text style={[TYPE.bodySmallStrong, { color: busy ? theme.colors.ink4 : theme.colors.accent }]}>Save</Text></Pressable>} /><KeyboardAwareScrollView {...keyboardAwareScrollProps} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={[TYPE.sectionLabel, { color: theme.colors.ink3 }]}>What are you tracking?</Text><GoalTypePicker locked={goalId != null} onSelect={selectType} selected={type} />{goalId != null && <Text style={[TYPE.metaSmall, styles.lockedNote, { color: theme.colors.ink4 }]}>Type can&apos;t be changed after a goal is created — delete it and start a new one instead.</Text>}<Text style={[TYPE.sectionLabel, styles.targetLabel, { color: theme.colors.ink3 }]}>Target</Text><TargetCard countDaysOff={countDaysOff} draft={draft} onDaysOff={setCountDaysOff} setDraft={setDraft} type={type} /><Text style={[TYPE.meta, styles.footer, { color: theme.colors.ink3 }]}>You can run several goals at once — a daily count and a deadline pace work well together.</Text></KeyboardAwareScrollView></Screen>;
 }
 
 const styles = StyleSheet.create({ screen: { flex: 1 }, topAction: { minWidth: 52, minHeight: HIT_SLOP_MIN, alignItems: "center", justifyContent: "center" }, content: { padding: 16, paddingBottom: 30 }, typeList: { gap: 5, marginTop: 10 }, typeRow: { minHeight: 58, borderWidth: 1, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }, flex: { flex: 1 }, check: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" }, targetLabel: { marginTop: 22, marginBottom: 10 }, targetCard: { gap: 14 }, numberRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", gap: 8 }, targetNumber: { ...TYPE.cardTitle, fontSize: 40, lineHeight: 46, fontVariant: ["tabular-nums"] }, presets: { flexDirection: "row", gap: 7 }, preset: { flex: 1, minHeight: HIT_SLOP_MIN, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" }, daysOff: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 }, footer: { marginTop: 14, lineHeight: 17 }, typeListLocked: { opacity: 0.55 }, lockedNote: { marginTop: 8, lineHeight: 15 }, });

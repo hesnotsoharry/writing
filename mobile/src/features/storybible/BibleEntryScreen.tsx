@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Screen } from "../../components";
-import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
+import { useKeyboardAwareScrollProps } from "../../components/keyboard";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { AppearsInRow } from "../../shared/fullEntryDefs";
 import { ROLE_KEY } from "../../shared/fullEntryDefs";
@@ -41,6 +41,9 @@ export function BibleEntryScreen({ navigation, route }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const { projectId, entityId } = route.params;
   const data = useEntryData(projectId, entityId, type);
+  // Called before the early returns below — a hook after one would violate
+  // the rules of hooks (different call order across loading/loaded renders).
+  const keyboardAwareScrollProps = useKeyboardAwareScrollProps();
   if (data.loading || !data.store) return <Screen contentStyle={styles.center}><ActivityIndicator color={theme.colors.accent} /></Screen>;
   if (!data.entity) return <Screen contentStyle={styles.center}><Text style={[TYPE.body, { color: theme.colors.ink3 }]}>Entry not found.</Text></Screen>;
   const model = buildEntryModel(type, data.fields, data.entity.notes, data.customTypes);
@@ -53,7 +56,7 @@ export function BibleEntryScreen({ navigation, route }: Props) {
       <EntryTopbar compact={scrolled} name={data.entity.name} onBack={() => navigation.goBack()} onDelete={() => confirmDelete(data.entity?.name ?? "entry", remove)} type={model.type} />
       {/* Keyboard-aware: this screen owns its own scroll container, so Screen's scroll mode
           cannot lift the fact/section inputs clear of the software keyboard for it. */}
-      <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
+      <KeyboardAwareScrollView {...keyboardAwareScrollProps} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
         onScroll={(event) => setScrolled(event.nativeEvent.contentOffset.y > 140)} scrollEventThrottle={32}>
         <EntryHero entity={data.entity} onRename={(value) => { if (value.trim()) void data.store?.renameEntity(type, entityId, value.trim()); }}
           onRole={(value) => saveField("fact", ROLE_KEY, value)} role={model.role} type={model.type} />

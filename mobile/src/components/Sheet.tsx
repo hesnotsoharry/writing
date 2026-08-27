@@ -3,7 +3,6 @@ import { BlurView } from "expo-blur";
 import type { ReactNode } from "react";
 import { useCallback } from "react";
 import { Pressable, StyleSheet, useWindowDimensions,View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "../theme/ThemeProvider";
 import { RADIUS } from "../theme/tokens";
@@ -46,7 +45,6 @@ function SheetContent({ children, fillsHeight, paddingBottom, scrollable }: {
 function SheetSurface({ children, designHeight, onDismiss, scrollable }: Omit<SheetProps, "open">) {
   const theme = useTheme();
   const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const handleChange = useCallback((index: number) => { if (index < 0) onDismiss(); }, [onDismiss]);
   const layout = resolveSheetLayout(designHeight, height);
   return (
@@ -72,8 +70,16 @@ function SheetSurface({ children, designHeight, onDismiss, scrollable }: Omit<Sh
       snapPoints={layout.fixedHeight === undefined ? undefined : [layout.fixedHeight]}
     >
       <InSheetProvider value={true}>
+        {/*
+          Flat 16, not `insets.bottom`: the sheet mounts inside the screen's
+          own content tree (Sheet.tsx's overlay is `position: absolute` under
+          whatever Stack.Screen renders it), which the app-root spacer
+          (App.tsx) has already shrunk to exclude the bottom nav-bar band.
+          Reserving `insets.bottom` again here double-counts it — the sheet
+          never actually reaches that band to need clearing it a second time.
+        */}
         <SheetContent fillsHeight={layout.contentFillsAvailableHeight}
-          paddingBottom={Math.max(16, insets.bottom)} scrollable={scrollable}>
+          paddingBottom={16} scrollable={scrollable}>
           {children}
         </SheetContent>
       </InSheetProvider>

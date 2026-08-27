@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 const MOBILE_SOURCE = path.resolve(__dirname, "..");
 const APP = path.resolve(MOBILE_SOURCE, "App.tsx");
 const ASSISTANT_SCREEN = path.resolve(MOBILE_SOURCE, "features", "ai", "AiAssistantScreen.tsx");
+const INBOX_SCREEN = path.resolve(MOBILE_SOURCE, "features", "inbox", "InboxScreen.tsx");
 const FORMAT_BAR = path.resolve(MOBILE_SOURCE, "features", "editor", "keyboardFormatBar.tsx");
 const FOCUS_HUD = path.resolve(MOBILE_SOURCE, "features", "focus", "FocusHud.tsx");
 const SCREEN = path.resolve(MOBILE_SOURCE, "components", "Screen.tsx");
@@ -58,22 +59,67 @@ it("does not import the legacy per-mount keyboard hook in production source", ()
   expect(legacyImports).toEqual([]);
 });
 
+/**
+ * The N double-count, pinned.
+ *
+ * Under Android/iOS edge-to-edge, react-native-keyboard-controller's reported
+ * `keyboard.height` INCLUDES the bottom nav-bar band — call its size N
+ * (`insets.bottom`). The app root (App.tsx's bottom spacer, the single
+ * deliberate owner of the inset) already reserves N once for every screen.
+ * Any keyboard-driven surface that floats by the raw `keyboard.height` alone
+ * therefore sits N too high above the keyboard: N from the root's padding,
+ * plus N again from the controller's inflated height.
+ *
+ * The fix is never a bare `+ insets.bottom` — `keyboard.height` (and
+ * `keyboard.progress`) are 0 when the keyboard is closed, so an unscaled
+ * correction would displace a bar by N even with no keyboard up. Every
+ * correction below scales the N term by `keyboard.progress` (0 → 1 as the
+ * keyboard opens), or leans on a library primitive that already does the
+ * scaling itself (`KeyboardStickyView`'s `offset.opened`, interpolated
+ * against `progress` internally; `KeyboardAwareScrollView`'s
+ * `extraKeyboardSpace`, interpolated against the live keyboard height in
+ * `components/keyboard.ts`).
+ */
 it("keeps the controller shared-height signs for the editor and Focus HUD", () => {
   const formatBar = readFileSync(FORMAT_BAR, "utf8");
   const focusHud = readFileSync(FOCUS_HUD, "utf8");
 
   expect(formatBar).toMatch(/useReanimatedKeyboardAnimation\(\)/);
-  expect(formatBar).toMatch(/translateY:\s*keyboard\.height\.value/);
-  expect(formatBar).toMatch(/height:\s*-keyboard\.height\.value/);
+  // iOS: the raw lift (`keyboard.height`, negative) is trimmed back toward 0
+  // by `progress * insets.bottom`, giving back the N the root already reserved.
+  expect(formatBar).toMatch(
+    /translateY:\s*keyboard\.height\.value\s*\+\s*keyboard\.progress\.value\s*\*\s*bottomInset/,
+  );
+  // Android: the in-flow spacer (whose height is the positive keyboard height)
+  // shrinks by the same `progress * insets.bottom`, clamped so it never goes negative.
+  expect(formatBar).toMatch(
+    /height:\s*Math\.max\(0,\s*-keyboard\.height\.value\s*-\s*keyboard\.progress\.value\s*\*\s*bottomInset\)/,
+  );
   expect(focusHud).toMatch(/useReanimatedKeyboardAnimation\(\)/);
-  expect(focusHud).toMatch(/translateY:\s*keyboard\.height\.value\s*-\s*bottomInset/);
+  // Same correction as iOS's format bar, plus the pre-existing FORMAT_BAR_HEIGHT
+  // clearance (`bottomInset` here, unrelated to the safe-area inset) unchanged.
+  expect(focusHud).toMatch(
+    /translateY:\s*keyboard\.height\.value\s*\+\s*keyboard\.progress\.value\s*\*\s*navInset\s*-\s*bottomInset/,
+  );
 });
+
+const STICKY_OFFSET = /offset=\{\{\s*closed:\s*0,\s*opened:\s*insets\.bottom\s*\}\}/;
 
 it("keeps the assistant verb chips and composer in KeyboardStickyView", () => {
   const assistant = readFileSync(ASSISTANT_SCREEN, "utf8");
 
   expect(assistant).toMatch(/import\s+\{[^}]*\bKeyboardStickyView\b[^}]*\}\s+from\s+["']react-native-keyboard-controller["']/);
   expect(assistant).toMatch(/<KeyboardStickyView(?:\s[^>]*)?>[\s\S]*?<VerbChips\b[\s\S]*?<Composer\b[\s\S]*?<\/KeyboardStickyView>/);
+  // Gives back N via the library's own documented offset interpolation
+  // (`opened` is only added once `progress` reaches 1) rather than a raw add.
+  expect(assistant).toMatch(STICKY_OFFSET);
+});
+
+it("gives the inbox composer's KeyboardStickyView the same N offset", () => {
+  const inbox = readFileSync(INBOX_SCREEN, "utf8");
+
+  expect(inbox).toMatch(/import\s+\{[^}]*\bKeyboardStickyView\b[^}]*\}\s+from\s+["']react-native-keyboard-controller["']/);
+  expect(inbox).toMatch(STICKY_OFFSET);
 });
 
 it("scrolls Screen with the keyboard-aware scroll view, keeping the safe-area edges", () => {

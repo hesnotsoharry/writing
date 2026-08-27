@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, Vi
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Icon, IconButton, Screen, Segmented, Topbar } from "../../components";
-import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
+import { useKeyboardAwareScrollProps } from "../../components/keyboard";
 import { getBinderStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import type { SceneStatus } from "../../shared/binderStore";
@@ -81,6 +81,9 @@ function Footer({ onNew }: { onNew: () => void }) {
 
 function CorkboardBody({ navigation, projectId }: Pick<Props, "navigation"> & { projectId: string }) {
   const theme = useTheme();
+  // Called unconditionally — the loading branch below is a ternary, and a
+  // hook called only in one branch would violate the rules of hooks.
+  const keyboardAwareScrollProps = useKeyboardAwareScrollProps();
   const { width } = useWindowDimensions();
   const [columnsValue, setColumnsValue] = useState<"1" | "2">("1");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -95,7 +98,7 @@ function CorkboardBody({ navigation, projectId }: Pick<Props, "navigation"> & { 
   return (
     <Screen contentStyle={[styles.screen, { backgroundColor: theme.colors.parchmentDeep }]}>
       <Topbar leading={<IconButton icon="chevLeft" label="Back" onPress={navigation.goBack} />} title="Corkboard" trailing={<View style={styles.segment}><Segmented onChange={setColumnsValue} options={COLUMN_OPTIONS} value={columnsValue} /></View>} />
-      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      {data.loading ? <ActivityIndicator color={theme.colors.accent} style={styles.loading} /> : <KeyboardAwareScrollView {...keyboardAwareScrollProps} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {!data.bibleAvailable && <View style={[styles.bibleUnavailable, { borderColor: theme.colors.parchmentEdge }]}><Icon color={theme.colors.ink3} name="info" size={16} /><Text style={[TYPE.metaSmall, { color: theme.colors.ink3 }]}>Story Bible unavailable — entity chips are hidden.</Text></View>}
         {groups.map((group) => <CorkGroupView activeId={activeId} cardWidth={layout.cardWidth} columns={columns} entities={data.entities} group={group} key={group.id ?? "short"} onActivate={setActiveId} onReload={data.reload} />)}
       </KeyboardAwareScrollView>}

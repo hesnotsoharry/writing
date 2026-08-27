@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Screen } from "../../components";
-import { KEYBOARD_BOTTOM_OFFSET } from "../../components/keyboard";
+import { useKeyboardAwareScrollProps } from "../../components/keyboard";
 import { getStoryBibleStore } from "../../db/stores";
 import type { RootStackParamList } from "../../navigation/routes";
 import { ROLE_KEY } from "../../shared/fullEntryDefs";
@@ -26,7 +26,7 @@ async function createEntry(store: StoryBibleStore, projectId: string, type: stri
 }
 
 export function NewEntryScreen({ navigation, route }: Props) {
-  const theme = useTheme(); const projectId = route.params.projectId;
+  const theme = useTheme(); const keyboardAwareScrollProps = useKeyboardAwareScrollProps(); const projectId = route.params.projectId;
   const [store, setStore] = useState<StoryBibleStore | null>(null); const [customTypes, setCustomTypes] = useState<CustomEntityType[]>([]);
   const [type, setType] = useState(route.params.initialType ?? "character"); const [name, setName] = useState(""); const [role, setRole] = useState("");
   const [facts, setFacts] = useState<Record<string, string>>({}); const [sections, setSections] = useState<Record<string, string>>({});
@@ -46,7 +46,7 @@ export function NewEntryScreen({ navigation, route }: Props) {
   };
   return <Screen contentStyle={styles.screen}>
     <NewEntryTopbar canSave={Boolean(store && name.trim())} onCancel={() => navigation.goBack()} onSave={() => { void save(); }} />
-    <KeyboardAwareScrollView bottomOffset={KEYBOARD_BOTTOM_OFFSET}
+    <KeyboardAwareScrollView {...keyboardAwareScrollProps}
       contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <TypePicker customTypes={customTypes} onCustom={() => navigation.navigate("CustomType", { projectId })} onSelect={selectType} selected={type} />
       <EntryIdentityFields name={name} onName={setName} onRole={setRole} role={role} />

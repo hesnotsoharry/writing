@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import Animated, { LinearTransition } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon, type IconName, Screen } from "../../components";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
@@ -154,7 +155,7 @@ function Composer({ canSend, onSend, sending, verb }: {
 }
 
 export function AiAssistantScreen({ navigation, route }: Props) {
-  const managed = useManagedAi();
+  const insets = useSafeAreaInsets(); const managed = useManagedAi();
   const refreshManaged = managed.refresh;
   const conversation = useAssistantConversation(route.params.conversationId);
   const [verb, setVerb] = useState<VerbKey>(takePendingVerb);
@@ -186,7 +187,7 @@ export function AiAssistantScreen({ navigation, route }: Props) {
       {conversation.messages.map((message) => <AssistantMessageCard key={message.id} message={message} projectId={route.params.projectId} />)}
       {conversation.messages.length === 0 ? <Text style={[TYPE.proseBody, styles.empty]}>Ask about the scene, brainstorm a turn, or get a close craft read.</Text> : null}
     </ScrollView>
-    <KeyboardStickyView>
+    <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
       <VerbChips selected={verb} onSelect={setVerb} />
       <Composer verb={verb} sending={conversation.sending}
         canSend={managed.access?.state === "available"} onSend={send} />

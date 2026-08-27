@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon, Ring, Toggle } from "../../components";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -24,9 +25,14 @@ export function FocusHud({ bottomInset = 0, onExit, onUpdate, sceneTitle, settin
 }) {
   const theme = useTheme(); const minutes = useMinutes();
   const keyboard = useReanimatedKeyboardAnimation();
+  // `bottomInset` here is the 54px format-bar clearance (unrelated to the
+  // window's safe area); `navInset` is the actual nav-bar inset that the
+  // controller's `height` double-counts against the app root's spacer under
+  // edge-to-edge, scaled by `progress` so the keyboard-closed HUD is unaffected.
+  const navInset = useSafeAreaInsets().bottom;
   const avoidBottomBars = useAnimatedStyle(() => ({
-    transform: [{ translateY: keyboard.height.value - bottomInset }],
-  }), [bottomInset]);
+    transform: [{ translateY: keyboard.height.value + keyboard.progress.value * navInset - bottomInset }],
+  }), [bottomInset, navInset]);
   useEffect(() => {
     void setFocusKeepAwake(settings.keepAwake);
     return () => { if (settings.keepAwake) void setFocusKeepAwake(false); };
