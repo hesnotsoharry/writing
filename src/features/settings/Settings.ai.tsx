@@ -5,6 +5,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
 
+import { AI_SUB_VARIANT, buildLsCheckoutUrl } from "../ai/ai.checkout";
 import { acquireSession, getPortalUrl, type SessionResult } from "../ai/ai.client";
 import { acquireAnyToken } from "../ai/ai.trialToken";
 import { byokClearKey, byokHasKey, byokSetKey } from "../ai/byok.client";
@@ -272,6 +273,26 @@ function ManageBillingButton() {
   );
 }
 
+// ── AiSubscribeRow (shown when no license key is set — trial / not-yet users) ──
+// The trial-exhausted guard in the assistant panel was previously the ONLY
+// subscribe entry point in the app; this gives trial users a proactive path.
+
+function AiSubscribeRow() {
+  const [failed, setFailed] = useState(false);
+  function handleSubscribe(): void {
+    setFailed(false);
+    void openUrl(buildLsCheckoutUrl(AI_SUB_VARIANT)).catch(() => { setFailed(true); });
+  }
+  return (
+    <SetRow label="Managed subscription" desc="$14.99/mo — no API key to manage, metered allowance, cancel any time. Your key arrives by email.">
+      <div className="ai-billing-row">
+        <button className="btn btn-soft" onClick={handleSubscribe}>Subscribe · $14.99/mo</button>
+        {failed && <span className="ai-key-error">Couldn&apos;t open checkout — check your connection and try again.</span>}
+      </div>
+    </SetRow>
+  );
+}
+
 // ── Expanded AI rows (shown when aiEnabled is true) ───────────────────────────
 
 function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
@@ -283,6 +304,7 @@ function AiExpandedRows({ tweaks, setTweak }: AiSectionProps) {
     <div className="ai-privacy-block">{AI_PRIVACY_COPY}</div>
     {showKeyRow && <SetRow label="AI license key" desc="Clear to re-enter a different one."><button className="ai-change-key-btn" onClick={() => setTweak("aiLicenseKey", "")}>Change license key…</button></SetRow>}
     {showKeyRow && <ManageBillingButton />}
+    {!showKeyRow && <AiSubscribeRow />}
     {!showKeyRow && <AiKeyEntryRow setTweak={setTweak} />}
     <ByokKeyRow />
     <ByokOpenAiKeyRow />

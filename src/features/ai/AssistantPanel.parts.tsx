@@ -7,6 +7,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import { Icon } from "../../components/Icon";
 import { getTweak } from "../settings/settings.store";
+import { AI_SUB_VARIANT, AI_TOPUP_VARIANT, buildLsCheckoutUrl } from "./ai.checkout";
 import {
   AI_MODELS,
   AI_VERB_ORDER,
@@ -92,22 +93,6 @@ interface PanelThreadProps {
   msgCount: number;
   lastLen: number;
   activeId: string | null;
-}
-
-// ── LS checkout URLs (test-mode — wave-36 live flip is Cole-gated) ────────────
-
-const LS_STORE = "writersnookapp";
-// Checkout URLs use the variant's public UUID slug (NOT the numeric webhook ID).
-// Set VITE_LS_AI_SUB_CHECKOUT_VARIANT / VITE_LS_AI_TOPUP_CHECKOUT_VARIANT in .env.local
-// to the test-mode variant slugs from the LS dashboard.
-// Fallback to pricing page when env var is absent (test-mode without real checkout slug).
-const AI_SUB_VARIANT = import.meta.env.VITE_LS_AI_SUB_CHECKOUT_VARIANT as string | undefined;
-const AI_TOPUP_VARIANT = import.meta.env.VITE_LS_AI_TOPUP_CHECKOUT_VARIANT as string | undefined;
-
-function buildLsCheckoutUrl(variant: string | undefined, licenseKey?: string): string {
-  if (!variant) return "https://writersnook.app/pricing";
-  const url = `https://${LS_STORE}.lemonsqueezy.com/checkout/buy/${variant}`;
-  return licenseKey ? `${url}?checkout[custom][license_key]=${encodeURIComponent(licenseKey)}` : url;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

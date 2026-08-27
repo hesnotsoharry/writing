@@ -116,6 +116,12 @@
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8a8071;white-space:nowrap">$14.99 / mo</div>
           </div>
           <p style="font-family:Literata,serif;font-size:16.5px;line-height:1.75;color:#5c5446;margin:12px 0 0">Brainstorm, critique, and proofread, grounded in your own manuscript. Metered rather than flat, cancellable at any time, and off until you switch it on. Bring your own Claude or OpenAI key instead, or run a local model and let nothing leave your machine at all. The novel never depends on it.</p>
+          <!-- Overlay checkout via checkout.js ([data-ls-checkout] → LS overlay, variant in
+               ls-config.js). href is the full-page hosted-checkout fallback when lemon.js
+               fails to load — never a dead button. -->
+          <a class="p-mag" href="https://writersnookapp.lemonsqueezy.com/checkout/buy/b91dbbb2-aa07-40d1-91f7-70c1bec061d5"
+             data-ls-checkout="variantAiSub"
+             style="display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:15px;padding:13px 22px;border-radius:8px;background:transparent;color:#2a251d;border:1px solid #ddd0b8;margin-top:18px">Subscribe to the assistant — $14.99/mo</a>
         </div>
 
         <div style="margin-top:32px;padding:24px 26px;background:#fcfaf5;border:1px solid #e6ddcd;border-radius:4px">
@@ -207,6 +213,9 @@
   </footer>
 <script src="downloads-config.js"></script>
 <script src="site.js"></script>
+<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+<script src="ls-config.js"></script>
+<script type="module" src="checkout.js"></script>
 <script>
 WNMotion.ready(function () {
   var gsap = window.gsap;
