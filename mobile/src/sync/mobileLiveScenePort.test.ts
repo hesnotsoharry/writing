@@ -426,3 +426,21 @@ describe("MobileLiveScenePort remote epoch replacement (audit P0.1)", () => {
     expect(extractPlainText(doc)).toContain("post-restart");
   });
 });
+
+describe("MobileLiveScenePort scene removal (audit P7.5)", () => {
+  it("noteSceneRemoval gates updates without firing the restart signal", async () => {
+    const { port, store, transport } = makeHarness();
+    await hydrate(port, transport);
+    const baseline = store.state;
+    const replaced: string[] = [];
+    const unsubscribe = subscribeMobileSceneReplaced((id) => replaced.push(id));
+    port.noteSceneRemoval();
+    unsubscribe();
+    expect(replaced).toEqual([]); // no remount — the scene is going away
+    const update = appendUpdate(store.state ?? "", " typed-after-delete");
+    await port.receive(localUpdate(1, update));
+    await settle();
+    expect(transport.messages().at(-1)).toMatchObject({ type: "ack", ackType: "update", seq: 1 });
+    expect(store.state).toBe(baseline); // nothing resurrects the deleted doc
+  });
+});

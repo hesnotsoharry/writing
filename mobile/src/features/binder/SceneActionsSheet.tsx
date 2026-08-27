@@ -5,6 +5,7 @@ import { Icon, LabelPill, ListRow, Sheet, StatusPillRow, TextField } from "../..
 import { getBinderStore, getLabelStore } from "../../db/stores";
 import type { Scene, SceneStatus } from "../../shared/binderStore";
 import type { Label } from "../../shared/labelStore";
+import { closeActiveMobileSceneForRemoval } from "../../sync/mobileLiveScenePort";
 import { useTheme } from "../../theme/ThemeProvider";
 import { RADIUS } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
@@ -74,11 +75,22 @@ export function SceneActionsSheet(props: SceneActionsSheetProps) {
     currentStatus: scene.status, onSetStatus: changeStatus,
     onRename: () => { setRenaming(true); },
     onDuplicate: () => commit(getBinderStore().then((store) => store.duplicateScene(scene.id)), props.onChanged),
-    onArchive: () => commit(getBinderStore().then((store) => store.archiveScene(scene.id, props.projectId)), props.onDeleted),
+    // Drain + gate the live editor port first when this scene is open (P7.5):
+    // otherwise in-flight keystrokes miss the archive manifest, and a late
+    // update after the DELETE resurrects an orphan scene_docs row.
+    onArchive: () => commit(
+      closeActiveMobileSceneForRemoval(scene.id)
+        .then(() => getBinderStore())
+        .then((store) => store.archiveScene(scene.id, props.projectId)),
+      props.onDeleted,
+    ),
     onDelete: () => Alert.alert("Delete scene?", "This removes the scene from every synced device.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => commit(
-        getBinderStore().then((store) => store.deleteScene(scene.id)), props.onDeleted,
+        closeActiveMobileSceneForRemoval(scene.id)
+          .then(() => getBinderStore())
+          .then((store) => store.deleteScene(scene.id)),
+        props.onDeleted,
       ) },
     ]),
   });

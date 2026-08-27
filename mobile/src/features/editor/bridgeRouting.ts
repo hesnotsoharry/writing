@@ -48,7 +48,18 @@ function routeHandshake(message: ParsedBridgeMessage, target: BridgeRoutingTarge
     target.ui.start(message.sessionId, target.uiColors);
     target.dispatch({ type: "hydrate-acked", sessionId: message.sessionId });
   }
-  if (message?.type === "error") target.dispatch({ type: "editor-failed" });
+  if (message?.type === "error") {
+    // Honor the protocol's recoverable flag (audit P7.4): the guest posts
+    // recoverable ack-timeouts whenever one persist runs long behind queued
+    // work — hard-failing on those remounted (or permanently benched) a
+    // healthy editor. The port's retry/timeout machinery owns recovery;
+    // only a non-recoverable error fails the editor.
+    if (message.recoverable) {
+      console.warn("[editor] recoverable bridge error:", message.code);
+    } else {
+      target.dispatch({ type: "editor-failed" });
+    }
+  }
 }
 
 /** Runs after the port, so the word count read back is the persisted one. */

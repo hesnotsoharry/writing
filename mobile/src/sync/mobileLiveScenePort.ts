@@ -16,7 +16,7 @@ export interface MobileLiveSceneTransport { postMessage(message: string): void }
 
 export interface MobileLiveScenePortOptions { sceneId: string; transport: MobileLiveSceneTransport; ackTimeoutMs?: number }
 
-export interface MobileLiveScenePort extends EngineLiveScenePort { start(): Promise<void>; receive(rawMessage: string): Promise<void>; notePotentialLocalChanges(): void; noteReplacementPending(): void; close(): Promise<LiveSceneFlushResult>; replaceDurably(stateBase64: string, persist: () => Promise<void>): Promise<void> }
+export interface MobileLiveScenePort extends EngineLiveScenePort { start(): Promise<void>; receive(rawMessage: string): Promise<void>; notePotentialLocalChanges(): void; noteReplacementPending(): void; noteSceneRemoval(): void; close(): Promise<LiveSceneFlushResult>; replaceDurably(stateBase64: string, persist: () => Promise<void>): Promise<void> }
 
 export class PendingMobileSceneChangesError extends Error { constructor() { super("The editor still has changes to save."); this.name = "PendingMobileSceneChangesError"; } }
 
@@ -228,6 +228,12 @@ class NativeMobileLiveScenePort implements MobileLiveScenePort {
     notifySceneReplaced(this.options.sceneId);
   }
 
+  /** The scene is being archived or deleted (audit P7.5): discard — but still
+   *  ack — any further editor updates so a keystroke that arrives after the
+   *  rows are deleted cannot re-create an orphan scene_docs row invisible to
+   *  every list. No restart signal: the caller is removing the scene. */
+  noteSceneRemoval(): void { this.replacing = true; }
+
   async flushLocal(): Promise<LiveSceneFlushResult> {
     if (this.flushInFlight) return this.flushInFlight;
     this.flushInFlight = this.performFlush();
@@ -369,5 +375,16 @@ export function subscribeMobileSceneReplaced(listener: (sceneId: string) => void
  *  Fires the same scene-replaced signal local restores use, so an open editor
  *  restarts and rehydrates from the replacement (audit P0.1). */
 export function notifyMobileSceneReplacedRemotely(sceneId: string): void { notifySceneReplaced(sceneId); }
+
+/** Archive/delete pre-flight (audit P7.5): when sceneId is the active live
+ *  editor scene, drain the WebView's pending updates into the store (so the
+ *  archive manifest sees the latest keystrokes) and gate the port so anything
+ *  later is discarded-but-acked instead of resurrecting deleted rows. */
+export async function closeActiveMobileSceneForRemoval(sceneId: string): Promise<void> {
+  const active = activeMobileScene;
+  if (!active || active.sceneId !== sceneId) return;
+  try { await active.port.flushLocal(); } catch { /* store remains the boundary */ }
+  active.port.noteSceneRemoval();
+}
 
 export async function replaceActiveMobileSceneDurably(sceneId: string, stateBase64: string, persist: () => Promise<void>): Promise<void> { const active = activeMobileScene; if (!active || active.sceneId !== sceneId) await persist(); else await active.port.replaceDurably(stateBase64, persist); notifySceneReplaced(sceneId); }

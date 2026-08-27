@@ -129,3 +129,37 @@ describe("routeBridgeMessage", () => {
     expect(harness.actions).toEqual([]);
   });
 });
+
+describe("routeBridgeMessage error handling (audit P7.4)", () => {
+  const recoverableError = JSON.stringify({
+    v: V, type: "error", sessionId: SESSION, sceneId: SCENE, seq: 2,
+    code: "ack-timeout", recoverable: true,
+  });
+  const fatalError = JSON.stringify({
+    v: V, type: "error", sessionId: SESSION, sceneId: SCENE, seq: 2,
+    code: "apply-failed", recoverable: false,
+  });
+
+  async function reachEditable(harness: Harness): Promise<void> {
+    const readyRoute = routeBridgeMessage(ready, harness.target);
+    await routeBridgeMessage(hydrateAck, harness.target);
+    await readyRoute;
+  }
+
+  it("a recoverable error (slow persist ack-timeout) does not fail the editor", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const harness = createHarness();
+    await reachEditable(harness);
+    await routeBridgeMessage(recoverableError, harness.target);
+    expect(harness.actions.some((a) => a.type === "editor-failed")).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("a non-recoverable error still fails the editor", async () => {
+    const harness = createHarness();
+    await reachEditable(harness);
+    await routeBridgeMessage(fatalError, harness.target);
+    expect(harness.actions.some((a) => a.type === "editor-failed")).toBe(true);
+  });
+});
