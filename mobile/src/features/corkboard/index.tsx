@@ -39,9 +39,12 @@ function commitSynopsis(sceneId: string, synopsis: string, reload: () => void) {
 
 function CorkGroupView(props: CorkGroupProps) {
   const theme = useTheme();
+  const [prevScenes, setPrevScenes] = useState(props.group.scenes);
   const [ordered, setOrdered] = useState(props.group.scenes);
-  if (ordered.map(({ id }) => id).join() !== props.group.scenes.map(({ id }) => id).join()
-    && new Set(ordered.map(({ id }) => id)).size !== props.group.scenes.length) setOrdered(props.group.scenes);
+  if (props.group.scenes !== prevScenes) {
+    setPrevScenes(props.group.scenes);
+    setOrdered(props.group.scenes);
+  }
   // Same numbers the drop math has always used, so where a card lands is unchanged.
   const geometry = useMemo(() => ({
     columns: props.columns, cardWidth: props.cardWidth,

@@ -32,6 +32,15 @@ describe("corkboard grouping", () => {
     const groups = buildCorkGroups(folders, [inFolder("a", "f1"), inFolder("b", "f2")]);
     expect(groups.map(({ id }) => id)).toEqual(["f1", "f2"]);
   });
+
+  it("reflects updated status and synopsis on the scene objects in the group", () => {
+    const original = inFolder("a", "f1");
+    const updated: Scene = { ...original, status: "outline", synopsis: "New synopsis", title: "Renamed", word_count: 150 };
+    const groups = buildCorkGroups(folders, [updated]);
+    expect(groups[0].scenes[0]).toEqual(updated);
+    expect(groups[0].scenes[0].status).toBe("outline");
+    expect(groups[0].scenes[0].synopsis).toBe("New synopsis");
+  });
 });
 
 describe("corkboard layout and reorder", () => {

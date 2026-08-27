@@ -1,4 +1,4 @@
-import type { SyncQueueDepth } from "../../shared/engine";
+import type { SyncQueueDepth, SyncStatus } from "../../shared/engine";
 
 /** Pending work survives an unpair — the outbox is not cleared — so the count
  *  stays meaningful with nobody to send to. Summed across the four buckets
@@ -16,3 +16,31 @@ export function pendingChangeLabel(count: number): string | null {
   const subject = count === 1 ? "1 change is" : `${count} changes are`;
   return `${subject} waiting, and will sync when you pair again.`;
 }
+
+export interface EngineUnpairTarget {
+  stop: () => void;
+  subscribe: (cb: (status: SyncStatus) => void) => () => void;
+}
+
+export async function executeUnpair(
+  engine: { stop: () => void },
+  clearKeys: () => Promise<unknown>,
+): Promise<void> {
+  engine.stop();
+  await clearKeys();
+  engine.stop();
+}
+
+export function guardUnpairedEngine(
+  engine: EngineUnpairTarget,
+  checkKey: () => Promise<boolean>,
+): () => void {
+  return engine.subscribe((status) => {
+    if (status.state !== "off") {
+      void checkKey().then((hasKey) => {
+        if (!hasKey) engine.stop();
+      }).catch(() => undefined);
+    }
+  });
+}
+

@@ -6,17 +6,15 @@ import {
 } from "react-native";
 
 import { Icon, PrimaryButton, Screen } from "../../components";
-import { setSyncMasterKey } from "../../sync/mobileKeyStorage";
 import { parseMobilePairingInput } from "../../sync/mobilePairing";
-import { setMobileRelayUrlOverride } from "../../sync/mobileRelayUrl";
-import { markDeviceJoined } from "../../sync/mobileSyncRole";
-import { setPairedDeviceName } from "../../sync/pairedDevice";
 import { useTheme } from "../../theme/ThemeProvider";
 import { LIGHT, RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
+import { persistPairing } from "./pairPersistence";
 
 const SCAN_ERROR = "That code doesn't look like a WritersNook pairing code. Try scanning again.";
 const MANUAL_ERROR = "That pairing string doesn't look right. Check it and try again.";
+const PERSIST_ERROR = "Could not save pairing on this device. Try again.";
 
 type Mode = "camera" | "manual";
 type Phase = "idle" | "success" | "error";
@@ -80,19 +78,6 @@ function ManualEntry({
   );
 }
 
-async function persistPairing(
-  masterKey: Uint8Array,
-  relayUrl: string | null,
-  deviceName: string | null,
-  onSuccess: () => void,
-): Promise<void> {
-  await setSyncMasterKey(masterKey);
-  if (relayUrl) await setMobileRelayUrlOverride(relayUrl);
-  if (deviceName) await setPairedDeviceName(deviceName);
-  await markDeviceJoined();
-  onSuccess();
-}
-
 function usePairing(onPairedSuccessfully?: () => void): PairingState {
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<Mode>("camera");
@@ -100,15 +85,19 @@ function usePairing(onPairedSuccessfully?: () => void): PairingState {
   const [errorMessage, setErrorMessage] = useState(SCAN_ERROR);
   const [manualValue, setManualValue] = useState("");
   const scannedRef = useRef(false);
-  const finishPairing = useCallback((key: Uint8Array, url: string | null, deviceName: string | null) => {
-    void persistPairing(key, url, deviceName, () => { setPhase("success"); onPairedSuccessfully?.(); });
+  const finishPairing = useCallback(async (key: Uint8Array, url: string | null, deviceName: string | null) => {
+    try {
+      await persistPairing(key, url, deviceName, () => { setPhase("success"); onPairedSuccessfully?.(); });
+    } catch {
+      setErrorMessage(PERSIST_ERROR); setPhase("error"); scannedRef.current = false;
+    }
   }, [onPairedSuccessfully]);
   const handleBarcodeScanned = useCallback((result: { data: string }) => {
     if (scannedRef.current) return;
     scannedRef.current = true;
     try {
       const { deviceName, masterKey, relayUrl } = parseMobilePairingInput(result.data);
-      finishPairing(masterKey, relayUrl, deviceName ?? null);
+      void finishPairing(masterKey, relayUrl, deviceName ?? null);
     } catch {
       setErrorMessage(SCAN_ERROR); setPhase("error"); scannedRef.current = false;
     }
@@ -116,12 +105,15 @@ function usePairing(onPairedSuccessfully?: () => void): PairingState {
   const submitManual = useCallback(() => {
     try {
       const { deviceName, masterKey, relayUrl } = parseMobilePairingInput(manualValue);
-      finishPairing(masterKey, relayUrl, deviceName ?? null);
+      void finishPairing(masterKey, relayUrl, deviceName ?? null);
     } catch { setErrorMessage(MANUAL_ERROR); setPhase("error"); }
   }, [finishPairing, manualValue]);
-  const retryScanning = useCallback(() => { setPhase("idle"); setMode("camera"); }, []);
-  return { errorMessage, handleBarcodeScanned, manualValue, mode, permission, phase,
-    requestPermission, retryScanning, setManualValue, setMode, submitManual };
+  const retryScanning = useCallback(() => { scannedRef.current = false; setPhase("idle"); setMode("camera"); }, []);
+  const switchMode = useCallback((next: Mode) => { scannedRef.current = false; setPhase("idle"); setMode(next); }, []);
+  return {
+    errorMessage, handleBarcodeScanned, manualValue, mode, permission, phase,
+    requestPermission, retryScanning, setManualValue, setMode: switchMode, submitManual,
+  };
 }
 
 function PermissionPrompt({ onAllow, onManual }: { onAllow: () => void; onManual: () => void }) {

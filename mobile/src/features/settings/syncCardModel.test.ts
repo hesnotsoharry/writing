@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { pendingChangeCount, pendingChangeLabel } from "./syncCardModel";
+import type { SyncStatus } from "../../shared/engine";
+import { executeUnpair, guardUnpairedEngine, pendingChangeCount, pendingChangeLabel } from "./syncCardModel";
 
 const EMPTY = { scenes: 0, notes: 0, boards: 0, rows: 0 };
 
@@ -27,3 +28,87 @@ describe("pendingChangeLabel", () => {
     expect(pendingChangeLabel(4)).toBe("4 changes are waiting, and will sync when you pair again.");
   });
 });
+
+describe("executeUnpair", () => {
+  it("stops engine before and after clearing credentials", async () => {
+    const order: string[] = [];
+    const engine = { stop: vi.fn(() => { order.push("stop"); }) };
+    const clearKeys = vi.fn(async () => { order.push("clear"); });
+
+    await executeUnpair(engine, clearKeys);
+
+    expect(order).toEqual(["stop", "clear", "stop"]);
+    expect(engine.stop).toHaveBeenCalledTimes(2);
+    expect(clearKeys).toHaveBeenCalledOnce();
+  });
+});
+
+describe("guardUnpairedEngine", () => {
+  const offStatus: SyncStatus = {
+    state: "off", peerSeen: false, lastSyncAt: null, lastPeerSeenAt: null,
+    queue: EMPTY, behind: [], devices: [],
+  };
+  const connectedStatus: SyncStatus = {
+    ...offStatus, state: "connected",
+  };
+
+  it("stops the engine if non-off status arrives when no master key exists", async () => {
+    let listener: ((status: SyncStatus) => void) | undefined;
+    const engine = {
+      stop: vi.fn(),
+      subscribe: vi.fn((cb: (status: SyncStatus) => void) => {
+        listener = cb;
+        return () => { listener = undefined; };
+      }),
+    };
+    const checkKey = vi.fn(async () => false);
+
+    guardUnpairedEngine(engine, checkKey);
+    expect(engine.subscribe).toHaveBeenCalledOnce();
+
+    listener?.(connectedStatus);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(checkKey).toHaveBeenCalledOnce();
+    expect(engine.stop).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the engine running if key exists", async () => {
+    let listener: ((status: SyncStatus) => void) | undefined;
+    const engine = {
+      stop: vi.fn(),
+      subscribe: vi.fn((cb: (status: SyncStatus) => void) => {
+        listener = cb;
+        return () => { listener = undefined; };
+      }),
+    };
+    const checkKey = vi.fn(async () => true);
+
+    guardUnpairedEngine(engine, checkKey);
+    listener?.(connectedStatus);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(checkKey).toHaveBeenCalledOnce();
+    expect(engine.stop).not.toHaveBeenCalled();
+  });
+
+  it("ignores status changes when engine state is off", async () => {
+    let listener: ((status: SyncStatus) => void) | undefined;
+    const engine = {
+      stop: vi.fn(),
+      subscribe: vi.fn((cb: (status: SyncStatus) => void) => {
+        listener = cb;
+        return () => { listener = undefined; };
+      }),
+    };
+    const checkKey = vi.fn(async () => false);
+
+    guardUnpairedEngine(engine, checkKey);
+    listener?.(offStatus);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(checkKey).not.toHaveBeenCalled();
+    expect(engine.stop).not.toHaveBeenCalled();
+  });
+});
+

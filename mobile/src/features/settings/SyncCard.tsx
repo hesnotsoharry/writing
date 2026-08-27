@@ -11,7 +11,12 @@ import { clearPairedDeviceName } from "../../sync/pairedDevice";
 import { useTheme } from "../../theme/ThemeProvider";
 import { RADIUS, SPACE } from "../../theme/tokens";
 import { TYPE } from "../../theme/typography";
-import { pendingChangeCount, pendingChangeLabel } from "./syncCardModel";
+import {
+  executeUnpair as executeUnpairModel,
+  guardUnpairedEngine,
+  pendingChangeCount,
+  pendingChangeLabel,
+} from "./syncCardModel";
 
 function SoftButton({ label, onPress, tone }: {
   label: string; onPress: () => void; tone?: "danger";
@@ -75,6 +80,16 @@ export function PairedSyncCard({ deviceName, onReviewQueue, onSync, onUnpair, st
   </Card>;
 }
 
+guardUnpairedEngine(mobileEngine, hasSyncMasterKey);
+
+export async function executeUnpair(): Promise<void> {
+  await executeUnpairModel(mobileEngine, () => Promise.allSettled([
+    clearSyncMasterKey(),
+    clearDeviceJoined(),
+    clearPairedDeviceName(),
+  ]));
+}
+
 /** Unpair is local-only and deliberately non-destructive: it stops the engine
  *  and forgets the key, and says so, because everything written while paired
  *  stays on the phone. The queued outbox is left alone too — it flushes if this
@@ -83,8 +98,7 @@ export function confirmUnpair(onUnpaired: () => void): void {
   Alert.alert("Unpair this phone?", "Local copies stay on this phone.", [
     { text: "Cancel", style: "cancel" },
     { text: "Unpair", style: "destructive", onPress: () => {
-      mobileEngine.stop(); onUnpaired();
-      void Promise.all([clearSyncMasterKey(), clearDeviceJoined(), clearPairedDeviceName()]);
+      void executeUnpair().then(onUnpaired).catch(onUnpaired);
     } },
   ]);
 }
