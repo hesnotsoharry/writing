@@ -201,9 +201,16 @@ function useSyncKeyState(): [KeyState, React.Dispatch<React.SetStateAction<KeySt
   const [keyState, setKeyState] = useState<KeyState>("loading");
   useEffect(() => {
     let active = true;
-    void getSyncMasterKey().then((key) => {
-      if (active) setKeyState(key ? "ready" : "missing");
-    });
+    getSyncMasterKey()
+      .then((key) => {
+        if (active) setKeyState(key ? "ready" : "missing");
+      })
+      .catch((e: unknown) => {
+        // A keychain READ failure must not present as "missing": offering
+        // pairing on a transient keyring error would let a freshly generated
+        // key overwrite the fleet's master key. Stay on "loading".
+        console.error("[sync] master key read failed", e);
+      });
     return () => { active = false; };
   }, []);
   return [keyState, setKeyState];

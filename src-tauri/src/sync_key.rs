@@ -33,29 +33,27 @@ pub async fn sync_set_master_key(key_base64: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn sync_get_master_key() -> Option<String> {
-    tokio::task::spawn_blocking(|| {
-        let entry = Entry::new(SERVICE, USER).ok()?;
+pub async fn sync_get_master_key() -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(|| -> Result<Option<String>, String> {
+        let entry = Entry::new(SERVICE, USER)
+            .map_err(|_| "Sync keychain entry creation failed".to_string())?;
         match entry.get_password() {
-            Ok(key) => Some(key),
-            Err(keyring_core::Error::NoEntry) => None,
-            Err(_) => None,
+            Ok(key) => Ok(Some(key)),
+            // Only a genuine NoEntry means "never paired". Any other failure
+            // (locked keychain, backend timeout) must surface as an error: a
+            // None here reads as unpaired, the UI offers pairing, and a newly
+            // generated key silently overwrites the fleet's master key.
+            Err(keyring_core::Error::NoEntry) => Ok(None),
+            Err(_) => Err("Sync keychain read failed".to_string()),
         }
     })
     .await
-    .unwrap_or(None)
+    .map_err(|_| "Sync keychain task failed".to_string())?
 }
 
 #[tauri::command]
-pub async fn sync_has_master_key() -> bool {
-    tokio::task::spawn_blocking(|| {
-        Entry::new(SERVICE, USER)
-            .ok()
-            .and_then(|entry| entry.get_password().ok())
-            .is_some()
-    })
-    .await
-    .unwrap_or(false)
+pub async fn sync_has_master_key() -> Result<bool, String> {
+    Ok(sync_get_master_key().await?.is_some())
 }
 
 #[tauri::command]
