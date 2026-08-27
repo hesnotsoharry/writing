@@ -192,7 +192,7 @@ interface AppWiring {
 function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   const { setTree, setSelectedSceneId, setDoc, setLoading, setProjects,
     activeProjectIdRef, loadProjectTokenRef, setActiveProject,
-    setLinksVersion, selectedSceneId, doc } = state;
+    setLinksVersion, selectedSceneId, doc, setView } = state;
   const onWordCountPersisted = useCallback(() => {
     const id = activeProjectIdRef.current;
     if (!id) return;
@@ -213,6 +213,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     binderStore, activeProjectIdRef, loadProjectTokenRef,
     setTree: setTree as (t: BinderTree) => void,
     setProjects, setActiveProjectId: setActiveProject, handleSelectScene, clearScene,
+    setView,
   });
   const { bumpArchivedVersion } = state;
   const callbacks = useCrudHandlers({

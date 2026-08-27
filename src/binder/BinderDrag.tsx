@@ -259,7 +259,7 @@ export function BinderDragProvider({ callbacks, items, sceneById, folderById, ch
 
   if (prevItems !== items) {
     setPrevItems(items);
-    if (liveItems !== null) setLiveItems(null);
+    if (activeId === null && liveItems !== null) setLiveItems(null);
   }
 
   const effectiveItems = liveItems ?? items;

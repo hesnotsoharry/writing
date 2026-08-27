@@ -52,17 +52,19 @@ export interface UseProjectOpts {
   setActiveProjectId: (id: string | null) => void;
   handleSelectScene: (id: string) => void;
   clearScene: () => void;
+  setView?: (v: AppView) => void;
 }
 
 export function useProjectActions({
   binderStore, activeProjectIdRef, loadProjectTokenRef, setTree, setProjects,
-  setActiveProjectId, handleSelectScene, clearScene,
+  setActiveProjectId, handleSelectScene, clearScene, setView,
 }: UseProjectOpts) {
   async function switchProject(projectId: string) {
     if (projectId === activeProjectIdRef.current) return;
     activeProjectIdRef.current = projectId;
     setActiveProjectId(projectId);
     clearScene();
+    setView?.("editor");
     const myToken = ++loadProjectTokenRef.current;
     const newTree = await loadProject(binderStore, projectId);
     if (myToken !== loadProjectTokenRef.current) return;

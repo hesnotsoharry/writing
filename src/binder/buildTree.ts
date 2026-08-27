@@ -20,12 +20,14 @@ export interface BinderTree {
  *
  * Chapters are sorted by folder sort_order. Each chapter's scenes are those
  * whose folder_id matches the folder's id, sorted by scene sort_order.
- * Short pieces are scenes with folder_id == null, sorted by sort_order.
+ * Short pieces are scenes with folder_id == null or pointing to a missing folder,
+ * sorted by sort_order.
  */
 export function buildTree(folders: Folder[], scenes: Scene[]): BinderTree {
   const sortedFolders = [...folders].sort(
     (a, b) => a.sort_order - b.sort_order
   );
+  const knownFolderIds = new Set(folders.map((f) => f.id));
 
   const chapters: Chapter[] = sortedFolders.map((folder) => ({
     folder,
@@ -35,7 +37,7 @@ export function buildTree(folders: Folder[], scenes: Scene[]): BinderTree {
   }));
 
   const shortPieces = scenes
-    .filter((s) => s.folder_id == null)
+    .filter((s) => s.folder_id == null || !knownFolderIds.has(s.folder_id))
     .sort((a, b) => a.sort_order - b.sort_order);
 
   return { chapters, shortPieces };

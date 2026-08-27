@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+
 import { Icon } from "../components/Icon";
 import type { Project, Scene } from "../db/binderStore";
 import type { BinderCallbacks } from "./BinderCrud";
@@ -303,9 +305,9 @@ export function Binder(props: BinderProps) {
     quickCount, archivedCount, onOpenQuickNotes, onOpenArchive, manuscriptTotal,
     onOpenBrainstorm, activeBoardId,
   } = props;
-  const items = buildItemsMap(tree);
-  const sceneById = buildSceneById(tree);
-  const folderById = buildFolderById(tree);
+  const items = useMemo(() => buildItemsMap(tree), [tree]);
+  const sceneById = useMemo(() => buildSceneById(tree), [tree]);
+  const folderById = useMemo(() => buildFolderById(tree), [tree]);
   return (
     <BinderToastProvider>
       <nav className="panel-binder" aria-label="Binder">

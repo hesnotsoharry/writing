@@ -65,6 +65,17 @@ describe("buildTree", () => {
     expect(tree.shortPieces.map((s) => s.id)).toEqual(["s2"]);
   });
 
+  it("rescues orphaned scenes whose folder_id points to a non-existent folder into shortPieces", () => {
+    const folders = [folder("f1", 1000)];
+    const scenes = [
+      scene("s1", "f1", 1000),
+      scene("s2", "f_missing", 2000),
+    ];
+    const tree = buildTree(folders, scenes);
+    expect(tree.chapters[0].scenes.map((s) => s.id)).toEqual(["s1"]);
+    expect(tree.shortPieces.map((s) => s.id)).toEqual(["s2"]);
+  });
+
   it("returns empty chapters and shortPieces for an empty project", () => {
     const tree = buildTree([], []);
     expect(tree.chapters).toHaveLength(0);
