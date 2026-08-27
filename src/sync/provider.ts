@@ -5,6 +5,20 @@ export type WebSocketFactory = (url: string) => WebSocket;
 
 const MAX_BACKOFF_MS = 10_000;
 const CONNECT_TIMEOUT_MS = 7_000;
+/** Heartbeat cadence while OPEN. The relay answers a literal "ping" with
+ *  "pong" at the edge (setWebSocketAutoResponse) without waking the DO. */
+const HEARTBEAT_INTERVAL_MS = 25_000;
+/** Recycle the socket when NOTHING (frames or pong) arrives for this long.
+ *  Android Doze / WiFi→cellular kills the TCP path with no close event:
+ *  readyState stays OPEN and the UI says "connected" while frames go into a
+ *  dead socket (audit P1 dead-socket). Note: until the ping/pong relay build
+ *  is deployed, an IDLE room recycles at this cadence — a cheap hello/diff
+ *  exchange — and heals itself; with the new relay, pongs keep it alive. */
+const LIVENESS_TIMEOUT_MS = 60_000;
+/** A connection only proves viable after surviving this long (or receiving
+ *  anything). Resetting backoff at open let an accept-then-1013 relay produce
+ *  a floor-rate reconnect storm (audit P1 backoff-reset). */
+const VIABILITY_MS = 5_000;
 
 function isOuterFrame(value: unknown): value is OuterFrame {
   if (typeof value !== "object" || value === null) return false;
@@ -24,6 +38,9 @@ export class RelayProvider {
   private socket: WebSocket | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private watchdog: ReturnType<typeof setTimeout> | null = null;
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
+  private viabilityTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastActivityAt = 0;
   private retryAttempt = 0;
   private stopped = true;
   private state: ConnectionState = "disconnected";
@@ -101,12 +118,34 @@ export class RelayProvider {
   private handleOpen(socket: WebSocket): void {
     if (socket !== this.socket) return;
     this.clearWatchdog();
-    this.retryAttempt = 0;
+    this.lastActivityAt = Date.now();
+    this.startHeartbeat(socket);
+    // Backoff resets only once the connection PROVES viable — surviving 5s or
+    // receiving anything — not at open (accept-then-1013 storm otherwise).
+    this.viabilityTimer = setTimeout(() => { this.retryAttempt = 0; }, VIABILITY_MS);
     this.setState("connected");
+  }
+
+  private startHeartbeat(socket: WebSocket): void {
+    this.heartbeat = setInterval(() => {
+      if (socket !== this.socket) { this.clearHeartbeat(); return; }
+      if (Date.now() - this.lastActivityAt > LIVENESS_TIMEOUT_MS) {
+        socket.close(); // A locally-initiated close always events → reconnect path.
+        return;
+      }
+      if (socket.readyState === WebSocket.OPEN) {
+        try { socket.send("ping"); } catch { /* close event will follow */ }
+      }
+    }, HEARTBEAT_INTERVAL_MS);
   }
 
   private handleMessage(socket: WebSocket, event: MessageEvent): void {
     if (socket !== this.socket || typeof event.data !== "string") return;
+    this.lastActivityAt = Date.now();
+    this.retryAttempt = 0; // Traffic is the strongest viability proof.
+    // Heartbeat traffic: "pong" from the relay edge; "ping" broadcast by a
+    // peer through a pre-auto-response relay build. Never parsed as frames.
+    if (event.data === "ping" || event.data === "pong") return;
     try {
       const frame: unknown = JSON.parse(event.data);
       if (!isOuterFrame(frame)) return;
@@ -120,6 +159,7 @@ export class RelayProvider {
   private handleClose(socket: WebSocket): void {
     if (socket !== this.socket) return;
     this.clearWatchdog();
+    this.clearHeartbeat();
     this.socket = null;
     this.setState("disconnected");
     this.scheduleReconnect();
@@ -141,8 +181,16 @@ export class RelayProvider {
     this.watchdog = null;
   }
 
+  private clearHeartbeat(): void {
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = null;
+    if (this.viabilityTimer) clearTimeout(this.viabilityTimer);
+    this.viabilityTimer = null;
+  }
+
   private clearTimers(): void {
     this.clearWatchdog();
+    this.clearHeartbeat();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
   }

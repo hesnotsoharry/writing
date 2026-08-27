@@ -13,6 +13,9 @@ export interface OuterFrame {
 
 interface PendingGroup {
   createdAt: number;
+  /** Bumped on every chunk: expiry is INACTIVITY, not age — a large transfer
+   *  arriving steadily for >30s must not be discarded mid-flight (audit P1). */
+  lastChunkAt: number;
   chunks: Map<number, Uint8Array>;
   total: number;
 }
@@ -99,6 +102,7 @@ export class Reassembler {
     const key = `${frame.d}\0${frame.n}`;
     const group = this.getGroup(key, frame.f);
     if (!group) return null;
+    group.lastChunkAt = this.now();
     group.chunks.set(frame.i, chunk);
     if (group.chunks.size !== group.total) return null;
     this.groups.delete(key);
@@ -116,7 +120,8 @@ export class Reassembler {
       return null;
     }
     if (existing) return existing;
-    const group = { createdAt: this.now(), chunks: new Map<number, Uint8Array>(), total };
+    const now = this.now();
+    const group = { createdAt: now, lastChunkAt: now, chunks: new Map<number, Uint8Array>(), total };
     this.groups.set(key, group);
     return group;
   }
@@ -124,7 +129,7 @@ export class Reassembler {
   private expireGroups(): void {
     const cutoff = this.now() - GROUP_TTL_MS;
     for (const [key, group] of this.groups) {
-      if (group.createdAt <= cutoff) this.groups.delete(key);
+      if (group.lastChunkAt <= cutoff) this.groups.delete(key);
     }
   }
 }

@@ -86,3 +86,37 @@ describe("sync frame reassembly", () => {
     expect(reassembler.feed(frames[0])).toEqual(new Uint8Array(CHUNK_BYTES + 1));
   });
 });
+
+describe("Reassembler inactivity expiry (audit P1 chunk TTL)", () => {
+  it("keeps a group alive while chunks keep arriving, even past 30s total", () => {
+    let now = 0;
+    const reassembler = new Reassembler("device-b", () => now);
+    const frames = chunkFrames("device-a", new Uint8Array(600 * 1024)); // 2 chunks... ensure >=3
+    const blob = new Uint8Array(1200 * 1024);
+    const parts = chunkFrames("device-a", blob);
+    expect(parts.length).toBeGreaterThanOrEqual(3);
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      expect(reassembler.feed(parts[i])).toBeNull();
+      now += 20_000; // steady arrival: 20s gaps, total transfer > 30s
+    }
+    const result = reassembler.feed(parts[parts.length - 1]);
+    expect(result).not.toBeNull();
+    expect(result!.length).toBe(blob.length);
+    void frames;
+  });
+
+  it("still expires a group with no chunk activity for 30s", () => {
+    let now = 0;
+    const reassembler = new Reassembler("device-b", () => now);
+    const parts = chunkFrames("device-a", new Uint8Array(1200 * 1024));
+    reassembler.feed(parts[0]);
+    now = 30_001;
+    // The stale group is dropped; feeding the LAST chunk starts a fresh,
+    // incomplete group instead of completing the expired one.
+    expect(reassembler.feed(parts[parts.length - 1])).toBeNull();
+    // Completing that fresh group delivers the blob on its final chunk.
+    let completed: Uint8Array | null = null;
+    for (let i = 0; i < parts.length - 1; i += 1) completed = reassembler.feed(parts[i]);
+    expect(completed).not.toBeNull();
+  });
+});

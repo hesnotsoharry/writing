@@ -93,3 +93,85 @@ describe("RelayProvider connection discipline", () => {
     provider.destroy();
   });
 });
+
+describe("RelayProvider liveness + viability (audit P1 dead-socket / backoff-reset)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function connectedProvider() {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    const sockets: MockWebSocket[] = [];
+    const provider = new RelayProvider("wss://relay.test", "room", "device-a", () => {
+      const socket = new MockWebSocket();
+      sockets.push(socket);
+      return socket as unknown as WebSocket;
+    });
+    provider.connect();
+    sockets[0].open();
+    return { provider, sockets };
+  }
+
+  it("sends heartbeat pings while open and ignores pong replies", () => {
+    const { provider, sockets } = connectedProvider();
+    const received = vi.fn();
+    provider.subscribeFrames(received);
+    vi.advanceTimersByTime(25_000);
+    expect(sockets[0].sent).toContain("ping");
+    sockets[0].dispatchEvent(new MessageEvent("message", { data: "pong" }));
+    expect(received).not.toHaveBeenCalled();
+    provider.destroy();
+  });
+
+  it("recycles a socket that goes silent past the liveness window", () => {
+    const { provider, sockets } = connectedProvider();
+    // Nothing arrives: after 60s of silence the next heartbeat tick closes the
+    // dead-but-OPEN socket, and the close path schedules a reconnect.
+    vi.advanceTimersByTime(75_000);
+    expect(sockets[0].readyState).toBe(MockWebSocket.CLOSED);
+    vi.advanceTimersByTime(10_000);
+    expect(sockets.length).toBeGreaterThan(1);
+    provider.destroy();
+  });
+
+  it("keeps a socket alive as long as pongs keep arriving", () => {
+    const { provider, sockets } = connectedProvider();
+    for (let i = 0; i < 6; i += 1) {
+      vi.advanceTimersByTime(25_000);
+      sockets[0].dispatchEvent(new MessageEvent("message", { data: "pong" }));
+    }
+    expect(sockets[0].readyState).toBe(MockWebSocket.OPEN);
+    expect(sockets).toHaveLength(1);
+    provider.destroy();
+  });
+
+  it("does not reset backoff for a connection that dies before proving viable", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    const sockets: MockWebSocket[] = [];
+    const provider = new RelayProvider("wss://relay.test", "room", "device-a", () => {
+      const socket = new MockWebSocket();
+      sockets.push(socket);
+      return socket as unknown as WebSocket;
+    });
+    provider.connect();
+    // Relay accepts then immediately 1013s, over and over. With open-resets-
+    // backoff this looped at the 500ms floor forever; attempts must now space
+    // out exponentially because none survive the 5s viability window.
+    sockets[0].open();
+    sockets[0].close();
+    vi.advanceTimersByTime(500); // first retry at the 500ms floor
+    expect(sockets).toHaveLength(2);
+    sockets[1].open();
+    sockets[1].close();
+    // Second retry must back off to 1s: pre-fix, the open() reset the counter
+    // and every retry fired at the 500ms floor forever.
+    vi.advanceTimersByTime(999);
+    expect(sockets).toHaveLength(2);
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(3);
+    provider.destroy();
+  });
+});

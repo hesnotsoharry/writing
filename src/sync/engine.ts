@@ -39,6 +39,8 @@ import { ReplacementQueue } from "./replacementQueue";
 export class SyncEngine {
   private readonly options: EngineOptions;
   private provider: SyncProvider | null = null;
+  /** Bumped by stop() and each start(); a stale start abandons, not leaks. */
+  private startGeneration = 0;
   private encKey: CryptoKey | null = null;
   private deviceId = "";
   private readonly statusEmitter = new StatusEmitter();
@@ -110,7 +112,11 @@ export class SyncEngine {
    *  rebuilding the engine (the default URL is fixed at construction). */
   async start(relayUrlOverride?: string): Promise<void> {
     if (this.provider) return;
+    // A stop() or second start() during prepareSession's long awaits used to
+    // leak a connected provider (duplicate hellos); stale starts abandon.
+    const generation = ++this.startGeneration;
     const session = await prepareSession(this.options, this.epochs, this.outbox, relayUrlOverride);
+    if (generation !== this.startGeneration || this.provider) { session?.provider.destroy(); return; }
     if (!session) { this.setStatus({ state: "off" }); return; }
     this.encKey = session.encKey;
     this.deviceId = session.deviceId;
@@ -133,6 +139,7 @@ export class SyncEngine {
   }
 
   stop(): void {
+    this.startGeneration += 1; // Abandon any start() still inside prepareSession.
     this.liveScenes.clear();
     this.provider?.destroy();
     this.provider = null;
