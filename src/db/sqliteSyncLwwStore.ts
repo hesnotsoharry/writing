@@ -62,4 +62,11 @@ export class SqliteSyncLwwStore implements SyncLwwStore {
     );
     return rows.map((row) => ({ domain: row.domain, projectId: row.project_id }));
   }
+
+  async maxHlc(): Promise<string | null> {
+    const rows = await this.db.select<Array<{ hlc: string | null }>>(
+      "SELECT MAX(hlc) AS hlc FROM sync_lww_rows",
+    );
+    return rows[0]?.hlc ?? null;
+  }
 }

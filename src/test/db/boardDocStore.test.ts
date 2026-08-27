@@ -62,7 +62,7 @@ describe("BoardDocStore", () => {
         { id: "board-1", stateBase64: "state", updatedAt: null },
       ]);
       expect(mockDb.select).toHaveBeenCalledWith(
-        "SELECT board_id, state_base64, updated_at FROM board_docs",
+        expect.stringMatching(/INNER JOIN boards/i),
       );
     });
 

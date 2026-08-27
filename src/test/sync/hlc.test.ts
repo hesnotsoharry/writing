@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  compareVersion, decodeHlc, HybridLogicalClock,
+  compareVersion, decodeHlc, HybridLogicalClock, laterHlc,
 } from "../../sync/lww/hlc";
 
 describe("hybrid logical clock", () => {
@@ -28,5 +28,17 @@ describe("hybrid logical clock", () => {
     expect(compareVersion(a, b)).toBe(-1);
     expect(compareVersion(b, a)).toBe(1);
     expect(compareVersion(a, { ...a })).toBe(0);
+  });
+  it("laterHlc prefers the later valid stamp", () => {
+    expect(laterHlc(null, "000000000004000-000000")).toBe("000000000004000-000000");
+    expect(laterHlc("000000000005000-000000", "000000000004000-000000"))
+      .toBe("000000000005000-000000");
+    expect(laterHlc("not-an-hlc", null)).toBeNull();
+  });
+  it("advanceTo copies a later stamp without incrementing", () => {
+    const clock = new HybridLogicalClock();
+    clock.advanceTo("000000000004000-000003");
+    expect(clock.snapshot()).toBe("000000000004000-000003");
+    expect(clock.tick(1000)).toBe("000000000004000-000004");
   });
 });

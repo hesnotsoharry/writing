@@ -38,6 +38,9 @@ export interface EngineOptions {
   outboxStore?: SyncOutboxStore;
   loadLastPeerSeenAt?: () => Promise<string | null>;
   saveLastPeerSeenAt?: (value: string) => Promise<void>;
+  /** Persisted HLC so a restart cannot stamp behind rows already in the ledger. */
+  loadLwwClock?: () => Promise<string | null>;
+  saveLwwClock?: (hlc: string) => Promise<void>;
   deviceRoster?: DeviceRosterIo;
   ensureProjectMetas?: () => Promise<void>;
   ensureProjectBibles?: () => Promise<void>;

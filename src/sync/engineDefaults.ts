@@ -47,6 +47,8 @@ export function defaultEngineOptions(): EngineOptions {
     epochAcceptance: "automatic",
     loadLastPeerSeenAt: () => readLastPeerSeenAt(db),
     saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(db, value),
+    loadLwwClock: () => readAppMeta(db, LWW_CLOCK_KEY),
+    saveLwwClock: (value) => writeAppMeta(db, LWW_CLOCK_KEY, value),
     deviceRoster: {
       load: () => readAppMeta(db, DEVICE_ROSTER_KEY),
       save: (value) => writeAppMeta(db, DEVICE_ROSTER_KEY, value),
@@ -73,6 +75,7 @@ export function desktopDbClient(): DbClient {
 }
 
 const LAST_PEER_SEEN_KEY = "sync_last_peer_seen_at";
+const LWW_CLOCK_KEY = "sync_lww_hlc";
 /** The roster lives in app_meta rather than its own table: it is a handful of
  *  rows of local observation, and app_meta already carries the sibling
  *  `sync_last_peer_seen_at` and `sync_role`. No migration to append, and none

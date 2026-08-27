@@ -13,8 +13,9 @@ export interface RowReconcilerDeps {
   /** Read late — the outbox is built alongside the reconciler, and a stopped
    *  engine has none. */
   outbox: () => DurableOutbox | null;
-  observe: (hlc: string) => void;
+  observe: (hlc: string) => void | Promise<void>;
   publish: (mutation: LocalRowMutation) => Promise<boolean>;
+  thisDevice?: () => string;
 }
 
 /**
@@ -36,5 +37,6 @@ export function buildRowReconciler(deps: RowReconcilerDeps): LwwReconciler | nul
     onDisplaced: (row) => keeper.keep(row).then(() => undefined),
     hasPending: (domain, rowId) =>
       deps.outbox()?.hasPending(domain, rowId) ?? Promise.resolve(false),
+    thisDevice: deps.thisDevice,
   });
 }

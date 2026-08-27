@@ -196,4 +196,32 @@ describe("LWW pull reconciliation", () => {
     expect(helloFrames(b).length).toBeGreaterThan(0);
     expect(await b.db.select("SELECT id FROM boards")).toEqual([{ id: "brainstorm-default" }]);
   });
+
+  it("does not let a third device's summary pages pollute another peer's seen set", async () => {
+    const store = a.store;
+    const hlc = "000000000001000-000000";
+    for (const rowId of ["r1", "r2", "r-needed"]) {
+      await store.putIfNewer({
+        domain: "boards", projectId: "p1", rowId, hlc, deviceId: "device-a",
+        deleted: false, payloadJson: JSON.stringify({
+          id: rowId, project_id: "p1", title: rowId, sort: 0,
+        }), updatedAt: null,
+      });
+    }
+    a.sent.length = 0;
+    const summary = (
+      sender: string, ids: string[], more: boolean, cursor?: string,
+    ): RowHelloMessage => ({
+      t: "row-hello", domain: "boards", project: "p1", sender, more, cursor,
+      rows: ids.map((id) => ({ id, hlc, device: sender, deleted: false })),
+    });
+
+    await a.reconciler.receiveSummary(summary("device-b", ["r1"], true, "r1"));
+    await a.reconciler.receiveSummary(summary("device-c", ["r-needed"], true, "r-needed"));
+    await a.reconciler.receiveSummary(summary("device-b", ["r2"], false));
+
+    const pushed = a.sent.filter(isRowMessage).map((frame) => frame.row).sort();
+    expect(pushed).toContain("r-needed");
+    expect(pushed.filter((row) => row === "r1")).toHaveLength(0);
+  });
 });

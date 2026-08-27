@@ -193,6 +193,23 @@ describe("domain boundaries", () => {
     } finally { db.close(); }
   });
 
+  it("a boards tombstone also deletes the board's Yjs doc", async () => {
+    const { db, registry } = await setup();
+    const fixture = fixtures.find(({ domain }) => domain === "boards")!;
+    try {
+      await db.execute(
+        "INSERT INTO board_docs (board_id, state_base64, updated_at) VALUES (?,?,?)",
+        [fixture.rowId, "ORPHAN_DOC", "now"],
+      );
+      const receiver = new LwwReconciler(new SqliteSyncLwwStore(db), registry, async () => undefined);
+      await receiver.receiveRow(message(fixture, fixture.payload, "000000000000020-000000"));
+      await receiver.receiveRow(message(fixture, fixture.payload, "000000000000030-000000",
+        { deleted: true }));
+      expect(await readRow(db, fixture)).toBeNull();
+      expect(await db.select("SELECT board_id FROM board_docs")).toEqual([]);
+    } finally { db.close(); }
+  });
+
   it("round-trips a large multi-scene archive manifest intact", async () => {
     const { db, registry } = await setup();
     const fixture = fixtures.find(({ domain }) => domain === "archive")!;

@@ -42,4 +42,33 @@ describe("generic LWW replication", () => {
       expect(await new SqliteSyncOutboxStore(dbA).listPending()).toHaveLength(0);
     } finally { dbA.close(); dbB.close(); }
   });
+
+  it("re-projects an identical retry after a failed first projection", async () => {
+    const db = await makeSqlJsDb(); await runMigrations(db);
+    try {
+      const store = new SqliteSyncLwwStore(db);
+      const registry = new LwwDomainRegistry();
+      let attempts = 0;
+      registry.register({
+        domain: "fake",
+        readPayload: async () => null,
+        projectReceived: async () => {
+          attempts += 1;
+          if (attempts === 1) throw new Error("SQLITE_BUSY");
+        },
+        applyTombstone: async () => undefined,
+      });
+      const receiver = new LwwReconciler(store, registry, async () => undefined);
+      const inbound = {
+        t: "row" as const, id: "fake:r1", domain: "fake", project: "p1", row: "r1",
+        hlc: "000000000001000-000000", device: "device-a", deleted: false,
+        payload: "{\"title\":\"hello\"}",
+      };
+      await expect(receiver.receiveRow(inbound)).rejects.toThrow("SQLITE_BUSY");
+      expect(await store.get("fake", "r1")).not.toBeNull();
+      const ack = await receiver.receiveRow(inbound);
+      expect(attempts).toBe(2);
+      expect(ack?.id).toBe("fake:r1");
+    } finally { db.close(); }
+  });
 });

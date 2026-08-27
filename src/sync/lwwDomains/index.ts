@@ -42,7 +42,8 @@ const DEFINITIONS: readonly SqlDomainDefinition[] = [
   } },
   { domain: "boards", table: "boards", key: "id", columns: [
     "id", "project_id", "title", "sort",
-  ], seed: { project: "project_id" } },
+  ], seed: { project: "project_id" },
+    tombstoneAlso: [{ table: "board_docs", column: "board_id" }] },
   { domain: "manuscript_about", table: "manuscript_about", key: "project_id", columns: [
     "project_id", "synopsis", "genre", "tone", "pov", "notes",
   ], seed: { project: "project_id", stamp: "updated_at", where: ABOUT_HAS_CONTENT } },

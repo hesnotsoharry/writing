@@ -17,6 +17,12 @@ export interface RowVersionSummary {
 export interface RowHelloMessage {
   t: "row-hello"; domain: string; project: string | null;
   rows: RowVersionSummary[]; cursor?: string; more: boolean;
+  /**
+   * The device that sent this summary page. Optional on the wire so v1.3
+   * peers that omit it still reconcile; without it, paged summaries from
+   * two peers interleave into one seen-set.
+   */
+  sender?: string;
 }
 export interface RowMessage {
   t: "row"; id: string; domain: string; project: string | null; row: string;
@@ -82,11 +88,14 @@ function hasDomainProject(value: Record<string, unknown>): boolean {
 function isHlc(value: unknown): value is string {
   return typeof value === "string" && /^\d{15}-\d{6}$/.test(value);
 }
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
 export function isRowHelloMessage(value: unknown): value is RowHelloMessage {
   return isRecord(value) && value.t === "row-hello" && hasDomainProject(value)
     && Array.isArray(value.rows) && value.rows.length <= ROW_SUMMARY_LIMIT
     && value.rows.every(isRowSummary) && typeof value.more === "boolean"
-    && (value.cursor === undefined || typeof value.cursor === "string");
+    && optionalString(value.cursor) && optionalString(value.sender);
 }
 export function isRowMessage(value: unknown): value is RowMessage {
   return isRecord(value) && value.t === "row" && hasDomainProject(value)

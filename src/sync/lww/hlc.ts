@@ -30,9 +30,31 @@ export function compareVersion(left: VersionStamp, right: VersionStamp): number 
   return left.deviceId < right.deviceId ? -1 : left.deviceId > right.deviceId ? 1 : 0;
 }
 
+/** The later of two HLC strings, ignoring null or malformed values. */
+export function laterHlc(left: string | null, right: string | null): string | null {
+  const validLeft = left && decodeHlc(left) ? left : null;
+  const validRight = right && decodeHlc(right) ? right : null;
+  if (!validLeft) return validRight;
+  if (!validRight) return validLeft;
+  return compareHlc(validLeft, validRight) >= 0 ? validLeft : validRight;
+}
+
 export class HybridLogicalClock {
   private value: HlcParts;
   constructor(seed: HlcParts = { physical: 0, counter: 0 }) { this.value = { ...seed }; }
+
+  snapshot(): string { return encodeHlc(this.value); }
+
+  /**
+   * Move the clock forward to a previously persisted or ledger-max stamp.
+   * Does not increment — the next tick/observe is what produces a new event.
+   */
+  advanceTo(hlc: string): void {
+    const parts = decodeHlc(hlc);
+    if (!parts) return;
+    if (compareHlc(this.snapshot(), hlc) >= 0) return;
+    this.value = { ...parts };
+  }
 
   tick(now: number): string {
     const physical = Math.max(normalizeNow(now), this.value.physical);

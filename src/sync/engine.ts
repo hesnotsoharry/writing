@@ -77,11 +77,13 @@ export class SyncEngine {
     this.lwwRegistry = registry;
     this.rowPublisher = options.lwwStore && this.outbox
       ? new LwwPublisher({ store: options.lwwStore, registry, outbox: this.outbox,
-        send: (message) => this.sendMessage(message), deviceId: () => this.deviceId }) : null;
+        send: (message) => this.sendMessage(message), deviceId: () => this.deviceId,
+        loadClock: options.loadLwwClock, saveClock: options.saveLwwClock }) : null;
     this.lww = buildRowReconciler({ store: options.lwwStore, registry,
       send: (message) => this.sendMessage(message), outbox: () => this.outbox,
-      observe: (hlc) => this.rowPublisher?.observe(hlc),
-      publish: (mutation) => this.publishRow(mutation) });
+      observe: (hlc) => this.rowPublisher?.observe(hlc) ?? Promise.resolve(),
+      publish: (mutation) => this.publishRow(mutation),
+      thisDevice: () => this.deviceId });
     this.catchUp = new CatchUpCoordinator(
       this.epochs, this.liveScenes, this.outbox, (sceneId) => this.docReplaced?.(sceneId),
     );
@@ -112,6 +114,7 @@ export class SyncEngine {
     if (!session) { this.setStatus({ state: "off" }); return; }
     this.encKey = session.encKey;
     this.deviceId = session.deviceId;
+    await this.rowPublisher?.hydrate();
     this.setStatus({ lastPeerSeenAt: session.lastPeerSeenAt,
       queue: session.queue, behind: this.epochs.listBehind() });
     this.setStatus({ devices: await this.devices.load(session.deviceId, new Date().toISOString()) });

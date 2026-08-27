@@ -4,7 +4,7 @@ ROW_SUMMARY_LIMIT,
   type RowAckMessage, type RowHelloMessage, type RowMessage, } from "../messages";
 import type { DisplacedRow } from "./displacedRows";
 import { compareVersion } from "./hlc";
-import type { LwwDomainRegistry } from "./registry";
+import type { LwwDomainAdapter, LwwDomainRegistry } from "./registry";
 
 type SendRow = (message: RowMessage | RowAckMessage | RowHelloMessage) => Promise<void>;
 
@@ -53,10 +53,12 @@ export class LwwReconciler {
     const rows = await this.store.list(domain, projectId, after, ROW_SUMMARY_LIMIT + 1);
     const page = rows.slice(0, ROW_SUMMARY_LIMIT);
     const more = rows.length > ROW_SUMMARY_LIMIT;
+    const sender = this.callbacks.thisDevice?.();
     await this.send({
       t: "row-hello", domain, project: projectId,
       rows: page.map((row) => ({ id: row.rowId, hlc: row.hlc,
         device: row.deviceId, deleted: row.deleted })),
+      ...(sender ? { sender } : {}),
       ...(more && page.length > 0 ? { cursor: page[page.length - 1].rowId } : {}), more,
     });
     if (more && page.length > 0) await this.sendSummary(domain, projectId, page[page.length - 1].rowId);
@@ -64,7 +66,7 @@ export class LwwReconciler {
 
   async receiveSummary(message: RowHelloMessage): Promise<void> {
     if (!this.registry.get(message.domain)) return;
-    const key = scopeKey(message.domain, message.project);
+    const key = scopeKey(message.sender, message.domain, message.project);
     const seen = this.peerRows.get(key) ?? new Set<string>();
     this.peerRows.set(key, seen);
     for (const summary of message.rows) {
@@ -193,30 +195,52 @@ export class LwwReconciler {
   async receiveRow(message: RowMessage): Promise<RowAckMessage | null> {
     const adapter = this.registry.get(message.domain);
     if (!adapter) return null;
-    this.callbacks.onObserved?.(message.hlc);
+    await this.callbacks.onObserved?.(message.hlc);
     // Read BEFORE putIfNewer decides and before the apply below overwrites: the
     // whole point is to hold on to what this device had.
     const displaced = await this.readDisplaced(message);
-    const accepted = await this.store.putIfNewer({
+    const accepted = await this.putInbound(message);
+    // Stamp first (LWW race), then project. If projection throws, we do not ack
+    // — and a retry of the identical version re-projects rather than skipping.
+    if (accepted || await this.sameVersion(message)) {
+      await this.projectInbound(adapter, message);
+      if (accepted && displaced) await this.callbacks.onDisplaced?.(displaced);
+    }
+    return { t: "row-ack", id: message.id, domain: message.domain,
+      row: message.row, hlc: message.hlc, device: message.device };
+  }
+
+  private putInbound(message: RowMessage): Promise<boolean> {
+    return this.store.putIfNewer({
       domain: message.domain, projectId: message.project, rowId: message.row,
       hlc: message.hlc, deviceId: message.device, deleted: message.deleted,
       payloadJson: message.payload, updatedAt: new Date().toISOString(),
     });
-    if (accepted) {
-      if (displaced) await this.callbacks.onDisplaced?.(displaced);
-      if (message.deleted) await adapter.applyTombstone(message.row, message.project);
-      else if (message.payload !== null) {
-        await adapter.projectReceived(message.row, message.project, message.payload);
-      }
+  }
+
+  private async sameVersion(message: RowMessage): Promise<boolean> {
+    const existing = await this.store.get(message.domain, message.row);
+    return existing !== null
+      && existing.hlc === message.hlc
+      && existing.deviceId === message.device;
+  }
+
+  private async projectInbound(
+    adapter: LwwDomainAdapter, message: RowMessage,
+  ): Promise<void> {
+    if (message.deleted) {
+      await adapter.applyTombstone(message.row, message.project);
+      return;
     }
-    return { t: "row-ack", id: message.id, domain: message.domain,
-      row: message.row, hlc: message.hlc, device: message.device };
+    if (message.payload !== null) {
+      await adapter.projectReceived(message.row, message.project, message.payload);
+    }
   }
 }
 
 interface ReconcilerCallbacks {
   onConverged?: (domain: string, rowId: string) => Promise<void>;
-  onObserved?: (hlc: string) => void;
+  onObserved?: (hlc: string) => void | Promise<void>;
   /** Fired when an accepted remote row is about to overwrite a local version
    *  the peer never saw. See `displacedRows.ts`. */
   onDisplaced?: (row: DisplacedRow) => Promise<void>;
@@ -224,10 +248,16 @@ interface ReconcilerCallbacks {
    *  the tests and engines that wire no outbox, where nothing is ever pending
    *  and every apply is therefore an ordinary one. */
   hasPending?: (domain: string, rowId: string) => Promise<boolean>;
+  /** This device's id, stamped on outbound summaries so peers can keep
+   *  per-sender paging state. Absent in unit tests that construct frames
+   *  directly. */
+  thisDevice?: () => string;
 }
 
-function scopeKey(domain: string, projectId: string | null): string {
-  return `${domain}\u0000${projectId ?? ""}`;
+function scopeKey(
+  sender: string | undefined, domain: string, projectId: string | null,
+): string {
+  return `${sender ?? ""}\u0000${domain}\u0000${projectId ?? ""}`;
 }
 
 function hasContinuation(message: RowHelloMessage): boolean {

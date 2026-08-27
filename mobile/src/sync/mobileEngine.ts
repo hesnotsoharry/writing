@@ -76,6 +76,8 @@ function buildMobileEngineOptions(): EngineOptions {
     epochAcceptance: "manual",
     loadLastPeerSeenAt: () => readLastPeerSeenAt(mobileDb),
     saveLastPeerSeenAt: (value) => writeLastPeerSeenAt(mobileDb, value),
+    loadLwwClock: () => readAppMeta(mobileDb, LWW_CLOCK_KEY),
+    saveLwwClock: (value) => writeAppMeta(mobileDb, LWW_CLOCK_KEY, value),
     deviceRoster: {
       load: () => readAppMeta(mobileDb, DEVICE_ROSTER_KEY),
       save: (value) => writeAppMeta(mobileDb, DEVICE_ROSTER_KEY, value),
@@ -113,6 +115,7 @@ async function writeLastPeerSeenAt(db: DbClient, value: string): Promise<void> {
 
 /** Same app_meta key desktop uses, so the two platforms stay one shape. */
 const DEVICE_ROSTER_KEY = "sync_device_roster";
+const LWW_CLOCK_KEY = "sync_lww_hlc";
 
 async function readAppMeta(db: DbClient, key: string): Promise<string | null> {
   const rows = await db.select<Array<{ value: string }>>(

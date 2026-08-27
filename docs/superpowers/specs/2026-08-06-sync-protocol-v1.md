@@ -147,7 +147,7 @@ of feature rows, so deleting a feature row never forgets its version.
 
 | t | Fields | Meaning |
 |---|---|---|
-| `row-hello` | `domain`, `project`, `rows: [{id, hlc, device, deleted}]`, `cursor?`, `more` | One bounded page of the sender's durable version summary. `project` is a project id or null. Rows are ordered by row id. `cursor` is the last row id in this page when `more` is true. |
+| `row-hello` | `domain`, `project`, `rows: [{id, hlc, device, deleted}]`, `cursor?`, `more`, `sender?` | One bounded page of the sender's durable version summary. `project` is a project id or null. Rows are ordered by row id. `cursor` is the last row id in this page when `more` is true. `sender` is the device that emitted the page (not the last-writer of any row); receivers key paging state by it so two peers' pages cannot interleave. Older builds omit it. |
 | `row` | `id`, `domain`, `project`, `row`, `hlc`, `device`, `deleted`, `payload` | One complete semantic row mutation. `id` is the coalescing outbox item id; `payload` is JSON text or null. Receivers persist the winning shadow version before projecting or tombstoning the feature row. |
 | `row-ack` | `id`, `domain`, `row`, `hlc`, `device` | Semantic acknowledgement that the receiver durably accepted this version. It clears the matching row outbox item; handing bytes to a WebSocket never does. |
 

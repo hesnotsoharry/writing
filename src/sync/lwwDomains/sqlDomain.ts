@@ -30,6 +30,8 @@ export interface SqlDomainDefinition {
   key: string;
   columns: readonly string[];
   seed?: SqlDomainSeed;
+  /** Extra DELETEs on a remote tombstone, bound to the same row id. */
+  tombstoneAlso?: readonly { table: string; column: string }[];
 }
 
 interface SeedDbRow { row_id: string; project_id: string | null; stamp: unknown }
@@ -84,6 +86,15 @@ function parsePayload(payloadJson: string, columns: readonly string[]): Record<s
   return row;
 }
 
+async function deleteTombstoneTargets(
+  db: DbClient, definition: SqlDomainDefinition, rowId: string,
+): Promise<void> {
+  await db.execute(`DELETE FROM ${definition.table} WHERE ${definition.key} = ?`, [rowId]);
+  for (const extra of definition.tombstoneAlso ?? []) {
+    await db.execute(`DELETE FROM ${extra.table} WHERE ${extra.column} = ?`, [rowId]);
+  }
+}
+
 export function createSqlDomainAdapter(
   db: DbClient,
   definition: SqlDomainDefinition,
@@ -110,7 +121,7 @@ export function createSqlDomainAdapter(
       dispatchRowsApplied(definition.domain);
     },
     async applyTombstone(rowId) {
-      await db.execute(`DELETE FROM ${definition.table} WHERE ${definition.key} = ?`, [rowId]);
+      await deleteTombstoneTargets(db, definition, rowId);
       dispatchRowsApplied(definition.domain);
     },
     ...(seed ? { listSeedRows: () => listSeedRows(db, definition, seed) } : {}),

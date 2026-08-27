@@ -23,6 +23,17 @@ describe("LWW shadow store", () => {
     } finally { db.close(); }
   });
 
+  it("reports the highest HLC across the ledger", async () => {
+    const db = await makeSqlJsDb(); await runMigrations(db);
+    try {
+      const store = new SqliteSyncLwwStore(db);
+      expect(await store.maxHlc()).toBeNull();
+      await store.putIfNewer(row({ hlc: "000000000001000-000000" }));
+      await store.putIfNewer(row({ rowId: "r2", hlc: "000000000009000-000000" }));
+      expect(await store.maxHlc()).toBe("000000000009000-000000");
+    } finally { db.close(); }
+  });
+
   it("converges concurrent writes regardless of arrival order", async () => {
     const dbA = await makeSqlJsDb(); const dbB = await makeSqlJsDb();
     await runMigrations(dbA); await runMigrations(dbB);

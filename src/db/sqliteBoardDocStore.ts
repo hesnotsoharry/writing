@@ -4,10 +4,14 @@ import { getDb } from "./schema";
 export class SqliteBoardDocStore implements BoardDocStore {
   async listAll(): Promise<Array<{ id: string; stateBase64: string; updatedAt: string | null }>> {
     const db = await getDb();
+    // Join is the stop-syncing half of a board tombstone: an orphan
+    // board_docs row must not be advertised on hello, or the deleting
+    // device is re-seeded with content it just removed.
     const rows = await db.select<Array<{
       board_id: string; state_base64: string; updated_at: string | null;
     }>>(
-      "SELECT board_id, state_base64, updated_at FROM board_docs"
+      `SELECT board_docs.board_id, board_docs.state_base64, board_docs.updated_at
+       FROM board_docs INNER JOIN boards ON boards.id = board_docs.board_id`
     );
     return rows.map((row) => ({
       id: row.board_id, stateBase64: row.state_base64, updatedAt: row.updated_at,

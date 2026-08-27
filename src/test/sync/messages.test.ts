@@ -21,6 +21,10 @@ describe("sync inner messages", () => {
     expect(isInnerMessage({
       t: "row-hello", domain: "notes", project: "p1", rows: [], more: false,
     })).toBe(true);
+    expect(isInnerMessage({
+      t: "row-hello", domain: "notes", project: "p1", rows: [], more: false,
+      sender: "device-b",
+    })).toBe(true);
     expect(isInnerMessage({ t: "row", id: "notes:n1", domain: "notes", project: "p1",
       row: "n1", hlc: "000000000001000-000000", device: "a", deleted: false,
       payload: "{}" })).toBe(true);
