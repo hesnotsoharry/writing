@@ -23,6 +23,9 @@
  *
  * Idempotency: webhook_events ledger (23505 unique violation = already processed).
  * Top-up order_created branch: unchanged.
+ * order_refunded (top-up packs refund as ORDER events): claw back the granted
+ *   credits via clawback_topup (0009) — grant-linked, zero-bounded, SQL-dedup'd.
+ *   Requires the LS webhook subscription to include order_refunded (dashboard).
  */
 import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
@@ -82,7 +85,7 @@ interface TopupOrderAttributes {
 }
 
 interface TopupOrderPayload {
-  meta: { event_name: "order_created"; custom_data?: { license_key?: string } };
+  meta: { event_name: "order_created" | "order_refunded"; custom_data?: { license_key?: string } };
   data: { type: "orders"; id: string; attributes: TopupOrderAttributes };
 }
 
@@ -95,7 +98,12 @@ const SUBSCRIPTION_EVENTS = new Set([
   "subscription_expired",
 ]);
 
-const HANDLED_EVENTS = new Set([...SUBSCRIPTION_EVENTS, "order_created", "subscription_payment_refunded"]);
+const HANDLED_EVENTS = new Set([
+  ...SUBSCRIPTION_EVENTS,
+  "order_created",
+  "order_refunded",
+  "subscription_payment_refunded",
+]);
 
 // ── Status mapping ────────────────────────────────────────────────────────────
 
@@ -414,6 +422,51 @@ async function handleOrphanTopup(
   return new Response(null, { status: 500 });
 }
 
+/**
+ * Resolves the subscriber license key for a top-up order payload.
+ * Tier 1: LS custom_data.license_key — passed by the desktop client at checkout;
+ *   bypasses the DB lookup entirely, correct even for brand-new subscribers.
+ * Tier 2: email fallback — backward-compat for checkouts without custom data.
+ * Returns null when unresolvable (callers decide: retry vs ops alert).
+ */
+async function resolveTopupLicenseKey(
+  db: SupabaseClient,
+  payload: TopupOrderPayload,
+): Promise<string | null> {
+  const customKey = payload.meta.custom_data?.license_key;
+  if (customKey) return customKey;
+  const { data: sub, error: subErr } = await db
+    .from("subscriptions")
+    .select("license_key")
+    .eq("user_email", payload.data.attributes.user_email)
+    .single();
+  if (subErr || !sub) return null;
+  return (sub as { license_key: string }).license_key;
+}
+
+/**
+ * Ops alert for a top-up refund that cannot be safely auto-clawed-back
+ * (unlinkable subscriber, or no matching grant event — clawback_topup returned -1).
+ * Terminal by design: retrying cannot resolve either condition, so the caller
+ * proceeds to tombstone + 200 after alerting; the operator deducts manually.
+ */
+async function alertManualClawback(
+  env: WebhookEnv,
+  orderId: string,
+  detail: Record<string, unknown>,
+): Promise<void> {
+  console.error("[topup-clawback-manual]", { orderId, ...detail });
+  if (!env.CONTACT_TO) return;
+  const detailJson = JSON.stringify({ orderId, ...detail });
+  await sendEmail(env, {
+    to: env.CONTACT_TO,
+    subject: `[WritersNook] TOP-UP REFUND — manual clawback required (order ${orderId})`,
+    html: `<p>A refunded top-up order could not be safely auto-deducted.</p><pre>${detailJson}</pre><p>Deduct manually via Supabase.</p>`,
+    text: `A refunded top-up order could not be safely auto-deducted.\n\n${detailJson}\n\nDeduct manually via Supabase.`,
+    idempotencyKey: `clawback-${orderId}`,
+  });
+}
+
 // ── Top-up order handler ──────────────────────────────────────────────────────
 
 async function handleTopupOrder(
@@ -436,23 +489,10 @@ async function handleTopupOrder(
   // Three-tier resolution: custom-data key → email lookup → orphan alert (terminal 200).
   let licenseKey: string | null = null;
   if (isTopupVariant(variantId, env)) {
-    // Tier 1: LS custom_data.license_key — passed by the desktop client at checkout.
-    // Bypasses the DB lookup entirely; correct even for brand-new subscribers.
-    const customKey = payload.meta.custom_data?.license_key;
-    if (customKey) {
-      licenseKey = customKey;
-    } else {
-      // Tier 2: email fallback — preserves backward-compat for checkouts without custom data.
-      const { data: sub, error: subErr } = await db
-        .from("subscriptions")
-        .select("license_key")
-        .eq("user_email", attrs.user_email)
-        .single();
-      if (subErr || !sub) {
-        // Tier 3: orphan alert — returns 200 (terminal) to stop the LS retry storm.
-        return handleOrphanTopup(env, orderId, attrs.user_email, variantId);
-      }
-      licenseKey = (sub as { license_key: string }).license_key;
+    licenseKey = await resolveTopupLicenseKey(db, payload);
+    if (!licenseKey) {
+      // Tier 3: orphan alert — 500 (retryable) to auto-heal the late-subscription-row race.
+      return handleOrphanTopup(env, orderId, attrs.user_email, variantId);
     }
   }
 
@@ -474,6 +514,58 @@ async function handleTopupOrder(
   const { error: ledgerErr } = await db
     .from("webhook_events")
     .insert({ event_name: "order_created", order_id: `order:${orderId}` });
+  const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
+  if (ledgerCode === "23505") return new Response(null, { status: 200 });
+  if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
+
+  return new Response(null, { status: 200 });
+}
+
+// ── Top-up refund handler ─────────────────────────────────────────────────────
+
+/**
+ * order_refunded for top-up packs: claw back the granted credits (audit P9.3).
+ * One-time orders refund as ORDER events — subscription_payment_refunded never
+ * fires for packs, so without this a refunded customer kept both the money and
+ * the credits. RPC-first, tombstone-second (same rationale as handleTopupOrder).
+ * clawback_topup (0009) deducts GREATEST(0, balance - amount) ONLY when the
+ * original top_up grant event exists, dedup'd on the refund request id; it
+ * returns -1 for "no matching grant" → ops alert instead of a blind deduction.
+ * Non-top-up order refunds just tombstone + 200 (the purchases-table webhook
+ * owns app-purchase refund bookkeeping).
+ */
+async function handleTopupRefund(payload: TopupOrderPayload, env: WebhookEnv): Promise<Response> {
+  const attrs = payload.data.attributes;
+  const orderId = payload.data.id;
+  const variantId = attrs.first_order_item?.variant_id;
+  const db = makeServiceClient(env);
+
+  // Same config guard as handleTopupOrder: blank variant IDs must fail loud.
+  if (!env.LS_TOPUP_VARIANT_ID || !env.LS_SUB_VARIANT_ID) {
+    return new Response("Internal Server Error", { status: 500 });
+  }
+
+  if (isTopupVariant(variantId, env)) {
+    const licenseKey = await resolveTopupLicenseKey(db, payload);
+    if (!licenseKey) {
+      await alertManualClawback(env, orderId, { email: attrs.user_email, variantId, reason: "no subscriber match" });
+    } else {
+      const { data: newBalance, error: rpcErr } = await db.rpc("clawback_topup", {
+        p_license_key: licenseKey,
+        p_amount: TOPUP_PACK_AMOUNT,
+        p_request_id: `refund:order:${orderId}`,
+        p_grant_request_id: `order:${orderId}`,
+      });
+      if (rpcErr || newBalance === null) return new Response("Internal Server Error", { status: 500 });
+      if (newBalance === -1) {
+        await alertManualClawback(env, orderId, { licenseKey, reason: "no matching grant event" });
+      }
+    }
+  }
+
+  const { error: ledgerErr } = await db
+    .from("webhook_events")
+    .insert({ event_name: "order_refunded", order_id: `order:${orderId}` });
   const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
@@ -506,6 +598,9 @@ export const onRequestPost: PagesFunction<WebhookEnv> = async (context) => {
     const subPayload = payload as SubscriptionPayload;
     if (eventName === "subscription_created") return handleCreated(subPayload, context.env);
     return handleStatusUpdate(subPayload, context.env);
+  }
+  if (eventName === "order_refunded") {
+    return handleTopupRefund(payload as TopupOrderPayload, context.env);
   }
   return handleTopupOrder(payload as TopupOrderPayload, context.env);
 };

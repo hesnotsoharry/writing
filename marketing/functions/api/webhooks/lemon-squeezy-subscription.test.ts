@@ -66,6 +66,8 @@ let updateCalls: UpdateCall[];
 let subRows: SubRow[];
 /** Per-test RPC failure injection: fn name → error object to return as { data: null, error }. */
 let rpcErrors: Map<string, { message: string; code?: string }>;
+/** Per-test RPC result injection: fn name → data value (e.g. clawback_topup's -1 sentinel). */
+let rpcResults: Map<string, unknown>;
 
 function makeMockClient() {
   return {
@@ -112,6 +114,7 @@ function makeMockClient() {
       rpcCalls.push({ fn, args });
       const injectedErr = rpcErrors.get(fn);
       if (injectedErr) return Promise.resolve({ data: null, error: injectedErr });
+      if (rpcResults.has(fn)) return Promise.resolve({ data: rpcResults.get(fn), error: null });
       return Promise.resolve({ data: args["p_license_key"] ?? "WN-AI-TEST", error: null });
     },
   };
@@ -192,10 +195,16 @@ function invoicePayload(subId = "sub_001", invoiceId = "inv_001") {
   });
 }
 
-function orderPayload(orderId: string, variantId: number, email = "alice@example.com", customLicenseKey?: string) {
+function orderPayload(
+  orderId: string,
+  variantId: number,
+  email = "alice@example.com",
+  customLicenseKey?: string,
+  eventName: "order_created" | "order_refunded" = "order_created",
+) {
   return JSON.stringify({
     meta: {
-      event_name: "order_created",
+      event_name: eventName,
       ...(customLicenseKey !== undefined ? { custom_data: { license_key: customLicenseKey } } : {}),
     },
     data: {
@@ -219,6 +228,7 @@ beforeEach(() => {
   upsertRows = [];
   updateCalls = [];
   rpcErrors = new Map();
+  rpcResults = new Map();
   // sub_001 is the default row — non-created events resolve against ls_subscription_id
   subRows = [{ license_key: "WN-AI-EXISTING", user_email: "alice@example.com", ls_subscription_id: "sub_001" }];
 });
@@ -747,5 +757,70 @@ describe("order_created — top-up out-of-order delivery and config guard", () =
     const res = await onRequestPost(ctx);
     expect(res.status).toBe(500);
     expect(ledger.size).toBe(0);
+  });
+});
+
+// ── order_refunded — top-up clawback (audit P9.3) ────────────────────────────
+
+function refundPayload(orderId: string, variantId: number, email = "alice@example.com", customKey?: string) {
+  return orderPayload(orderId, variantId, email, customKey, "order_refunded");
+}
+
+describe("order_refunded — top-up clawback", () => {
+  it("claws back the pack: clawback_topup gets the amount, refund id, and grant id", async () => {
+    const res = await onRequestPost(makeContext(refundPayload("order_topup_001", Number(TEST_TOPUP_VARIANT))));
+    expect(res.status).toBe(200);
+    const claw = rpcCalls.find((c) => c.fn === "clawback_topup");
+    expect(claw).toBeDefined();
+    expect(claw!.args["p_license_key"]).toBe("WN-AI-EXISTING"); // email fallback
+    expect(claw!.args["p_amount"]).toBe(TOPUP_PACK_AMOUNT);
+    expect(claw!.args["p_request_id"]).toBe("refund:order:order_topup_001");
+    expect(claw!.args["p_grant_request_id"]).toBe("order:order_topup_001");
+    expect(ledger.has("order:order_topup_001::order_refunded")).toBe(true);
+  });
+
+  it("custom_data license key takes precedence over the email lookup", async () => {
+    const res = await onRequestPost(
+      makeContext(refundPayload("order_topup_002", Number(TEST_TOPUP_VARIANT), "other@example.com", "WN-AI-CUSTOM")),
+    );
+    expect(res.status).toBe(200);
+    const claw = rpcCalls.find((c) => c.fn === "clawback_topup");
+    expect(claw!.args["p_license_key"]).toBe("WN-AI-CUSTOM");
+  });
+
+  it("non-top-up variant refund: no clawback RPC, still tombstoned with 200", async () => {
+    const res = await onRequestPost(makeContext(refundPayload("order_app_003", 424242)));
+    expect(res.status).toBe(200);
+    expect(rpcCalls.find((c) => c.fn === "clawback_topup")).toBeUndefined();
+    expect(ledger.has("order:order_app_003::order_refunded")).toBe(true);
+  });
+
+  it("no matching grant (-1 sentinel): terminal 200 + tombstone, no retry storm", async () => {
+    rpcResults.set("clawback_topup", -1);
+    const res = await onRequestPost(makeContext(refundPayload("order_topup_004", Number(TEST_TOPUP_VARIANT))));
+    expect(res.status).toBe(200);
+    expect(ledger.has("order:order_topup_004::order_refunded")).toBe(true);
+  });
+
+  it("RPC failure: 500 with NO tombstone so LS retries the clawback", async () => {
+    rpcErrors.set("clawback_topup", { message: "boom" });
+    const res = await onRequestPost(makeContext(refundPayload("order_topup_005", Number(TEST_TOPUP_VARIANT))));
+    expect(res.status).toBe(500);
+    expect(ledger.has("order:order_topup_005::order_refunded")).toBe(false);
+  });
+
+  it("unresolvable subscriber: no RPC, terminal 200 + tombstone (ops alert path)", async () => {
+    const res = await onRequestPost(
+      makeContext(refundPayload("order_topup_006", Number(TEST_TOPUP_VARIANT), "stranger@example.com")),
+    );
+    expect(res.status).toBe(200);
+    expect(rpcCalls.find((c) => c.fn === "clawback_topup")).toBeUndefined();
+    expect(ledger.has("order:order_topup_006::order_refunded")).toBe(true);
+  });
+
+  it("replay: second delivery hits the ledger and returns 200 (SQL guard owns RPC dedup)", async () => {
+    await onRequestPost(makeContext(refundPayload("order_topup_007", Number(TEST_TOPUP_VARIANT))));
+    const res = await onRequestPost(makeContext(refundPayload("order_topup_007", Number(TEST_TOPUP_VARIANT))));
+    expect(res.status).toBe(200);
   });
 });
