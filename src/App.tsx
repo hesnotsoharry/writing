@@ -12,6 +12,7 @@ import { useSyncCallbacks } from "./App.sync";
 import type { BinderCallbacks } from "./binder/BinderCrud";
 import { type BinderTree,buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
+import type { UndoReplaceTarget } from "./db/manuscriptSearchStore";
 import { getDb } from "./db/schema";
 import { seedIfEmpty } from "./db/seed";
 import type { Snapshot } from "./db/snapshotStore";
@@ -61,10 +62,12 @@ async function backfillWordCounts(projectId: string): Promise<number> {
   return updated;
 }
 
-async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
+async function loadScene(sceneId: string, ctx: LoadSceneCtx, opts?: { discardPending?: boolean }) {
   const { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId } = ctx;
   const myToken = ++loadTokenRef.current;
-  syncEngine.detachLiveDoc(); unbindRef.current?.();
+  syncEngine.detachLiveDoc();
+  // Authoritative reloads discard the pending save (P1.1/P1.3, see UnbindFn.discard).
+  if (opts?.discardPending) unbindRef.current?.discard(); else unbindRef.current?.();
   unbindRef.current = null;
   setDoc(null);
   const d = new Y.Doc();
@@ -77,7 +80,6 @@ async function loadScene(sceneId: string, ctx: LoadSceneCtx) {
       ctx.onSavedRef.current?.(id, wordCount); syncEngine.notifyLocalSave(id);
     } },
   });
-
   if (myToken !== loadTokenRef.current || !mountedRef.current) { unbind(); return; }
   unbindRef.current = unbind; syncEngine.attachLiveDoc(sceneId, d);
   setSelectedSceneId(sceneId); setDoc(d);
@@ -165,12 +167,16 @@ function useSceneLoader(opts: SceneLoaderOptions) {
     await unbindRef.current?.flush();
   }, []);
 
-  return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene, flushPendingSave };
+  return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx),
+    /** Discards the pending save — for reloads after a store rewrite that must win. */
+    reloadSceneAuthoritative: (sceneId: string) => void loadScene(sceneId, ctx, { discardPending: true }),
+    clearScene, flushPendingSave };
 }
 interface AppWiring {
   callbacks: BinderCallbacks; dragCallbacks: ReturnType<typeof useDragHandlers>;
   onSwitchProject: (id: string) => void; onCreateProject: (title: string) => void;
   onEntitiesChanged: () => void; handleSelectScene: (sceneId: string) => void;
+  reloadSceneAuthoritative: (sceneId: string) => void;
   reloadTree: () => void; refreshProjects: () => void;
   flushPendingSave: () => Promise<void>;
 }
@@ -190,7 +196,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     activeProjectIdRef, setLinksVersion, sceneDocStore, storyBibleStore, binderStore,
     onWordCountPersisted,
   });
-  const { handleSelectScene, clearScene, flushPendingSave } = useSceneLoader({
+  const { handleSelectScene, reloadSceneAuthoritative, clearScene, flushPendingSave } = useSceneLoader({
     setDoc, setSelectedSceneId, setTree, setLoading,
     setProjects, setActiveProjectId: setActiveProject, onSavedRef,
   });
@@ -210,7 +216,8 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   const { doReloadTree, doRefreshProjects } =
     useTreeAndProjectRefresh(binderStore, activeProjectIdRef, setTree, setProjects);
   return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
-    handleSelectScene: selectScene, reloadTree: doReloadTree, refreshProjects: doRefreshProjects,
+    handleSelectScene: selectScene, reloadSceneAuthoritative,
+    reloadTree: doReloadTree, refreshProjects: doRefreshProjects,
     flushPendingSave };
 }
 function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, showHistory: boolean, historySceneId: string | null) {
@@ -235,7 +242,8 @@ function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, sho
 function useAppCore() {
   const state = useAppState(); useStartupUpdateCheck((u) => state.setPendingUpdate(u));
   const { setTheme, setAccent } = useTheme();
-  const wiring = useAppWiring(state); useSyncCallbacks(state.selectedSceneId, wiring.reloadTree, wiring.handleSelectScene, wiring.refreshProjects);
+  // onDocReplaced reloads are authoritative (flush would resurrect stale prose, P1.1).
+  const wiring = useAppWiring(state); useSyncCallbacks(state.selectedSceneId, wiring.reloadTree, wiring.reloadSceneAuthoritative, wiring.refreshProjects);
   const { doc, selectedSceneId, showHistory, historySceneId } = state;
   const snap = useSnapshotState(doc, selectedSceneId, showHistory, historySceneId);
   const [railRefreshKey, setRailRefreshKey] = useState(0); const bumpRailKey = useCallback(() => setRailRefreshKey((k) => k + 1), []);
@@ -273,14 +281,14 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     historySnapshots, historyCurrentText, historyCurrentWords,
     onHistoryCapture: () => historySceneId ? snapCapture({ targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore) }).then((id) => { bumpRailKey(); return id; }) : Promise.resolve(null),
     onHistoryRename: (id: string, label: string) => { void snapRename(id, label, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
-    onHistoryRestore: (id: string) => historySceneId ? snapRestore({ projectId: activeProjectId ?? undefined, targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.handleSelectScene }, id).then(() => bumpRailKey()) : Promise.resolve(),
+    onHistoryRestore: (id: string) => historySceneId ? snapRestore({ projectId: activeProjectId ?? undefined, targetSceneId: historySceneId, isActive: historySceneId === ctx.sceneId, activeDoc: ctx.doc, set: setHistorySnapshots, load: sceneDocStore.load.bind(sceneDocStore), save: sceneDocStore.save.bind(sceneDocStore), reloadScene: wiring.reloadSceneAuthoritative }, id).then(() => bumpRailKey()) : Promise.resolve(),
     onHistoryDelete: (id: string) => { void snapDelete(id, historySceneId, setHistorySnapshots).then(() => bumpRailKey()); },
     onHistoryGetText: fetchSnapshotText,
     showFindReplace, setShowFindReplace, findReplaceSeed, setFindReplaceSeed,
     findReplaceProjectId: activeProjectId, findReplaceSnapshotStore: snapshotStore,
     onFindReplaceJump: wiring.handleSelectScene,
-    onUndoReplace: (sceneIds: string[]) => snapUndoReplace(sceneIds, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null), { reloadScene: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }, projectId: activeProjectId ?? undefined }),
-    onAfterReplace: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.handleSelectScene(sceneId); }, pendingUpdate, setPendingUpdate, appInstallError, setAppInstallError,
+    onUndoReplace: (scenes: UndoReplaceTarget[]) => snapUndoReplace(scenes, sceneDocStore.save.bind(sceneDocStore), (sceneId: string) => (sceneId === ctx.sceneId ? ctx.doc : null), { reloadScene: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.reloadSceneAuthoritative(sceneId); }, projectId: activeProjectId ?? undefined }),
+    onAfterReplace: (sceneId: string) => { if (sceneId === ctx.sceneId) wiring.reloadSceneAuthoritative(sceneId); }, pendingUpdate, setPendingUpdate, appInstallError, setAppInstallError,
   };
 }
 

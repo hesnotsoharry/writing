@@ -190,3 +190,31 @@ describe("bindPersistence", () => {
     unbind();
   });
 });
+
+describe("bindPersistence.discard (audit P1.1/P1.3)", () => {
+  it("cancels the pending debounced save without writing", async () => {
+    const store = new InMemorySceneDocStore();
+    const doc = new Y.Doc();
+    const unbind = bindPersistence(doc, "scene-d", store, { debounceMs: 500 });
+
+    appendParagraph(doc, "typed just before an authoritative reload");
+    expect(store.saveCount).toBe(0);
+
+    // The store was just rewritten with bytes that must win (epoch replacement
+    // or snapshot restore): discarding must NOT flush the stale doc over them.
+    unbind.discard();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.saveCount).toBe(0);
+  });
+
+  it("detaches the update listener like a normal unbind", async () => {
+    const store = new InMemorySceneDocStore();
+    const doc = new Y.Doc();
+    const unbind = bindPersistence(doc, "scene-d2", store, { debounceMs: 500 });
+    unbind.discard();
+
+    appendParagraph(doc, "typed after discard");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.saveCount).toBe(0);
+  });
+});

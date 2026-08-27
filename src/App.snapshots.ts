@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import * as Y from "yjs";
 
+import type { UndoReplaceTarget } from "./db/manuscriptSearchStore";
 import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { SqliteSnapshotStore } from "./db/sqliteSnapshotStore";
 import { getTweak, TWEAK_DEFAULTS } from "./features/settings/settings.store";
@@ -178,12 +179,24 @@ export async function snapRestore(opts: SnapRestoreOpts, snapshotId: string): Pr
   }
 }
 
+/** Resolve the undo point for one scene. The exact snapshot id (captured by
+ *  replaceInScene) is authoritative: "newest auto" can be shadowed by a
+ *  scene-leave auto-snap of POST-replace content taken while the Undo toast is
+ *  still up, silently no-oping the undo (audit P1 undo-shadow). The heuristic
+ *  survives only as a fallback for injected stores that return no id. */
+async function resolveUndoSnapshot(sceneId: string, snapshotId: string | null) {
+  if (snapshotId) return snapshotStore.getSnapshot(snapshotId);
+  const list = await snapshotStore.listSnapshots(sceneId);
+  const snap = list.find((s) => s.kind === "auto") ?? null;
+  return snap ? snapshotStore.getSnapshot(snap.id) : null;
+}
+
 /**
- * Undo a Replace-All operation by restoring the most-recent auto-snapshot for
- * each touched scene. Called from the FindReplace onUndoReplace callback.
+ * Undo a Replace-All operation by restoring each touched scene's pre-replace
+ * snapshot (by exact id). Called from the FindReplace onUndoReplace callback.
  */
 export function snapUndoReplace(
-  sceneIds: string[],
+  targets: UndoReplaceTarget[],
   save: (sceneId: string, base64: string, plaintext: string | null) => Promise<void>,
   getDoc: (sceneId: string) => Y.Doc | null = () => null,
   reload?: ((sceneId: string) => void) | {
@@ -193,10 +206,8 @@ export function snapUndoReplace(
   const reloadScene = typeof reload === "function" ? reload : reload?.reloadScene;
   const projectId = typeof reload === "function" ? undefined : reload?.projectId;
   syncEngine.pause();
-  const restores = sceneIds.map((sid) =>
-    snapshotStore.listSnapshots(sid)
-      .then((list) => list.find((s) => s.kind === "auto") ?? null)
-      .then((snap) => snap ? snapshotStore.getSnapshot(snap.id) : null)
+  const restores = targets.map(({ sceneId: sid, snapshotId }) =>
+    resolveUndoSnapshot(sid, snapshotId)
       .then((record) => {
         if (!record) return;
         return save(sid, record.stateBase64, null).then(async () => {

@@ -213,6 +213,11 @@ export async function searchManuscript(
  * (sceneId, find, replace, snapshotStore); opts is a genuine 5th concern that
  * cannot be merged without breaking that immutable external contract.
  */
+/** One scene touched by a Replace All, with the exact pre-replace snapshot to
+ *  undo to. snapshotId null = the injected snapshot store returned no id; the
+ *  undo falls back to the newest-auto heuristic for that scene. */
+export interface UndoReplaceTarget { sceneId: string; snapshotId: string | null }
+
 // eslint-disable-next-line max-params
 export async function replaceInScene(
   sceneId: string,
@@ -220,8 +225,8 @@ export async function replaceInScene(
   replace: string,
   snapshotStore: SnapshotStore,
   opts?: FindOpts,
-): Promise<{ replacedCount: number }> {
-  if (!find) return { replacedCount: 0 };
+): Promise<{ replacedCount: number; undoSnapshotId: string | null }> {
+  if (!find) return { replacedCount: 0, undoSnapshotId: null };
   const db = await getDb();
   const rows = await db.select<{ state_base64: string | null }[]>(
     "SELECT state_base64 FROM scene_docs WHERE scene_id = $1",
@@ -232,15 +237,8 @@ export async function replaceInScene(
   const plaintext = extractPlainText(currentDoc);
   const currentWords = plaintext.trim() ? plaintext.trim().split(/\s+/).filter(Boolean).length : 0;
   const count = replaceInDoc(currentDoc, find, replace, opts);
-  if (count === 0) return { replacedCount: 0 };
-  const snapshot = await snapshotStore.takeSnapshot({
-    sceneId, label: null, stateBase64: existingBase64 ?? "", wordCount: currentWords, kind: "auto",
-  });
-  // The pre-replace snapshot is the user's undo point, so it publishes like any
-  // user-authored snapshot. `snapshot?.id` rather than `snapshot.id`: callers
-  // inject their own SnapshotStore here, and a notification must never be the
-  // reason a Replace All fails.
-  if (snapshot?.id != null) await publishSnapshotSaved(sceneId, snapshot.id);
+  if (count === 0) return { replacedCount: 0, undoSnapshotId: null };
+  const undoSnapshotId = await takeUndoSnapshot(snapshotStore, sceneId, existingBase64 ?? "", currentWords);
   const projectRows = await db.select<Array<{ project_id: string }>>(
     "SELECT project_id FROM scenes WHERE id = $1", [sceneId]
   );
@@ -248,5 +246,24 @@ export async function replaceInScene(
   await persistDoc(db, {
     sceneId, projectId, doc: currentDoc, plaintext: extractPlainText(currentDoc),
   });
-  return { replacedCount: count };
+  // The exact undo point: later kind:'auto' snapshots (scene-leave captures of
+  // POST-replace content) can shadow it in newest-first listings, so undo must
+  // address it by id, never by "newest auto" (audit P1 undo-shadow).
+  return { replacedCount: count, undoSnapshotId };
+}
+
+/** Take the pre-replace safety snapshot and publish it. Returns the snapshot
+ *  id, or null — callers inject their own SnapshotStore, and a notification
+ *  must never be the reason a Replace All fails. */
+async function takeUndoSnapshot(
+  snapshotStore: SnapshotStore,
+  sceneId: string,
+  stateBase64: string,
+  wordCount: number,
+): Promise<string | null> {
+  const snapshot = await snapshotStore.takeSnapshot({
+    sceneId, label: null, stateBase64, wordCount, kind: "auto",
+  });
+  if (snapshot?.id != null) await publishSnapshotSaved(sceneId, snapshot.id);
+  return snapshot?.id ?? null;
 }

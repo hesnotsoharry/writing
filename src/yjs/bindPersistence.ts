@@ -21,6 +21,12 @@ export interface BindPersistenceOpts {
 
 export type UnbindFn = (() => void) & {
   flush: () => Promise<void>;
+  /** Detach WITHOUT saving: cancels the pending debounce outright. Only for
+   *  authoritative reloads (epoch replacement, snapshot restore, replace-all)
+   *  where the store already holds the bytes that must win — the normal
+   *  unbind's flush would write the stale live doc back over them. Both of
+   *  those flows take a recovery snapshot before discarding. */
+  discard: () => void;
 };
 
 function createSaver(
@@ -96,5 +102,9 @@ export function bindPersistence(
     if (timer) { clearTimeout(timer); timer = null; void saver.save(); }
   };
   unbind.flush = flush;
+  unbind.discard = () => {
+    doc.off("update", onUpdate);
+    if (timer) { clearTimeout(timer); timer = null; }
+  };
   return unbind;
 }

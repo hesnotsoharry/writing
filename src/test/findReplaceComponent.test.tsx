@@ -81,7 +81,7 @@ async function driveToToast(user: ReturnType<typeof userEvent.setup>) {
 describe("FindReplace component — onUndoReplace is only triggered by explicit Undo click", () => {
   beforeEach(() => {
     vi.mocked(searchManuscript).mockResolvedValue([SCENE_MATCH]);
-    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1 });
+    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1, undoSnapshotId: "snap-1" });
   });
 
   afterEach(() => {
@@ -116,7 +116,7 @@ describe("FindReplace component — onUndoReplace is only triggered by explicit 
     await user.click(screen.getByRole("button", { name: "Undo" }));
 
     expect(onUndoReplace).toHaveBeenCalledTimes(1);
-    expect(onUndoReplace).toHaveBeenCalledWith(["s-1"]);
+    expect(onUndoReplace).toHaveBeenCalledWith([{ sceneId: "s-1", snapshotId: "snap-1" }]);
   });
 });
 
@@ -134,7 +134,7 @@ describe("FindReplace component — onAfterReplace triggers scene reload after r
 
   it("calls onAfterReplace with the scene ID after replace-all completes", async () => {
     vi.mocked(searchManuscript).mockResolvedValue([SCENE_MATCH]);
-    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1 });
+    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1, undoSnapshotId: "snap-1" });
     const user = userEvent.setup({ delay: null });
     const onAfterReplace = vi.fn();
 
@@ -175,7 +175,7 @@ describe("FindReplace component — onAfterReplace triggers scene reload after r
 
   it("calls onAfterReplace per-scene — only the open scene is reloaded by the callback guard", async () => {
     vi.mocked(searchManuscript).mockResolvedValue([SCENE_MATCH, SCENE_TWO]);
-    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1 });
+    vi.mocked(replaceInScene).mockResolvedValue({ replacedCount: 1, undoSnapshotId: "snap-1" });
     const user = userEvent.setup({ delay: null });
     const openSceneId = "s-1";
     const handleSelectScene = vi.fn();

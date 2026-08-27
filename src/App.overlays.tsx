@@ -9,6 +9,7 @@ import { type Dispatch, type ReactElement, type SetStateAction,useEffect } from 
 
 import type { BinderTree } from "./binder/buildTree";
 import type { BinderStore } from "./db/binderStore";
+import type { UndoReplaceTarget } from "./db/manuscriptSearchStore";
 import type { SceneDocStore } from "./db/sceneDocStore";
 import type { Snapshot, SnapshotStore } from "./db/snapshotStore";
 import { Archive } from "./features/archive/Archive";
@@ -93,7 +94,7 @@ export interface OverlayStackProps {
   findReplaceProjectId: string | null;
   findReplaceSnapshotStore: SnapshotStore;
   onFindReplaceJump?: (sceneId: string) => void;
-  onUndoReplace?: (sceneIds: string[]) => void;
+  onUndoReplace?: (scenes: UndoReplaceTarget[]) => void;
   onAfterReplace?: (sceneId: string) => void;
   /** Prefill seed passed to FindReplace on open from "Find mentions". Empty string = normal open. */
   findReplaceSeed?: string;

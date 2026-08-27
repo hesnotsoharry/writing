@@ -23,6 +23,7 @@ import {
   replaceInScene,
   searchManuscript,
   type SearchMatch,
+  type UndoReplaceTarget,
 } from "../../db/manuscriptSearchStore";
 import type { SnapshotStore } from "../../db/snapshotStore";
 
@@ -39,7 +40,7 @@ export interface FindReplaceProps {
   snapshotStore: SnapshotStore;
   onJump?: (sceneId: string) => void;
   onClose?: () => void;
-  onUndoReplace?: (sceneIds: string[]) => void;
+  onUndoReplace?: (scenes: UndoReplaceTarget[]) => void;
   /** Called for each replaced scene after the DB write resolves. Lets callers reload the live editor. */
   onAfterReplace?: (sceneId: string) => void;
   /** Prefills the search input when the overlay opens (e.g. "Find mentions" on an entity). */
@@ -69,15 +70,17 @@ interface ExecReplaceArgs {
   onAfterReplace?: (sceneId: string) => void;
 }
 
-async function execReplaceAll({ results, find, replace, snap, opts, onAfterReplace }: ExecReplaceArgs): Promise<string[]> {
-  const ids: string[] = [];
+async function execReplaceAll({ results, find, replace, snap, opts, onAfterReplace }: ExecReplaceArgs): Promise<UndoReplaceTarget[]> {
+  const targets: UndoReplaceTarget[] = [];
   for (const m of results) {
     try {
-      const { replacedCount } = await replaceInScene(m.sceneId, find, replace, snap, opts);
-      if (replacedCount > 0) { ids.push(m.sceneId); onAfterReplace?.(m.sceneId); }
+      const { replacedCount, undoSnapshotId } = await replaceInScene(m.sceneId, find, replace, snap, opts);
+      // Carry the exact pre-replace snapshot id: undo must address it directly,
+      // since a later scene-leave auto-snap can shadow it as "newest auto".
+      if (replacedCount > 0) { targets.push({ sceneId: m.sceneId, snapshotId: undoSnapshotId }); onAfterReplace?.(m.sceneId); }
     } catch (e: unknown) { console.error("[find-replace] replaceInScene failed", e); }
   }
-  return ids;
+  return targets;
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -190,7 +193,7 @@ function useFindReplaceState({ projectId, snapshotStore, onClose, onUndoReplace,
   const [rawResults, setRawResults] = useState<SearchMatch[]>([]);
   const [confirming, setConfirming] = useState(false); const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastDescriptor | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null); const searchVersion = useRef(0); const pendingUndo = useRef<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null); const searchVersion = useRef(0); const pendingUndo = useRef<UndoReplaceTarget[]>([]);
   useEffect(() => { inputRef.current?.focus(); inputRef.current?.select(); }, []);
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose?.(); }
@@ -210,10 +213,10 @@ function useFindReplaceState({ projectId, snapshotStore, onClose, onUndoReplace,
   const handleReplaceAll = useCallback(async () => {
     setBusy(true); setConfirming(false);
     const opts = { caseSensitive, wholeWord };
-    const ids = await execReplaceAll({ results: rawResults, find: query, replace: repl, snap: snapshotStore, opts, onAfterReplace });
+    const targets = await execReplaceAll({ results: rawResults, find: query, replace: repl, snap: snapshotStore, opts, onAfterReplace });
     setBusy(false);
-    if (ids.length === 0) { onClose?.(); return; }
-    pendingUndo.current = ids; setToast({ label: `Replaced in ${ids.length} scene${ids.length !== 1 ? "s" : ""}.`, undo: true });
+    if (targets.length === 0) { onClose?.(); return; }
+    pendingUndo.current = targets; setToast({ label: `Replaced in ${targets.length} scene${targets.length !== 1 ? "s" : ""}.`, undo: true });
   }, [rawResults, query, repl, snapshotStore, onClose, caseSensitive, wholeWord, onAfterReplace]);
   const handleToastUndo = useCallback(() => { onUndoReplace?.(pendingUndo.current); setToast(null); pendingUndo.current = []; onClose?.(); }, [onUndoReplace, onClose]);
   const handleToastClose = useCallback(() => { setToast(null); pendingUndo.current = []; onClose?.(); }, [onClose]);
