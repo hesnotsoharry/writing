@@ -60,6 +60,8 @@ export interface OverlayStackProps {
   exportSceneDocStore: SceneDocStore;
   /** Binder tree forwarded to ExportOverlay (needed to resolve scope → scenes). */
   exportTree: BinderTree;
+  /** Flush pending scene saves before collecting export content. */
+  onExportFlush?: () => Promise<void>;
   showSettings: boolean;
   setShowSettings: (v: boolean) => void;
   setTheme: (t: Theme) => void;
@@ -107,11 +109,7 @@ export interface OverlayStackProps {
 type OverlayStackAllProps = OverlayStackProps & { goalsOn: boolean; activeProjectId: string | null };
 
 function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
-  const closeGoals = () => {
-    p.setShowGoals(false);
-    p.setGoalsInitialScope(undefined);
-    p.setEditGoalId?.(undefined);
-  };
+  const closeGoals = () => { p.setShowGoals(false); p.setGoalsInitialScope(undefined); p.setEditGoalId?.(undefined); };
   return (
     <>
       {p.showQuickCapture && (
@@ -136,7 +134,8 @@ function FeatureOverlays(p: OverlayStackAllProps): ReactElement {
         <ExportOverlay projectId={p.activeProjectId} initialScope={p.exportScope}
           sceneId={p.exportSceneId} chapterId={p.exportChapterId}
           projectTitle={p.exportProjectTitle} sceneDocStore={p.exportSceneDocStore}
-          tree={p.exportTree} onClose={() => p.setShowExport(false)} onSave={tauriSave} />
+          tree={p.exportTree} onClose={() => p.setShowExport(false)} onSave={tauriSave}
+          onFlush={p.onExportFlush} />
       )}
       {p.showSettings && (
         <Settings onClose={() => p.setShowSettings(false)} setTheme={p.setTheme} setAccent={p.setAccent}

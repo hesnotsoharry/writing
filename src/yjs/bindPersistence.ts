@@ -19,60 +19,82 @@ export interface BindPersistenceOpts {
   onSaved?: (sceneId: string, wordCount: number, meta: SaveMeta) => void;
 }
 
+export type UnbindFn = (() => void) & {
+  flush: () => Promise<void>;
+};
+
+function createSaver(
+  doc: Y.Doc,
+  sceneId: string,
+  store: SceneDocStore,
+  onSaved?: BindPersistenceOpts["onSaved"],
+) {
+  let hadLocalEdits = true;
+  let inFlight: Promise<void> | null = null;
+
+  const save = (): Promise<void> => {
+    const savedHadLocalEdits = hadLocalEdits;
+    hadLocalEdits = false;
+    const text = extractPlainText(doc);
+    const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+    const p = store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null)
+      .then(() => {
+        onSaved?.(sceneId, wordCount, { hadLocalEdits: savedHadLocalEdits });
+      })
+      .finally(() => {
+        if (inFlight === p) inFlight = null;
+      });
+    inFlight = p;
+    return p;
+  };
+
+  return {
+    save,
+    markLocal: () => { hadLocalEdits = true; },
+    inFlight: () => inFlight,
+  };
+}
+
 /**
  * Subscribe to a Y.Doc and persist its full state to `store`, debounced.
- * Returns an unbind function that detaches the listener and cancels any
- * pending save.
+ * Returns an unbind function (with .flush() method) that detaches the listener
+ * and flushes any pending save.
  */
 export function bindPersistence(
   doc: Y.Doc,
   sceneId: string,
   store: SceneDocStore,
   opts: BindPersistenceOpts = {}
-): () => void {
+): UnbindFn {
   const { debounceMs = 500, onSaved } = opts;
+  const saver = createSaver(doc, sceneId, store, onSaved);
   let timer: ReturnType<typeof setTimeout> | null = null;
-  // The eager initial save preserves today's scene-open cascade.
-  let hadLocalEdits = true;
-
-  const saveNow = () => {
-    const savedHadLocalEdits = hadLocalEdits;
-    hadLocalEdits = false;
-    const text = extractPlainText(doc);
-    const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
-    void store.save(sceneId, encodeDoc(doc), text.length > 0 ? text : null)
-      .then(() => { onSaved?.(sceneId, wordCount, { hadLocalEdits: savedHadLocalEdits }); });
-  };
 
   const scheduleSave = () => {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      saveNow();
-    }, debounceMs);
+    timer = setTimeout(() => { timer = null; void saver.save(); }, debounceMs);
   };
-
   const onUpdate = (_update: Uint8Array, origin: unknown) => {
-    if (origin !== SYNC_ORIGIN) hadLocalEdits = true;
+    if (origin !== SYNC_ORIGIN) saver.markLocal();
     scheduleSave();
   };
-
-  // Schedule an initial save so that content built before binding is persisted.
-  // Any real update that fires will cancel and reschedule this timer.
-  scheduleSave();
-
-  doc.on("update", onUpdate);
-
-  return () => {
-    doc.off("update", onUpdate);
-    // Flush (not cancel) a pending save: writes made within debounceMs of
-    // unbind would otherwise be silently dropped — e.g. graduating a board
-    // card right before navigating away, or final keystrokes before a view
-    // switch (wave-32 Phase 6 finding).
+  const flush = async (): Promise<void> => {
     if (timer) {
       clearTimeout(timer);
       timer = null;
-      saveNow();
+      await saver.save();
+    } else if (saver.inFlight()) {
+      await saver.inFlight();
     }
   };
+
+  scheduleSave();
+  doc.on("update", onUpdate);
+
+  const unbind: UnbindFn = () => {
+    doc.off("update", onUpdate);
+    if (timer) { clearTimeout(timer); timer = null; void saver.save(); }
+  };
+  unbind.flush = flush;
+  return unbind;
 }

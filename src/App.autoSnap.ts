@@ -47,13 +47,17 @@ export function useAutoSnapHooks(
   selectedSceneId: string | null,
   doc: Y.Doc | null,
   handleSelectScene: (sceneId: string) => void,
+  flushPendingSave?: () => Promise<void>,
 ): (sceneId: string) => void {
   const handleSnap = useCallback(async () => {
+    if (flushPendingSave) {
+      await flushPendingSave().catch((e: unknown) => console.error("[auto-snap] flush failed", e));
+    }
     if (selectedSceneId && doc) {
       await snapAutoCapture({ sceneId: selectedSceneId, doc })
         .catch((e: unknown) => console.error("[auto-snap] app-close failed", e));
     }
-  }, [selectedSceneId, doc]);
+  }, [selectedSceneId, doc, flushPendingSave]);
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;

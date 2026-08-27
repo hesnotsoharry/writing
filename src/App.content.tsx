@@ -236,7 +236,9 @@ function useContentMetrics(props: AppContentProps, liveWordCount: number) {
 function useAppContentSlots(props: AppContentProps) {
   const { tree, selectedSceneId, doc, onSelectScene, callbacks, activeProjectId, view, onViewChange, overlays, storyBibleStore, labelStore } = props;
   const { focusMode, setFocusMode, goalsOn, hasQuickItems, setShowGoals, setShowQuickCapture, setShowSettings, setShowExport, setExportTarget, setShowFindReplace, setFindReplaceSeed } = overlays;
-  const { onExport, openExport } = useExportActions(tree, selectedSceneId, setExportTarget, setShowExport);
+  const { onExport, openExport } = useExportActions(tree, selectedSceneId, {
+    setExportTarget, setShowExport, flushPendingSave: overlays.onExportFlush,
+  });
   useGlobalKeybindings({ ...overlays, setShowFindReplace, view, openExport });
   useQuickItemsBadge(activeProjectId, overlays.setHasQuickItems);
   useEditorStyle();

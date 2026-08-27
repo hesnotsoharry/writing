@@ -13,6 +13,12 @@ export type SetExportTargetFn = (opts: {
   chapterId: string | null;
 }) => void;
 
+export interface ExportTargetActions {
+  setExportTarget: SetExportTargetFn;
+  setShowExport: (v: boolean) => void;
+  flushPendingSave?: () => Promise<void>;
+}
+
 /**
  * Returns two stable callbacks:
  * - `onExport(scope, id)` — called by binder / corkboard context-menu items.
@@ -22,10 +28,11 @@ export type SetExportTargetFn = (opts: {
 export function useExportActions(
   tree: BinderTree,
   selectedSceneId: string | null,
-  setExportTarget: SetExportTargetFn,
-  setShowExport: (v: boolean) => void
+  actions: ExportTargetActions
 ) {
+  const { setExportTarget, setShowExport, flushPendingSave } = actions;
   const onExport = useCallback((scope: "scene" | "chapter", id: string) => {
+    void flushPendingSave?.();
     if (scope === "chapter") {
       setExportTarget({ scope: "chapter", sceneId: null, chapterId: id });
     } else {
@@ -33,9 +40,10 @@ export function useExportActions(
       setExportTarget({ scope: "scene", sceneId: id, chapterId: ch?.folder.id ?? null });
     }
     setShowExport(true);
-  }, [tree, setExportTarget, setShowExport]);
+  }, [tree, setExportTarget, setShowExport, flushPendingSave]);
 
   const openExport = useCallback(() => {
+    void flushPendingSave?.();
     if (selectedSceneId) {
       const ch = tree.chapters.find((c) => c.scenes.some((s) => s.id === selectedSceneId));
       setExportTarget({ scope: "scene", sceneId: selectedSceneId, chapterId: ch?.folder.id ?? null });
@@ -43,7 +51,7 @@ export function useExportActions(
       setExportTarget({ scope: "manuscript", sceneId: null, chapterId: null });
     }
     setShowExport(true);
-  }, [selectedSceneId, tree, setExportTarget, setShowExport]);
+  }, [selectedSceneId, tree, setExportTarget, setShowExport, flushPendingSave]);
 
   return { onExport, openExport };
 }

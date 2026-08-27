@@ -226,10 +226,10 @@ describe("applySuggestion — dispatches correct ProseMirror transaction per kin
     return { view: view as unknown as EditorView, tr, dispatchedTrs };
   }
 
-  it("calls tr.replaceWith for a 'replace' suggestion", () => {
+  it("calls tr.insertText for a 'replace' suggestion (preserving marks)", () => {
     const { view, tr } = makeFakeView();
     applySuggestion(view, 5, 8, { kind: "replace", text: "goes" });
-    expect(tr.replaceWith).toHaveBeenCalledWith(5, 8, expect.anything());
+    expect(tr.insertText).toHaveBeenCalledWith("goes", 5, 8);
     expect(view.dispatch).toHaveBeenCalledTimes(1);
   });
 
@@ -247,7 +247,7 @@ describe("applySuggestion — dispatches correct ProseMirror transaction per kin
     expect(view.dispatch).toHaveBeenCalledTimes(1);
   });
 
-  it("does not dispatch when 'replace' text is empty (schema.text guard)", () => {
+  it("does not dispatch when 'replace' text is empty", () => {
     const { view } = makeFakeView();
     applySuggestion(view, 5, 8, { kind: "replace", text: "" });
     expect(view.dispatch).not.toHaveBeenCalled();

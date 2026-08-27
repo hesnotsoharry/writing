@@ -179,4 +179,24 @@ describe("collectBlocks — manuscript scope", () => {
     // The heading block is the raw folder title — sanitizeFilename is for suggestedTitle, not headings
     expect(result.blocks[0]).toBe('Chapter: "One"');
   });
+
+  it("flushes pending debounced save of active scene before collecting export", async () => {
+    const store = new InMemorySceneDocStore();
+    const s1 = makeScene("s1", "Active Scene", 1000, null);
+    await seedDoc(store, "s1", "Saved initial text.");
+
+    // User is editing in the live editor: doc has newer keystrokes not yet saved (debounced)
+    const liveDoc = docWithText("Saved initial text. New unsaved keystrokes typed just now.");
+    const { bindPersistence } = await import("../yjs/bindPersistence");
+    const unbind = bindPersistence(liveDoc, "s1", store, { debounceMs: 500 });
+
+    const tree = buildTree([], [s1]);
+
+    // Flush pipeline is invoked by export trigger/overlay:
+    await unbind.flush();
+    const result = await collectBlocks("scene", "s1", tree, store);
+
+    expect(result.blocks[0]).toBe("Saved initial text. New unsaved keystrokes typed just now.");
+    unbind();
+  });
 });

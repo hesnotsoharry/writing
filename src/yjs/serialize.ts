@@ -17,24 +17,47 @@ export function applyEncoded(doc: Y.Doc, base64: string): void {
   Y.applyUpdate(doc, toUint8Array(base64));
 }
 
+function collectNodeLines(
+  node: Y.XmlElement,
+  textExtractor: (t: Y.XmlText) => string,
+): string[] {
+  if (node.length === 0) return [""];
+  let inline = "";
+  let hasInline = false;
+  const lines: string[] = [];
+
+  for (let i = 0; i < node.length; i++) {
+    const child = node.get(i);
+    if (child instanceof Y.XmlText) {
+      inline += textExtractor(child);
+      hasInline = true;
+    } else if (child instanceof Y.XmlElement) {
+      lines.push(...collectNodeLines(child, textExtractor));
+    }
+  }
+
+  return hasInline ? [inline] : lines;
+}
+
 /**
  * Extract the plaintext content of a Y.Doc whose "content" key is a
  * Y.XmlFragment (TipTap Collaboration, field: "content").
- * Top-level block elements are joined with "\n"; text is gathered from
- * descendant Y.XmlText nodes. Returns "" for an empty fragment.
+ * Block elements (including nested list items and blockquote paragraphs) are
+ * joined with "\n"; text is gathered from descendant Y.XmlText nodes.
+ * Returns "" for an empty fragment.
  */
 export function extractPlainText(doc: Y.Doc): string {
   const fragment = doc.getXmlFragment("content");
-  const blockTexts: string[] = [];
+  const lines: string[] = [];
 
   for (let i = 0; i < fragment.length; i++) {
     const child = fragment.get(i);
     if (child instanceof Y.XmlElement) {
-      blockTexts.push(collectText(child));
+      lines.push(...collectNodeLines(child, xmlTextToPlain));
     }
   }
 
-  return blockTexts.join("\n");
+  return lines.join("\n");
 }
 
 /**
@@ -74,32 +97,6 @@ function xmlTextToAiSafe(node: Y.XmlText): string {
     }, "");
 }
 
-function collectText(node: Y.XmlElement): string {
-  let result = "";
-  for (let i = 0; i < node.length; i++) {
-    const child = node.get(i);
-    if (child instanceof Y.XmlText) {
-      result += xmlTextToPlain(child);
-    } else if (child instanceof Y.XmlElement) {
-      result += collectText(child);
-    }
-  }
-  return result;
-}
-
-function collectAiSafeText(node: Y.XmlElement): string {
-  let result = "";
-  for (let i = 0; i < node.length; i++) {
-    const child = node.get(i);
-    if (child instanceof Y.XmlText) {
-      result += xmlTextToAiSafe(child);
-    } else if (child instanceof Y.XmlElement) {
-      result += collectAiSafeText(child);
-    }
-  }
-  return result;
-}
-
 /**
  * Mark-aware extraction for AI context: identical traversal to extractPlainText,
  * but any delta op with `attributes.aiExclude` truthy is replaced by
@@ -109,14 +106,14 @@ function collectAiSafeText(node: Y.XmlElement): string {
  */
 export function extractAiSafeText(doc: Y.Doc): string {
   const fragment = doc.getXmlFragment("content");
-  const blockTexts: string[] = [];
+  const lines: string[] = [];
 
   for (let i = 0; i < fragment.length; i++) {
     const child = fragment.get(i);
     if (child instanceof Y.XmlElement) {
-      blockTexts.push(collectAiSafeText(child));
+      lines.push(...collectNodeLines(child, xmlTextToAiSafe));
     }
   }
 
-  return blockTexts.join("\n");
+  return lines.join("\n");
 }

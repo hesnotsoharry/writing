@@ -251,7 +251,9 @@ describe("sqliteGetSceneText", () => {
       );
 
       const result = await sqliteGetSceneText(db, sceneId);
-      expect(result?.text).toBe("First itemSecond item");
+      // Nested block boundaries separate with \n (audit P4.2) — the old glued
+      // "First itemSecond item" expectation encoded the bug this fixed.
+      expect(result?.text).toBe("First item\nSecond item");
     } finally {
       db.close();
     }

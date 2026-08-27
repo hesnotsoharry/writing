@@ -118,13 +118,11 @@ export function SpellCheckPopover({
 /**
  * Applies a GrammarSuggestion to a ProseMirror transaction, dispatching the
  * correct operation per kind (Decision F):
- *   "replace"      → replaceWith(from, to, schema.text(s.text))
+ *   "replace"      → insertText(s.text, from, to) (preserves marks)
  *   "remove"       → delete(from, to)
  *   "insert_after" → insertText(s.text, to)
  *
- * The empty-text guard for "replace"/"insert_after" prevents schema.text("")
- * from throwing (ProseMirror rejects empty text nodes). Tests pass a fake view
- * cast to EditorView.
+ * Tests pass a fake view cast to EditorView.
  */
 export function applySuggestion(
   view: EditorView,
@@ -132,11 +130,11 @@ export function applySuggestion(
   to: number,
   s: GrammarSuggestion,
 ): void {
-  const { tr, schema } = view.state;
+  const { tr } = view.state;
 
   if (s.kind === "replace") {
-    if (!s.text) return; // schema.text("") throws
-    view.dispatch(tr.replaceWith(from, to, schema.text(s.text)));
+    if (!s.text) return; // no-op for empty replacement
+    view.dispatch(tr.insertText(s.text, from, to));
   } else if (s.kind === "remove") {
     view.dispatch(tr.delete(from, to));
   } else if (s.kind === "insert_after") {

@@ -39,4 +39,50 @@ describe("yjs serialize", () => {
     applyEncoded(restored, base64);
     expect(extractPlainText(restored).length).toBe(200_000);
   });
+
+  it("extracts nested list items with newline separators (no glued words)", () => {
+    const doc = new Y.Doc();
+    const frag = doc.getXmlFragment("content");
+    const list = new Y.XmlElement("bulletList");
+
+    const item1 = new Y.XmlElement("listItem");
+    const p1 = new Y.XmlElement("paragraph");
+    const t1 = new Y.XmlText();
+    t1.insert(0, "apple");
+    p1.insert(0, [t1]);
+    item1.insert(0, [p1]);
+
+    const item2 = new Y.XmlElement("listItem");
+    const p2 = new Y.XmlElement("paragraph");
+    const t2 = new Y.XmlText();
+    t2.insert(0, "banana");
+    p2.insert(0, [t2]);
+    item2.insert(0, [p2]);
+
+    list.insert(0, [item1, item2]);
+    frag.insert(0, [list]);
+
+    expect(extractPlainText(doc)).toBe("apple\nbanana");
+  });
+
+  it("extracts nested blockquote paragraphs with newline separators", () => {
+    const doc = new Y.Doc();
+    const frag = doc.getXmlFragment("content");
+    const bq = new Y.XmlElement("blockquote");
+
+    const p1 = new Y.XmlElement("paragraph");
+    const t1 = new Y.XmlText();
+    t1.insert(0, "Line 1");
+    p1.insert(0, [t1]);
+
+    const p2 = new Y.XmlElement("paragraph");
+    const t2 = new Y.XmlText();
+    t2.insert(0, "Line 2");
+    p2.insert(0, [t2]);
+
+    bq.insert(0, [p1, p2]);
+    frag.insert(0, [bq]);
+
+    expect(extractPlainText(doc)).toBe("Line 1\nLine 2");
+  });
 });

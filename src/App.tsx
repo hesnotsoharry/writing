@@ -25,11 +25,11 @@ import { useLicenseGate } from "./features/license/license.gate";
 import { useStartupUpdateCheck } from "./lib/updater";
 import { syncEngine } from "./sync/desktopEngine";
 import { useTheme } from "./theme/useTheme";
-import { bindPersistence } from "./yjs/bindPersistence";
+import { bindPersistence, type UnbindFn } from "./yjs/bindPersistence";
 import { applyEncoded, extractPlainText } from "./yjs/serialize";
 
 interface LoadSceneCtx {
-  unbindRef: MutableRefObject<(() => void) | null>;
+  unbindRef: MutableRefObject<UnbindFn | null>;
   loadTokenRef: MutableRefObject<number>;
   mountedRef: MutableRefObject<boolean>;
   setDoc: (doc: Y.Doc | null) => void;
@@ -49,20 +49,15 @@ async function backfillWordCounts(projectId: string): Promise<number> {
   const { scenes } = await binderStore.loadProject(projectId);
   const zeroes = scenes.filter((s) => s.word_count === 0);
   if (zeroes.length === 0) return 0;
-
   let updated = 0;
-  await Promise.all(
-    zeroes.map(async (scene) => {
-      const projection = await sceneDocStore.loadProjection(scene.id);
-      if (!projection) return; // no persisted prose yet — leave at 0
-      const wordCount = projection.trim()
-        ? projection.trim().split(/\s+/).filter(Boolean).length
-        : 0;
-      if (wordCount === 0) return; // genuinely empty doc — leave at 0
-      const changed = await binderStore.setSceneWordCount(scene.id, wordCount);
-      if (changed) updated += 1;
-    })
-  );
+  await Promise.all(zeroes.map(async (scene) => {
+    const projection = await sceneDocStore.loadProjection(scene.id);
+    if (!projection) return;
+    const wordCount = projection.trim() ? projection.trim().split(/\s+/).filter(Boolean).length : 0;
+    if (wordCount === 0) return;
+    const changed = await binderStore.setSceneWordCount(scene.id, wordCount);
+    if (changed) updated += 1;
+  }));
   return updated;
 }
 
@@ -110,31 +105,18 @@ function firstSceneOf(tree: BinderTree): (typeof tree.shortPieces)[0] | null {
 
 async function initializeProjectTree(opts: InitProjectTreeOpts): Promise<void> {
   const { cancelled, setTree, setLoading, loadSceneFn, setProjects, setActiveProjectId } = opts;
-  await getDb();
-  await seedIfEmpty(binderStore);
+  await getDb(); await seedIfEmpty(binderStore);
   if (cancelled.value) return;
-
   const projects = await binderStore.listProjects();
   if (projects.length === 0 || cancelled.value) { setLoading(false); return; }
-
   setProjects(projects);
   const activeProject = projects[0];
   setActiveProjectId(activeProject.id);
-
   const { folders, scenes } = await binderStore.loadProject(activeProject.id);
   if (cancelled.value) return;
-
   const builtTree = buildTree(folders, scenes);
-  setTree(builtTree);
-  setLoading(false);
-
-  // Backfill word counts for scenes that existed before Phase 2's persistence
-  // landed. Runs after the UI is already visible; reload tree if rows changed
-  // so binder rows show real counts on first open.
-  if (!cancelled.value) {
-    await backfillAndReload(activeProject.id, setTree as (t: BinderTree) => void, cancelled);
-  }
-
+  setTree(builtTree); setLoading(false);
+  if (!cancelled.value) await backfillAndReload(activeProject.id, setTree as (t: BinderTree) => void, cancelled);
   const firstScene = firstSceneOf(builtTree);
   if (firstScene && !cancelled.value) await loadSceneFn(firstScene.id);
 }
@@ -152,7 +134,7 @@ interface SceneLoaderOptions {
 function useSceneLoader(opts: SceneLoaderOptions) {
   const { setDoc, setSelectedSceneId, setTree, setLoading, setProjects,
     setActiveProjectId, onSavedRef } = opts;
-  const unbindRef = useRef<(() => void) | null>(null);
+  const unbindRef = useRef<UnbindFn | null>(null);
   const loadTokenRef = useRef(0);
   const mountedRef = useRef(true);
   const ctx: LoadSceneCtx = { unbindRef, loadTokenRef, mountedRef, setDoc, setSelectedSceneId, onSavedRef };
@@ -179,14 +161,18 @@ function useSceneLoader(opts: SceneLoaderOptions) {
     setDoc(null);
     setSelectedSceneId(null);
   }
+  const flushPendingSave = useCallback(async (): Promise<void> => {
+    await unbindRef.current?.flush();
+  }, []);
 
-  return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene };
+  return { handleSelectScene: (sceneId: string) => void loadScene(sceneId, ctx), clearScene, flushPendingSave };
 }
 interface AppWiring {
   callbacks: BinderCallbacks; dragCallbacks: ReturnType<typeof useDragHandlers>;
   onSwitchProject: (id: string) => void; onCreateProject: (title: string) => void;
   onEntitiesChanged: () => void; handleSelectScene: (sceneId: string) => void;
   reloadTree: () => void; refreshProjects: () => void;
+  flushPendingSave: () => Promise<void>;
 }
 
 function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
@@ -204,11 +190,11 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     activeProjectIdRef, setLinksVersion, sceneDocStore, storyBibleStore, binderStore,
     onWordCountPersisted,
   });
-  const { handleSelectScene, clearScene } = useSceneLoader({
+  const { handleSelectScene, clearScene, flushPendingSave } = useSceneLoader({
     setDoc, setSelectedSceneId, setTree, setLoading,
     setProjects, setActiveProjectId: setActiveProject, onSavedRef,
   });
-  const selectScene = useAutoSnapHooks(selectedSceneId, doc, handleSelectScene);
+  const selectScene = useAutoSnapHooks(selectedSceneId, doc, handleSelectScene, flushPendingSave);
   const { onSwitchProject, onCreateProject } = useProjectActions({
     binderStore, activeProjectIdRef, loadProjectTokenRef,
     setTree: setTree as (t: BinderTree) => void,
@@ -224,7 +210,8 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   const { doReloadTree, doRefreshProjects } =
     useTreeAndProjectRefresh(binderStore, activeProjectIdRef, setTree, setProjects);
   return { callbacks, dragCallbacks, onSwitchProject, onCreateProject, onEntitiesChanged,
-    handleSelectScene: selectScene, reloadTree: doReloadTree, refreshProjects: doRefreshProjects };
+    handleSelectScene: selectScene, reloadTree: doReloadTree, refreshProjects: doRefreshProjects,
+    flushPendingSave };
 }
 function useSnapshotState(doc: Y.Doc | null, selectedSceneId: string | null, showHistory: boolean, historySceneId: string | null) {
   const [historySnapshots, setHistorySnapshots] = useState<Snapshot[]>([]);
@@ -278,7 +265,7 @@ function makeOverlays({ state, wiring, snap, ctx, sceneTitle, tree, setTheme, se
     showExport, setShowExport, exportScope: exportTarget.scope, exportSceneId: exportTarget.sceneId,
     exportChapterId: exportTarget.chapterId, exportProjectTitle: projects.find((p) => p.id === activeProjectId)?.title,
     setExportTarget: (opts: { scope: typeof exportTarget.scope; sceneId: string | null; chapterId: string | null }) => setExportTarget(opts),
-    exportSceneDocStore: sceneDocStore, exportTree: tree, showSettings, setShowSettings,
+    exportSceneDocStore: sceneDocStore, exportTree: tree, onExportFlush: wiring.flushPendingSave, showSettings, setShowSettings,
     focusMode, setFocusMode, goalsOn, setGoalsOn, hasQuickItems, setHasQuickItems,
     setTheme, setAccent, binderStore,
     onArchiveChanged: () => { bumpArchivedVersion(); wiring.reloadTree(); },

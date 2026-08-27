@@ -23,6 +23,7 @@ export interface ExportOverlayProps {
   tree: BinderTree;
   onClose: () => void;
   onSave?: SaveCallback;
+  onFlush?: () => Promise<void>;
 }
 
 type ExportFormat = "markdown" | "docx" | "pdf";
@@ -55,6 +56,7 @@ interface ExecExportOpts {
   tree: BinderTree;
   store: SceneDocStore;
   save: SaveCallback;
+  onFlush?: () => Promise<void>;
 }
 
 /** Resolves which ID to pass to collectBlocks based on the selected scope. */
@@ -88,7 +90,8 @@ function scopeOptions(hasScene: boolean, hasChapter: boolean): ExportScope[] {
   return opts;
 }
 
-async function execExport({ format, scope, targetId, projectId, tree, store, save }: ExecExportOpts): Promise<void> {
+async function execExport({ format, scope, targetId, projectId, tree, store, save, onFlush }: ExecExportOpts): Promise<void> {
+  if (onFlush) await onFlush();
   const { blocks, suggestedTitle } = await collectBlocks(scope, targetId, tree, store);
   if (blocks.length === 0) throw new Error("Nothing to export — the selection contains no content.");
   const title = suggestedTitle || projectId;
@@ -253,7 +256,7 @@ function ExportSheet({
 // ---------------------------------------------------------------------------
 
 export function ExportOverlay({
-  projectId, initialScope, sceneId, chapterId, projectTitle, sceneDocStore, tree, onClose, onSave,
+  projectId, initialScope, sceneId, chapterId, projectTitle, sceneDocStore, tree, onClose, onSave, onFlush,
 }: ExportOverlayProps): ReactElement {
   const [scope, setScope] = useState<ExportScope>(() => resolveInitialScope(initialScope, sceneId, chapterId));
   const [format, setFormat] = useState<ExportFormat>("markdown");
@@ -271,7 +274,7 @@ export function ExportOverlay({
     busyRef.current = true;
     setBusy(true);
     setErrorMsg(null);
-    execExport({ format, scope, targetId, projectId, tree, store: sceneDocStore, save: onSave ?? blobDownloadSave })
+    execExport({ format, scope, targetId, projectId, tree, store: sceneDocStore, save: onSave ?? blobDownloadSave, onFlush })
       .then(() => { onClose(); })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);

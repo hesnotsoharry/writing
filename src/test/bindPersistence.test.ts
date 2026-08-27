@@ -161,4 +161,32 @@ describe("bindPersistence", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(store.saveCount).toBe(1);
   });
+
+  it("flush() immediately persists pending edits without unbinding", async () => {
+    const store = new InMemorySceneDocStore();
+    const doc = new Y.Doc();
+    const unbind = bindPersistence(doc, "scene-flush", store, { debounceMs: 500 });
+
+    appendParagraph(doc, "first edit");
+    expect(store.saveCount).toBe(0);
+
+    // Call flush() before timer fires
+    await unbind.flush();
+    expect(store.saveCount).toBe(1);
+
+    const restored = new Y.Doc();
+    applyEncoded(restored, (await store.load("scene-flush"))!);
+    expect(extractPlainText(restored)).toBe("first edit");
+
+    // After flush, subsequent edits still schedule debounced saves
+    appendParagraph(doc, " second edit");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(store.saveCount).toBe(2);
+
+    const restored2 = new Y.Doc();
+    applyEncoded(restored2, (await store.load("scene-flush"))!);
+    expect(extractPlainText(restored2)).toBe("first edit\n second edit");
+
+    unbind();
+  });
 });
