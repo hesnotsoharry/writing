@@ -5,6 +5,21 @@ updated: 2026-08-22
 
 ## Current state
 
+### Bug-fix campaign from the 2026-08-27 ultracode audit (in progress, same day)
+
+The 63-item audit tracker lives at `roadmap/bug-audit-2026-08-27.md` (full
+report: the "WritersNook Bug Audit" artifact). 51/63 addressed across ~20
+commits this session, including the critical mobile catch-up corruption
+(P0.1), the fleet-wide stale-flush resurrections (P1.1/P1.3), the double
+refund + license-key-wipe + top-up-clawback money bugs (P9), and transport
+liveness. Still open: P1.2/P1.4 (epoch owner in frames + partial hello —
+protocol additions), P3.1–7 (meta/bible races, worker in flight at time of
+writing). Needs Cole: P5.6 decision (goals uniqueness vs LWW merge),
+applying `marketing/supabase/0009_clawback_topup.sql` + subscribing the LS
+subscription webhook to `order_refunded`, deploying the relay worker
+(capacity + ping/pong), and a live sync session to verify P0.1 on the real
+pair. Everything is committed locally, NOT pushed (push deploys marketing).
+
 ### What landed today (2026-08-27 — Play Console setup complete, first AAB building)
 
 Agent session drove the Play Console (claude-in-chrome) end-to-end for
