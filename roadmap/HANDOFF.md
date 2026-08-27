@@ -5,6 +5,39 @@ updated: 2026-08-22
 
 ## Current state
 
+### What landed today (2026-08-27 — Play Console setup complete, first AAB building)
+
+Agent session drove the Play Console (claude-in-chrome) end-to-end for
+`app.writersnook` ("WritersNook — Companion", app id 4973880574039488183):
+
+- **All app-content declarations done and saved**: Ads (none), Advertising ID
+  (none), Government apps (no), Financial features (none), Health (none),
+  Target audience (**18+**), Data safety (**no data collected/shared**, per the
+  runbook's E2E/ephemeral rationale), app category (App → Productivity),
+  contact details (support@writersnook.app / https://writersnook.app).
+- **Content rating diverges from the runbook's guess**: the current IARC
+  questionnaire counts generative AI as "online content", so honest answers
+  (fictional violence/drug references possible, mild-moderate language, no
+  sexual content) landed **ESRB Teen / PEGI 12 / ClassInd 14** — not
+  Everyone/PEGI 3. Fine for an 18+ target; redo the questionnaire if that ever
+  matters.
+- **Store listing saved complete**: runbook draft text verbatim, 512 icon
+  (resized from `mobile/assets/icon.png`), generated 1024×500 feature graphic,
+  and 4 real phone screenshots (hub, binder, editor, corkboard) captured from
+  the Aug-21 `app-release.apk` on the `Medium_Phone_API_36.1` emulator, cropped
+  to 1080×2160 to drop the debug footer. Assets live in the Play asset library;
+  sources in the session scratchpad only — regenerate from device if better
+  ones are wanted (the old APK still shows the trial pill + test project names).
+- **Android upload keystore now exists LOCALLY** (divergence from the runbook's
+  "let EAS hold it"): `mobile/credentials/upload-keystore.jks` + password in
+  `mobile/credentials.json` (both gitignored). Play App Signing re-signs, so a
+  lost upload key is recoverable via Play support. **Back it up.**
+- **First production AAB build launched on EAS** (versionCode 2, package
+  `app.writersnook`). Remaining when it finishes: upload the .aab to a
+  **Closed testing** release, add a tester email list, roll out, then "Send app
+  for review" in Publishing overview (button unlocks once a release exists).
+  Production access needs 12+ opted-in testers for 14 continuous days.
+
 ### What landed today (2026-08-22, second wave — Cole's live sync session, diagnosed and fixed)
 
 Cole ran the sync-session runbook on the real pair. Every "sync failure" he

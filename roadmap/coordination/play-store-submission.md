@@ -1,7 +1,17 @@
 # Play Store submission — runbook and listing draft
 
-> Created 2026-08-22. Companion-only Android app (`com.coles.writersnook`), no IAP,
+> Created 2026-08-22. Companion-only Android app (now `app.writersnook`), no IAP,
 > no accounts. Desktop remains the purchased product; mobile is free.
+>
+> **2026-08-27 status: executed.** All console declarations, category/contact,
+> and the full store listing are saved (see HANDOFF). Divergences: content
+> rating came out **Teen/PEGI 12** (current IARC questionnaire treats the AI
+> assistant as online content answered honestly), and the upload keystore was
+> generated **locally** (`credentials/upload-keystore.jks` + password in
+> `credentials.json`, gitignored) instead of EAS-held — keytool is
+> non-interactive, so the "one Cole command" below was never needed. First
+> production AAB (versionCode 2) building on EAS. Remaining: closed-testing
+> release + tester list + "Send app for review".
 
 ## State of the blockers (from HANDOFF "not submittable")
 
