@@ -8,6 +8,7 @@ interface FakeSocket {
 
 class HibernationStateMock {
   readonly sockets: WebSocket[] = [];
+  autoResponse: WebSocketRequestResponsePair | null = null;
 
   acceptWebSocket(socket: WebSocket): void {
     this.sockets.push(socket);
@@ -15,6 +16,10 @@ class HibernationStateMock {
 
   getWebSockets(): WebSocket[] {
     return [...this.sockets];
+  }
+
+  setWebSocketAutoResponse(pair?: WebSocketRequestResponsePair): void {
+    this.autoResponse = pair ?? null;
   }
 }
 
@@ -24,7 +29,10 @@ function fakeSocket(): FakeSocket & WebSocket {
   return {
     close: vi.fn(),
     send: vi.fn(),
-  } as FakeSocket & WebSocket;
+    // Plain accept() (workerd's non-hibernation accept) — used by the
+    // capacity-rejection path before close(); never joins getWebSockets().
+    accept: vi.fn(),
+  } as unknown as FakeSocket & WebSocket;
 }
 
 function stateFor(roomState: HibernationStateMock): DurableObjectState {
@@ -35,6 +43,9 @@ function stateFor(roomState: HibernationStateMock): DurableObjectState {
       }
       if (property === "getWebSockets") {
         return roomState.getWebSockets.bind(roomState);
+      }
+      if (property === "setWebSocketAutoResponse") {
+        return roomState.setWebSocketAutoResponse.bind(roomState);
       }
       return undefined;
     },
@@ -54,6 +65,15 @@ beforeEach(() => {
     },
   );
   vi.stubGlobal(
+    "WebSocketRequestResponsePair",
+    class {
+      constructor(
+        readonly request: string,
+        readonly response: string,
+      ) {}
+    },
+  );
+  vi.stubGlobal(
     "Response",
     class extends originalResponse {
       constructor(body?: BodyInit | null, init?: ResponseInit) {
@@ -68,6 +88,15 @@ afterEach(() => {
 });
 
 describe("RelayRoom", () => {
+  it("configures ping/pong auto-response on construction", () => {
+    const state = new HibernationStateMock();
+    makeRoom(state);
+    expect(state.autoResponse).toEqual({
+      request: "ping",
+      response: "pong",
+    });
+  });
+
   it("tracks joins and leaves through the hibernation state", async () => {
     const state = new HibernationStateMock();
     const room = makeRoom(state);
@@ -81,7 +110,7 @@ describe("RelayRoom", () => {
 
     const departed = state.sockets.pop();
     expect(departed).toBeDefined();
-    room.webSocketClose(departed!, 1000, "done", true);
+    room.webSocketClose();
     expect(state.getWebSockets()).toHaveLength(0);
   });
 
@@ -105,19 +134,35 @@ describe("RelayRoom", () => {
     expect(sender.close).toHaveBeenCalledWith(1009, "Frame exceeds 1 MiB");
   });
 
-  it("accepts then closes the ninth socket with 1013", async () => {
+  it("rejects the ninth socket with 1013 without accepting it into the room", async () => {
     const state = new HibernationStateMock();
     state.sockets.push(...Array.from({ length: 8 }, fakeSocket));
 
-    await makeRoom(state).fetch(
+    let createdServer: (FakeSocket & WebSocket) | null = null;
+    vi.stubGlobal(
+      "WebSocketPair",
+      class {
+        readonly 0 = fakeSocket();
+        readonly 1: FakeSocket & WebSocket;
+        constructor() {
+          this[1] = fakeSocket();
+          createdServer = this[1];
+        }
+      },
+    );
+
+    const response = await makeRoom(state).fetch(
       new Request("https://relay.test/room/id", {
         headers: { Upgrade: "websocket" },
       }),
     );
 
-    expect(state.getWebSockets()).toHaveLength(9);
-    const ninth = state.sockets[8] as FakeSocket & WebSocket;
-    expect(ninth.close).toHaveBeenCalledWith(1013, "Room capacity reached");
+    expect(response.status).toBe(200);
+    expect(state.getWebSockets()).toHaveLength(8);
+    expect(createdServer!.close).toHaveBeenCalledWith(
+      1013,
+      "Room capacity reached",
+    );
   });
 
   it("drops binary frames", () => {

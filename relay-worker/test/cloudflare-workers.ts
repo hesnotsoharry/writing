@@ -7,3 +7,22 @@ export class DurableObject<Environment> {
     this.env = env;
   }
 }
+
+class DefaultWebSocketRequestResponsePair {
+  constructor(
+    readonly request: string,
+    readonly response: string,
+  ) {}
+}
+
+if (
+  typeof (globalThis as { WebSocketRequestResponsePair?: unknown })
+    .WebSocketRequestResponsePair === "undefined"
+) {
+  Object.defineProperty(globalThis, "WebSocketRequestResponsePair", {
+    value: DefaultWebSocketRequestResponsePair,
+    writable: true,
+    configurable: true,
+  });
+}
+
