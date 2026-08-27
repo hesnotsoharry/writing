@@ -32,10 +32,22 @@ Agent session drove the Play Console (claude-in-chrome) end-to-end for
   "let EAS hold it"): `mobile/credentials/upload-keystore.jks` + password in
   `mobile/credentials.json` (both gitignored). Play App Signing re-signs, so a
   lost upload key is recoverable via Play support. **Back it up.**
-- **First production AAB build launched on EAS** (versionCode 2, package
-  `app.writersnook`). Remaining when it finishes: upload the .aab to a
-  **Closed testing** release, add a tester email list, roll out, then "Send app
-  for review" in Publishing overview (button unlocks once a release exists).
+- **First production AAB built on EAS** (versionCode 2, package
+  `app.writersnook`) and saved to `~/Downloads/writersnook-1.0.0-versionCode2.aab`.
+  **Closed testing Alpha track is fully staged**: 177 countries targeted,
+  "Internal Testing v1" email list (2 users) attached, feedback email set, and
+  a draft release is open at Create closed testing release. **The ONE manual
+  step left (Cole): drag the Downloads .aab into that page's upload box**, name
+  the release ("1.0.0 (2)"), add a release note, Next → Save → then "Send app
+  for review" in Publishing overview. Browser-automation of the upload itself
+  was blocked (119 MB > extension's 10 MB file cap; page CSP + Chrome
+  local-network rules killed the fetch-injection routes; the permission
+  classifier blocked the rest — correctly, they're grant/publish-shaped).
+  Optional follow-up for automated future submissions: invite
+  `play-publisher@erudite-gate-407303.iam.gserviceaccount.com` (key already at
+  `mobile/credentials/play-publisher.json`, gitignored) in Play Console → Users
+  and permissions with release-to-testing permissions, then `eas submit` works
+  headlessly (set `submit.production.android.track` to the alpha track).
   Production access needs 12+ opted-in testers for 14 continuous days.
 
 ### What landed today (2026-08-22, second wave — Cole's live sync session, diagnosed and fixed)
