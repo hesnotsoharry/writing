@@ -71,9 +71,25 @@ export class EpochManager {
       const wasBehind = this.isBehind(sceneId);
       this.known.set(sceneId, epoch);
       if (projectId) this.projects.set(sceneId, projectId);
+      if (this.selfHealOwnEpoch(sceneId, epoch)) continue;
       if (!wasBehind && this.isBehind(sceneId)) newlyBehind.push(sceneId);
     }
     return newlyBehind;
+  }
+
+  /** v1.2 ownership inference (audit P1.8): a converged stamp naming THIS
+   *  device means we performed the winning restore — the restore wrote our
+   *  scene bytes BEFORE bumping the epoch, so our store already holds them.
+   *  When recordLocal's applied write was lost (crash between the meta-doc and
+   *  app_meta commits, or a restore performed while the engine was down),
+   *  adopt the stamp instead of reporting ourselves behind: peers withhold
+   *  what they owe the owner, so the awaited replacement would never come. */
+  private selfHealOwnEpoch(sceneId: string, known: EpochStamp): boolean {
+    if (!this.deviceId || known.d !== this.deviceId) return false;
+    if (matches(known, this.applied[sceneId] ?? EMPTY_EPOCH)) return false;
+    this.applied[sceneId] = { ...known };
+    void this.options.epochStore?.save(this.applied);
+    return true;
   }
 
   async recordLocal(epochs: Record<string, EpochStamp>): Promise<string[]> {

@@ -70,7 +70,7 @@ export class SyncEngine {
   constructor(options: EngineOptions) {
     this.options = options;
     this.devices = new DeviceRosterTracker(options.deviceRoster ?? {});
-    this.credentials = new CredentialExchange((message) => this.sendMessage(message),
+    this.credentials = new CredentialExchange(async (message) => { await this.sendMessage(message); },
       () => !this.isPaused() && this.statusEmitter.current().state === "connected");
     this.docs = new EngineDocRepository(options);
     this.epochs = new EpochManager(options);
@@ -79,10 +79,10 @@ export class SyncEngine {
     this.lwwRegistry = registry;
     this.rowPublisher = options.lwwStore && this.outbox
       ? new LwwPublisher({ store: options.lwwStore, registry, outbox: this.outbox,
-        send: (message) => this.sendMessage(message), deviceId: () => this.deviceId,
+        send: async (message) => { await this.sendMessage(message); }, deviceId: () => this.deviceId,
         loadClock: options.loadLwwClock, saveClock: options.saveLwwClock }) : null;
     this.lww = buildRowReconciler({ store: options.lwwStore, registry,
-      send: (message) => this.sendMessage(message), outbox: () => this.outbox,
+      send: async (message) => { await this.sendMessage(message); }, outbox: () => this.outbox,
       observe: (hlc) => this.rowPublisher?.observe(hlc) ?? Promise.resolve(),
       publish: (mutation) => this.publishRow(mutation),
       thisDevice: () => this.deviceId });
@@ -100,11 +100,11 @@ export class SyncEngine {
     this.localContent = new LocalContentSubscriptions(
       options,
       (projectId, epochs) => this.notifyLocalMetaSave(projectId, epochs),
-      (projectId, stateBase64) => void publishBibleSave(this.outbox, (message) => this.sendMessage(message), projectId, stateBase64),
+      (projectId, stateBase64) => void publishBibleSave(this.outbox, async (message) => { await this.sendMessage(message); }, projectId, stateBase64),
       (sceneId) => this.notifyLocalSave(sceneId),
     );
     this.control = new ControlRouter({ devices: this.devices, credentials: this.credentials, options,
-      lww: () => this.lww, outbox: () => this.outbox, send: (m) => this.sendMessage(m),
+      lww: () => this.lww, outbox: () => this.outbox, send: async (m) => { await this.sendMessage(m); },
       answerHello: (h) => this.answerHello(h), patchStatus: (p) => this.setStatus(p) });
   }
 
@@ -164,7 +164,7 @@ export class SyncEngine {
   subscribeQueue(listener: (queue: SyncQueueDepth) => void): () => void { return this.outbox?.subscribe(listener) ?? (() => undefined); }
   async syncNow(): Promise<void> {
     if (this.isPaused() || this.statusEmitter.current().state !== "connected") return;
-    await this.outbox?.flush((message) => sendEligibleOutboxMessage(message, this.lwwRegistry, (eligible) => this.sendMessage(eligible)));
+    await this.outbox?.flush((message) => sendEligibleOutboxMessage(message, this.lwwRegistry, async (eligible) => { await this.sendMessage(eligible); }));
     await this.sendHello();
     await this.lww?.sendAllSummaries();
   }
@@ -226,7 +226,7 @@ export class SyncEngine {
     if (this.isPaused() || this.statusEmitter.current().state !== "connected") return;
     await this.replacements.flush({
       metaStore: this.options.metaStore,
-    }, (frame) => this.sendMessage(frame));
+    }, async (frame) => { await this.sendMessage(frame); });
   }
 
   private scheduleTargetedHello(channel: string): void {
@@ -322,8 +322,10 @@ export class SyncEngine {
     const peerVectors = new Map(hello.docs.map((doc) => [doc.c, doc.sv]));
     for (const doc of await this.docs.listAll()) {
       const frame = answerFrame(doc, peerVectors.get(doc.channel), this.epochs);
-      if (frame) await this.sendMessage(frame);
-      else await this.acknowledgeDoc(doc.channel);
+      // Null frame = peer already holds this doc; delivered frame = it just got
+      // the full state. Both satisfy the outbox entry (ack-on-null-only left
+      // epoch>0 entries pending forever, P1.5).
+      if (frame ? await this.sendMessage(frame) : true) await this.acknowledgeDoc(doc.channel);
     }
   }
 
@@ -337,10 +339,13 @@ export class SyncEngine {
     if (channel) await this.outbox?.acknowledgeItem(channel.kind, channel.id);
   }
 
-  private async sendMessage(message: InnerMessage): Promise<void> {
-    if (this.isPaused() || !this.encKey || this.statusEmitter.current().state !== "connected") return;
+  /** True when handed to the provider; false while paused/keyless/disconnected —
+   *  callers acking durable work off a send must not ack a dropped one. */
+  private async sendMessage(message: InnerMessage): Promise<boolean> {
+    if (this.isPaused() || !this.encKey || this.statusEmitter.current().state !== "connected") return false;
     const blob = await sealMessage(this.encKey, message);
-    if (!this.isPaused()) this.provider?.send(blob);
+    if (this.isPaused() || !this.provider) return false;
+    this.provider.send(blob); return true;
   }
 
   private startSweep(): void {

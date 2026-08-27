@@ -70,3 +70,31 @@ describe("EpochManager ownership", () => {
     expect(manager.accepts("scene-1", 2)).toBe(true);
   });
 });
+
+describe("EpochManager ownership self-heal (audit P1.8)", () => {
+  it("adopts a converged stamp naming THIS device instead of reporting behind", async () => {
+    // The applied write from recordLocal was lost (crash between the meta-doc
+    // and app_meta commits, or a restore while the engine was down): the meta
+    // doc names this device as the restorer, but applied is empty.
+    const store = new MemoryEpochStore();
+    const manager = makeManager(store);
+    await manager.initialize("device-a");
+    const doc = emptyMeta();
+    bumpEpoch(doc, "scene-1", "device-a");
+    const newlyBehind = manager.readMetaUpdate(Y.encodeStateAsUpdate(doc), "p1");
+    expect(newlyBehind).toEqual([]);
+    expect(manager.isBehind("scene-1")).toBe(false);
+    const persisted = await store.load();
+    expect(persisted["scene-1"]).toMatchObject({ d: "device-a" });
+  });
+
+  it("still reports behind when the converged owner is another device", async () => {
+    const manager = makeManager();
+    await manager.initialize("device-a");
+    const doc = emptyMeta();
+    bumpEpoch(doc, "scene-1", "device-b");
+    const newlyBehind = manager.readMetaUpdate(Y.encodeStateAsUpdate(doc), "p1");
+    expect(newlyBehind).toEqual(["scene-1"]);
+    expect(manager.isBehind("scene-1")).toBe(true);
+  });
+});
