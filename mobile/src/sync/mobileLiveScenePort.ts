@@ -16,7 +16,7 @@ export interface MobileLiveSceneTransport { postMessage(message: string): void }
 
 export interface MobileLiveScenePortOptions { sceneId: string; transport: MobileLiveSceneTransport; ackTimeoutMs?: number }
 
-export interface MobileLiveScenePort extends EngineLiveScenePort { start(): Promise<void>; receive(rawMessage: string): Promise<void>; notePotentialLocalChanges(): void; close(): Promise<LiveSceneFlushResult>; replaceDurably(stateBase64: string, persist: () => Promise<void>): Promise<void> }
+export interface MobileLiveScenePort extends EngineLiveScenePort { start(): Promise<void>; receive(rawMessage: string): Promise<void>; notePotentialLocalChanges(): void; noteReplacementPending(): void; close(): Promise<LiveSceneFlushResult>; replaceDurably(stateBase64: string, persist: () => Promise<void>): Promise<void> }
 
 export class PendingMobileSceneChangesError extends Error { constructor() { super("The editor still has changes to save."); this.name = "PendingMobileSceneChangesError"; } }
 
@@ -216,6 +216,18 @@ class NativeMobileLiveScenePort implements MobileLiveScenePort {
 
   notePotentialLocalChanges(): void { if (this.hydrated && !this.replacing) this.unflushedLocal = true; }
 
+  /** Epoch catch-up is about to replace this scene's stored doc (engine calls
+   *  this from flushAndClose, before the replacement lands). Discard — but
+   *  still ack — editor updates until the next hydrate, and restart the host
+   *  through the same scene-replaced signal local restores use, so the WebView
+   *  rehydrates from the replacement instead of keeping its stale doc. The
+   *  restart always fires, so the gate can never dangle on a catch-up preview
+   *  that ends without applying (audit P0.1). */
+  noteReplacementPending(): void {
+    this.replacing = true;
+    notifySceneReplaced(this.options.sceneId);
+  }
+
   async flushLocal(): Promise<LiveSceneFlushResult> {
     if (this.flushInFlight) return this.flushInFlight;
     this.flushInFlight = this.performFlush();
@@ -349,6 +361,13 @@ let activeMobileScene: { sceneId: string; port: MobileLiveScenePort } | null = n
 
 const replacementListeners = new Set<(sceneId: string) => void>();
 
+function notifySceneReplaced(sceneId: string): void { replacementListeners.forEach((listener) => listener(sceneId)); }
+
 export function subscribeMobileSceneReplaced(listener: (sceneId: string) => void): () => void { replacementListeners.add(listener); return () => replacementListeners.delete(listener); }
 
-export async function replaceActiveMobileSceneDurably(sceneId: string, stateBase64: string, persist: () => Promise<void>): Promise<void> { const active = activeMobileScene; if (!active || active.sceneId !== sceneId) await persist(); else await active.port.replaceDurably(stateBase64, persist); replacementListeners.forEach((listener) => listener(sceneId)); }
+/** A REMOTE epoch replacement (catch-up) swapped this scene's stored doc.
+ *  Fires the same scene-replaced signal local restores use, so an open editor
+ *  restarts and rehydrates from the replacement (audit P0.1). */
+export function notifyMobileSceneReplacedRemotely(sceneId: string): void { notifySceneReplaced(sceneId); }
+
+export async function replaceActiveMobileSceneDurably(sceneId: string, stateBase64: string, persist: () => Promise<void>): Promise<void> { const active = activeMobileScene; if (!active || active.sceneId !== sceneId) await persist(); else await active.port.replaceDurably(stateBase64, persist); notifySceneReplaced(sceneId); }

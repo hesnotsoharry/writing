@@ -381,3 +381,48 @@ async function hydrateWithTimers(port: MobileLiveScenePort, transport: FakeTrans
   const ready = port.receive(webMessage({ type: "ready" })); await settle();
   await port.receive(ack(lastStateSeq(transport), "hydrate")); await ready; transport.clear();
 }
+
+describe("MobileLiveScenePort remote epoch replacement (audit P0.1)", () => {
+  it("noteReplacementPending gates the port: later editor updates are ACKed but never persisted", async () => {
+    const { port, store, transport } = makeHarness();
+    await hydrate(port, transport);
+    const baseline = store.state;
+    port.noteReplacementPending();
+    const update = appendUpdate(store.state ?? "", " typed-after-catchup");
+    await port.receive(localUpdate(1, update));
+    await settle();
+    // The WebView is told the save happened (no error loop while the host
+    // restarts), but the stale-doc update must not merge into the store.
+    expect(transport.messages().at(-1)).toMatchObject({ type: "ack", ackType: "update", seq: 1 });
+    expect(store.state).toBe(baseline);
+  });
+
+  it("noteReplacementPending fires the scene-replaced signal so the host restarts", async () => {
+    const { port, transport } = makeHarness();
+    await hydrate(port, transport);
+    const replaced: string[] = [];
+    const unsubscribe = subscribeMobileSceneReplaced((id) => replaced.push(id));
+    port.noteReplacementPending();
+    unsubscribe();
+    expect(replaced).toEqual([SCENE_ID]);
+  });
+
+  it("a fresh hydrate after the replacement lifts the gate", async () => {
+    const { port, store, transport } = makeHarness();
+    await hydrate(port, transport);
+    port.noteReplacementPending();
+    const ready = port.receive(webMessage({ type: "ready", sessionId: "session-2" }));
+    await settle();
+    await port.receive(webMessage({
+      type: "ack", sceneId: SCENE_ID, seq: 1, ackType: "hydrate", sessionId: "session-2",
+    }));
+    await ready;
+    transport.clear();
+    const update = appendUpdate(store.state ?? "", " post-restart");
+    await port.receive(localUpdate(1, update, { sessionId: "session-2" }));
+    await settle();
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, decode(store.state ?? ""));
+    expect(extractPlainText(doc)).toContain("post-restart");
+  });
+});

@@ -11,6 +11,12 @@ export interface EngineLiveScenePort {
   applyRemoteUpdate(update: Uint8Array): Promise<void>;
   flushLocal(): Promise<LiveSceneFlushResult>;
   replaceFromState(stateBase64: string): Promise<void>;
+  /** Optional: the engine is about to replace this scene's stored doc wholesale
+   *  (epoch catch-up). The port must stop merging editor updates into the store
+   *  until its next hydrate — an update built against the stale doc and merged
+   *  into the replacement silently drops prose (pending structs) or resurrects
+   *  the restored-away content and re-publishes it at the new epoch. */
+  noteReplacementPending?(): void;
 }
 
 interface LiveDocBinding {
@@ -68,6 +74,10 @@ export class LiveSceneBindings {
     const selected = new Set(sceneIds);
     if (this.livePort && selected.has(this.livePort.id)) {
       try { await this.livePort.port.flushLocal(); } catch { /* SQLite remains the boundary. */ }
+      // Gate BEFORE the store is replaced: without this, an editor update that
+      // arrives between the flush and the epoch replacement merges the stale
+      // doc into the replacement (audit P0.1).
+      this.livePort.port.noteReplacementPending?.();
       this.livePort = null;
     }
     if (this.liveDoc && selected.has(this.liveDoc.id)) this.detachDoc();

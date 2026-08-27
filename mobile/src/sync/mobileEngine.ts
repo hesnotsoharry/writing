@@ -32,6 +32,7 @@ import {
   createMobileLiveScenePort as buildMobileLiveScenePort,
   type MobileLiveScenePort,
   type MobileLiveScenePortOptions,
+  notifyMobileSceneReplacedRemotely,
 } from "./mobileLiveScenePort";
 import { getMobileRelayUrlOverride, resolveMobileRelayUrl } from "./mobileRelayUrl";
 
@@ -213,6 +214,11 @@ export function subscribeMobileStructureChanged(listener: () => void): () => voi
 // SceneScreen's primary freshness source for S4 is refetch-on-focus.
 const docReplacedListeners = new Set<(sceneId: string) => void>();
 mobileEngine.onDocReplaced((sceneId) => {
+  // A remote epoch replacement swapped the stored doc underneath any open
+  // editor. Restart it through the same scene-replaced path local restores
+  // use, so the WebView rehydrates the replacement instead of merging its
+  // stale doc back in and re-publishing it at the new epoch (audit P0.1).
+  notifyMobileSceneReplacedRemotely(sceneId);
   docReplacedListeners.forEach((listener) => listener(sceneId));
 });
 
