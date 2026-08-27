@@ -36,24 +36,30 @@ export class MobileEpochOwner {
     await withMobileProjectMeta(input.projectId, (doc) => {
       stamp = bumpEpoch(doc, input.sceneId, deviceId);
     });
-    if (!stamp) throw new Error(`Project meta is missing for restore: ${input.projectId}`);
+    if (!stamp) {
+      // No meta doc = local-only / never-synced project (audit P7.7). The
+      // scene bytes are already saved above; there is no epoch machinery to
+      // advance and no peer to notify. Throwing here left the restore half
+      // done — binder rows upserted, archive entry stranded.
+      return { n: 0, d: deviceId };
+    }
     await this.epochs.markApplied(input.sceneId, stamp);
-    await this.queueReplacement(input.projectId, input.sceneId, stateBase64, stamp);
+    await this.queueReplacement(input.projectId);
     return stamp;
   }
 
-  private async queueReplacement(
-    projectId: string, sceneId: string, stateBase64: string, stamp: EpochStamp,
-  ): Promise<void> {
+  /** Publish ONLY the authoritative meta (audit P7.6): pre-loading the scene
+   *  body into the durable outbox sent it unconditionally on every flush,
+   *  before ownership converged — exactly what desktop's ReplacementQueue
+   *  exists to prevent (a losing concurrent restorer must never push its
+   *  body). Behind peers learn the epoch from the meta, advertise an empty
+   *  state vector, and the converged owner answers with the full state. */
+  private async queueReplacement(projectId: string): Promise<void> {
     const metaBase64 = await this.meta.load(projectId);
     if (metaBase64 === null) throw new Error(`Project meta is missing for restore: ${projectId}`);
     await this.outbox.enqueue({
       domain: "meta", projectId, itemId: projectId, kind: "doc",
       payload: JSON.stringify({ t: "diff", c: `meta:${projectId}`, u: metaBase64 }),
-    });
-    await this.outbox.enqueue({
-      domain: "scene", projectId, itemId: sceneId, kind: "doc",
-      payload: JSON.stringify({ t: "diff", c: `scene:${sceneId}`, u: stateBase64, e: stamp.n }),
     });
   }
 }

@@ -135,9 +135,11 @@ describe("mobile guarded restore operations", () => {
     const outbox = await db.select<{ domain: string; item_id: string }[]>(
       "SELECT domain, item_id FROM sync_outbox ORDER BY created_at, id",
     );
-    expect(outbox).toEqual([
-      { domain: "meta", item_id: projectId }, { domain: "scene", item_id: sceneId },
-    ]);
+    // ONLY the authoritative meta is queued (audit P7.6): pre-loading the
+    // scene body would push it before ownership converged — a losing
+    // concurrent restorer must never send its body. Behind peers ask via an
+    // empty state vector and the converged owner answers full-state.
+    expect(outbox).toEqual([{ domain: "meta", item_id: projectId }]);
   });
 
   it("restores a snapshot wholesale after first persisting a safety snapshot", async () => {
