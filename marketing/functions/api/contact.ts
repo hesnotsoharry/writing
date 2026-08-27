@@ -30,10 +30,20 @@ async function checkTurnstile(
   return null;
 }
 
+/** Contact fields are attacker-controlled: escape them before HTML interpolation
+ *  so a crafted message cannot inject markup into the operator's mail client. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function buildEmail(name: string, email: string, message: string): { html: string; text: string } {
   const html =
-    `<p><strong>From:</strong> ${name} &lt;${email}&gt;</p>` +
-    `<p><strong>Message:</strong></p><p>${message.replace(/\n/g, "<br>")}</p>`;
+    `<p><strong>From:</strong> ${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;</p>` +
+    `<p><strong>Message:</strong></p><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`;
   const text = `From: ${name} <${email}>\n\nMessage:\n${message}`;
   return { html, text };
 }

@@ -60,8 +60,9 @@ let ledger: Set<string>;
 
 function makeMockClient() {
   return {
-    from: (_table: string) => ({
+    from: (table: string) => ({
       insert: (row: { event_name: string; order_id: string }) => {
+        void table;
         const key = `${row.order_id}::${row.event_name}`;
         const dup = ledger.has(key);
         if (!dup) ledger.add(key);
@@ -186,7 +187,12 @@ describe("subscription_created -> Resend license-key email (Wave 36 Phase B)", (
     expect(headers?.["Idempotency-Key"]).toContain("LS-SUB-KEY-ABC");
   });
 
-  it("does NOT re-send the email on a duplicate subscription_created webhook (ledger dedup)", async () => {
+  it("a duplicate subscription_created re-calls Resend with the SAME idempotency key (Resend dedups)", async () => {
+    // Contract changed by audit P9.4: the send now runs BEFORE the ledger
+    // tombstone (act-then-mark), so one failed send is retryable instead of
+    // permanently lost. Duplicate-delivery dedup moved from the ledger to
+    // Resend's Idempotency-Key - the replay MAY call Resend again, but must
+    // carry the identical key so Resend delivers at most once.
     const body = subPayload("sub_email_dup", "bob@example.com");
 
     // First delivery
@@ -207,11 +213,16 @@ describe("subscription_created -> Resend license-key email (Wave 36 Phase B)", (
     const res2 = await onRequestPost(makeContext(body));
     expect(res2.status).toBe(200);
 
-    // Second delivery: no Resend call should happen (ledger deduped the event)
+    // Second delivery: any Resend call must carry the same idempotency key,
+    // so Resend-side dedup guarantees at-most-once delivery.
     const secondResendCalls = mockFetch.mock.calls.filter((call) => {
       const url = typeof call[0] === "string" ? call[0] : call[0]?.toString?.();
       return typeof url === "string" && url.includes("api.resend.com/emails");
     });
-    expect(secondResendCalls).toHaveLength(0);
+    for (const call of secondResendCalls) {
+      const headers = (call[1] as { headers?: Record<string, string> })?.headers;
+      expect(headers?.["Idempotency-Key"]).toBeDefined();
+      expect(headers?.["Idempotency-Key"]).toContain("LS-SUB-KEY");
+    }
   });
 });

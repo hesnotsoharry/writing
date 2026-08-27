@@ -65,11 +65,14 @@ describe("parseOrderFromParams — builds order object from LS link-variable par
     expect(parseOrderFromParams("")).toBeNull();
   });
 
-  it("parses order_id, email, and URL-encoded formatted total into the order shape", () => {
+  it("keeps only routing fields from URL params: email/total are attacker-craftable and stay null", () => {
+    // Audit P9.7: unsigned params must not render a convincing fabricated
+    // receipt on the trusted domain. Routing fields survive; receipt fields
+    // render only from the sessionStorage handoff a real checkout writes.
     const o = parseOrderFromParams(PARAM_QUERY);
     expect(o.orderNumber).toBe("999");
-    expect(o.email).toBe("buyer@example.com");
-    expect(o.totalCents).toBe(2900);
+    expect(o.email).toBeNull();
+    expect(o.totalCents).toBeNull();
     expect(o.productName).toBe("Writers Nook");
     expect(o.receiptUrl).toBeNull();
   });
@@ -83,9 +86,9 @@ describe("parseOrderFromParams — builds order object from LS link-variable par
     expect(o.productName).toBe("AI Writing Assistant");
   });
 
-  it("converts a bare dollar-sign total string to cents", () => {
+  it("ignores the total param entirely (attacker-craftable, audit P9.7)", () => {
     const o = parseOrderFromParams("?order_id=1&total=$49.00");
-    expect(o.totalCents).toBe(4900);
+    expect(o.totalCents).toBeNull();
   });
 
   it("leaves totalCents null when total param is absent", () => {
@@ -117,7 +120,7 @@ describe("resolveOrder — sessionStorage wins over query params; query params w
     const result = resolveOrder(null, PARAM_QUERY);
     expect(result).not.toBeNull();
     expect(result.orderNumber).toBe("999");
-    expect(result.email).toBe("buyer@example.com");
+    expect(result.email).toBeNull(); // never trusted from the URL (audit P9.7)
   });
 
   it("returns null when both sessionStorage and query params lack an order_id", () => {
@@ -125,12 +128,12 @@ describe("resolveOrder — sessionStorage wins over query params; query params w
     expect(resolveOrder(null, "?email=foo@bar.com")).toBeNull();
   });
 
-  it("renders query-param order through renderSuccess with correct display values", () => {
+  it("renders query-param order through renderSuccess without receipt fields (audit P9.7)", () => {
     const v = renderSuccess(resolveOrder(null, PARAM_QUERY));
     expect(v.hasOrder).toBe(true);
-    expect(v.email).toBe("buyer@example.com");
+    expect(v.email).toBeNull();
     expect(v.orderNumber).toBe("#999");
-    expect(v.amount).toBe("$29.00");
+    expect(v.amount).toBeNull();
     expect(v.product).toBe("Writers Nook");
     expect(v.receiptUrl).toBeNull();
   });

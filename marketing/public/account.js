@@ -185,9 +185,16 @@ if (typeof document !== "undefined") {
         const email = data.session.user.email;
 
         // RLS scopes this query to the signed-in user's own rows automatically.
+        // A buyer can own several rows (retried orders, a refunded early order,
+        // a repurchase): exclude refunded rows and prefer the row that carries
+        // a license key, newest order first — an unordered limit(1) picked an
+        // arbitrary row (audit P9.6).
         const { data: rows, error: purchaseError } = await supabase
           .from("purchases")
           .select("*")
+          .neq("status", "refunded")
+          .order("license_key", { ascending: true, nullsFirst: false })
+          .order("order_id", { ascending: false })
           .limit(1);
         if (purchaseError) throw purchaseError;
 

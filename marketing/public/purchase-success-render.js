@@ -40,25 +40,21 @@ export function parseOrderFromParams(search) {
   const orderId = params.get("order_id");
   if (!orderId) return null; // order_id is the minimum required field
 
-  const email = params.get("email") || null;
-
-  let totalCents = null;
-  const totalStr = params.get("total");
-  if (totalStr) {
-    // Strip currency symbols / whitespace, keep digits and decimal point.
-    const numeric = parseFloat(totalStr.replace(/[^0-9.]/g, ""));
-    if (isFinite(numeric)) totalCents = Math.round(numeric * 100);
-  }
-
   // Default to the app product name so the existing one-time-purchase path is
   // unchanged; subscription confirmation URLs pass [product_name] so the
   // fallback path routes the buyer to the subscription card, not the app cards.
   const productName = params.get("product_name") || "Writers Nook";
 
+  // URL params are UNSIGNED and attacker-craftable (audit P9.7): anyone can
+  // link writersnook.app/purchase-success?email=…&total=… and have this page
+  // render a fabricated receipt on the trusted domain. Only the fields needed
+  // for card ROUTING survive from the URL; the convincing-receipt fields
+  // (email, amount) render only from the sessionStorage handoff that
+  // checkout.js writes during a real Checkout.Success.
   return {
-    email,
+    email: null,
     orderNumber: orderId,
-    totalCents,
+    totalCents: null,
     productName,
     receiptUrl: null,
   };

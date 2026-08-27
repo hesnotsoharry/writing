@@ -199,8 +199,8 @@ async function sendSubscriptionKeyEmail(
   env: WebhookEnv,
   email: string,
   licenseKey: string,
-): Promise<void> {
-  await sendEmail(env, {
+): Promise<{ id: string | null; skipped?: boolean }> {
+  return sendEmail(env, {
     to: email,
     subject: "Your Writers Nook AI assistant subscription key",
     html: `<p>Hi there,</p><p>Thank you for subscribing to Writers Nook! Your AI assistant license key is:</p><p><strong>${licenseKey}</strong></p><p>Enter it in the app under <strong>Settings → AI Assistant</strong> to activate your subscription.</p><p>Visit your <a href="https://writersnook.app/account">account page</a> any time to manage your subscription.</p>`,
@@ -254,15 +254,26 @@ async function handleCreated(payload: SubscriptionPayload, env: WebhookEnv): Pro
   });
   if (upsertErr) return new Response("Internal Server Error", { status: 500 });
 
+  // Email BEFORE the tombstone (act-then-mark, audit P9.4): with the old
+  // order, one failed Resend send was permanent — the retry hit the committed
+  // tombstone's 23505 and returned 200 without ever re-sending the key. A
+  // failed send (sendEmail never throws; it returns id:null) now 500s so LS
+  // retries the delivery; the Resend idempotency key (sub-key-<persisted key>)
+  // dedupes across retries, so re-running the send cannot double-deliver.
+  // `skipped` (Resend unconfigured, e.g. dev) counts as success — a retry loop
+  // could never fix missing config.
+  const emailKey = (upsertedKey as string | null) ?? licenseKey;
+  const sendResult = await sendSubscriptionKeyEmail(env, attrs.user_email, emailKey);
+  if (sendResult.id === null && !sendResult.skipped) {
+    return new Response("Internal Server Error", { status: 500 });
+  }
+
   const { error: ledgerErr } = await db
     .from("webhook_events")
     .insert({ event_name: "subscription_created", order_id: idempotencyKey });
   const ledgerCode = (ledgerErr as PostgrestError | null)?.code;
   if (ledgerCode === "23505") return new Response(null, { status: 200 });
   if (ledgerErr) return new Response("Internal Server Error", { status: 500 });
-
-  const emailKey = (upsertedKey as string | null) ?? licenseKey;
-  await sendSubscriptionKeyEmail(env, attrs.user_email, emailKey);
 
   return new Response(null, { status: 200 });
 }
