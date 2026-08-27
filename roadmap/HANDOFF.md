@@ -8,13 +8,12 @@ updated: 2026-08-22
 ### Bug-fix campaign from the 2026-08-27 ultracode audit (in progress, same day)
 
 The 63-item audit tracker lives at `roadmap/bug-audit-2026-08-27.md` (full
-report: the "WritersNook Bug Audit" artifact). 51/63 addressed across ~20
-commits this session, including the critical mobile catch-up corruption
-(P0.1), the fleet-wide stale-flush resurrections (P1.1/P1.3), the double
-refund + license-key-wipe + top-up-clawback money bugs (P9), and transport
-liveness. Still open: P1.2/P1.4 (epoch owner in frames + partial hello —
-protocol additions), P3.1–7 (meta/bible races, worker in flight at time of
-writing). Needs Cole: P5.6 decision (goals uniqueness vs LWW merge),
+report: the "WritersNook Bug Audit" artifact). CAMPAIGN COMPLETE: 61/63
+fixed across ~25 commits (highlights: critical mobile catch-up corruption
+P0.1, fleet-wide stale-flush resurrections P1.1/P1.3, sync protocol v1.4 —
+epoch owner on the wire + targeted hello, exclusive meta/bible write tails,
+persistent HLC, the P9 money bugs, transport liveness). P8.6 (CSP) deferred
+pending a dev smoke. Needs Cole: P5.6 decision (goals uniqueness vs LWW merge),
 applying `marketing/supabase/0009_clawback_topup.sql` + subscribing the LS
 subscription webhook to `order_refunded`, deploying the relay worker
 (capacity + ping/pong), and a live sync session to verify P0.1 on the real
