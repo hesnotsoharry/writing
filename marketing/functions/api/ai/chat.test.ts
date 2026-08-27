@@ -44,6 +44,9 @@ let trialReserveReason: string | null = null;
 let trialReserveNewBalance: number | null = 99000;
 // When true, reserve_trial_credits simulates a Supabase RPC failure (data:null + error).
 let trialReserveErrors = false;
+// Test seam: when set, refund RPCs (refund_credits / refund_trial_credits) hold their
+// response until this promise resolves — lets a test act inside the reconcile window.
+let refundGate: Promise<void> | null = null;
 
 function makeMockClient() {
   return {
@@ -82,7 +85,11 @@ function makeMockClient() {
       // Mock note: the RPC returns JS numbers directly (bypassing PostgREST JSON serialization);
       // production code relies on `typeof data === 'number'` being true for in-range BIGINTs,
       // which works because credit balances are well under 2^53 and serialize as JSON numbers.
-      return Promise.resolve({ data: subRow.credits_balance, error: null });
+      const settledData = { data: subRow.credits_balance, error: null };
+      if (refundGate && (fn === "refund_credits" || fn === "refund_trial_credits")) {
+        return refundGate.then(() => settledData);
+      }
+      return Promise.resolve(settledData);
     },
   };
 }
@@ -1268,5 +1275,55 @@ describe("W52 P5 — managed content-policy block surfaces a content-blocked eve
     expect(generic).toBeDefined();
     const blocked = events.find((e) => (e as { type: string }).type === "content-blocked");
     expect(blocked).toBeUndefined();
+  });
+});
+
+// ── W-audit regression: no double refund after the reconcile settles the reserve ──
+// The reconcile refund settles the reserve; a client disconnect that rejects the
+// subsequent 'done' write must NOT trigger the catch-path refund a second time
+// (refund_credits / refund_trial_credits have no request_id dedup — a second
+// refund of the full reserve mints credits above the pre-request balance).
+describe("no double refund when the client disconnects after the reconcile refund", () => {
+  beforeEach(() => {
+    subRow = { status: "active", credits_balance: 100000, reset_at: null };
+    reserveSucceeds = true;
+    ratePassed = true;
+    rpcCalls = [];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeAnthropicResponse()));
+  });
+
+  afterEach(() => {
+    refundGate = null;
+    vi.unstubAllGlobals();
+  });
+
+  it("refund_credits fires exactly once when the done-write rejects", async () => {
+    let releaseRefund!: () => void;
+    refundGate = new Promise<void>((resolve) => { releaseRefund = resolve; });
+    const token = await makeValidToken();
+    const { ctx, getWaitUntil } = fakeContext(
+      `Bearer ${token}`,
+      { messages: [{ role: "user", content: "Hello" }] },
+    );
+    const res = await onRequestPost(ctx);
+    const reader = res.body!.getReader();
+    // Keep the stream flowing so the pump can finish and reach the reconcile.
+    const drained = (async () => {
+      for (;;) {
+        const r = await reader.read().catch(() => ({ done: true }));
+        if (r.done) break;
+      }
+    })();
+    // The reconcile refund is now in flight (held open by refundGate): cancel the
+    // client side first, then let the refund resolve — the 'done' write that
+    // follows it rejects against the errored stream.
+    await vi.waitFor(() => {
+      expect(rpcCalls.some((c) => c.fn === "refund_credits")).toBe(true);
+    });
+    await reader.cancel();
+    releaseRefund();
+    await drained;
+    await getWaitUntil();
+    expect(rpcCalls.filter((c) => c.fn === "refund_credits")).toHaveLength(1);
   });
 });

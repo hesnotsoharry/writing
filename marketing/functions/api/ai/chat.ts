@@ -301,7 +301,11 @@ async function runStream(args: StreamArgs): Promise<void> {
     writer, encoder, db, licenseKey, reserve, requestId, isTrial, balanceAfterReserve,
   } = args;
   const doRefund = isTrial ? refundTrialCredits : refundCredits;
-  let refunded = false;
+  // True once the reserve has been settled (error-refunded, reconcile-refunded, or fully
+  // consumed). The catch below must never refund a settled reserve: the done-write can
+  // reject on client disconnect AFTER the reconcile refund landed, and refund_credits /
+  // refund_trial_credits have no request_id dedup, so a second refund would mint credits.
+  let settled = false;
   try {
     const adapter = getAdapter(verbConfig.model);
     // 3-way key dispatch: each provider gets its own key.
@@ -318,7 +322,7 @@ async function runStream(args: StreamArgs): Promise<void> {
       const upstreamErr = await res.json().catch(() => null);
       console.warn("[ai/chat] upstream non-ok", { status: res.status, body: upstreamErr });
       await doRefund(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
-      refunded = true;
+      settled = true;
       if (isContentPolicyBlock(res.status, upstreamErr)) {
         await writeSse(writer, encoder, { type: "content-blocked" });
       } else {
@@ -328,7 +332,7 @@ async function runStream(args: StreamArgs): Promise<void> {
     }
     if (!res.body) {
       await doRefund(db, licenseKey, reserve, requestId, { reason: "upstream_error" });
-      refunded = true;
+      settled = true;
       await writeSse(writer, encoder, { type: "error", message: "Upstream error" });
       return;
     }
@@ -363,6 +367,7 @@ async function runStream(args: StreamArgs): Promise<void> {
     } else {
       balanceAfter = balanceAfterReserve;
     }
+    settled = true;
     await writeSse(writer, encoder, {
       type: "done",
       inputTokens: usage.inputTokens,
@@ -371,7 +376,7 @@ async function runStream(args: StreamArgs): Promise<void> {
       balanceAfter,
     });
   } catch {
-    if (!refunded) {
+    if (!settled) {
       await doRefund(db, licenseKey, reserve, requestId, { reason: "stream_error" }).catch(
         () => {},
       );
