@@ -65,7 +65,7 @@ export async function captureFolderDelete(folderId: string): Promise<{
     const projectId = folders[0]?.project_id;
     if (!projectId) return undefined;
     const scenes = await db.select<Array<{ id: string }>>(
-      "SELECT id FROM scenes WHERE folder_id=$1", [folderId]
+      "SELECT id FROM scenes WHERE folder_id=$1 ORDER BY sort_order ASC, id ASC", [folderId]
     );
     return { projectId, sceneIds: scenes.map(({ id }) => id) };
   } catch (error) {

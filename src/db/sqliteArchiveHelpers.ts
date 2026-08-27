@@ -15,25 +15,19 @@ import {
 import { sceneLabelId } from "../sync/meta/metaDoc";
 import type { ArchivedItem, Folder, Scene } from "./binderStore";
 import { getDb } from "./schema";
+import {
+  restoreChapterRow,
+  restoreSceneRow,
+  type SceneManifestEntry,
+} from "./sqliteArchiveRestore";
 import { SqliteSceneDocStore } from "./sqliteSceneDocStore";
+
+export type { SceneManifestEntry };
 
 const sceneDocStore = new SqliteSceneDocStore();
 
 function reportLookup(operation: string, task: Promise<void>): void {
   void task.catch((error: unknown) => console.error(`[sync-meta] ${operation}`, error));
-}
-
-/** SceneManifestEntry — what the chapter manifest embeds per child scene. */
-export interface SceneManifestEntry {
-  id: string;
-  title: string;
-  meta: {
-    synopsis: string | null;
-    status: string;
-    sort_order: number;
-    word_count: number;
-  };
-  doc: string | null;
 }
 
 /**
@@ -77,75 +71,6 @@ export async function buildSceneManifestEntries(
     });
   }
   return entries;
-}
-
-/** Insert a scene_docs row (upsert) when a doc is present. */
-async function insertSceneDoc(sceneId: string, doc: string): Promise<void> {
-  await sceneDocStore.save(sceneId, doc, null);
-}
-
-/**
- * Restore a scene archive row: INSERT scene (folder_id=null / Short pieces),
- * then INSERT scene_docs if manifest.doc is non-null.
- */
-export async function restoreSceneRow(
-  originalId: string | null,
-  title: string,
-  projectId: string,
-  manifest: Record<string, unknown>
-): Promise<string> {
-  const db = await getDb();
-  const meta = (manifest.meta ?? {}) as Record<string, unknown>;
-  const id = originalId ?? crypto.randomUUID();
-  await db.execute(
-    "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status) VALUES ($1, $2, NULL, $3, $4, $5, $6, $7)",
-    [id, projectId, title, meta.synopsis ?? null, meta.sort_order ?? 1000, meta.word_count ?? 0, meta.status ?? "blank"]
-  );
-  const doc = manifest.doc as string | null;
-  if (doc !== null) {
-    await insertSceneDoc(id, doc);
-  }
-  return id;
-}
-
-/** Restore a single child scene entry within a chapter restore. */
-async function restoreChildScene(
-  entry: SceneManifestEntry,
-  projectId: string,
-  folderId: string
-): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    "INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-    [entry.id, projectId, folderId, entry.title, entry.meta.synopsis ?? null, entry.meta.sort_order ?? 1000, entry.meta.word_count ?? 0, entry.meta.status ?? "blank"]
-  );
-  if (entry.doc !== null) {
-    await insertSceneDoc(entry.id, entry.doc);
-  }
-}
-
-/**
- * Restore a chapter archive row: INSERT folder, then INSERT each child scene
- * (with its doc when present). Uses original_id for the folder id.
- */
-export async function restoreChapterRow(
-  originalId: string | null,
-  title: string,
-  projectId: string,
-  manifest: Record<string, unknown>
-): Promise<{ folderId: string; sceneIds: string[] }> {
-  const db = await getDb();
-  const folderMeta = (manifest.folder ?? {}) as Record<string, unknown>;
-  const folderId = originalId ?? crypto.randomUUID();
-  await db.execute(
-    "INSERT INTO folders (id, project_id, title, sort_order) VALUES ($1, $2, $3, $4)",
-    [folderId, projectId, title, folderMeta.sort_order ?? 1000]
-  );
-  const entries = (manifest.scenes ?? []) as SceneManifestEntry[];
-  for (const entry of entries) {
-    await restoreChildScene(entry, projectId, folderId);
-  }
-  return { folderId, sceneIds: entries.map(({ id }) => id) };
 }
 
 async function assignmentTombstones(sceneIds: string[]): Promise<Array<{
@@ -252,8 +177,8 @@ export async function sqliteArchiveScene(sceneId: string, projectId: string): Pr
     "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     [archiveId, projectId, "scene", sceneId, scene.title, sub, manifest, Date.now()]
   ); await desktopLwwBridges.archive.saved(projectId, archiveId);
-  await sceneDocStore.delete(sceneId);
   await db.execute("DELETE FROM scenes WHERE id=$1", [sceneId]);
+  await sceneDocStore.delete(sceneId);
   bridgeRemoved(projectId, [{ kind: "scene", id: sceneId }, ...assignmentRows], "scene archive");
 }
 
@@ -276,11 +201,11 @@ export async function sqliteArchiveChapter(folderId: string, projectId: string):
     "INSERT INTO archive (id, project_id, kind, original_id, title, sub, state_base64, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     [archiveId, projectId, "chapter", folderId, folder.title, `${childScenes.length} scenes`, manifest, Date.now()]
   ); await desktopLwwBridges.archive.saved(projectId, archiveId);
+  await db.execute("DELETE FROM scenes WHERE folder_id=$1", [folderId]);
+  await db.execute("DELETE FROM folders WHERE id=$1", [folderId]);
   for (const scene of childScenes) {
     await sceneDocStore.delete(scene.id);
   }
-  await db.execute("DELETE FROM scenes WHERE folder_id=$1", [folderId]);
-  await db.execute("DELETE FROM folders WHERE id=$1", [folderId]);
   bridgeRemoved(projectId, [
     { kind: "folder", id: folderId },
     ...childScenes.map(({ id }) => ({ kind: "scene" as const, id })),

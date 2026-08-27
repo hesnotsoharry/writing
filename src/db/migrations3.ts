@@ -54,6 +54,7 @@ async function addFeatureColumns(db: DbClient): Promise<void> {
     await ensureColumn(db, "quick_notes", "source", "TEXT");
     await ensureColumn(db, "quick_notes", "state", "TEXT NOT NULL DEFAULT 'inbox'");
     await ensureColumn(db, "quick_notes", "updated_at", "TEXT");
+    await backfillFiledQuickNotes(db);
   }
 }
 
@@ -82,4 +83,22 @@ export async function migration_022_sync_protocol_v13(db: DbClient): Promise<voi
 export async function migration_023_about_updated_at(db: DbClient): Promise<void> {
   if (!await tableExists(db, "manuscript_about")) return;
   await ensureColumn(db, "manuscript_about", "updated_at", "TEXT");
+}
+
+/**
+ * 022 added `quick_notes.state` with DEFAULT 'inbox' and never backfilled
+ * already-filed rows (`filed=1`). Desktop filters by `filed=0`; mobile filters
+ * by `state='inbox'`, so pre-022 filed notes resurrected in the mobile inbox.
+ * This forward repair is idempotent: notes already at state='filed' stay there.
+ */
+export async function migration_024_quick_notes_filed_state(db: DbClient): Promise<void> {
+  await backfillFiledQuickNotes(db);
+}
+
+async function backfillFiledQuickNotes(db: DbClient): Promise<void> {
+  if (!await tableExists(db, "quick_notes")) return;
+  const columns = await db.select<Array<{ name: string }>>("PRAGMA table_info(quick_notes)");
+  if (!columns.some((col) => col.name === "state")) return;
+  if (!columns.some((col) => col.name === "filed")) return;
+  await db.execute("UPDATE quick_notes SET state = 'filed' WHERE filed = 1");
 }

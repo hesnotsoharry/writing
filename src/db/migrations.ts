@@ -17,6 +17,7 @@ import {
 } from "./migrations2";
 import {
   migration_022_sync_protocol_v13, migration_023_about_updated_at,
+  migration_024_quick_notes_filed_state,
 } from "./migrations3";
 
 export interface Migration {
@@ -391,6 +392,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 21, name: "project-meta-docs", up: migration_021_project_meta_docs },
   { version: 22, name: "sync-protocol-v13", up: migration_022_sync_protocol_v13 },
   { version: 23, name: "about-updated-at", up: migration_023_about_updated_at },
+  { version: 24, name: "quick-notes-filed-state", up: migration_024_quick_notes_filed_state },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

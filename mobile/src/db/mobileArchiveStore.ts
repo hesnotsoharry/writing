@@ -55,8 +55,8 @@ export class MobileArchiveStore {
       sub: folder[0]?.title ?? "Short pieces", manifest,
     });
     mobileLocalWrites.notify({ domain: "archive", projectId, rowId: archiveId, deleted: false });
-    await this.db.execute("DELETE FROM scene_docs WHERE scene_id = ?", [sceneId]);
     await this.db.execute("DELETE FROM scenes WHERE id = ?", [sceneId]);
+    await this.db.execute("DELETE FROM scene_docs WHERE scene_id = ?", [sceneId]);
     await bridgeMobileRemoved(projectId, [{ kind: "scene", id: sceneId }]);
   }
 
@@ -80,9 +80,9 @@ export class MobileArchiveStore {
       },
     });
     mobileLocalWrites.notify({ domain: "archive", projectId, rowId: archiveId, deleted: false });
-    for (const scene of scenes) await this.db.execute("DELETE FROM scene_docs WHERE scene_id = ?", [scene.id]);
     await this.db.execute("DELETE FROM scenes WHERE folder_id = ?", [folderId]);
     await this.db.execute("DELETE FROM folders WHERE id = ?", [folderId]);
+    for (const scene of scenes) await this.db.execute("DELETE FROM scene_docs WHERE scene_id = ?", [scene.id]);
     await bridgeMobileRemoved(projectId, [
       { kind: "folder", id: folderId }, ...scenes.map(({ id }) => ({ kind: "scene" as const, id })),
     ]);

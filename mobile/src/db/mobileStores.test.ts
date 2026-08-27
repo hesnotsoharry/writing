@@ -364,6 +364,70 @@ describe("mobile creation-time and ensure-sweep bootstrap", () => {
   });
 });
 
+describe("mobile binder delete/create cleanup", () => {
+  it("deleteScene drops docs, snapshots, labels, and links", async () => {
+    const binder = new MobileBinderStore(db);
+    const projectId = await project(binder);
+    const sceneId = await binder.createScene({ projectId, folderId: null, title: "Doomed" });
+    await db.execute("INSERT INTO scene_docs (scene_id, state_base64) VALUES (?, ?)", [sceneId, "cHJvc2U="]);
+    await db.execute(
+      `INSERT INTO scene_snapshots (id, scene_id, label, state_base64, word_count, created_at, kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ["snap-1", sceneId, "before", "cHJvc2U=", 12, 1, "manual"],
+    );
+    await db.execute("INSERT INTO scene_labels (scene_id, label_id) VALUES (?, ?)", [sceneId, "label-1"]);
+    await db.execute(
+      "INSERT INTO scene_links (scene_id, entity_type, entity_id) VALUES (?, ?, ?)",
+      [sceneId, "character", "entity-1"],
+    );
+    await binder.deleteScene(sceneId);
+    const leftover = await db.select<{ n: number }[]>(
+      `SELECT
+         (SELECT COUNT(*) FROM scenes WHERE id = ?) +
+         (SELECT COUNT(*) FROM scene_docs WHERE scene_id = ?) +
+         (SELECT COUNT(*) FROM scene_snapshots WHERE scene_id = ?) +
+         (SELECT COUNT(*) FROM scene_labels WHERE scene_id = ?) +
+         (SELECT COUNT(*) FROM scene_links WHERE scene_id = ?) AS n`,
+      [sceneId, sceneId, sceneId, sceneId, sceneId],
+    );
+    expect(leftover[0].n).toBe(0);
+  });
+
+  it("deleteFolder appends chapter scenes after existing shorts with unique keys", async () => {
+    const binder = new MobileBinderStore(db);
+    const projectId = await project(binder);
+    const p1 = await binder.createScene({ projectId, folderId: null, title: "P1" });
+    const p2 = await binder.createScene({ projectId, folderId: null, title: "P2" });
+    const folderId = await binder.createFolder({ projectId, title: "Ch1" });
+    const s1 = await binder.createScene({ projectId, folderId, title: "S1" });
+    const s2 = await binder.createScene({ projectId, folderId, title: "S2" });
+    await binder.deleteFolder(folderId);
+    const shorts = await db.select<{ id: string; sort_order: number }[]>(
+      "SELECT id, sort_order FROM scenes WHERE project_id = ? AND folder_id IS NULL ORDER BY sort_order, id",
+      [projectId],
+    );
+    expect(shorts.map((row) => row.id)).toEqual([p1, p2, s1, s2]);
+    expect(shorts.map((row) => row.sort_order)).toEqual([1000, 2000, 3000, 4000]);
+  });
+
+  it("createScene after deletions appends past the surviving max sort_order", async () => {
+    const binder = new MobileBinderStore(db);
+    const projectId = await project(binder);
+    const x = await binder.createScene({ projectId, folderId: null, title: "X" });
+    const y = await binder.createScene({ projectId, folderId: null, title: "Y" });
+    const z = await binder.createScene({ projectId, folderId: null, title: "Z" });
+    await binder.deleteScene(x);
+    await binder.deleteScene(y);
+    const added = await binder.createScene({ projectId, folderId: null, title: "New" });
+    const shorts = await db.select<{ id: string; sort_order: number }[]>(
+      "SELECT id, sort_order FROM scenes WHERE project_id = ? AND folder_id IS NULL ORDER BY sort_order, id",
+      [projectId],
+    );
+    expect(shorts.map((row) => row.id)).toEqual([z, added]);
+    expect(shorts.map((row) => row.sort_order)).toEqual([3000, 4000]);
+  });
+});
+
 describe("store accessor seam", () => {
   it("memoises every UI store getter", async () => {
     const getters = [

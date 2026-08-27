@@ -44,4 +44,24 @@ describe("getOrCreateDeviceId", () => {
       );
     }
   );
+
+  it("shares one in-flight create so concurrent first calls persist a single id", async () => {
+    let resolveSelect: ((rows: unknown[]) => void) | undefined;
+    mockDb.select.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSelect = resolve;
+      }),
+    );
+    mockDb.execute.mockResolvedValue({ rowsAffected: 1 });
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(GENERATED_ID);
+
+    const first = getOrCreateDeviceId();
+    const second = getOrCreateDeviceId();
+    resolveSelect?.([]);
+
+    await expect(first).resolves.toBe(GENERATED_ID);
+    await expect(second).resolves.toBe(GENERATED_ID);
+    expect(mockDb.select).toHaveBeenCalledTimes(1);
+    expect(mockDb.execute).toHaveBeenCalledTimes(1);
+  });
 });

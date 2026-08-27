@@ -14,8 +14,19 @@ function validDeviceId(row: unknown): string | null {
   return typeof value === "string" && UUID_PATTERN.test(value) ? value : null;
 }
 
+let inflight: Promise<string> | null = null;
+
 /** Return this installation's persistent UUID, creating it when absent or invalid. */
-export async function getOrCreateMobileDeviceId(): Promise<string> {
+export function getOrCreateMobileDeviceId(): Promise<string> {
+  if (!inflight) {
+    inflight = loadOrCreateMobileDeviceId().finally(() => {
+      inflight = null;
+    });
+  }
+  return inflight;
+}
+
+async function loadOrCreateMobileDeviceId(): Promise<string> {
   const db = await getMobileDb();
   const rows = await db.select<unknown[]>(
     "SELECT value FROM app_meta WHERE key = ?", [DEVICE_ID_KEY]

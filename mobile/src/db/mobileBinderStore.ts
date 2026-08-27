@@ -48,38 +48,43 @@ export class MobileBinderStore implements BinderStore {
 
   async createFolder(args: { projectId: string; title: string }): Promise<string> {
     const id = crypto.randomUUID();
-    const rows = await this.containerIds("folders", args.projectId, null);
+    const rows = await this.containerRows("folders", args.projectId, null);
     await this.db.execute(
       "INSERT INTO folders (id, project_id, title, sort_order) VALUES (?, ?, ?, ?)",
-      [id, args.projectId, args.title, (rows.length + 1) * 1000],
+      [id, args.projectId, args.title, nextSortFrom(rows)],
     );
-    await bridgeMobileFolder({ id, projectId: args.projectId, title: args.title }, [...rows, id]);
+    await bridgeMobileFolder({ id, projectId: args.projectId, title: args.title }, [...idsOf(rows), id]);
     return id;
   }
 
   async createScene(args: { projectId: string; folderId: string | null; title: string }): Promise<string> {
     const id = crypto.randomUUID();
-    const rows = await this.containerIds("scenes", args.projectId, args.folderId);
+    const rows = await this.containerRows("scenes", args.projectId, args.folderId);
     await this.db.execute(
       `INSERT INTO scenes (id, project_id, folder_id, title, synopsis, sort_order, word_count, status)
        VALUES (?, ?, ?, ?, NULL, ?, 0, 'blank')`,
-      [id, args.projectId, args.folderId, args.title, (rows.length + 1) * 1000],
+      [id, args.projectId, args.folderId, args.title, nextSortFrom(rows)],
     );
     await bridgeMobileScene({
       id, projectId: args.projectId, folderId: args.folderId,
       title: args.title, synopsis: null, status: "blank",
-    }, [...rows, id]);
+    }, [...idsOf(rows), id]);
     return id;
   }
 
   private async containerIds(table: "folders" | "scenes", projectId: string, folderId: string | null): Promise<string[]> {
-    const folderSql = "SELECT id FROM folders WHERE project_id = ? ORDER BY sort_order, id";
+    return idsOf(await this.containerRows(table, projectId, folderId));
+  }
+
+  private async containerRows(
+    table: "folders" | "scenes", projectId: string, folderId: string | null,
+  ): Promise<Array<{ id: string; sort_order: number }>> {
+    const folderSql = "SELECT id, sort_order FROM folders WHERE project_id = ? ORDER BY sort_order, id";
     const sceneSql = folderId === null
-      ? "SELECT id FROM scenes WHERE project_id = ? AND folder_id IS NULL ORDER BY sort_order, id"
-      : "SELECT id FROM scenes WHERE project_id = ? AND folder_id = ? ORDER BY sort_order, id";
+      ? "SELECT id, sort_order FROM scenes WHERE project_id = ? AND folder_id IS NULL ORDER BY sort_order, id"
+      : "SELECT id, sort_order FROM scenes WHERE project_id = ? AND folder_id = ? ORDER BY sort_order, id";
     const params = table === "folders" || folderId === null ? [projectId] : [projectId, folderId];
-    const rows = await this.db.select<{ id: string }[]>(table === "folders" ? folderSql : sceneSql, params);
-    return rows.map(({ id }) => id);
+    return this.db.select(table === "folders" ? folderSql : sceneSql, params);
   }
 
   async loadProject(projectId: string): Promise<{ folders: Folder[]; scenes: Scene[] }> {
@@ -104,12 +109,28 @@ export class MobileBinderStore implements BinderStore {
     );
     const folder = folders[0];
     if (!folder) return;
-    const scenes = await this.db.select<{ id: string }[]>("SELECT id FROM scenes WHERE folder_id = ?", [folderId]);
-    await this.db.execute("UPDATE scenes SET folder_id = NULL WHERE folder_id = ?", [folderId]);
+    const relocated = await this.appendFolderScenesToShortPieces(folderId, folder.project_id);
     await this.db.execute("DELETE FROM folders WHERE id = ?", [folderId]);
     await bridgeMobileRemoved(folder.project_id, [{ kind: "folder", id: folderId }]);
-    const order = await this.containerIds("scenes", folder.project_id, null);
-    for (const scene of scenes) await this.bridgeSceneById(scene.id, order);
+    for (const sceneId of relocated.movedIds) await this.bridgeSceneById(sceneId, relocated.order);
+  }
+
+  private async appendFolderScenesToShortPieces(
+    folderId: string, projectId: string,
+  ): Promise<{ order: string[]; movedIds: string[] }> {
+    const moved = await this.db.select<{ id: string }[]>(
+      "SELECT id FROM scenes WHERE folder_id = ? ORDER BY sort_order, id", [folderId],
+    );
+    const existing = await this.containerIds("scenes", projectId, null);
+    await this.db.execute("UPDATE scenes SET folder_id = NULL WHERE folder_id = ?", [folderId]);
+    const movedIds = moved.map(({ id }) => id);
+    const order = [...existing, ...movedIds];
+    if (movedIds.length > 0) {
+      for (let i = 0; i < order.length; i++) {
+        await this.db.execute("UPDATE scenes SET sort_order = ? WHERE id = ?", [(i + 1) * 1000, order[i]]);
+      }
+    }
+    return { order, movedIds };
   }
 
   async renameFolder(folderId: string, title: string): Promise<void> {
@@ -144,6 +165,7 @@ export class MobileBinderStore implements BinderStore {
 
   async deleteScene(sceneId: string): Promise<void> {
     const rows = await this.db.select<{ project_id: string }[]>("SELECT project_id FROM scenes WHERE id = ?", [sceneId]);
+    await deleteMobileSceneDependents(this.db, sceneId);
     await this.db.execute("DELETE FROM scenes WHERE id = ?", [sceneId]);
     if (rows[0]) await bridgeMobileRemoved(rows[0].project_id, [{ kind: "scene", id: sceneId }]);
   }
@@ -213,4 +235,23 @@ export class MobileBinderStore implements BinderStore {
   restoreArchived(id: string): Promise<void> { return this.archive.restoreArchived(id); }
   purgeArchived(id: string): Promise<void> { return this.archive.purgeArchived(id); }
   archivedCount(projectId: string): Promise<number> { return this.archive.archivedCount(projectId); }
+}
+
+function idsOf(rows: Array<{ id: string }>): string[] {
+  return rows.map(({ id }) => id);
+}
+
+function nextSortFrom(rows: Array<{ sort_order: number }>): number {
+  let max = 0;
+  for (const row of rows) {
+    if (row.sort_order > max) max = row.sort_order;
+  }
+  return max + 1000;
+}
+
+async function deleteMobileSceneDependents(db: DbClient, sceneId: string): Promise<void> {
+  await db.execute("DELETE FROM scene_docs WHERE scene_id = ?", [sceneId]);
+  await db.execute("DELETE FROM scene_snapshots WHERE scene_id = ?", [sceneId]);
+  await db.execute("DELETE FROM scene_labels WHERE scene_id = ?", [sceneId]);
+  await db.execute("DELETE FROM scene_links WHERE scene_id = ?", [sceneId]);
 }
