@@ -191,19 +191,21 @@ pub async fn run_stream(
     }
 
     // Build and POST the request.
-    let client = reqwest::Client::new();
-    let mut builder = client.post(&request.url);
-    for (name, value) in &request.headers {
-        builder = builder.header(*name, value.as_str());
-    }
-    builder = builder.json(&request.body);
-
-    let response = match builder.send().await {
-        Ok(r) => r,
+    // Redirects disabled (mirrors discover_models): a validated loopback URL must
+    // never redirect to a host the http-only-for-loopback guardrail never saw —
+    // reqwest's default policy re-sends the full POST (manuscript + key headers)
+    // to the redirect target. Policy::none() surfaces any 3xx as an HTTP error
+    // below instead. connect_timeout keeps a dead host from hanging the UI; no
+    // total/read timeout — long local-model generations are legitimate, and Stop
+    // (raced below and in the drain loop) covers stalls.
+    let client = match reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .build()
+    {
+        Ok(c) => c,
         Err(_) => {
-            // Capture the message before dropping the wire format and request.
             let msg = wire.connection_error_msg();
-            // Hard requirement 1: drop request (and its api key) before returning.
             drop(request);
             let _ = on_event.send(NormalizedEvent::Error {
                 message: msg.to_string(),
@@ -217,6 +219,51 @@ pub async fn run_stream(
             remove_cancel(cancel, &stream_id);
             return Ok(());
         }
+    };
+    let mut builder = client.post(&request.url);
+    for (name, value) in &request.headers {
+        builder = builder.header(*name, value.as_str());
+    }
+    builder = builder.json(&request.body);
+
+    // Race the POST itself against Stop: without this, cancellation is only
+    // observed once response headers arrive, so a host that accepts the TCP
+    // connection but never answers would pin the stream (and its channel) forever.
+    tokio::pin!(cancel_rx);
+    let response = tokio::select! {
+        biased;
+        _ = &mut cancel_rx => {
+            // Hard requirement 1: drop request (and its api key) before returning.
+            drop(request);
+            let _ = on_event.send(NormalizedEvent::Done {
+                input_tokens: 0,
+                output_tokens: 0,
+                credits_cost: 0,
+                cached_tokens: 0,
+            });
+            remove_cancel(cancel, &stream_id);
+            return Ok(());
+        }
+        res = builder.send() => match res {
+            Ok(r) => r,
+            Err(_) => {
+                // Capture the message before dropping the wire format and request.
+                let msg = wire.connection_error_msg();
+                // Hard requirement 1: drop request (and its api key) before returning.
+                drop(request);
+                let _ = on_event.send(NormalizedEvent::Error {
+                    message: msg.to_string(),
+                });
+                let _ = on_event.send(NormalizedEvent::Done {
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    credits_cost: 0,
+                    cached_tokens: 0,
+                });
+                remove_cancel(cancel, &stream_id);
+                return Ok(());
+            }
+        },
     };
 
     // Hard requirement 1: key-drop — RequestSpec (api key in headers) is dropped
@@ -260,8 +307,6 @@ pub async fn run_stream(
     let mut cached_tokens: u32 = 0; // Emitted in terminal Done.cached_tokens (Phase 5, W49).
     let mut byte_stream = response.bytes_stream();
     let mut line_buf: Vec<u8> = Vec::new();
-
-    tokio::pin!(cancel_rx);
 
     'drain: loop {
         let chunk = tokio::select! {
