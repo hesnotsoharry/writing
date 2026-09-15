@@ -129,6 +129,8 @@ vi.mock("../features/ai/ai.types", () => ({
   EMPTY_ABOUT: { synopsis: "" },
   // W44 model picker — needed by ModelPop + usePanelState (lazy initializer calls DEFAULT_MODEL)
   DEFAULT_MODEL: "claude-haiku-4-5-20251001",
+  // Stale-preference guard (0.13.1): the real one maps unknown ids to DEFAULT_MODEL; the mock keeps the id.
+  sanitizeManagedModel: (m: string) => m,
   AI_MODELS: {
     "claude-haiku-4-5-20251001": { label: "Haiku 4.5",     provider: "claude",  tier: "standard" },
     "claude-sonnet-4-6":         { label: "Sonnet 4.6",   provider: "claude",  tier: "standard" },
