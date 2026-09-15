@@ -50,7 +50,8 @@
       ],
       "permissions": [
         "android.permission.CAMERA"
-      ]
+      ],
+      "versionCode": 3
     },
     "ios": {
       "bundleIdentifier": "app.writersnook",
