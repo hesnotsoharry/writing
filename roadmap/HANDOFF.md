@@ -1,9 +1,56 @@
 ---
 project: writing
-updated: 2026-08-22
+updated: 2026-09-15
 ---
 
 ## Current state
+
+### What landed today (2026-09-15 — release day plumbing, items 1-5 of the launch list)
+
+Cole's calls this session: push master, deploy the relay, apply 0009 + the LS
+webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
+
+- **Supabase `writersnook` was PAUSED** (free-tier 7-day idle pause) — meaning
+  the whole managed-AI backend (balance, chat proxy, both webhooks) had been
+  dead, independent of the missing pricing CTA. Restored via the Management
+  API (`POST /v1/projects/{ref}/restore`, PAT from Credential Manager). **This
+  will recur whenever nobody uses AI for a week** — the two-active-project cap
+  and pause-cycling notes are in `~/.claude/notes/environment.md`. A pg_cron
+  or scheduled `/balance` ping is the cheap keep-alive if it bites again.
+- **Migration 0009 (`clawback_topup`) applied** through the Management API
+  `database/query` endpoint (the CLI's `db query --linked` fails on this
+  network: IPv6-only direct DB path). Verified `clawback_topup` + the
+  `credit_events_decrement_request_uniq` index exist.
+- **Relay worker deployed** (`writersnook-relay`, version `fe87f142`, custom
+  domain `sync.writersnook.app`) — over-capacity reject + ping/pong are live.
+  12/12 relay tests green first. There is still no CI for it: redeploy is
+  `npx wrangler deploy` from `relay-worker/`.
+- **Model catalog refresh finished and committed** (`3b61675`). The client half
+  (Fable 5 + GLM-5.3 in, GLM-5.2 out of the picker, `sanitizeManagedModel`)
+  had been sitting uncommitted with NO server allowlist/rate entries — both new
+  picks would have 400'd at the proxy. Server now: `MANAGED_MODELS`, `RATES`,
+  `MIN_CACHEABLE_TOKENS` (Fable floor 512) all carry them; Sonnet 5 billed at
+  its now-permanent $2/$10, Luna/Terra at their 2026-07-30 cuts; GLM-5.2 stays
+  served for pre-0.13.1 clients. The acceptance test that pinned "Fable 5 is
+  deliberately excluded" was flipped on purpose — it now pins that Fable
+  resolves at its own rate (a Haiku fallback would under-bill 10x). Rates
+  re-verified against the Anthropic, OpenAI and OpenRouter pages on 2026-09-15.
+- **v0.13.1 committed and tagged** (`427886f`) off current master — the first
+  desktop release with Settings > Sync and the whole audit campaign. Do NOT
+  publish the stale v0.13.0 tag. Cole runs `.\publish.ps1` then `publish-mac.sh`.
+- **EAS production builds kicked off from `mobile/`** (`EAS_NO_VCS=1`):
+  Android `f162c039` (versionCode 3, app-bundle), then iOS with
+  `--auto-submit` to TestFlight (buildNumber 9). `eas build:list` shows state;
+  the AAB downloads from the build page. **The Play Console has NO bundle at
+  all** (checked "Latest app bundles: None" in the Alpha track this session) —
+  the August versionCode-2 AAB was never uploaded, which is fine: it predated
+  the 29 sync fixes. Upload the versionCode-3 AAB instead (drag into the staged
+  closed-testing release; extension can't push 119 MB).
+- **Lemon Squeezy `order_refunded` subscription NOT done** — the LS dashboard
+  needs a password login and there is no LS API key on this machine. Cole:
+  LS live mode > Settings > Webhooks > the `/api/webhooks/lemon-squeezy-subscription`
+  hook > tick `order_refunded` > save. Until then a refunded top-up is not
+  clawed back (the code path is live and idle; the RPC is in place).
 
 ### Bug-fix campaign from the 2026-08-27 ultracode audit (in progress, same day)
 
@@ -498,13 +545,27 @@ keyboard down and up).
 
 ## What's next
 
-- **iOS TestFlight is live (2026-08-22):** first build (1.0.0 #8) built on EAS and
-  submitted to App Store Connect; install it from the TestFlight app once Apple's
-  processing email arrives, then run the iOS leg of the device checks. Pipeline,
-  credentials layout, and every trap hit on the way: `.claude/vendor-gotchas/eas-expo.md`.
-  Rerun anytime from `mobile/`: `EAS_NO_VCS=1` + `eas build -p ios -e production
-  --auto-submit --non-interactive`. Play Console app also created (`app.writersnook`);
-  Android still needs a release upload keystore + first `.aab` when we get there.
+1. **Cole: publish v0.13.1** — `.\publish.ps1` (Windows), then `publish-mac.sh`
+   on the Mac. Both write the same `latest.json` under the `v0.13.1` tag.
+2. **Cole: Lemon Squeezy** — subscribe the subscription webhook to
+   `order_refunded` (see above), and eyeball that variant `1782075` is still
+   active. Then hit https://writersnook.app/pricing and confirm the Subscribe
+   CTA and `lemon.js` are back (they were dead for five weeks after `12d0051`).
+3. **Cole: Play Console** — upload the versionCode-3 AAB from EAS build
+   `f162c039` into the staged Alpha release, name it "1.0.0 (3)", send for
+   review. Production access needs 12+ opted-in testers for 14 days, so the
+   clock only starts once this lands.
+4. **iOS**: install the new TestFlight build (1.0.0 #9) once Apple's processing
+   mail arrives; it is the first phone build with P0.1 in it.
+5. **Live sync session on the real pair** (desktop 0.13.1 + either phone) to
+   verify P0.1 before beta testers get the link. DB-swap protocol in
+   `.claude/known-issues.md`; Cole must not open the desktop app during it.
+6. **P5.5 (goals uniqueness)** — decided direction: enforce one goal per
+   (project, goal_type) as a merge rule in the sync apply target (LWW picks the
+   newer row and tombstones the loser), then add the UNIQUE constraint behind
+   it. Not a user-facing toggle. Not built yet.
+7. **Supabase keep-alive** — a weekly scheduled ping so the project never
+   pauses again (see today's notes).
 
 ### Blocked on Cole
 
