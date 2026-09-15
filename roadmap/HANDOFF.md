@@ -577,9 +577,9 @@ keyboard down and up).
 
 ## What's next
 
-1. **Confirm the macOS workflow run finished** and `latest.json` under
-   `v0.13.1` carries both `windows-x86_64` and `darwin-aarch64`. Rerun with
-   `gh workflow run publish-macos.yml -f tag=v0.13.1` if it failed.
+1. ~~macOS publish~~ DONE: run `35006534193` succeeded (8 min); `latest.json`
+   under `v0.13.1` carries `windows-x86_64` + `darwin-aarch64`, and the release
+   has the `.dmg`, `.app.tar.gz` + `.sig`. v0.13.1 is fully shipped on desktop.
 2. **Cole: eyeball LS variant `1782075` is still active** — the only part of
    the subscription path nobody has verified from the dashboard side.
 3. **Cole: Play Console** — upload the versionCode-3 AAB from EAS build
