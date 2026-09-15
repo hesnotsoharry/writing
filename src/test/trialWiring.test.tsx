@@ -80,6 +80,7 @@ vi.mock("../features/ai/ai.types", () => ({
   AI_VERB_ORDER: ["brainstorm"],
   EMPTY_ABOUT: { synopsis: "" },
   DEFAULT_MODEL: "claude-haiku-4-5-20251001",
+  sanitizeManagedModel: (m: string) => m,
   AI_MODELS: {
     "claude-haiku-4-5-20251001": { label: "Haiku 4.5",    provider: "claude", tier: "standard" },
     "claude-sonnet-4-6":         { label: "Sonnet 4.6",   provider: "claude", tier: "standard" },

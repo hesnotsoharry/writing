@@ -21,12 +21,22 @@
   note at once, the other version is kept in your Inbox instead of thrown
   away.
 
-## [0.13.0] — Unreleased · goals repair + trial activation
+## [0.13.1] — 2026-09-15 · Device Sync beta, AI subscription, goals repair
 
-This release also carries a large amount of under-the-hood groundwork for
-Device Sync (off by default; nothing changes until you opt in when it ships).
+*(0.13.0 was tagged but never published; everything it carried ships here.)*
 
 ### Added
+- **Device Sync (beta)** — Settings → Sync can now pair this computer with the
+  WritersNook Companion phone app (beta testers) or another computer by
+  scanning a QR code. Off until you turn it on; changes travel end-to-end
+  encrypted and the relay never stores your words. Please report anything odd —
+  this is the first release with it.
+- **AI subscription from Settings** — Settings → AI now has a "Managed
+  subscription" row so you can subscribe before the trial runs out, not only
+  from the trial-exhausted card.
+- **More AI models** — Claude Fable 5 and GLM-5.3 join the picker; GLM-5.2 is
+  retired (a saved GLM-5.2 preference falls back to the default model). Reply
+  estimates now use current vendor prices.
 - **AI trial activation** — starting the free AI trial is now a clear one-time
   step in the Assistant panel (with a quick automated check), instead of a
   silent background grant. Existing trials and subscriptions are unaffected.
