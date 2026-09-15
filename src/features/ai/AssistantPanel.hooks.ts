@@ -31,6 +31,7 @@ import {
   type ManagedModel,
   type ManuscriptAbout,
   type ProseSelection,
+  sanitizeManagedModel,
   type VerbKey,
 } from "./ai.types";
 import { buildByokStreamArgs,BYOK_SEND } from "./AssistantPanel.byok";
@@ -281,7 +282,7 @@ export function usePanelState(
   const [verbPop, setVerbPop] = useState(false);
   const [attachedSel, setAttachedSel] = useState<Pick<ProseSelection, "text" | "words"> | null>(initialSel ?? null);
   const [streamingId, setStreamingId] = useState<string | null>(null);
-  const [model, setModelInner] = useState<ManagedModel>(() => getTweak("aiModel", DEFAULT_MODEL));
+  const [model, setModelInner] = useState<ManagedModel>(() => sanitizeManagedModel(getTweak("aiModel", DEFAULT_MODEL)));
   const [modelPop, setModelPop] = useState(false);
   // Lazy-initialized from localStorage (satisfies react19-no-setstate-in-effect); persists on change.
   const setModel = useCallback((m: ManagedModel) => { setStoredTweak("aiModel", m); setModelInner(m); }, []);

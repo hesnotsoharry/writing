@@ -46,7 +46,7 @@ describe('W44 MANAGED_MODELS ↔ RATES sync guard (silent-under-bill defense)', 
     expect(() => getAdapter('claude-9-hyper')).toThrow('Unknown model: claude-9-hyper');
   });
 
-  it('offers the current lineup: Haiku 4.5, Sonnet 5, Opus 5, gpt-5.4-mini, GPT-5.6 Luna/Terra/Sol, GLM-5.2', () => {
+  it('offers the current lineup: Haiku 4.5, Sonnet 5, Opus 5, Fable 5, gpt-5.4-mini, GPT-5.6 Luna/Terra/Sol, GLM-5.3', () => {
     expect(MANAGED_MODELS.has('claude-haiku-4-5-20251001')).toBe(true);
     expect(MANAGED_MODELS.has('claude-sonnet-5')).toBe(true);
     expect(MANAGED_MODELS.has('claude-opus-5')).toBe(true);
@@ -54,7 +54,8 @@ describe('W44 MANAGED_MODELS ↔ RATES sync guard (silent-under-bill defense)', 
     expect(MANAGED_MODELS.has('gpt-5.6-luna')).toBe(true);
     expect(MANAGED_MODELS.has('gpt-5.6-terra')).toBe(true);
     expect(MANAGED_MODELS.has('gpt-5.6-sol')).toBe(true);
-    expect(MANAGED_MODELS.has('z-ai/glm-5.2')).toBe(true);
+    expect(MANAGED_MODELS.has('claude-fable-5')).toBe(true);
+    expect(MANAGED_MODELS.has('z-ai/glm-5.3')).toBe(true);
   });
 
   // The roster refresh keeps superseded models allowlisted. A client that persisted
@@ -65,14 +66,18 @@ describe('W44 MANAGED_MODELS ↔ RATES sync guard (silent-under-bill defense)', 
     expect(MANAGED_MODELS.has('claude-opus-4-8')).toBe(true);
     expect(MANAGED_MODELS.has('gpt-5.4')).toBe(true);
     expect(MANAGED_MODELS.has('gpt-5.5')).toBe(true);
+    // GLM-5.2 left the picker in 0.13.1 but clients up to 0.13.0 still send it.
+    expect(MANAGED_MODELS.has('z-ai/glm-5.2')).toBe(true);
   });
 
-  // Claude Fable 5 ($10/$50 per MTok) would burn a monthly allowance in a few long
-  // replies. It is deliberately excluded — this pins that decision.
-  it('does not offer Claude Fable 5 (allowance-destroying price point)', () => {
-    expect(MANAGED_MODELS.has('claude-fable-5')).toBe(false);
+  // Claude Fable 5 ($10/$50 per MTok) is offered as a premium pick (2026-09-15, reversing the
+  // 2026-07-30 exclusion). It must resolve AND be billed at its own rate — a fallback to the
+  // Haiku rate here would under-bill 10× on input.
+  it('offers Claude Fable 5 at its own (premium) rate', () => {
     const r = resolveModelConfig('brainstorm', VERB_CONFIG.brainstorm, 'claude-fable-5');
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
+    expect(RATES['claude-fable-5'].input).toBe(1.0);
+    expect(RATES['claude-fable-5'].output).toBe(5.0);
   });
 
   // A missing MIN_CACHEABLE_TOKENS entry is silent: shouldAttachCache falls back to

@@ -79,7 +79,9 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
     provider: "anthropic",
     label: "Claude",
     models: [
-      // Rates sourced from marketing/functions/_lib/credits.ts RATES (2026-07-30):
+      // Rates sourced from marketing/functions/_lib/credits.ts RATES, confirmed against
+      // platform.claude.com/docs/en/about-claude/pricing (2026-08-27). Sonnet 5's $2/$10
+      // launch pricing is now permanent (the scheduled Sept 1 increase was cancelled).
       //   units/token × 10 = $/MTok  (CREDIT_UNIT_USD = $0.00001; 1 unit/token = $10/MTok)
       // Current generation first; legacy models sit at the bottom of the group.
       {
@@ -88,11 +90,15 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
       },
       {
         id: "claude-sonnet-5", displayName: "Sonnet 5", provider: "anthropic",
-        rateUsd: { input: 3.0, cached: 0.30, output: 15.0 },
+        rateUsd: { input: 2.0, cached: 0.20, output: 10.0 },
       },
       {
         id: "claude-opus-5", displayName: "Opus 5", provider: "anthropic",
         rateUsd: { input: 5.0, cached: 0.50, output: 25.0 },
+      },
+      {
+        id: "claude-fable-5", displayName: "Fable 5", provider: "anthropic",
+        rateUsd: { input: 10.0, cached: 1.0, output: 50.0 },
       },
       {
         id: "claude-sonnet-4-6", displayName: "Sonnet 4.6 (legacy)", provider: "anthropic",
@@ -109,7 +115,9 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
     label: "ChatGPT",
     models: [
       // Rates sourced from marketing/functions/_lib/credits.ts RATES and confirmed against
-      // developers.openai.com/api/docs/pricing (2026-07-30).
+      // developers.openai.com/api/docs/pricing (2026-08-27): Luna cut 80% and Terra 20%
+      // on 2026-07-30 (permanent). Sol lists a promo $4/$20 through 2026-11-21 — we quote
+      // its standard $5/$30 so the hint needs no dated flip.
       // Current generation first; legacy models sit at the bottom of the group.
       {
         id: "gpt-5.4-mini", displayName: "GPT-5.4 mini", provider: "openai",
@@ -119,13 +127,13 @@ export const PROVIDER_REGISTRY: ProviderGroup[] = [
       },
       {
         id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna", provider: "openai",
-        costHint: "$1 / $6 per MTok",
-        rateUsd: { input: 1.00, cached: 0.10, output: 6.0 },
+        costHint: "$0.20 / $1.20 per MTok",
+        rateUsd: { input: 0.20, cached: 0.02, output: 1.20 },
       },
       {
         id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra", provider: "openai",
-        costHint: "$2.50 / $15 per MTok",
-        rateUsd: { input: 2.50, cached: 0.25, output: 15.0 },
+        costHint: "$2 / $12 per MTok",
+        rateUsd: { input: 2.00, cached: 0.20, output: 12.0 },
       },
       {
         id: "gpt-5.6-sol", displayName: "GPT-5.6 Sol", provider: "openai",

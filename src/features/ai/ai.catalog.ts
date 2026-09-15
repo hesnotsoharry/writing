@@ -10,18 +10,31 @@ export type ManagedModel =
   | "claude-haiku-4-5-20251001"
   | "claude-sonnet-5"
   | "claude-opus-5"
+  | "claude-fable-5"
   | "gpt-5.4-mini"
   | "gpt-5.6-luna"
   | "gpt-5.6-terra"
   | "gpt-5.6-sol"
-  | "z-ai/glm-5.2"
+  | "z-ai/glm-5.3"
   // Legacy — superseded but still served; kept selectable at the bottom of each group
+  // (z-ai/glm-5.2 is NOT here: OpenRouter delisted it, so it cannot be served at all —
+  //  sanitizeManagedModel maps a stored 5.2 preference back to the default)
   | "claude-sonnet-4-6"
   | "claude-opus-4-8"
   | "gpt-5.4"
   | "gpt-5.5";
 
 export const DEFAULT_MODEL: ManagedModel = "claude-haiku-4-5-20251001";
+
+/**
+ * Map a persisted model preference to a model the catalog still serves.
+ * A stored ID can go stale when a model is withdrawn upstream (e.g. z-ai/glm-5.2,
+ * delisted by OpenRouter 2026-08); rendering or sending a stale ID crashes the
+ * picker chip / 400s at the proxy, so unknown values fall back to DEFAULT_MODEL.
+ */
+export function sanitizeManagedModel(value: string): ManagedModel {
+  return value in AI_MODELS ? (value as ManagedModel) : DEFAULT_MODEL;
+}
 
 export interface ModelDef {
   label: string;
@@ -37,7 +50,8 @@ export const AI_MODELS: Record<ManagedModel, ModelDef> = {
   "gpt-5.4-mini":              { label: "GPT-5.4 mini",   provider: "chatgpt", tier: "standard" },
   "gpt-5.6-luna":              { label: "GPT-5.6 Luna",   provider: "chatgpt", tier: "standard" },
   "gpt-5.6-terra":             { label: "GPT-5.6 Terra",  provider: "chatgpt", tier: "standard" },
-  "z-ai/glm-5.2":              { label: "GLM-5.2",        provider: "glm",     tier: "standard" },
+  "z-ai/glm-5.3":              { label: "GLM-5.3",        provider: "glm",     tier: "standard" },
+  "claude-fable-5":            { label: "Fable 5",        provider: "claude",  tier: "premium"  },
   "claude-opus-5":             { label: "Opus 5",         provider: "claude",  tier: "premium"  },
   "gpt-5.6-sol":               { label: "GPT-5.6 Sol",    provider: "chatgpt", tier: "premium"  },
   // Legacy
@@ -59,9 +73,9 @@ export const AI_MODEL_ORDER: readonly ManagedModel[] = [
   // ChatGPT — standard
   "gpt-5.4-mini", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.4",
   // GLM — standard
-  "z-ai/glm-5.2",
+  "z-ai/glm-5.3",
   // Premium (all providers, current then legacy)
-  "claude-opus-5", "gpt-5.6-sol", "claude-opus-4-8", "gpt-5.5",
+  "claude-fable-5", "claude-opus-5", "gpt-5.6-sol", "claude-opus-4-8", "gpt-5.5",
 ];
 
 /**
@@ -72,14 +86,16 @@ export const AI_MODEL_ORDER: readonly ManagedModel[] = [
  */
 export const MODEL_RATES: Record<ManagedModel, { input: number; output: number }> = {
   "claude-haiku-4-5-20251001": { input: 0.1,    output: 0.5 },
-  "claude-sonnet-5":           { input: 0.3,    output: 1.5 },
+  "claude-sonnet-5":           { input: 0.2,    output: 1.0 },
   "claude-opus-5":             { input: 0.5,    output: 2.5 },
+  "claude-fable-5":            { input: 1.0,    output: 5.0 },
   "gpt-5.4-mini":              { input: 0.075,  output: 0.45 },
-  "gpt-5.6-luna":              { input: 0.1,    output: 0.6 },
-  "gpt-5.6-terra":             { input: 0.25,   output: 1.5 },
+  "gpt-5.6-luna":              { input: 0.02,   output: 0.12 },
+  "gpt-5.6-terra":             { input: 0.2,    output: 1.2 },
   "gpt-5.6-sol":               { input: 0.5,    output: 3.0 },
-  "z-ai/glm-5.2":              { input: 0.0966, output: 0.3036 },
-  // Legacy — priced identically to their current-generation successors.
+  "z-ai/glm-5.3":              { input: 0.14,   output: 0.44 },
+  // Legacy — billed at their own (older) list prices, which since the 2026-08
+  // vendor price cuts are no longer identical to their successors'.
   "claude-sonnet-4-6":         { input: 0.3,    output: 1.5 },
   "claude-opus-4-8":           { input: 0.5,    output: 2.5 },
   "gpt-5.4":                   { input: 0.25,   output: 1.5 },

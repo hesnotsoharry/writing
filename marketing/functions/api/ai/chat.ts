@@ -84,14 +84,16 @@ export const MANAGED_MODELS: ReadonlySet<string> = new Set([
   'claude-haiku-4-5-20251001',
   'claude-sonnet-5',
   'claude-opus-5',
+  'claude-fable-5',
   // OpenAI — current
   'gpt-5.4-mini',
   'gpt-5.6-luna',
   'gpt-5.6-terra',
   'gpt-5.6-sol',
   // OpenRouter — current
+  'z-ai/glm-5.3',
+  // Legacy — superseded, still selectable (GLM-5.2: served for pre-0.13.1 clients only)
   'z-ai/glm-5.2',
-  // Legacy — superseded, still selectable
   'claude-sonnet-4-6',
   'claude-opus-4-8',
   'gpt-5.4',

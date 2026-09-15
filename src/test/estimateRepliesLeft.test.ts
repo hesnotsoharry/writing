@@ -7,14 +7,15 @@ describe("estimateRepliesLeft", () => {
   describe("trial balance (150,000 units)", () => {
     it.each<[ManagedModel, number]>([
       ["claude-haiku-4-5-20251001", 150],
-      ["claude-sonnet-5", 50],
+      ["claude-sonnet-5", 75],
       ["claude-opus-5", 30],
+      ["claude-fable-5", 15],
       ["gpt-5.4-mini", 185],
-      ["gpt-5.6-luna", 138],
-      ["gpt-5.6-terra", 55],
+      ["gpt-5.6-luna", 694],
+      ["gpt-5.6-terra", 69],
       ["gpt-5.6-sol", 27],
-      ["z-ai/glm-5.2", 182],
-      // Legacy models stay priced identically to their successors.
+      ["z-ai/glm-5.3", 125],
+      // Legacy models are billed at their own (older) list prices.
       ["claude-sonnet-4-6", 50],
       ["claude-opus-4-8", 30],
       ["gpt-5.4", 55],
@@ -27,14 +28,15 @@ describe("estimateRepliesLeft", () => {
   describe("monthly balance (1,000,000 units)", () => {
     it.each<[ManagedModel, number]>([
       ["claude-haiku-4-5-20251001", 1000],
-      ["claude-sonnet-5", 333],
+      ["claude-sonnet-5", 500],
       ["claude-opus-5", 200],
+      ["claude-fable-5", 100],
       ["gpt-5.4-mini", 1234],
-      ["gpt-5.6-luna", 925],
-      ["gpt-5.6-terra", 370],
+      ["gpt-5.6-luna", 4629],
+      ["gpt-5.6-terra", 462],
       ["gpt-5.6-sol", 185],
-      ["z-ai/glm-5.2", 1215],
-      // Legacy models stay priced identically to their successors.
+      ["z-ai/glm-5.3", 838],
+      // Legacy models are billed at their own (older) list prices.
       ["claude-sonnet-4-6", 333],
       ["claude-opus-4-8", 200],
       ["gpt-5.4", 370],

@@ -22,8 +22,9 @@
 export const MIN_CACHEABLE_TOKENS: Record<string, number> = {
   'claude-haiku-4-5-20251001': 4096,
   'claude-sonnet-5': 1024,
-  // Opus 5 caches from 512 tokens — a lower floor than any other model we offer.
+  // Opus 5 and Fable 5 cache from 512 tokens — a lower floor than any other model we offer.
   'claude-opus-5': 512,
+  'claude-fable-5': 512,
   'claude-sonnet-4-6': 1024,
   'claude-opus-4-8': 1024,
 };

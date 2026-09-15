@@ -32,6 +32,7 @@ import {
   type ManagedModel,
   type ManuscriptAbout,
   type ProseSelection,
+  sanitizeManagedModel,
   type VerbKey,
 } from "./ai.types";
 import { AiDormant } from "./AiComponents";
@@ -350,7 +351,7 @@ function AiSlot({ base, p }: { base: ReactNode; p: SlotHostProps }) {
     {overlay === "consent" && <AiConsent onClose={() => setOverlay(null)} onEnable={handleEnable} />}
     {overlay === "context" && <AiContextPicker tree={aiTree} scene={{ id: sceneId ?? "", title: sceneName ?? "", words: sceneWords }}
       entities={allEntities} aiCtx={aiCtx} setAiCtx={setAiCtx} neverNames={neverNames} toggleNever={toggleNever}
-      about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} model={getTweak("aiModel", DEFAULT_MODEL) as ManagedModel} monthlyAllowance={monthlyAllowance} excludeFromAi={sceneExcludedFromAi} onToggleSceneExclusion={() => applySceneExclusionToggle(p.onSetSceneExcludedFromAi, sceneId, sceneExcludedFromAi)} />}
+      about={about} setAbout={saveAbout} resetLabel={resetLabel} onClose={() => setOverlay(null)} model={sanitizeManagedModel(getTweak("aiModel", DEFAULT_MODEL))} monthlyAllowance={monthlyAllowance} excludeFromAi={sceneExcludedFromAi} onToggleSceneExclusion={() => applySceneExclusionToggle(p.onSetSceneExcludedFromAi, sceneId, sceneExcludedFromAi)} />}
     <AiToast msg={toast} />
   </>);
 }
