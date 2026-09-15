@@ -12,7 +12,13 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useRef, useState } from "react";
 
 import { changelogMarkdown } from "./changelogSource";
-import { decideWhatsNew, readLastSeenVersion, writeLastSeenVersion } from "./whatsNew";
+import {
+  clearUpdatePending,
+  decideWhatsNew,
+  hasPriorInstallMarks,
+  readLastSeenVersion,
+  writeLastSeenVersion,
+} from "./whatsNew";
 
 export interface WhatsNewState {
   open: boolean;
@@ -35,7 +41,9 @@ export function useWhatsNew(blocked: boolean): WhatsNewState {
           currentVersion: current,
           lastSeenVersion: readLastSeenVersion(),
           changelogMarkdown,
+          installedBefore: hasPriorInstallMarks(),
         });
+        clearUpdatePending();
         if (decision.kind === "storeNow") {
           writeLastSeenVersion(current);
         } else if (decision.kind === "show") {

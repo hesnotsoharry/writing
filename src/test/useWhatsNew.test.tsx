@@ -41,6 +41,24 @@ describe("useWhatsNew", () => {
     expect(result.current.open).toBe(false);
   });
 
+  it("upgrade from a build without lastSeenVersion (other writing.* state present) opens", async () => {
+    localStorage.setItem("writing.goalsOn", "true");
+    mockGetVersion.mockResolvedValue("0.13.1");
+    const { result } = renderHook(() => useWhatsNew(false));
+
+    await waitFor(() => expect(result.current.open).toBe(true));
+    expect(result.current.version).toBe("0.13.1");
+  });
+
+  it("relaunch after an in-app update (pending flag) opens, and the flag is consumed", async () => {
+    localStorage.setItem("writing.pendingWhatsNew", "1");
+    mockGetVersion.mockResolvedValue("0.13.1");
+    const { result } = renderHook(() => useWhatsNew(false));
+
+    await waitFor(() => expect(result.current.open).toBe(true));
+    expect(localStorage.getItem("writing.pendingWhatsNew")).toBeNull();
+  });
+
   it("version change with real CHANGELOG.md notes opens, and dismiss stores the version", async () => {
     localStorage.setItem(LAST_SEEN_KEY, "0.13.0");
     mockGetVersion.mockResolvedValue("0.13.1");

@@ -9,7 +9,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Icon } from "../../components/Icon";
-import { type NotesBlock, parseReleaseNotes, visibleReleaseNotes } from "./releaseNotes";
+import { type NotesBlock, parseInline, parseReleaseNotes, visibleReleaseNotes } from "./releaseNotes";
+import { markUpdatePending } from "./whatsNew";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,17 +75,41 @@ function UpdateHeader({ version }: { version: string }) {
   );
 }
 
+/** `**bold**` / `*em*` as elements; the text itself is never interpreted as HTML. */
+function Inline({ text }: { text: string }) {
+  return (
+    <>
+      {parseInline(text).map((run, i) => {
+        if (run.kind === "strong") return <strong key={i}>{run.text}</strong>;
+        if (run.kind === "em") return <em key={i}>{run.text}</em>;
+        return <span key={i}>{run.text}</span>;
+      })}
+    </>
+  );
+}
+
 function NotesBlockView({ block }: { block: NotesBlock }) {
   if (block.type === "list") {
     return (
       <ul className="upd-notes-list">
         {block.items.map((item, i) => (
-          <li key={i}>{item}</li>
+          <li key={i}><Inline text={item} /></li>
         ))}
       </ul>
     );
   }
-  return <p className="upd-notes-p">{block.text}</p>;
+  if (block.type === "release") {
+    return (
+      <div className="upd-notes-release">
+        {block.name && <div className="upd-notes-h2">{block.name}</div>}
+        <div className="upd-notes-date">{[block.version, block.date].filter(Boolean).join(" · ")}</div>
+      </div>
+    );
+  }
+  if (block.type === "heading") {
+    return <div className={block.level <= 2 ? "upd-notes-h2" : "upd-notes-h3"}>{block.text}</div>;
+  }
+  return <p className="upd-notes-p"><Inline text={block.text} /></p>;
 }
 
 export function ReleaseNotes({ text }: { text: string }) {
@@ -149,6 +174,9 @@ function useInstallFlow(
 
   function startInstall(): void {
     setState({ phase: "downloading", received: 0, total: null });
+    // Survives the relaunch so the next launch knows it is an update, not a
+    // fresh install, even before lastSeenVersion has ever been written.
+    markUpdatePending();
     update
       .downloadAndInstall((event) => applyDownloadEvent(event, setState))
       .then(() => relaunch())

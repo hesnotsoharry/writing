@@ -46,6 +46,18 @@ webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
   the August versionCode-2 AAB was never uploaded, which is fine: it predated
   the 29 sync fixes. Upload the versionCode-3 AAB instead (drag into the staged
   closed-testing release; extension can't push 119 MB).
+- **What's-new popup: two Cole-reported bugs fixed for 0.13.2** (not yet
+  released). (1) It never opened after the 0.12.8 -> 0.13.1 update: the
+  `lastSeenVersion` key did not exist before 0.13.x, so the upgrade was
+  indistinguishable from a fresh install and `decideWhatsNew` stored silently.
+  Now `hasPriorInstallMarks()` (any other `writing.*` localStorage key, or the
+  `writing.pendingWhatsNew` flag UpdateModal sets right before relaunch)
+  marks it as an upgrade. (2) Layout: `parseReleaseNotes` flattened `###`
+  groups into paragraphs, stripped bold, and split wrapped bullet lines into
+  stray left-aligned paragraphs. It now emits `release` / `heading` blocks,
+  keeps inline marks for an `Inline` renderer, and glues continuation lines;
+  `.upd-notes` also got the parchment scrollbar. jsdom-verified only — eyeball
+  Settings > What's new on the next dev run.
 - **Master pushed; the marketing deploy then failed three times** on Pages'
   bundled npm 10.9.2 (`edgesOut` arborist crash, registry drift against a
   lockfile-less install). Fixed by committing an npm 11 `package-lock.json`

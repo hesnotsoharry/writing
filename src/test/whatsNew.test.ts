@@ -7,8 +7,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  clearUpdatePending,
   decideWhatsNew,
   getNotesForVersion,
+  hasPriorInstallMarks,
+  markUpdatePending,
   readLastSeenVersion,
   writeLastSeenVersion,
 } from "../features/updater/whatsNew";
@@ -27,6 +30,26 @@ No notes worth reading.
 
 beforeEach(() => {
   localStorage.clear();
+});
+
+describe("hasPriorInstallMarks / update-pending flag", () => {
+  it("is false on an empty localStorage (fresh install)", () => {
+    expect(hasPriorInstallMarks()).toBe(false);
+  });
+
+  it("ignores lastSeenVersion itself but counts any other writing.* key", () => {
+    writeLastSeenVersion("0.12.9");
+    expect(hasPriorInstallMarks()).toBe(false);
+    localStorage.setItem("writing.aiModel", "claude-haiku-4-5-20251001");
+    expect(hasPriorInstallMarks()).toBe(true);
+  });
+
+  it("the updater's pending flag counts, and clears cleanly", () => {
+    markUpdatePending();
+    expect(hasPriorInstallMarks()).toBe(true);
+    clearUpdatePending();
+    expect(hasPriorInstallMarks()).toBe(false);
+  });
 });
 
 describe("readLastSeenVersion / writeLastSeenVersion", () => {
@@ -54,6 +77,28 @@ describe("decideWhatsNew", () => {
       currentVersion: "0.12.9",
       lastSeenVersion: null,
       changelogMarkdown: CHANGELOG,
+    });
+    expect(decision).toEqual({ kind: "storeNow" });
+  });
+
+  // Upgrading from a build that predates lastSeenVersion (0.12.8 -> 0.13.1) left
+  // the key unset, so the popup never showed. Prior-install marks disambiguate.
+  it("unset lastSeenVersion but installedBefore shows the notes (upgrade from a pre-feature build)", () => {
+    const decision = decideWhatsNew({
+      currentVersion: "0.12.9",
+      lastSeenVersion: null,
+      changelogMarkdown: CHANGELOG,
+      installedBefore: true,
+    });
+    expect(decision.kind).toBe("show");
+  });
+
+  it("unset lastSeenVersion, installedBefore, but no notes still stores silently", () => {
+    const decision = decideWhatsNew({
+      currentVersion: "9.9.9",
+      lastSeenVersion: null,
+      changelogMarkdown: CHANGELOG,
+      installedBefore: true,
     });
     expect(decision).toEqual({ kind: "storeNow" });
   });

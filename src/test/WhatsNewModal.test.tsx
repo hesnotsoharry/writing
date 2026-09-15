@@ -18,6 +18,20 @@ describe("WhatsNewModal", () => {
     expect(document.querySelectorAll(".upd-notes li")).toHaveLength(2);
   });
 
+  it("renders the CHANGELOG structure: release name + date, group headers, bold feature names", () => {
+    const notes = "## [0.13.1] — 2026-09-15 · Device Sync beta\n\n### Added\n- **Device Sync (beta)** — pair this\n  computer with your phone.\n\n### Fixed\n- **Goals** — off means off.";
+    render(<WhatsNewModal version="0.13.1" notes={notes} onClose={() => {}} />);
+    expect(document.querySelector(".upd-notes-h2")?.textContent).toBe("Device Sync beta");
+    expect(document.querySelector(".upd-notes-date")?.textContent).toBe("0.13.1 · 2026-09-15");
+    const groups = Array.from(document.querySelectorAll(".upd-notes-h3")).map((el) => el.textContent);
+    expect(groups).toEqual(["Added", "Fixed"]);
+    const items = Array.from(document.querySelectorAll(".upd-notes li"));
+    expect(items).toHaveLength(2);
+    expect(items[0].querySelector("strong")?.textContent).toBe("Device Sync (beta)");
+    expect(items[0].textContent).toBe("Device Sync (beta) — pair this computer with your phone.");
+    expect(document.querySelectorAll(".upd-notes-p")).toHaveLength(0);
+  });
+
   it("shows a graceful fallback line instead of throwing when notes is null", () => {
     render(<WhatsNewModal version="9.9.9" notes={null} onClose={vi.fn()} />);
     expect(screen.getByText("No release notes for this version.")).toBeTruthy();

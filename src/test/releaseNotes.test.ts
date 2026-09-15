@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseReleaseNotes, visibleReleaseNotes } from "../features/updater/releaseNotes";
+import { parseInline, parseReleaseNotes, visibleReleaseNotes } from "../features/updater/releaseNotes";
 
 describe("visibleReleaseNotes", () => {
   it("returns null for undefined, null, empty, and whitespace-only bodies", () => {
@@ -33,6 +33,21 @@ describe("visibleReleaseNotes", () => {
   });
 });
 
+describe("parseInline", () => {
+  it("splits bold and em runs and keeps everything else literal", () => {
+    expect(parseInline("**Goals** — now *really* off, <b>not html</b>")).toEqual([
+      { kind: "strong", text: "Goals" },
+      { kind: "text", text: " — now " },
+      { kind: "em", text: "really" },
+      { kind: "text", text: " off, <b>not html</b>" },
+    ]);
+  });
+
+  it("returns a single text run when there are no marks", () => {
+    expect(parseInline("plain")).toEqual([{ kind: "text", text: "plain" }]);
+  });
+});
+
 describe("parseReleaseNotes", () => {
   it("renders a single paragraph", () => {
     expect(parseReleaseNotes("Hello world.")).toEqual([
@@ -62,11 +77,39 @@ describe("parseReleaseNotes", () => {
     ]);
   });
 
-  it("strips heading hashes and **bold** marks into plain text", () => {
+  it("keeps '###' lines as headings and leaves **bold** marks for the inline renderer", () => {
     const text = "### Fixed\n- **Find & Replace** — keeps marks";
     expect(parseReleaseNotes(text)).toEqual([
-      { type: "paragraph", text: "Fixed" },
-      { type: "list", items: ["Find & Replace — keeps marks"] },
+      { type: "heading", level: 3, text: "Fixed" },
+      { type: "list", items: ["**Find & Replace** — keeps marks"] },
+    ]);
+  });
+
+  it("turns the CHANGELOG version line into a release block with date and name", () => {
+    expect(parseReleaseNotes("## [0.13.1] — 2026-09-15 · Device Sync beta, AI subscription")).toEqual([
+      { type: "release", version: "0.13.1", date: "2026-09-15", name: "Device Sync beta, AI subscription" },
+    ]);
+    expect(parseReleaseNotes("## [0.13.0] — Unreleased · goals repair")).toEqual([
+      { type: "release", version: "0.13.0", date: "Unreleased", name: "goals repair" },
+    ]);
+    expect(parseReleaseNotes("## [0.2.1]")).toEqual([
+      { type: "release", version: "0.2.1", date: null, name: null },
+    ]);
+  });
+
+  // Wrapped bullets are the CHANGELOG's house style (80 cols). They used to split into a
+  // list item plus a stray left-aligned paragraph under the dot (Cole, 2026-09-15).
+  it("glues a bullet's indented continuation lines back onto the bullet", () => {
+    const text = "- **Device Sync (beta)** — pair this computer\n  with your phone by scanning\n  a QR code.\n- Next";
+    expect(parseReleaseNotes(text)).toEqual([
+      { type: "list", items: ["**Device Sync (beta)** — pair this computer with your phone by scanning a QR code.", "Next"] },
+    ]);
+  });
+
+  it("a non-indented line after a list still starts a paragraph", () => {
+    expect(parseReleaseNotes("- one\nOutro.")).toEqual([
+      { type: "list", items: ["one"] },
+      { type: "paragraph", text: "Outro." },
     ]);
   });
 

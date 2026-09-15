@@ -21,6 +21,17 @@
   note at once, the other version is kept in your Inbox instead of thrown
   away.
 
+## [0.13.2] — Unreleased · What's new, properly
+
+### Fixed
+- **What's new after an update** — the release notes now open on the first
+  launch after updating, including when you updated from a version that never
+  had the feature (0.12.8 and earlier). Previously that upgrade looked like a
+  fresh install and the notes stayed hidden in Settings.
+- **What's new layout** — headings and grouping (Added / Fixed) are shown
+  instead of flattened, feature names are bold, wrapped lines stay under their
+  bullet, and the scrollbar matches the rest of the app.
+
 ## [0.13.1] — 2026-09-15 · Device Sync beta, AI subscription, goals repair
 
 *(0.13.0 was tagged but never published; everything it carried ships here.)*
