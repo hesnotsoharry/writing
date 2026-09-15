@@ -46,6 +46,14 @@ webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
   the August versionCode-2 AAB was never uploaded, which is fine: it predated
   the 29 sync fixes. Upload the versionCode-3 AAB instead (drag into the staged
   closed-testing release; extension can't push 119 MB).
+- **Master pushed; the marketing deploy then failed three times** on Pages'
+  bundled npm 10.9.2 (`edgesOut` arborist crash, registry drift against a
+  lockfile-less install). Fixed by committing an npm 11 `package-lock.json`
+  and dropping `.npmrc`'s `package-lock=false` (`25daabc`); the `NPM_VERSION=11`
+  env var route was tried first and ignored. Full write-up in
+  `marketing/.claude/vendor-gotchas/cloudflare-pages.md`. **Verified live:**
+  writersnook.app/pricing serves the subscribe CTA, `lemon.js`, `ls-config.js`
+  and `checkout.js` again.
 - **Lemon Squeezy `order_refunded` subscription NOT done** — the LS dashboard
   needs a password login and there is no LS API key on this machine. Cole:
   LS live mode > Settings > Webhooks > the `/api/webhooks/lemon-squeezy-subscription`
