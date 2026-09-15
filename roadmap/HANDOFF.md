@@ -38,26 +38,16 @@ webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
 - **v0.13.1 committed and tagged** (`427886f`) off current master — the first
   desktop release with Settings > Sync and the whole audit campaign. Do NOT
   publish the stale v0.13.0 tag. Cole runs `.\publish.ps1` then `publish-mac.sh`.
-- **EAS production builds kicked off from `mobile/`** (`EAS_NO_VCS=1`):
-  Android `f162c039` (versionCode 3, app-bundle), then iOS with
-  `--auto-submit` to TestFlight (buildNumber 9). `eas build:list` shows state;
-  the AAB downloads from the build page. **The Play Console has NO bundle at
-  all** (checked "Latest app bundles: None" in the Alpha track this session) —
-  the August versionCode-2 AAB was never uploaded, which is fine: it predated
-  the 29 sync fixes. Upload the versionCode-3 AAB instead (drag into the staged
-  closed-testing release; extension can't push 119 MB).
-- **What's-new popup: two Cole-reported bugs fixed for 0.13.2** (not yet
-  released). (1) It never opened after the 0.12.8 -> 0.13.1 update: the
-  `lastSeenVersion` key did not exist before 0.13.x, so the upgrade was
-  indistinguishable from a fresh install and `decideWhatsNew` stored silently.
-  Now `hasPriorInstallMarks()` (any other `writing.*` localStorage key, or the
-  `writing.pendingWhatsNew` flag UpdateModal sets right before relaunch)
-  marks it as an upgrade. (2) Layout: `parseReleaseNotes` flattened `###`
-  groups into paragraphs, stripped bold, and split wrapped bullet lines into
-  stray left-aligned paragraphs. It now emits `release` / `heading` blocks,
-  keeps inline marks for an `Inline` renderer, and glues continuation lines;
-  `.upd-notes` also got the parchment scrollbar. jsdom-verified only — eyeball
-  Settings > What's new on the next dev run.
+- **Both phone builds FINISHED on EAS** (`EAS_NO_VCS=1`, off master at
+  `7a38f91`+): Android `f162c039` (versionCode 3, app-bundle) downloaded to
+  `~/Downloads/writersnook-1.0.0-versionCode3.aab` (119 MB); iOS `483f90f6`
+  (buildNumber 9) auto-submitted to App Store Connect — submission
+  `7f2df533`, "in queue" at 18:40Z; install from TestFlight once Apple's
+  processing mail arrives. **The Play Console has NO bundle at all** (checked
+  "Latest app bundles: None" this session) — the August versionCode-2 AAB was
+  never uploaded, which is fine: it predated the 29 sync fixes. Cole: drag the
+  versionCode-3 AAB into the staged closed-testing release (extension can't
+  push 119 MB). The Android free-tier queue took ~70 min today.
 - **Master pushed; the marketing deploy then failed three times** on Pages'
   bundled npm 10.9.2 (`edgesOut` arborist crash, registry drift against a
   lockfile-less install). Fixed by committing an npm 11 `package-lock.json`
@@ -582,9 +572,8 @@ keyboard down and up).
    has the `.dmg`, `.app.tar.gz` + `.sig`. v0.13.1 is fully shipped on desktop.
 2. **Cole: eyeball LS variant `1782075` is still active** — the only part of
    the subscription path nobody has verified from the dashboard side.
-3. **Cole: Play Console** — upload the versionCode-3 AAB from EAS build
-   `f162c039` into the staged Alpha release, name it "1.0.0 (3)", send for
-   review. Production access needs 12+ opted-in testers for 14 days, so the
+3. **Cole: Play Console** — upload `~/Downloads/writersnook-1.0.0-versionCode3.aab`
+   into the staged Alpha release, name it "1.0.0 (3)", send for review. Production access needs 12+ opted-in testers for 14 days, so the
    clock only starts once this lands.
 4. **iOS**: install the new TestFlight build (1.0.0 #9) once Apple's processing
    mail arrives; it is the first phone build with P0.1 in it.
