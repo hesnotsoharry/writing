@@ -54,11 +54,21 @@ webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
   `marketing/.claude/vendor-gotchas/cloudflare-pages.md`. **Verified live:**
   writersnook.app/pricing serves the subscribe CTA, `lemon.js`, `ls-config.js`
   and `checkout.js` again.
-- **Lemon Squeezy `order_refunded` subscription NOT done** — the LS dashboard
-  needs a password login and there is no LS API key on this machine. Cole:
-  LS live mode > Settings > Webhooks > the `/api/webhooks/lemon-squeezy-subscription`
-  hook > tick `order_refunded` > save. Until then a refunded top-up is not
-  clawed back (the code path is live and idle; the RPC is in place).
+- **v0.13.1 PUBLISHED on Windows** (Cole ran `publish.ps1`; GitHub release
+  2026-09-15 18:11Z with `WritersNook_0.13.1_x64-setup.exe` + `latest.json`,
+  `windows-x86_64` key verified). macOS half (`publish-mac.sh`) still to run.
+- **Lemon Squeezy subscription webhook now also fires `order_refunded`** (saved
+  via the dashboard; 7 events). The refund clawback path is fully live.
+- **A real app purchase was silently lost while Supabase was paused and has
+  been recovered.** Order `9464369` (Bethany Clark, $30.74, 2026-09-13 02:16Z)
+  got 500s on all three webhook deliveries. Resent both `order_created`
+  deliveries (purchase row created), then wrote the license key + email onto
+  the row directly and ledgered `license_key_created` in `webhook_events` —
+  Cole chose NOT to resend that delivery because it would send our license
+  email two days late (LS's own receipt already carried the key). A future LS
+  resend now dedupes to 200 without emailing. **Lesson: a paused Supabase
+  project loses purchases, not just AI.** The keep-alive item below is not
+  optional.
 
 ### Bug-fix campaign from the 2026-08-27 ultracode audit (in progress, same day)
 
@@ -553,12 +563,10 @@ keyboard down and up).
 
 ## What's next
 
-1. **Cole: publish v0.13.1** — `.\publish.ps1` (Windows), then `publish-mac.sh`
-   on the Mac. Both write the same `latest.json` under the `v0.13.1` tag.
-2. **Cole: Lemon Squeezy** — subscribe the subscription webhook to
-   `order_refunded` (see above), and eyeball that variant `1782075` is still
-   active. Then hit https://writersnook.app/pricing and confirm the Subscribe
-   CTA and `lemon.js` are back (they were dead for five weeks after `12d0051`).
+1. **Cole: `publish-mac.sh` on the Mac** for v0.13.1 (Windows half is done; it
+   upserts `darwin-aarch64` into the same `latest.json`).
+2. **Cole: eyeball LS variant `1782075` is still active** — the only part of
+   the subscription path nobody has verified from the dashboard side.
 3. **Cole: Play Console** — upload the versionCode-3 AAB from EAS build
    `f162c039` into the staged Alpha release, name it "1.0.0 (3)", send for
    review. Production access needs 12+ opted-in testers for 14 days, so the
@@ -572,8 +580,9 @@ keyboard down and up).
    (project, goal_type) as a merge rule in the sync apply target (LWW picks the
    newer row and tombstones the loser), then add the UNIQUE constraint behind
    it. Not a user-facing toggle. Not built yet.
-7. **Supabase keep-alive** — a weekly scheduled ping so the project never
-   pauses again (see today's notes).
+7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
+   scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
+   so the project never idles into a pause again.
 
 ### Blocked on Cole
 
