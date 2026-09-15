@@ -56,7 +56,9 @@ webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
   and `checkout.js` again.
 - **v0.13.1 PUBLISHED on Windows** (Cole ran `publish.ps1`; GitHub release
   2026-09-15 18:11Z with `WritersNook_0.13.1_x64-setup.exe` + `latest.json`,
-  `windows-x86_64` key verified). macOS half (`publish-mac.sh`) still to run.
+  `windows-x86_64` key verified). macOS half dispatched via the GitHub Actions
+  workflow `Publish macOS release` (input `tag=v0.13.1`, run `35006534193`) —
+  no physical Mac involved; it upserts `darwin-aarch64` into the same manifest.
 - **Lemon Squeezy subscription webhook now also fires `order_refunded`** (saved
   via the dashboard; 7 events). The refund clawback path is fully live.
 - **A real app purchase was silently lost while Supabase was paused and has
@@ -563,8 +565,9 @@ keyboard down and up).
 
 ## What's next
 
-1. **Cole: `publish-mac.sh` on the Mac** for v0.13.1 (Windows half is done; it
-   upserts `darwin-aarch64` into the same `latest.json`).
+1. **Confirm the macOS workflow run finished** and `latest.json` under
+   `v0.13.1` carries both `windows-x86_64` and `darwin-aarch64`. Rerun with
+   `gh workflow run publish-macos.yml -f tag=v0.13.1` if it failed.
 2. **Cole: eyeball LS variant `1782075` is still active** — the only part of
    the subscription path nobody has verified from the dashboard side.
 3. **Cole: Play Console** — upload the versionCode-3 AAB from EAS build
