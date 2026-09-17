@@ -1,6 +1,6 @@
 # WritersNook riso ad — brief
 
-A 15-second vertical ad (9:16) in a risograph-print style, built as ONE self-contained
+A 16-second vertical ad (9:16) in a risograph-print style, built as ONE self-contained
 `index.html`: everything is drawn by code, no images or libraries. Technique inspired by the riso
 animation shared on r/ClaudeAI (original concept by Kevin Ngo); the story here is our own.
 
@@ -19,7 +19,7 @@ out of it. Every scene, transition and camera move is organised around it.
 
 ## Format
 
-- 1080×1920 (logical 540×960 at scale 2), 15.0 s, time-based.
+- 1080×1920 (logical 540×960 at scale 2), 16.0 s, time-based.
 - 120 BPM grid: 0.25 s and 0.5 s are the base units.
 - Keep the caret and all legible content inside the middle ~70% vertically (TikTok/Reels UI
   covers the bottom ~20% and the right edge).
@@ -33,8 +33,18 @@ out of it. Every scene, transition and camera move is organised around it.
 | 2.0–3.0 | | A disc opens on the caret holding the first idea (lighthouse, caret = the lamp) and the camera dives through it to full bleed. |
 | 3.0–6.5 | II. Stories answer | Hard-cut montage on the grid, accelerating 0.5 → 0.25 s. Breathes once at 4.5: paper + one ripple, the next scene irises open from the caret at 5.0. |
 | 6.5–8.5 | III. Scattered | Pull back: the scenes become medallions orbiting the caret, orbits counter-rotating. They drain to single blue ink (the only crossfade) and drift outward, fading — ideas getting lost. |
-| 8.5–11.5 | IV. The binder | The drift stops and reverses. Medallions flatten into index cards (terracotta / green / gold tabs) and drop into a binder column; the cards become a manuscript page with scribbled lines, the caret typing at the end of the last line. One ring lifts a ghost copy of the page up to a small safe circle with a gold tick (backup). |
-| 11.5–15.0 | V. Signature | Cream paper. "WritersNook" hand-lettered stroke by stroke in ink with terracotta misregistration; the caret lands after the k. "A quiet study for your novel." types in beneath; "writersnook.app" below. Hold. |
+| 8.5–13.0 | IV. The binder | The drift stops and reverses. Medallions fly back and become index cards on a corkboard (terracotta / green / gold tabs, pins), colour returning; the full board holds a beat (10.0–10.5). The cards fold into a manuscript page landing on the 11.0 beat, lines type on eighth notes to 12.0, the caret at the end of the last line. A gold ripple at 12.0 lifts a copy of the page into a small safe circle; gold tick at 12.6, hold to the cut. |
+| 13.0–16.0 | V. The nook | Brand close: the Writers Nook mark (quill + lit doorway) printed around the caret, which ends as the light in the door. Gold lamplight, terracotta rings, a printed page frame, rising motes. "Writers Nook" in Literata (site ink #2a251d), the site-style mono label "A QUIET STUDY FOR YOUR NOVEL", and a terracotta "writersnook.app" pill, all inking up as halftone dots by 14.6; hold. |
+
+Act IV was stretched from 3.0 to 4.5 s (and the close trimmed from 3.5 to 3.0 s) after the first cut felt rushed:
+the card plinks, collapse whoosh, typing, save chime and cut whoosh were all inside ~0.6 s.
+
+## Sound
+
+Synthesized in-page (OfflineAudioContext, so deterministic and frame-aligned), muxed into the MP4 as AAC.
+F major, 120 BPM: Fmaj9 → Dm9 → Bbmaj9 → Gm9 (darkening, filter closes) → Csus → Am7 → Fmaj9. Ripple
+pings, montage arpeggio + kick + cut ticks, a falling glide as ideas scatter, card plinks, typing clicks,
+save chime, a bell as the wordmark inks up. A mix-level gain arc keeps Act I and III quiet.
 
 ## Scene library (Act II, in order)
 
