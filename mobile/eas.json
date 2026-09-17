@@ -29,7 +29,8 @@
   "submit": {
     "production": {
       "android": {
-        "track": "internal",
+        "serviceAccountKeyPath": "./credentials/play-publisher.json",
+        "track": "alpha",
         "releaseStatus": "draft"
       },
       "ios": {

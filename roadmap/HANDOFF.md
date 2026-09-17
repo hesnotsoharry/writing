@@ -43,11 +43,18 @@ webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
   `~/Downloads/writersnook-1.0.0-versionCode3.aab` (119 MB); iOS `483f90f6`
   (buildNumber 9) auto-submitted to App Store Connect — submission
   `7f2df533`, "in queue" at 18:40Z; install from TestFlight once Apple's
-  processing mail arrives. **The Play Console has NO bundle at all** (checked
-  "Latest app bundles: None" this session) — the August versionCode-2 AAB was
-  never uploaded, which is fine: it predated the 29 sync fixes. Cole: drag the
-  versionCode-3 AAB into the staged closed-testing release (extension can't
-  push 119 MB). The Android free-tier queue took ~70 min today.
+  processing mail arrives. The Android free-tier queue took ~70 min today.
+- **2026-09-17: versionCode 3 is IN GOOGLE REVIEW on closed testing (Alpha).**
+  Cole invited the `play-publisher@erudite-gate-407303` service account (app
+  permissions: release to testing tracks); the AAB went up via the Android
+  Publisher API (edits → bundles upload → tracks/alpha → commit). A never-published
+  app only accepts `status: draft` releases over the API, so the release was then
+  saved + "Send 15 changes for review" in the Console (release "1.0.0 (3)", en-CA
+  note; lone warning = no deobfuscation file, harmless). `eas.json` submit track is
+  now `alpha` with `serviceAccountKeyPath` → `mobile/credentials/play-publisher.json`
+  (gitignored, local only), so future bundles go up with `eas submit -p android`.
+  Review is typically ≤7 days; the 12-testers/14-days production clock starts
+  once testers can opt in.
 - **Master pushed; the marketing deploy then failed three times** on Pages'
   bundled npm 10.9.2 (`edgesOut` arborist crash, registry drift against a
   lockfile-less install). Fixed by committing an npm 11 `package-lock.json`
@@ -572,9 +579,9 @@ keyboard down and up).
    has the `.dmg`, `.app.tar.gz` + `.sig`. v0.13.1 is fully shipped on desktop.
 2. **Cole: eyeball LS variant `1782075` is still active** — the only part of
    the subscription path nobody has verified from the dashboard side.
-3. **Cole: Play Console** — upload `~/Downloads/writersnook-1.0.0-versionCode3.aab`
-   into the staged Alpha release, name it "1.0.0 (3)", send for review. Production access needs 12+ opted-in testers for 14 days, so the
-   clock only starts once this lands.
+3. **Play closed testing** — versionCode 3 sent for review 2026-09-17. When
+   Google approves, recruit 12+ testers to opt in (Internal Testing v1 list has 2)
+   — production access needs them for 14 continuous days.
 4. **iOS**: install the new TestFlight build (1.0.0 #9) once Apple's processing
    mail arrives; it is the first phone build with P0.1 in it.
 5. **Live sync session on the real pair** (desktop 0.13.1 + either phone) to
