@@ -11,8 +11,8 @@ Lives in `marketing/ad/` — deliberately NOT `marketing/public/` (pushing maste
 A blinking text cursor on a blank page calls out with ripples, and stories answer — a lighthouse,
 a detective in the rain, a dragon, a ship in a storm. They pile up faster than you can hold them;
 they spin away and fade to blue. Then the binder catches them: every idea drops into place as a
-card, the cards become a manuscript, and a copy is quietly kept safe. It ends on the name,
-hand-lettered, with the caret sitting after it as if it had just been typed.
+card, the cards become a manuscript, and a copy is quietly kept safe. It ends in the nook: the
+Writers Nook mark printed around the caret, which becomes the light in its doorway.
 
 The spine: an ink caret pinned to the exact centre of the frame, and wobbly ripple rings coming
 out of it. Every scene, transition and camera move is organised around it.
@@ -60,7 +60,7 @@ concentric light/sound/water arcs that rhyme with the ripples where it fits.
 ## Visual system
 
 - Paper: warm cream `#F4EEE2`, static fibre grain + faint mottling. Never flickers.
-- Inks (brand-adapted riso set): Ink/indigo `#2E3192` (caret, lettering), Terracotta `#B25A38`
+- Inks (brand-adapted riso set): Ink/indigo `#2E3192` (caret, night overprints), Sepia `#2A251D` (site ink: logo, wordmark), Terracotta `#B25A38`
   (brand accent), Green `#4E7C6B` (brand), Gold `#E0A93B`, Blue `#0078BF` (night, sea, and the
   "forgetting" drain). Multiply overprint; no pure black.
 - Halftone: each ink its own layer and screen angle, visible dots (~4 logical px pitch),
@@ -74,7 +74,7 @@ concentric light/sound/water arcs that rhyme with the ripples where it fits.
 
 Ripple (easeOutCubic, ~0.7 s, thinning), disc reveal (easeOutBack), dive (easeInOutCubic
 ~0.35 s), hard montage cuts, iris, orbit pull-back, ink drain (the only crossfade), card drop
-(easeOutBack with stagger), handwriting by stroke progress. Camera: smooth, no jitter.
+(easeOutBack with stagger), halftone ink-up for type (dots grow in). Camera: smooth, no jitter.
 
 ## Architecture
 
@@ -89,14 +89,15 @@ Ripple (easeOutCubic, ~0.7 s, thinning), disc reveal (easeOutBack), dive (easeIn
 - Controls: space play/pause, scrubber with act markers, ←/→ one frame (1/30 s), `?t=` open
   paused at a time, `?ui=0` bare canvas, `?s=` render scale.
 - Export: deterministic frame-by-frame MP4 for ad upload (not real-time screen capture).
-- Optional muted-by-default WebAudio: soft pad + arpeggio at 120 BPM, a ping per ripple.
+- Soundtrack: see Sound. Preview toggle in the player; always included in the MP4 export.
+- Fonts: Literata / IBM Plex Mono / Hanken Grotesk (the site's, SIL OFL via @fontsource) embedded as base64.
 
 ## Process
 
 1. Engine: paper, compositor, caret, ripple, disc reveal, timeline, controls — stills first.
 2. Act II scenes in batches of 4, each screenshotted at 540×960 and looked at.
 3. Acts III–V.
-4. Inspection pass: frames every 0.25 s around 2.0, 3.0, 4.5, 6.5, 8.5, 11.5.
+4. Inspection pass: frames every 0.125 s around 2.0, 3.0, 4.5, 6.5, 8.5, 13.0.
 5. Export MP4, then the free-first rollout (TikTok / Reels / Shorts + a making-of post, then a
    ~$30–50 boost on the best performer, UTM-tagged links, aim for late October).
 
