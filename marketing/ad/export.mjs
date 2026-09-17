@@ -1,4 +1,4 @@
-// Headless MP4 export: node export.mjs [out.mp4]  (then: node verify.mjs to decode-check it)
+// Headless MP4 export: node export.mjs [out.mp4] [mbps=20]  (then: node verify.mjs to decode-check it)
 // Runs the page's frame-exact exporter in headless Chrome and pulls the file back in base64 slices.
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -7,9 +7,9 @@ import { pathToFileURL } from 'node:url';
 import { openPage } from './cdp.mjs';
 
 const out = resolve(process.argv[2] || 'out/writersnook-ad-1080x1920.mp4');
-const page = await openPage(pathToFileURL(resolve(import.meta.dirname, 'index.html')).href + '?ui=0&s=2');
+const page = await openPage(pathToFileURL(resolve(import.meta.dirname, 'index.html')).href + '?ui=0&s=2&mbps=' + (process.argv[3] || '20'));
 try {
-  await page.waitFor('typeof window.__exportMp4 === "function"');
+  await page.waitFor('window.__ready === true');
   const t0 = Date.now();
   const size = await page.evaluate(`(async () => {
     const buf = new Uint8Array(await (await window.__exportMp4()).arrayBuffer());

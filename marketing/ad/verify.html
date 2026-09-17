@@ -20,6 +20,19 @@ v.onloadedmetadata = async () => {
   document.getElementById('info').textContent = `duration ${v.duration.toFixed(3)}s · ${v.videoWidth}x${v.videoHeight}`;
   for (let i = 0; i < times.length; i++) { await seek(times[i]); g.drawImage(v, i * 168, 0, 162, 288); pix.push(times[i] + '@' + v.currentTime.toFixed(2)); }
   document.getElementById('info').textContent += ' · ' + pix.join(' ');
+  // Audio: decode the file's AAC track and report its length and loudness.
+  let audio = 'no audio';
+  try {
+    const buf = await new Promise((res, rej) => { const x = new XMLHttpRequest(); x.open('GET', v.src); x.responseType = 'arraybuffer'; x.onload = () => res(x.response); x.onerror = rej; x.send(); });
+    const ab = await new AudioContext().decodeAudioData(buf);
+    let peak = 0, sq = 0, n = 0;
+    for (let c = 0; c < ab.numberOfChannels; c++) for (const s of ab.getChannelData(c)) { peak = Math.max(peak, Math.abs(s)); sq += s * s; n++; }
+    const env = [];
+    for (let k = 0; k < Math.floor(ab.duration * 2); k++) { const d = ab.getChannelData(0).subarray(k * ab.sampleRate / 2, (k + 1) * ab.sampleRate / 2); let e = 0; for (const s of d) e += s * s; env.push(Math.round(20 * Math.log10(Math.sqrt(e / d.length) + 1e-9))); }
+    window.__env = env.join(' ');
+    audio = `audio ${ab.duration.toFixed(2)}s ${ab.numberOfChannels}ch ${ab.sampleRate}Hz peak ${peak.toFixed(2)} rms ${Math.sqrt(sq / n).toFixed(3)}`;
+  } catch (e) { audio = 'audio decode failed: ' + e.message; }
+  document.getElementById('info').textContent += ' · ' + audio;
   window.__done = document.getElementById('info').textContent;
 };
 </script>

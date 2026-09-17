@@ -10,6 +10,7 @@ const page = await openPage(pathToFileURL(resolve(import.meta.dirname, 'verify.h
 try {
   await page.waitFor('window.__done', 30000);
   console.log(await page.evaluate('window.__done'));
+  console.log('rms dBFS per 0.5s:', await page.evaluate('window.__env || ""'));
   const png = await page.evaluate('document.getElementById("c").toDataURL("image/png").split(",")[1]');
   writeFileSync(resolve(import.meta.dirname, 'out/verify.png'), Buffer.from(png, 'base64'));
 } finally {
