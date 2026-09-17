@@ -30,7 +30,7 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "./credentials/play-publisher.json",
-        "track": "alpha",
+        "track": "internal",
         "releaseStatus": "draft"
       },
       "ios": {

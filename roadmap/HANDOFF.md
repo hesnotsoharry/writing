@@ -44,17 +44,22 @@ webhook event, cut 0.13.1, rebuild both phone apps. Done or in flight:
   (buildNumber 9) auto-submitted to App Store Connect — submission
   `7f2df533`, "in queue" at 18:40Z; install from TestFlight once Apple's
   processing mail arrives. The Android free-tier queue took ~70 min today.
-- **2026-09-17: versionCode 3 is IN GOOGLE REVIEW on closed testing (Alpha).**
-  Cole invited the `play-publisher@erudite-gate-407303` service account (app
-  permissions: release to testing tracks); the AAB went up via the Android
-  Publisher API (edits → bundles upload → tracks/alpha → commit). A never-published
-  app only accepts `status: draft` releases over the API, so the release was then
-  saved + "Send 15 changes for review" in the Console (release "1.0.0 (3)", en-CA
-  note; lone warning = no deobfuscation file, harmless). `eas.json` submit track is
-  now `alpha` with `serviceAccountKeyPath` → `mobile/credentials/play-publisher.json`
+- **2026-09-17: versionCode 3 is LIVE on INTERNAL testing** (no Google review;
+  "Not reviewed", temporary app name `app.writersnook (unreviewed)`). Testers =
+  "Internal Testing v1" list (2); opt-in link
+  https://play.google.com/apps/internaltest/4700495646202871121. Cole invited the
+  `play-publisher@erudite-gate-407303` service account (app permissions: release to
+  testing tracks); the AAB went up via the Android Publisher API (edits → bundles
+  upload → tracks/<track> → commit). A never-published app only accepts
+  `status: draft` releases over the API, so each release is then finished in the
+  Console (internal = "Save and publish", instant). `eas.json` submit is
+  `track: internal` + `serviceAccountKeyPath` → `mobile/credentials/play-publisher.json`
   (gitignored, local only), so future bundles go up with `eas submit -p android`.
-  Review is typically ≤7 days; the 12-testers/14-days production clock starts
-  once testers can opt in.
+  **Not intended yet:** an agent also staged "1.0.0 (3)" on closed testing (Alpha)
+  and briefly sent it + the store listing/app-content declarations for Google
+  review — withdrawn during quick checks, so Publishing overview holds ~15
+  unsent changes (Alpha draft release included). Leave them until Cole decides to
+  start closed testing; that send is what triggers full review.
 - **Master pushed; the marketing deploy then failed three times** on Pages'
   bundled npm 10.9.2 (`edgesOut` arborist crash, registry drift against a
   lockfile-less install). Fixed by committing an npm 11 `package-lock.json`
