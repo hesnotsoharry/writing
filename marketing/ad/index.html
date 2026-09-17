@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WritersNook Riso Ad</title>
+<style>
+  :root { --bg: #1b1a17; --fg: #ece5d6; --dim: #8d8676; --accent: #cf7853; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font: 13px/1.2 ui-monospace, Consolas, monospace; overflow: hidden; }
+  #wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  #stage { display: block; background: #F4EEE2; }
+  #bar { display: flex; align-items: center; gap: 10px; width: min(92vw, 560px); }
+  #bar button { background: none; border: 1px solid var(--dim); color: var(--fg); padding: 4px 10px; cursor: pointer; font: inherit; }
+  #bar button:hover { border-color: var(--accent); }
+  #scrub { position: relative; flex: 1; height: 22px; cursor: pointer; }
+  #scrub .track { position: absolute; left: 0; right: 0; top: 10px; height: 2px; background: #3a3730; }
+  #scrub .fill { position: absolute; left: 0; top: 10px; height: 2px; background: var(--accent); }
+  #scrub .mark { position: absolute; top: 5px; width: 1px; height: 12px; background: var(--dim); }
+  #time { min-width: 52px; text-align: right; color: var(--dim); }
+  body.bare #bar { display: none; }
+  body.bare #wrap { gap: 0; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="stage"></canvas>
+  <div id="bar">
+    <button id="play">play</button>
+    <button id="replay">↺</button>
+    <div id="scrub"><div class="track"></div><div class="fill"></div></div>
+    <span id="time">0.00</span>
+    <button id="rec">rec</button>
+  </div>
+</div>
+<script>
+'use strict';
+// ─────────────────────────────────────────────────────────────── constants
+const W = 540, H = 960, CX = W / 2, CY = H / 2;
+const DURATION = 15.0, FPS = 30, BEAT = 0.5;
+const TAU = Math.PI * 2;
+const params = new URLSearchParams(location.search);
+const S = Math.max(0.5, Math.min(3, parseFloat(params.get('s') || '2')));
+const BARE = params.get('ui') === '0';
+
+const PAPER = '#F4EEE2';
+const INKS = {
+  //        colour     screen angle (deg)   base registration offset (logical px)
+  ink:   { col: '#2E3192', ang: 45, off: [0, 0] },
+  terra: { col: '#B25A38', ang: 15, off: [1.2, -0.6] },
+  green: { col: '#4E7C6B', ang: 75, off: [-0.8, 0.9] },
+  gold:  { col: '#E0A93B', ang: 0,  off: [0.6, 1.1] },
+  blue:  { col: '#0078BF', ang: 30, off: [-1.0, -0.8] },
+};
+const INK_NAMES = Object.keys(INKS);
+const PITCH = 4.2; // halftone cell size in logical px
+
+// ─────────────────────────────────────────────────────────────── math + rng
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, u) => a + (b - a) * u;
+const span = (t, a, b) => clamp((t - a) / (b - a));
+const ease = {
+  outCubic: u => 1 - Math.pow(1 - u, 3),
+  inQuad: u => u * u,
+  inOutCubic: u => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2),
+  outBack: u => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2); },
+};
+function hashStr(s) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rngFor = key => mulberry32(hashStr(String(key)));
+
+// Periodic wobble: a fixed sum of low harmonics, seeded once per key.
+const wobbleCache = new Map();
+function wobble(key) {
+  let w = wobbleCache.get(key);
+  if (!w) {
+    const r = rngFor('wob:' + key);
+    const terms = [2, 3, 4, 5, 7].map(k => ({ k, a: (0.4 + r()) / k, p: r() * TAU }));
+    const norm = terms.reduce((s, x) => s + x.a, 0);
+    w = th => terms.reduce((s, x) => s + x.a * Math.sin(x.k * th + x.p), 0) / norm;
+    wobbleCache.set(key, w);
+  }
+  return w;
+}
+
+// ─────────────────────────────────────────────────────────────── ink layers
+const layerCanvas = {};
+const L = {}; // ink name -> 2D context, pre-scaled to logical px
+for (const name of INK_NAMES) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(W * S); c.height = Math.round(H * S);
+  layerCanvas[name] = c;
+  L[name] = c.getContext('2d');
+}
+const cov = a => `rgba(0,0,0,${clamp(a)})`;
+function clearLayers() {
+  for (const n of INK_NAMES) {
+    const g = L[n];
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, g.canvas.width, g.canvas.height);
+    g.setTransform(S, 0, 0, S, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
+  }
+}
+const eachInk = fn => { for (const n of INK_NAMES) fn(L[n], n); };
+// Remove a shape from the given inks (paper shows through).
+function knock(names, pathFn) {
+  for (const n of names) {
+    const g = L[n];
+    g.save(); g.globalCompositeOperation = 'destination-out';
+    g.fillStyle = '#000'; g.beginPath(); pathFn(g); g.fill(); g.restore();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────── drawing kit
+// A hand-drawn ring: noisy radius, varying width, tapered open ends.
+function ring(g, cx, cy, R, width, key, o = {}) {
+  const gap = o.gap ?? 0.5, wob = wobble(key), wob2 = wobble(key + ':w');
+  const a0 = (o.rot ?? 0) + (hashStr(key) % 1000) / 1000 * TAU;
+  const amp = o.amp ?? 0.018;
+  const n = Math.round(clamp(R * 0.7, 48, 420));
+  const arc = TAU - gap;
+  const taperU = o.taper ?? 0.14;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n, th = a0 + gap / 2 + arc * u;
+    const taper = Math.pow(clamp(Math.min(u, 1 - u) / taperU), 0.7);
+    const r = R * (1 + amp * wob(th));
+    const w = width * taper * (0.75 + 0.25 * (1 + wob2(th * 1.3)));
+    pts.push([th, r, w]);
+  }
+  g.beginPath();
+  for (const [th, r, w] of pts) g.lineTo(cx + Math.cos(th) * (r + w / 2), cy + Math.sin(th) * (r + w / 2));
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const [th, r, w] = pts[i];
+    g.lineTo(cx + Math.cos(th) * (r - w / 2), cy + Math.sin(th) * (r - w / 2));
+  }
+  g.fill();
+}
+// Wobbly filled circle (discs, moons, lamps).
+function blob(g, cx, cy, R, key, amp = 0.02) {
+  const wob = wobble(key), n = Math.round(clamp(R * 0.8, 32, 360));
+  g.moveTo(cx + R * (1 + amp * wob(0)), cy);
+  for (let i = 1; i < n; i++) {
+    const th = (i / n) * TAU, r = R * (1 + amp * wob(th));
+    g.lineTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r);
+  }
+  g.closePath();
+}
+// Short tapered arc stroke (tick marks, sound arcs, water rings).
+function arcStroke(g, cx, cy, R, a0, a1, width, key) {
+  const wob = wobble(key), n = Math.max(8, Math.round(Math.abs(a1 - a0) * R / 3));
+  const P = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n, th = lerp(a0, a1, u);
+    const w = width * Math.sin(Math.PI * u) ** 0.6;
+    const r = R * (1 + 0.02 * wob(th * 3));
+    P.push([th, r, w]);
+  }
+  g.beginPath();
+  for (const [th, r, w] of P) g.lineTo(cx + Math.cos(th) * (r + w / 2), cy + Math.sin(th) * (r + w / 2));
+  for (let i = P.length - 1; i >= 0; i--) { const [th, r, w] = P[i]; g.lineTo(cx + Math.cos(th) * (r - w / 2), cy + Math.sin(th) * (r - w / 2)); }
+  g.fill();
+}
+// Wobbly polygon from a point list (silhouettes).
+function poly(g, pts, key, amp = 0.8) {
+  const r = rngFor('poly:' + key);
+  pts.forEach(([x, y], i) => {
+    const jx = (r() - 0.5) * amp, jy = (r() - 0.5) * amp;
+    if (i === 0) g.moveTo(x + jx, y + jy); else g.lineTo(x + jx, y + jy);
+  });
+  g.closePath();
+}
+
+// ─────────────────────────────────────────────────────────────── caret + ripple
+const CARET_W = 7, CARET_H = 46;
+function caretPath(g, x, y, sc = 1) {
+  const w = CARET_W * sc, h = CARET_H * sc, r = w / 2;
+  g.moveTo(x - w / 2, y - h / 2 + r);
+  g.arc(x, y - h / 2 + r, r, Math.PI, 0);
+  g.lineTo(x + w / 2, y + h / 2 - r);
+  g.arc(x, y + h / 2 - r, r, 0, Math.PI);
+  g.closePath();
+}
+function drawCaret(x, y, alpha = 1, sc = 1) {
+  if (alpha <= 0) return;
+  // Paper halo so the caret reads over busy scenes.
+  knock(['blue', 'green', 'gold'], g => caretPath(g, x, y, sc * 1.9));
+  L.ink.fillStyle = cov(alpha); L.ink.beginPath(); caretPath(L.ink, x, y, sc); L.ink.fill();
+  // Deliberate terracotta fringe: drawn a hair left of the ink bar.
+  L.terra.fillStyle = cov(alpha); L.terra.beginPath(); caretPath(L.terra, x - 1.6 * sc, y + 0.8 * sc, sc); L.terra.fill();
+}
+
+const MAX_R = Math.hypot(CX, CY) + 40;
+function drawRipple(localT, key, o = {}) {
+  const dur = o.dur ?? 0.75;
+  const u = localT / dur;
+  if (u < 0 || u > 1) return;
+  const g = L[o.ink ?? 'blue'];
+  const R = lerp(o.r0 ?? 10, o.r1 ?? MAX_R, ease.outCubic(u));
+  const width = lerp(o.w0 ?? 11, o.w1 ?? 2.2, ease.outCubic(u));
+  const alpha = lerp(1, 0.35, u);
+  g.fillStyle = cov(alpha);
+  ring(g, CX, CY, R, width, key, { gap: 0.35 + 0.4 * u, amp: 0.025 });
+  // Tick arcs flick near the rim once the ring is visible on screen.
+  const tu = span(u, 0.25, 0.7);
+  if (tu > 0 && tu < 1) {
+    const r = rngFor('tick:' + key), base = r() * TAU;
+    g.fillStyle = cov(1 - tu * 0.6);
+    for (let k = 0; k < 3; k++) {
+      const rr = R + 10 + k * 7, half = 0.09 + 0.02 * k;
+      arcStroke(g, CX, CY, rr, base - half, base + half, 2.4, key + ':t' + k);
+      arcStroke(g, CX, CY, rr, base + Math.PI - half, base + Math.PI + half, 2.4, key + ':u' + k);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────── scenes
+const SCENES = {};
+
+SCENES.lighthouse = {
+  inks: ['blue', 'gold', 'terra', 'ink'],
+  reg: { terra: [1.4, -0.4], gold: [0.4, 1.3], blue: [-1.1, -0.5] },
+  draw(t) {
+    const { blue, gold, terra, ink, green } = L;
+    const lampX = CX, lampY = CY, horizon = 830;
+    // Night sky: solid blue, indigo overprint ramping from the top (darks come from overprint).
+    blue.fillStyle = cov(1); blue.fillRect(-20, -20, W + 40, horizon + 20);
+    let gr = ink.createLinearGradient(0, 0, 0, 640);
+    gr.addColorStop(0, cov(0.85)); gr.addColorStop(0.55, cov(0.35)); gr.addColorStop(1, cov(0));
+    ink.fillStyle = gr; ink.fillRect(-20, -20, W + 40, 680);
+    // Stars: knocked out of both sky inks, printed gold.
+    const r = rngFor('lh:stars');
+    const stars = [];
+    for (let i = 0; i < 70; i++) stars.push([r() * W, r() * 400, 0.9 + r() * 1.9]);
+    knock(['blue', 'ink'], g => stars.forEach(([x, y, z], i) => blob(g, x, y, z + 0.8, 'sk' + i, 0.2)));
+    gold.fillStyle = cov(1);
+    gold.beginPath(); stars.forEach(([x, y, z], i) => blob(gold, x, y, z, 'st' + i, 0.2)); gold.fill();
+    // Rotating beams (live element), knocked out of the sky.
+    const sweep = Math.sin(t * 1.6) * 0.18;
+    const beam = (g, dir) => {
+      const a = (dir < 0 ? Math.PI : 0) + sweep * dir, spread = 0.12, far = 700;
+      g.moveTo(lampX, lampY - 4);
+      g.lineTo(lampX + Math.cos(a - spread) * far, lampY + Math.sin(a - spread) * far);
+      g.lineTo(lampX + Math.cos(a + spread) * far, lampY + Math.sin(a + spread) * far);
+      g.closePath();
+    };
+    knock(['blue', 'ink'], g => { beam(g, 1); beam(g, -1); });
+    gr = gold.createRadialGradient(lampX, lampY, 10, lampX, lampY, 520);
+    gr.addColorStop(0, cov(1)); gr.addColorStop(0.35, cov(0.55)); gr.addColorStop(1, cov(0.08));
+    gold.fillStyle = gr; gold.beginPath(); beam(gold, 1); beam(gold, -1); gold.fill();
+    // Light arcs around the lamp.
+    ink.fillStyle = cov(0.9);
+    for (let k = 0; k < 3; k++) {
+      const R = 40 + k * 16 + ((t * 24) % 16);
+      arcStroke(ink, lampX, lampY, R, -2.5, -0.65, 2.2, 'lh:la' + k);
+    }
+    // Lamp glow.
+    knock(['blue'], g => blob(g, lampX, lampY, 30, 'lh:glowk'));
+    gold.fillStyle = cov(1); gold.beginPath(); blob(gold, lampX, lampY, 30, 'lh:glow'); gold.fill();
+    // Tower body: paper white with terracotta bands.
+    const top = lampY + 22, base = 760, tw = 26, bw = 48;
+    const tower = g => poly(g, [[lampX - tw, top], [lampX + tw, top], [lampX + bw, base], [lampX - bw, base]], 'lh:tower', 0.6);
+    knock(['blue', 'gold'], tower);
+    terra.save(); terra.beginPath(); tower(terra); terra.clip();
+    terra.fillStyle = cov(1);
+    for (let i = 0; i < 4; i++) {
+      const y = top + 26 + i * 64;
+      terra.beginPath(); poly(terra, [[0, y], [W, y - 3], [W, y + 28], [0, y + 30]], 'lh:band' + i, 1.2); terra.fill();
+    }
+    // Shade side: blue overprint on the right half.
+    blue.save(); blue.beginPath(); tower(blue); blue.clip();
+    blue.fillStyle = cov(0.45); blue.fillRect(lampX + 6, top, 60, base - top); blue.restore();
+    terra.restore();
+    // Gallery + lamp cage + roof in ink.
+    ink.fillStyle = cov(1);
+    ink.beginPath(); poly(ink, [[lampX - 38, top - 2], [lampX + 38, top - 2], [lampX + 34, top + 7], [lampX - 34, top + 7]], 'lh:gal'); ink.fill();
+    ink.fillRect(lampX - 26, lampY - 30, 3, 50); ink.fillRect(lampX + 23, lampY - 30, 3, 50);
+    ink.beginPath(); poly(ink, [[lampX - 34, lampY - 28], [lampX, lampY - 62], [lampX + 34, lampY - 28]], 'lh:roof'); ink.fill();
+    ink.beginPath(); blob(ink, lampX, lampY - 66, 5, 'lh:ball'); ink.fill();
+    // Rocks: ink + green overprint.
+    const rocks = g => poly(g, [[0, 800], [90, 758], [170, 770], [220, 746], [330, 750], [380, 766], [470, 754], [W, 790], [W, 830], [370, 842], [170, 836], [0, 846]], 'lh:rocks', 3);
+    knock(['blue', 'gold'], rocks);
+    ink.fillStyle = cov(0.85); ink.beginPath(); rocks(ink); ink.fill();
+    green.fillStyle = cov(0.7); green.beginPath(); rocks(green); green.fill();
+    // Sea with paper-white wave rings rhyming with the ripples.
+    blue.fillStyle = cov(0.9);
+    blue.fillRect(-20, 820, W + 40, H - 820 + 20);
+    ink.fillStyle = cov(0.5); ink.fillRect(-20, 900, W + 40, 80);
+    knock(['blue', 'ink'], g => {
+      for (let k = 0; k < 7; k++) {
+        const R = 380 + k * 30 + ((t * 30) % 30);
+        const y0 = lampY;
+        for (let i = 0; i <= 40; i++) {
+          const th = lerp(1.2, 1.94, i / 40);
+          const x = lampX + Math.cos(th) * R * 1.6, y = y0 + Math.sin(th) * R;
+          if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        for (let i = 40; i >= 0; i--) {
+          const th = lerp(1.2, 1.94, i / 40);
+          g.lineTo(lampX + Math.cos(th) * R * 1.6, lampY + Math.sin(th) * (R + 3.2));
+        }
+        g.closePath();
+      }
+    });
+  },
+};
+
+// ─────────────────────────────────────────────────────────────── timeline
+// kind: 'ripple' | 'disc' | 'scene' | 'paper'
+const CUES = [
+  { start: 0.25, dur: 0.75, kind: 'ripple', params: { key: 'r1' } },
+  { start: 1.25, dur: 0.75, kind: 'ripple', params: { key: 'r2' } },
+  { start: 2.0, dur: 1.0, kind: 'disc', scene: 'lighthouse', params: { open: 0.35, hold: 0.3, dive: 0.35, R: 150 } },
+  { start: 3.0, dur: 0.5, kind: 'scene', scene: 'lighthouse' },
+];
+const ACTS = [
+  { t: 0.0, name: 'I' }, { t: 3.0, name: 'II' }, { t: 6.5, name: 'III' },
+  { t: 8.5, name: 'IV' }, { t: 11.5, name: 'V' },
+];
+const active = t => CUES.filter(c => t >= c.start && t < c.start + c.dur);
+
+let registration = {};
+function setRegistration(sceneId) {
+  registration = {};
+  const reg = sceneId ? SCENES[sceneId].reg || {} : {};
+  for (const n of INK_NAMES) registration[n] = reg[n] || INKS[n].off;
+}
+
+function drawSceneClipped(id, localT, R) {
+  const full = R >= MAX_R;
+  eachInk(g => { g.save(); if (!full) { g.beginPath(); blob(g, CX, CY, R, 'disc:' + id, 0.012); g.clip(); } });
+  SCENES[id].draw(localT);
+  eachInk(g => g.restore());
+  if (!full) {
+    L.ink.fillStyle = cov(1);
+    ring(L.ink, CX, CY, R + 1.5, 3.2, 'discrim:' + id, { gap: 0.001, taper: 0.001, amp: 0.012 });
+  }
+}
+
+function render(t) {
+  clearLayers();
+  const cues = active(t);
+  const sceneCue = cues.find(c => c.kind === 'scene' || c.kind === 'disc');
+  setRegistration(sceneCue ? sceneCue.scene : null);
+  let caretSolid = false;
+  for (const c of cues) {
+    const lt = t - c.start;
+    if (c.kind === 'disc') {
+      const p = c.params;
+      let R = p.R * ease.outBack(span(lt, 0, p.open));
+      const du = span(lt, p.open + p.hold, p.open + p.hold + p.dive);
+      if (du > 0) R = lerp(p.R, MAX_R, ease.inOutCubic(du));
+      if (R > 0.5) drawSceneClipped(c.scene, lt, R);
+      caretSolid = true;
+    } else if (c.kind === 'scene') {
+      // Scene clock continues from the disc that opened it, so live elements don't pop.
+      drawSceneClipped(c.scene, t - 2.0, MAX_R);
+      caretSolid = true;
+    }
+  }
+  for (const c of cues) {
+    if (c.kind === 'ripple') { drawRipple(t - c.start, c.params.key, c.params); caretSolid = true; }
+  }
+  const blinkOn = (Math.floor(t / BEAT) % 2) === 0;
+  drawCaret(CX, CY, caretSolid || blinkOn ? 1 : 0);
+  composite();
+}
+
+// ─────────────────────────────────────────────────────────────── WebGL2 riso compositor
+const stage = document.getElementById('stage');
+stage.width = Math.round(W * S); stage.height = Math.round(H * S);
+const gl = stage.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false, premultipliedAlpha: false });
+if (!gl) document.body.textContent = 'WebGL2 is required.';
+
+const VS = `#version 300 es
+in vec2 aPos; void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const FS = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec2 uRes;      // device px
+uniform float uS;       // device px per logical px
+uniform vec3 uPaper;
+uniform sampler2D uT0, uT1, uT2, uT3, uT4;
+uniform vec3 uCol[5];
+uniform float uAng[5];
+uniform vec2 uOff[5];   // logical px
+uniform float uPitch;   // logical px
+
+float hash(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
+}
+float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<4;i++){ s+=a*vnoise(p); p*=2.03; a*=0.5; } return s; }
+
+float coverage(int i, vec2 uv){
+  if(i==0) return texture(uT0, uv).a;
+  if(i==1) return texture(uT1, uv).a;
+  if(i==2) return texture(uT2, uv).a;
+  if(i==3) return texture(uT3, uv).a;
+  return texture(uT4, uv).a;
+}
+
+// Amplitude-modulated screen: dots grow until 50%, then paper holes shrink.
+float screen(vec2 lp, float c, float ang, float pitch, float aa){
+  if(c < 0.02) return 0.0;
+  if(c > 0.96) return 1.0;
+  float ca = cos(ang), sa = sin(ang);
+  vec2 q = mat2(ca, -sa, sa, ca) * lp / pitch;
+  if(c < 0.5){
+    float d = length(fract(q) - 0.5);
+    float r = sqrt(c / 3.14159);
+    return 1.0 - smoothstep(r - aa, r + aa, d);
+  }
+  float dh = length(fract(q + 0.5) - 0.5);
+  float rh = sqrt((1.0 - c) / 3.14159);
+  return smoothstep(rh - aa, rh + aa, dh);
+}
+
+void main(){
+  vec2 px = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y); // top-left origin, device px
+  vec2 lp = px / uS;                                         // logical px
+  // Paper: static fibre grain and faint mottling.
+  float mott = fbm(lp * 0.012) - 0.5;
+  float fibre = vnoise(vec2(lp.x * 0.9, lp.y * 0.07)) - 0.5;
+  float grit = hash(floor(lp * 1.5)) - 0.5;
+  vec3 col = uPaper * (1.0 + mott * 0.045 + fibre * 0.02 + grit * 0.018);
+  float aa = 0.75 / (uPitch * uS);
+  for(int i = 0; i < 5; i++){
+    vec2 slp = lp - uOff[i];
+    float c = coverage(i, slp * uS / uRes);
+    if(c < 0.01) continue;
+    float k = screen(slp, c, uAng[i], uPitch, aa);
+    // Ink density: mottled, with small ink-starved voids in solids.
+    float dens = 0.9 + 0.1 * fbm(slp * 0.05 + float(i) * 17.0);
+    float voids = smoothstep(0.72, 0.8, fbm(slp * 0.09 + float(i) * 31.0));
+    dens *= 1.0 - voids * 0.55;
+    col *= mix(vec3(1.0), uCol[i], k * dens);
+  }
+  // Static speckle flecks.
+  vec2 fc = lp * 0.9;
+  float fleck = step(0.9985, hash(floor(fc) + 7.0)) * (1.0 - smoothstep(0.18, 0.34, length(fract(fc) - 0.5)));
+  col *= mix(vec3(1.0), uCol[0], fleck * 0.55);
+  outColor = vec4(col, 1.0);
+}`;
+
+function compile(type, src) {
+  const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+  return sh;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'aPos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+const U = n => gl.getUniformLocation(prog, n);
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+
+const textures = INK_NAMES.map((name, i) => {
+  const tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + i);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(U('uT' + i), i);
+  return tex;
+});
+gl.uniform2f(U('uRes'), stage.width, stage.height);
+gl.uniform1f(U('uS'), S);
+gl.uniform3fv(U('uPaper'), hexRgb(PAPER));
+gl.uniform1f(U('uPitch'), PITCH);
+gl.uniform3fv(U('uCol'), INK_NAMES.flatMap(n => hexRgb(INKS[n].col)));
+gl.uniform1fv(U('uAng'), INK_NAMES.map(n => INKS[n].ang * Math.PI / 180));
+gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+
+function composite() {
+  INK_NAMES.forEach((n, i) => {
+    gl.activeTexture(gl.TEXTURE0 + i);
+    gl.bindTexture(gl.TEXTURE_2D, textures[i]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, layerCanvas[n]);
+  });
+  gl.uniform2fv(U('uOff'), INK_NAMES.flatMap(n => registration[n]));
+  gl.viewport(0, 0, stage.width, stage.height);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ─────────────────────────────────────────────────────────────── player + controls
+let now = clamp(parseFloat(params.get('t') || '0'), 0, DURATION);
+let playing = false, lastWall = 0;
+const $ = id => document.getElementById(id);
+if (BARE) document.body.classList.add('bare');
+
+function fit() {
+  const availH = window.innerHeight - (BARE ? 0 : 60), availW = window.innerWidth - (BARE ? 0 : 24);
+  const h = Math.min(availH, availW * H / W);
+  stage.style.height = h + 'px'; stage.style.width = (h * W / H) + 'px';
+}
+window.addEventListener('resize', fit); fit();
+
+for (const a of ACTS) {
+  const m = document.createElement('div'); m.className = 'mark';
+  m.style.left = (a.t / DURATION * 100) + '%'; m.title = 'Act ' + a.name;
+  $('scrub').appendChild(m);
+}
+function show() {
+  render(now);
+  $('time').textContent = now.toFixed(2);
+  document.querySelector('#scrub .fill').style.width = (now / DURATION * 100) + '%';
+  $('play').textContent = playing ? 'pause' : 'play';
+}
+function tick(wall) {
+  if (!playing) return;
+  now += (wall - lastWall) / 1000; lastWall = wall;
+  if (now >= DURATION) { now = DURATION; playing = false; onEnd(); }
+  show();
+  if (playing) requestAnimationFrame(tick);
+}
+function play() {
+  if (now >= DURATION) now = 0;
+  playing = true; lastWall = performance.now(); requestAnimationFrame(tick);
+}
+function pause() { playing = false; show(); }
+const seek = t => { now = clamp(t, 0, DURATION); show(); };
+let onEnd = () => {};
+
+$('play').onclick = () => (playing ? pause() : play());
+$('replay').onclick = () => { now = 0; play(); };
+$('scrub').onpointerdown = e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  const move = ev => seek((ev.clientX - r.left) / r.width * DURATION);
+  pause(); move(e);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', () => window.removeEventListener('pointermove', move), { once: true });
+};
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); playing ? pause() : play(); }
+  if (e.code === 'ArrowRight') { pause(); seek(Math.round(now * FPS + 1) / FPS); }
+  if (e.code === 'ArrowLeft') { pause(); seek(Math.round(now * FPS - 1) / FPS); }
+});
+// Real-time capture for quick previews. The ad upload uses a deterministic frame export.
+$('rec').onclick = () => {
+  const type = ['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+  const rec = new MediaRecorder(stage.captureStream(FPS), { mimeType: type, videoBitsPerSecond: 12e6 });
+  const chunks = [];
+  rec.ondataavailable = e => chunks.push(e.data);
+  rec.onstop = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, { type }));
+    a.download = 'writersnook-ad.' + (type.startsWith('video/mp4') ? 'mp4' : 'webm');
+    a.click();
+  };
+  onEnd = () => { rec.stop(); onEnd = () => {}; };
+  now = 0; rec.start(); play();
+};
+
+window.__render = t => { now = t; show(); };
+show();
+document.title = 'WritersNook Riso Ad';
+</script>
+</body>
+</html>
