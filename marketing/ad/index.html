@@ -30,7 +30,8 @@
     <button id="replay">↺</button>
     <div id="scrub"><div class="track"></div><div class="fill"></div></div>
     <span id="time">0.00</span>
-    <button id="rec">rec</button>
+    <button id="rec" title="Real-time capture (quick preview)">rec</button>
+    <button id="mp4" title="Frame-exact MP4 for upload">mp4</button>
   </div>
 </div>
 <script>
@@ -807,6 +808,328 @@ SCENES.cabin = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────── scene cache (medallions + cards)
+// Each scene is rendered once, frozen, into per-ink bitmaps of the region around the caret,
+// plus a single-blue version derived from its print darkness (the "ink drain").
+const CACHE_HR = 210;
+const DARKNESS = { ink: 0.9, terra: 0.6, green: 0.6, gold: 0.3, blue: 0.6 };
+const sceneCache = new Map();
+function getCache(id) {
+  let c = sceneCache.get(id);
+  if (c) return c;
+  const k = S * 0.7, size = Math.round(CACHE_HR * 2 * k);
+  const saved = {};
+  c = { ink: {}, blue: null };
+  for (const n of INK_NAMES) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = size;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.setTransform(k, 0, 0, k, -(CX - CACHE_HR) * k, -(CY - CACHE_HR) * k);
+    saved[n] = L[n]; L[n] = g; c.ink[n] = cv;
+  }
+  try { SCENES[id].draw(0.4); } finally { for (const n of INK_NAMES) L[n] = saved[n]; }
+  const data = INK_NAMES.map(n => c.ink[n].getContext('2d').getImageData(0, 0, size, size).data);
+  const bcv = document.createElement('canvas');
+  bcv.width = bcv.height = size;
+  const bg = bcv.getContext('2d'), out = bg.createImageData(size, size);
+  const w = INK_NAMES.map(n => DARKNESS[n]);
+  for (let p = 3; p < out.data.length; p += 4) {
+    let light = 1;
+    for (let i = 0; i < data.length; i++) light *= 1 - (data[i][p] / 255) * w[i];
+    out.data[p] = Math.round(clamp((1 - light) * 1.25) * 255);
+  }
+  bg.putImageData(out, 0, 0);
+  c.blue = bcv;
+  sceneCache.set(id, c);
+  return c;
+}
+
+const ARCHIVE = ['lighthouse', 'detective', 'dragon', 'planet', 'cafe', 'castle', 'ship', 'cabin'];
+const TAB_INK = ['terra', 'green', 'gold', 'terra', 'green', 'gold', 'terra', 'green'];
+
+// One scene as a medallion morphing into an index card.
+// q: 0 = circle medallion, 1 = card with tab, scribbles and pin. colour: 1 = full inks, 0 = single blue.
+function drawCard(id, i, o) {
+  const { x, y, w, h, rad, img, imgDy = 0, colour = 1, q = 0 } = o;
+  if (w < 1 || h < 1) return;
+  const c = getCache(id);
+  const shape = g => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, Math.min(rad, w / 2, h / 2)); };
+  for (const n of INK_NAMES) { const g = L[n]; g.save(); g.globalCompositeOperation = 'destination-out'; shape(g); g.fill(); g.restore(); }
+  const d = CACHE_HR * 2 * img;
+  const imgH = lerp(h, h * 0.6, q);
+  for (const n of INK_NAMES) {
+    const g = L[n];
+    g.save(); shape(g); g.clip();
+    g.beginPath(); g.rect(x - w / 2, y - h / 2, w, imgH); g.clip();
+    if (colour > 0) { g.globalAlpha = colour; g.drawImage(c.ink[n], x - d / 2, y + imgDy - d / 2, d, d); }
+    if (n === 'blue' && colour < 1) { g.globalAlpha = 1 - colour; g.drawImage(c.blue, x - d / 2, y + imgDy - d / 2, d, d); }
+    g.restore();
+  }
+  const ink = L.ink;
+  ink.save(); ink.fillStyle = cov(0.9); ink.lineWidth = 2.4; ink.strokeStyle = cov(0.9);
+  shape(ink); ink.stroke(); ink.restore();
+  if (q <= 0) return;
+  // Card furniture fades in as the shape settles.
+  const top = y - h / 2;
+  const tab = L[TAB_INK[i]];
+  tab.fillStyle = cov(q); tab.fillRect(x - w / 2 + 2, top + imgH - 1, w - 4, 7);
+  ink.fillStyle = cov(0.75 * q);
+  const lr = rngFor('card:lines' + i);
+  for (let k = 0; k < 2; k++) {
+    const ly = top + imgH + 16 + k * 13, len = (w - 34) * (k ? 0.5 + lr() * 0.2 : 0.8 + lr() * 0.15);
+    ink.beginPath(); poly(ink, [[x - w / 2 + 14, ly], [x - w / 2 + 14 + len, ly - 0.8], [x - w / 2 + 14 + len, ly + 2], [x - w / 2 + 14, ly + 2.8]], 'card:l' + i + k, 0.5); ink.fill();
+  }
+  const pin = L[TAB_INK[(i + 1) % 8]];
+  pin.fillStyle = cov(q); pin.beginPath(); blob(pin, x, top + 6, 6.5 * q, 'card:pin' + i, 0.05); pin.fill();
+}
+
+// ─────────────────────────────────────────────────────────────── Act III: archive
+function archivePose(i, t) {
+  const inner = i % 2 === 0;
+  const rx = inner ? 136 : 196, ry = inner ? 196 : 322, R = inner ? 60 : 70;
+  const dir = inner ? 1 : -1;
+  const a = (i / 8) * TAU - Math.PI / 2 + dir * (t - 6.8) * 0.55;
+  const sc = ease.inQuad(span(t, 7.7, 8.5));
+  const out = 1 + 0.85 * sc;
+  return { x: CX + Math.cos(a) * rx * out, y: CY + Math.sin(a) * ry * out, R: R * (1 - 0.45 * sc) };
+}
+function drawArchive(t) {
+  // 6.5–6.8: the last montage scene irises closed around the caret.
+  if (t < 6.8) {
+    const R = lerp(MAX_R, CACHE_HR, ease.inOutCubic(span(t, 6.5, 6.8)));
+    drawSceneClipped('cabin', t - 6.25, R);
+    return;
+  }
+  const colour = 1 - span(t, 7.3, 7.8);
+  ARCHIVE.forEach((id, i) => {
+    const pose = archivePose(i, t);
+    let { x, y, R } = pose;
+    if (id === 'cabin') {
+      // The frozen cabin shrinks from the centre onto its orbit slot.
+      const u = ease.inOutCubic(span(t, 6.8, 7.15));
+      x = lerp(CX, x, u); y = lerp(CY, y, u); R = lerp(CACHE_HR, R, u);
+    } else {
+      R *= ease.outBack(span(t, 6.8 + i * 0.04, 7.1 + i * 0.04));
+    }
+    if (R < 0.5) return;
+    drawCard(id, i, { x, y, w: R * 2, h: R * 2, rad: R, img: R / CACHE_HR, colour });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────── Act IV: the binder
+const CARD_W = 176, CARD_H = 112;
+const SLOTS = [[165, 246], [375, 246], [165, 372], [375, 372], [165, 588], [375, 588], [165, 714], [375, 714]];
+const PAGE = { x: CX, y: CY - 20, w: 330, h: 460 };
+
+SCENES.cork = {
+  inks: ['terra', 'gold', 'ink'],
+  draw() {
+    const { terra, gold, ink } = L;
+    terra.fillStyle = cov(0.34); terra.fillRect(-20, -20, W + 40, H + 40);
+    const r = rngFor('cork');
+    terra.fillStyle = cov(0.85); terra.beginPath();
+    for (let i = 0; i < 260; i++) blob(terra, r() * W, r() * H, 0.8 + r() * 2.2, 'ck' + i, 0.3);
+    terra.fill();
+    gold.fillStyle = cov(0.55); gold.fillRect(-20, -20, W + 40, H + 40);
+  },
+};
+
+function drawPage(t) {
+  const p = ease.outBack(span(t, 9.9, 10.25));
+  if (p <= 0) return;
+  const w = PAGE.w * p, h = PAGE.h * p, x0 = PAGE.x - w / 2, y0 = PAGE.y - h / 2;
+  L.ink.fillStyle = cov(0.45);
+  L.ink.beginPath(); L.ink.rect(x0 + 10, y0 + 12, w, h); L.ink.fill();
+  knock(INK_NAMES, g => g.rect(x0, y0, w, h));
+  L.ink.strokeStyle = cov(0.5); L.ink.lineWidth = 1.6; L.ink.strokeRect(x0, y0, w, h);
+  if (p < 0.95) return;
+  // Heading, then lines typing in top to bottom; the last line ends at the caret.
+  const left = PAGE.x - PAGE.w / 2 + 34;
+  const hu = span(t, 10.05, 10.15);
+  L.terra.fillStyle = cov(1);
+  if (hu > 0) { L.terra.beginPath(); poly(L.terra, [[left, CY - 212], [left + 120 * hu, CY - 213], [left + 120 * hu, CY - 204], [left, CY - 203]], 'page:head', 0.6); L.terra.fill(); }
+  const lr = rngFor('page:lines');
+  const n = 7;
+  L.ink.fillStyle = cov(0.85);
+  for (let i = 0; i < n; i++) {
+    const last = i === n - 1;
+    const full = last ? CX - 12 - left : 230 + lr() * 34;
+    const u = span(t, 10.12 + i * 0.075, 10.12 + (i + 1) * 0.075);
+    if (u <= 0) continue;
+    const y = CY - 170 + i * 28 + (last ? 170 - 6 * 28 : 0);
+    const len = full * u;
+    L.ink.beginPath(); poly(L.ink, [[left, y - 2], [left + len, y - 3], [left + len, y + 2], [left, y + 3]], 'page:l' + i, 0.7); L.ink.fill();
+  }
+}
+
+function drawBackup(t) {
+  const cx = CX, cy = 150;
+  const ringU = ease.outBack(span(t, 10.8, 11.05));
+  if (ringU > 0) {
+    knock(INK_NAMES, g => blob(g, cx, cy, 54 * ringU, 'bk:disc', 0.01));
+    L.ink.fillStyle = cov(1); ring(L.ink, cx, cy, 54 * ringU, 3.6, 'bk:ring', { gap: 0.001, taper: 0.001, amp: 0.015 });
+  }
+  const g = ease.inOutCubic(span(t, 10.75, 11.15));
+  if (g > 0) {
+    const s = lerp(1, 0.13, g), x = lerp(PAGE.x, cx - 4, g), y = lerp(PAGE.y, cy + 2, g);
+    const w = PAGE.w * s, h = PAGE.h * s;
+    knock(['terra', 'gold', 'ink'], gg => gg.rect(x - w / 2, y - h / 2, w, h));
+    L.blue.fillStyle = cov(lerp(0.3, 1, g)); L.blue.fillRect(x - w / 2, y - h / 2, w, h);
+    L.ink.strokeStyle = cov(0.8); L.ink.lineWidth = lerp(1.5, 2.5, g); L.ink.strokeRect(x - w / 2, y - h / 2, w, h);
+  }
+  const tick = span(t, 11.1, 11.3);
+  if (tick > 0) {
+    const pts = [[cx + 10, cy + 20], [cx + 22, cy + 32], [cx + 44, cy + 6]];
+    const seg = tick * 2;
+    L.gold.fillStyle = cov(1); L.ink.fillStyle = cov(1);
+    knock(['ink', 'blue', 'terra'], gg => blob(gg, cx + 26, cy + 20, 22, 'bk:badgek', 0.02));
+    L.gold.beginPath(); blob(L.gold, cx + 26, cy + 20, 19, 'bk:badge', 0.02); L.gold.fill();
+    L.ink.lineWidth = 5; L.ink.lineCap = 'round'; L.ink.lineJoin = 'round'; L.ink.strokeStyle = cov(1);
+    L.ink.beginPath(); L.ink.moveTo(...pts[0]);
+    const a = clamp(seg), b = clamp(seg - 1);
+    L.ink.lineTo(lerp(pts[0][0], pts[1][0], a), lerp(pts[0][1], pts[1][1], a));
+    if (b > 0) L.ink.lineTo(lerp(pts[1][0], pts[2][0], b), lerp(pts[1][1], pts[2][1], b));
+    L.ink.stroke();
+  }
+}
+
+function drawBinder(t) {
+  const board = MAX_R * ease.inOutCubic(span(t, 8.5, 8.8));
+  if (board > 0.5) drawSceneClipped('cork', 0, t >= 8.8 ? MAX_R : board);
+  drawPage(t);
+  ARCHIVE.forEach((id, i) => {
+    const from = archivePose(i, 8.5);
+    const u = ease.inOutCubic(span(t, 8.6 + i * 0.04, 9.2 + i * 0.04));
+    const v = ease.inQuad(span(t, 9.7 + i * 0.03, 10.0 + i * 0.03));
+    if (v >= 1) return;
+    const [sx, sy] = SLOTS[i];
+    const k = 1 - v;
+    const x = lerp(lerp(from.x, sx, u), PAGE.x, v), y = lerp(lerp(from.y, sy, u), PAGE.y, v);
+    const w = lerp(from.R * 2, CARD_W, u) * k, h = lerp(from.R * 2, CARD_H, u) * k;
+    drawCard(id, i, {
+      x, y, w, h, rad: lerp(from.R, 7, u) * k,
+      img: lerp(from.R / CACHE_HR, 0.62, u) * k, imgDy: lerp(0, -18, u) * k,
+      colour: span(t, 8.8 + i * 0.04, 9.2 + i * 0.04), q: span(u, 0.55, 1) * k,
+    });
+  });
+  if (t >= 10.7) drawBackup(t);
+}
+
+// ─────────────────────────────────────────────────────────────── Act V: signature
+// Single-line glyphs in x-height units (baseline y = 0, x-height -1, cap -1.55).
+// Each stroke: [smooth?, points]. Advance includes the gap after the letter.
+const GLYPHS = {
+  W: { adv: 1.4, strokes: [[false, [[0, -1.55], [0.3, 0], [0.62, -1.1], [0.94, 0], [1.24, -1.55]]]] },
+  r: { adv: 0.72, strokes: [[false, [[0, -1], [0, 0]]], [true, [[0, -0.55], [0.12, -0.88], [0.34, -1.02], [0.56, -0.96]]]] },
+  i: { adv: 0.4, strokes: [[false, [[0, -1], [0, 0]]], [false, [[0, -1.38], [0.01, -1.4]]]] },
+  t: { adv: 0.66, strokes: [[true, [[0.18, -1.5], [0.18, -0.4], [0.2, -0.08], [0.32, 0.01], [0.5, -0.04]]], [false, [[-0.04, -1], [0.46, -1.02]]]] },
+  e: { adv: 0.98, strokes: [[true, [[0.06, -0.5], [0.78, -0.52], [0.74, -0.82], [0.44, -1.02], [0.14, -0.9], [0.02, -0.5], [0.14, -0.12], [0.44, 0.02], [0.78, -0.16]]]] },
+  s: { adv: 0.9, strokes: [[true, [[0.7, -0.88], [0.44, -1.02], [0.14, -0.92], [0.12, -0.68], [0.4, -0.52], [0.68, -0.34], [0.66, -0.1], [0.38, 0.02], [0.04, -0.12]]]] },
+  N: { adv: 1.34, strokes: [[false, [[0, 0], [0, -1.55], [1.0, 0], [1.0, -1.55]]]] },
+  o: { adv: 1.0, strokes: [[true, [[0.42, -1.02], [0.12, -0.88], [0.02, -0.5], [0.12, -0.12], [0.42, 0.02], [0.72, -0.12], [0.82, -0.5], [0.72, -0.88], [0.44, -1.02]]]] },
+  k: { adv: 0.8, strokes: [[false, [[0, -1.6], [0, 0]]], [false, [[0.64, -1], [0.04, -0.46], [0.66, 0]]]] },
+};
+const WORD = [['W'], ['r'], ['i'], ['t'], ['e'], ['r'], ['s', 0.28], ['N'], ['o'], ['o'], ['k']];
+const SIG_UNIT = 39, SIG_BASE = 470;
+
+function catmull(pts, per = 8) {
+  const out = [pts[0]];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    for (let k = 1; k <= per; k++) {
+      const u = k / per, u2 = u * u, u3 = u2 * u;
+      out.push([0, 1].map(d => 0.5 * ((2 * p1[d]) + (-p0[d] + p2[d]) * u + (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * u2 + (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * u3)));
+    }
+  }
+  return out;
+}
+
+const SIG = (() => {
+  const total = WORD.reduce((s, [ch, extra = 0]) => s + GLYPHS[ch].adv + extra, 0);
+  let x = CX - (total * SIG_UNIT) / 2 - 12;
+  const strokes = [];
+  let acc = 0;
+  for (const [ch, extra = 0] of WORD) {
+    for (const [smooth, raw] of GLYPHS[ch].strokes) {
+      // Italic slant plus a seeded hand wobble per point.
+      const wr = rngFor('sig:' + strokes.length);
+      const pts0 = raw.map(([u, v]) => [x + (u - v * 0.2) * SIG_UNIT + (wr() - 0.5) * 2.2, SIG_BASE + v * SIG_UNIT + (wr() - 0.5) * 2.2]);
+      const pts = smooth ? catmull(pts0) : pts0;
+      const lens = [0];
+      for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+      const len = Math.max(lens[lens.length - 1], 3);
+      strokes.push({ pts, lens, len, start: acc });
+      acc += len + 18; // a short pen lift between strokes
+    }
+    x += (GLYPHS[ch].adv + extra) * SIG_UNIT;
+  }
+  const endX = Math.max(...strokes.flatMap(s => s.pts.map(p => p[0])));
+  return { strokes, total: acc, endX };
+})();
+
+const SIG_T0 = 11.65, SIG_T1 = 12.9;
+const sigProgress = t => SIG.total * span(t, SIG_T0, SIG_T1);
+
+function drawSignature(t) {
+  const P = sigProgress(t);
+  for (const n of ['ink', 'terra']) {
+    const g = L[n];
+    g.save();
+    g.strokeStyle = cov(1); g.lineCap = 'round'; g.lineJoin = 'round';
+    // Terracotta pass sits off-register from the indigo, by design.
+    if (n === 'terra') g.translate(-3.2, 2.2);
+    for (const s of SIG.strokes) {
+      const d = P - s.start;
+      if (d <= 0) break;
+      g.lineWidth = n === 'ink' ? 8.5 : 7.5;
+      g.beginPath(); g.moveTo(...s.pts[0]);
+      for (let i = 1; i < s.pts.length; i++) {
+        if (s.lens[i] <= d) { g.lineTo(...s.pts[i]); continue; }
+        const u = (d - s.lens[i - 1]) / (s.lens[i] - s.lens[i - 1]);
+        g.lineTo(lerp(s.pts[i - 1][0], s.pts[i][0], u), lerp(s.pts[i - 1][1], s.pts[i][1], u));
+        break;
+      }
+      if (s.len <= 3) g.lineTo(s.pts[0][0] + 0.1, s.pts[0][1]);
+      g.stroke();
+    }
+    g.restore();
+  }
+  // Tagline types in beneath; the address follows.
+  typeLine(t, 'A quiet study for your novel.', 13.0, 13.85, SIG_BASE + 72, 'italic 29px Georgia, "Times New Roman", serif', 'ink');
+  typeLine(t, 'writersnook.app', 13.95, 14.35, SIG_BASE + 124, '700 24px Consolas, "Courier New", monospace', 'terra');
+}
+
+function typeLine(t, text, t0, t1, y, font, inkName) {
+  const n = Math.floor(text.length * span(t, t0, t1) + 1e-6);
+  if (n <= 0) return;
+  const g = L[inkName];
+  g.save(); g.font = font; g.textBaseline = 'alphabetic'; g.fillStyle = cov(1);
+  const full = g.measureText(text).width;
+  g.fillText(text.slice(0, n), CX - full / 2, y);
+  g.restore();
+}
+
+// Tip x of the pen at progress P (monotonic, so loops don't pull the caret back).
+function penX(P) {
+  let x = SIG.strokes[0].pts[0][0];
+  for (const s of SIG.strokes) {
+    const d = P - s.start;
+    if (d <= 0) break;
+    for (let i = 0; i < s.pts.length && s.lens[i] <= d; i++) x = Math.max(x, s.pts[i][0]);
+  }
+  return x;
+}
+
+function caretPos(t) {
+  if (t < 11.5) return [CX, CY];
+  const y1 = SIG_BASE - 26;
+  const glide = ease.inOutCubic(span(t, 11.5, SIG_T0));
+  const lead = penX(sigProgress(t)) + 18;
+  const target = t >= SIG_T1 ? SIG.endX + 20 : lead;
+  const x = lerp(CX, SIG.strokes[0].pts[0][0] - 20, glide);
+  return t < SIG_T0 ? [x, lerp(CY, y1, glide)] : [Math.max(target, SIG.strokes[0].pts[0][0] - 20), y1];
+}
+
 // ─────────────────────────────────────────────────────────────── timeline
 // kind: 'ripple' | 'disc' | 'scene' | 'paper'
 const CUES = [
@@ -825,12 +1148,20 @@ const CUES = [
   { start: 5.75, dur: 0.25, kind: 'scene', scene: 'castle' },
   { start: 6.0, dur: 0.25, kind: 'scene', scene: 'ship' },
   { start: 6.25, dur: 0.25, kind: 'scene', scene: 'cabin' },
+  // Act III: the scenes become medallions, drain to blue and drift away.
+  { start: 6.5, dur: 2.0, kind: 'archive' },
+  // Act IV: the binder catches them as cards, they become a page, a copy is kept safe.
+  { start: 8.5, dur: 0.75, kind: 'ripple', params: { key: 'r4', ink: 'ink' } },
+  { start: 8.5, dur: 3.0, kind: 'binder' },
+  { start: 10.65, dur: 0.75, kind: 'ripple', params: { key: 'r5', ink: 'gold', w0: 14 } },
+  // Act V: the name is written, the caret leading the pen; tagline and address type in.
+  { start: 11.5, dur: 3.5, kind: 'signature' },
 ];
 const ACTS = [
   { t: 0.0, name: 'I' }, { t: 3.0, name: 'II' }, { t: 6.5, name: 'III' },
   { t: 8.5, name: 'IV' }, { t: 11.5, name: 'V' },
 ];
-const active = t => CUES.filter(c => t >= c.start && t < c.start + c.dur);
+const active = t => CUES.filter(c => t >= c.start && (t < c.start + c.dur || (t >= DURATION && c.start + c.dur >= DURATION)));
 
 let registration = {};
 function setRegistration(sceneId) {
@@ -869,6 +1200,12 @@ function render(t) {
       }
       if (R > 0.5) drawSceneClipped(c.scene, lt, R);
       caretSolid = true;
+    } else if (c.kind === 'signature') {
+      drawSignature(t);
+    } else if (c.kind === 'archive') {
+      drawArchive(t); caretSolid = true;
+    } else if (c.kind === 'binder') {
+      drawBinder(t); caretSolid = true;
     } else if (c.kind === 'scene') {
       // Scene clock continues from the disc that opened it, so live elements don't pop.
       drawSceneClipped(c.scene, t - (c.params?.t0 ?? c.start), MAX_R);
@@ -878,8 +1215,11 @@ function render(t) {
   for (const c of cues) {
     if (c.kind === 'ripple') { drawRipple(t - c.start, c.params.key, c.params); caretSolid = true; }
   }
+  // While the name is being written the caret stays solid; afterwards it blinks on the beat.
+  if (t >= 11.5 && t < SIG_T1 + 0.05) caretSolid = true;
   const blinkOn = (Math.floor(t / BEAT) % 2) === 0;
-  drawCaret(CX, CY, caretSolid || blinkOn ? 1 : 0);
+  const [cx, cy] = caretPos(t);
+  drawCaret(cx, cy, caretSolid || blinkOn ? 1 : 0);
   composite();
 }
 
@@ -1011,6 +1351,107 @@ function composite() {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
+// ─────────────────────────────────────────────────────────────── deterministic MP4 export
+// Frame-by-frame: render(t) → VideoFrame with an exact timestamp → WebCodecs H.264 → a minimal
+// MP4 (one video track, one chunk). Nothing depends on wall-clock speed, so no dropped frames.
+function mp4Box(type, ...parts) {
+  const size = 8 + parts.reduce((s, p) => s + p.length, 0);
+  const out = new Uint8Array(size), dv = new DataView(out.buffer);
+  dv.setUint32(0, size);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  let o = 8;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+function mp4Bytes(spec) { // spec: [[bits, value], ...] or strings
+  const len = spec.reduce((s, [b, v]) => s + (b === 's' ? v.length : b / 8), 0);
+  const out = new Uint8Array(len), dv = new DataView(out.buffer);
+  let o = 0;
+  for (const [b, v] of spec) {
+    if (b === 's') { for (let i = 0; i < v.length; i++) out[o + i] = v.charCodeAt(i); o += v.length; }
+    else if (b === 8) dv.setUint8(o, v), (o += 1);
+    else if (b === 16) dv.setUint16(o, v), (o += 2);
+    else if (b === 32) dv.setUint32(o, v), (o += 4);
+  }
+  return out;
+}
+const MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000].map(v => [32, v]);
+const zeros = n => new Uint8Array(n);
+
+function muxMp4({ width, height, fps, samples, avcC }) {
+  const TS = fps * 1000, DELTA = 1000, n = samples.length;
+  const durMs = Math.round((n / fps) * 1000);
+  const ftyp = mp4Box('ftyp', mp4Bytes([['s', 'isom'], [32, 0x200], ['s', 'isomiso2avc1mp41']]));
+  const dataLen = samples.reduce((s, x) => s + x.data.length, 0);
+  const mdatHeader = mp4Bytes([[32, dataLen + 8], ['s', 'mdat']]);
+  const chunkOffset = ftyp.length + mdatHeader.length;
+  const fullBox = (type, ver, flags, ...parts) => mp4Box(type, mp4Bytes([[8, ver], [8, (flags >> 16) & 255], [16, flags & 0xffff]]), ...parts);
+
+  const mvhd = fullBox('mvhd', 0, 0, mp4Bytes([[32, 0], [32, 0], [32, 1000], [32, durMs], [32, 0x10000], [16, 0x100], [16, 0], [32, 0], [32, 0], ...MATRIX, [32, 0], [32, 0], [32, 0], [32, 0], [32, 0], [32, 0], [32, 2]]));
+  const tkhd = fullBox('tkhd', 0, 3, mp4Bytes([[32, 0], [32, 0], [32, 1], [32, 0], [32, durMs], [32, 0], [32, 0], [16, 0], [16, 0], [16, 0], [16, 0], ...MATRIX, [32, width * 65536], [32, height * 65536]]));
+  const mdhd = fullBox('mdhd', 0, 0, mp4Bytes([[32, 0], [32, 0], [32, TS], [32, n * DELTA], [16, 0x55c4], [16, 0]]));
+  const hdlr = fullBox('hdlr', 0, 0, mp4Bytes([[32, 0], ['s', 'vide'], [32, 0], [32, 0], [32, 0], ['s', 'VideoHandler\0']]));
+  const vmhd = fullBox('vmhd', 0, 1, zeros(8));
+  const dinf = mp4Box('dinf', fullBox('dref', 0, 0, mp4Bytes([[32, 1]]), fullBox('url ', 0, 1)));
+  const avc1 = mp4Box('avc1',
+    mp4Bytes([[32, 0], [16, 0], [16, 1], [16, 0], [16, 0], [32, 0], [32, 0], [32, 0], [16, width], [16, height], [32, 0x480000], [32, 0x480000], [32, 0], [16, 1]]),
+    zeros(32), mp4Bytes([[16, 0x18], [16, 0xffff]]), mp4Box('avcC', avcC));
+  const stsd = fullBox('stsd', 0, 0, mp4Bytes([[32, 1]]), avc1);
+  const stts = fullBox('stts', 0, 0, mp4Bytes([[32, 1], [32, n], [32, DELTA]]));
+  const keys = samples.map((s, i) => (s.key ? i + 1 : 0)).filter(Boolean);
+  const stss = fullBox('stss', 0, 0, mp4Bytes([[32, keys.length], ...keys.map(k => [32, k])]));
+  const stsc = fullBox('stsc', 0, 0, mp4Bytes([[32, 1], [32, 1], [32, n], [32, 1]]));
+  const stsz = fullBox('stsz', 0, 0, mp4Bytes([[32, 0], [32, n], ...samples.map(s => [32, s.data.length])]));
+  const stco = fullBox('stco', 0, 0, mp4Bytes([[32, 1], [32, chunkOffset]]));
+  const stbl = mp4Box('stbl', stsd, stts, stss, stsc, stsz, stco);
+  const minf = mp4Box('minf', vmhd, dinf, stbl);
+  const mdia = mp4Box('mdia', mdhd, hdlr, minf);
+  const moov = mp4Box('moov', mvhd, mp4Box('trak', tkhd, mdia));
+  return new Blob([ftyp, mdatHeader, ...samples.map(s => s.data), moov], { type: 'video/mp4' });
+}
+
+async function exportMp4(onProgress = () => {}) {
+  const width = stage.width, height = stage.height;
+  const config = { codec: 'avc1.640033', width, height, bitrate: 20e6, framerate: FPS, avc: { format: 'avc' }, latencyMode: 'quality' };
+  const support = await VideoEncoder.isConfigSupported(config);
+  if (!support.supported) throw new Error('H.264 encoding is not supported in this browser');
+  const samples = [];
+  let avcC = null, encodeError = null, lastTs = -1;
+  const enc = new VideoEncoder({
+    output(chunk, meta) {
+      if (meta?.decoderConfig?.description && !avcC) avcC = new Uint8Array(meta.decoderConfig.description);
+      if (chunk.timestamp <= lastTs) encodeError = new Error('encoder reordered frames (B-frames); muxer needs ctts');
+      lastTs = chunk.timestamp;
+      const data = new Uint8Array(chunk.byteLength); chunk.copyTo(data);
+      samples.push({ data, key: chunk.type === 'key' });
+    },
+    error(e) { encodeError = e; },
+  });
+  enc.configure(config);
+  const frames = Math.round(DURATION * FPS);
+  const grab = new OffscreenCanvas(width, height).getContext('2d');
+  const wasPlaying = playing; playing = false;
+  for (let f = 0; f < frames; f++) {
+    // Hold the final end card for the last frame.
+    render(Math.min(f / FPS, DURATION));
+    // Defensive copy through a 2D canvas so the frame is read from the drawing buffer just rendered.
+    grab.drawImage(stage, 0, 0);
+    const vf = new VideoFrame(grab.canvas, { timestamp: Math.round((f * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
+    enc.encode(vf, { keyFrame: f % FPS === 0 });
+    vf.close();
+    if (enc.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 0));
+    if (encodeError) throw encodeError;
+    if (f % 15 === 0) onProgress(f / frames);
+  }
+  await enc.flush(); enc.close();
+  if (encodeError) throw encodeError;
+  if (!avcC) throw new Error('encoder produced no avcC description');
+  onProgress(1);
+  playing = wasPlaying; show();
+  return muxMp4({ width, height, fps: FPS, samples, avcC });
+}
+window.__exportMp4 = exportMp4;
+
 // ─────────────────────────────────────────────────────────────── player + controls
 let now = clamp(parseFloat(params.get('t') || '0'), 0, DURATION);
 let playing = false, lastWall = 0;
@@ -1080,6 +1521,19 @@ $('rec').onclick = () => {
   now = 0; rec.start(); play();
 };
 
+// Build the medallion/card bitmaps and warm every code path up front so playback never hitches.
+ARCHIVE.forEach(getCache);
+for (let f = 0; f <= DURATION * 8; f++) render(f / 8);
+$('mp4').onclick = async () => {
+  const btn = $('mp4');
+  btn.disabled = true;
+  try {
+    const blob = await exportMp4(p => { btn.textContent = Math.round(p * 100) + '%'; });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'writersnook-ad-1080x1920.mp4'; a.click();
+  } catch (e) { alert('Export failed: ' + e.message); }
+  btn.textContent = 'mp4'; btn.disabled = false;
+};
 window.__render = t => { now = t; show(); };
 show();
 document.title = 'WritersNook Riso Ad';

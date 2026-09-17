@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MP4 check</title>
+<body style="margin:0;background:#111;color:#ddd;font:12px monospace">
+<div id="info">loading…</div>
+<canvas id="c" width="1350" height="480"></canvas>
+<script>
+const times = [0.3, 2.3, 3.7, 5.2, 7.5, 9.4, 10.5, 14.9];
+const v = document.createElement('video');
+v.src = new URLSearchParams(location.search).get('src') || 'writersnook-ad-1080x1920.mp4'; v.muted = true; v.preload = 'auto';
+const g = document.getElementById('c').getContext('2d');
+// Wait for the seeked frame to actually be presented before drawing it.
+const seek = t => new Promise(r => {
+  v.onseeked = () => { let done = false; const fin = () => { if (!done) { done = true; r(); } }; v.requestVideoFrameCallback(fin); setTimeout(fin, 1500); };
+  v.currentTime = t;
+});
+const pix = [];
+v.onerror = () => { document.getElementById('info').textContent = 'ERROR ' + (v.error && v.error.message); window.__done = 'error'; };
+v.onloadedmetadata = async () => {
+  document.getElementById('info').textContent = `duration ${v.duration.toFixed(3)}s · ${v.videoWidth}x${v.videoHeight}`;
+  for (let i = 0; i < times.length; i++) { await seek(times[i]); g.drawImage(v, i * 168, 0, 162, 288); pix.push(times[i] + '@' + v.currentTime.toFixed(2)); }
+  document.getElementById('info').textContent += ' · ' + pix.join(' ');
+  window.__done = document.getElementById('info').textContent;
+};
+</script>
