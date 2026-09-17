@@ -197,7 +197,7 @@ function caretPath(g, x, y, sc = 1) {
 function drawCaret(x, y, alpha = 1, sc = 1) {
   if (alpha <= 0) return;
   // Paper halo so the caret reads over busy scenes.
-  knock(['blue', 'green', 'gold'], g => caretPath(g, x, y, sc * 1.9));
+  knock(['blue', 'green', 'gold', 'ink', 'terra'], g => caretPath(g, x, y, sc * 1.9));
   L.ink.fillStyle = cov(alpha); L.ink.beginPath(); caretPath(L.ink, x, y, sc); L.ink.fill();
   // Deliberate terracotta fringe: drawn a hair left of the ink bar.
   L.terra.fillStyle = cov(alpha); L.terra.beginPath(); caretPath(L.terra, x - 1.6 * sc, y + 0.8 * sc, sc); L.terra.fill();
@@ -318,13 +318,513 @@ SCENES.lighthouse = {
   },
 };
 
+// Shared night sky: solid blue with an indigo overprint ramp and gold stars.
+function nightSky(key, bottom, o = {}) {
+  const { blue, ink, gold } = L;
+  const top = o.top ?? 0.85, rampEnd = o.rampEnd ?? 640;
+  blue.fillStyle = cov(1); blue.fillRect(-20, -20, W + 40, bottom + 20);
+  const gr = ink.createLinearGradient(0, 0, 0, rampEnd);
+  gr.addColorStop(0, cov(top)); gr.addColorStop(0.55, cov(top * 0.4)); gr.addColorStop(1, cov(0));
+  ink.fillStyle = gr; ink.fillRect(-20, -20, W + 40, rampEnd + 20);
+  const r = rngFor(key + ':stars'), stars = [];
+  for (let i = 0; i < (o.stars ?? 60); i++) stars.push([r() * W, r() * (o.starBand ?? 400), 0.9 + r() * 1.7]);
+  knock(['blue', 'ink'], g => stars.forEach(([x, y, z], i) => blob(g, x, y, z + 0.8, key + 'k' + i, 0.2)));
+  gold.fillStyle = cov(1);
+  gold.beginPath(); stars.forEach(([x, y, z], i) => blob(gold, x, y, z, key + 's' + i, 0.2)); gold.fill();
+}
+// Diagonal rain streaks as a path (seeded positions, falling with t).
+function rainPath(g, key, t, box, n = 140) {
+  const r = rngFor(key);
+  const [x0, y0, x1, y1] = box, h = y1 - y0;
+  for (let i = 0; i < n; i++) {
+    const x = x0 + r() * (x1 - x0), yb = r() * h, len = 10 + r() * 16;
+    const y = y0 + ((yb + t * 900) % h);
+    const dx = len * 0.28;
+    g.moveTo(x, y); g.lineTo(x + 1.6, y); g.lineTo(x + 1.6 - dx, y + len); g.lineTo(x - dx, y + len); g.closePath();
+  }
+}
+// Flat ellipse ring as an even-odd path.
+function ellipseBand(g, cx, cy, rx, ry, thick, rot) {
+  g.ellipse(cx, cy, rx, ry, rot, 0, TAU);
+  g.ellipse(cx, cy, rx - thick, ry - thick * ry / rx, rot, 0, TAU, true);
+}
+
+SCENES.detective = {
+  inks: ['blue', 'ink', 'gold', 'terra'],
+  reg: { terra: [-1.3, 0.5], gold: [1.0, -0.9], blue: [0.8, 1.1] },
+  draw(t) {
+    const { blue, ink, gold, terra } = L;
+    // Rainy night: dense blue with indigo overprint.
+    blue.fillStyle = cov(1); blue.fillRect(-20, -20, W + 40, H + 40);
+    ink.fillStyle = cov(0.55); ink.fillRect(-20, -20, W + 40, H + 40);
+    // City silhouettes with lit windows.
+    const bld = g => poly(g, [[-10, 620], [60, 620], [60, 560], [120, 560], [120, 640], [150, 640], [150, 600], [175, 600], [175, 700], [370, 700], [370, 590], [430, 590], [430, 540], [490, 540], [490, 610], [W + 10, 610], [W + 10, 900], [-10, 900]], 'dt:bld', 1);
+    ink.fillStyle = cov(0.7); ink.beginPath(); bld(ink); ink.fill();
+    const wins = [];
+    const wr = rngFor('dt:win');
+    for (let i = 0; i < 16; i++) { const left = wr() < 0.5; wins.push([left ? 10 + wr() * 150 : 395 + wr() * 130, 580 + wr() * 100]); }
+    knock(['ink', 'blue'], g => wins.forEach(([x, y]) => g.rect(x, y, 7, 10)));
+    gold.fillStyle = cov(0.9); gold.beginPath(); wins.forEach(([x, y]) => gold.rect(x, y, 7, 10)); gold.fill();
+    // Light cone from the lamp to a pool on the wet street.
+    const cone = g => { g.moveTo(CX - 16, CY + 14); g.lineTo(CX + 16, CY + 14); g.lineTo(CX + 190, 880); g.lineTo(CX - 190, 880); g.closePath(); };
+    const pool = g => { g.moveTo(CX + 200, 880); g.ellipse(CX, 880, 200, 34, 0, 0, TAU); };
+    knock(['blue', 'ink'], g => { cone(g); pool(g); });
+    const gr = gold.createLinearGradient(0, CY, 0, 900);
+    gr.addColorStop(0, cov(0.95)); gr.addColorStop(1, cov(0.35));
+    gold.fillStyle = gr; gold.beginPath(); cone(gold); pool(gold); gold.fill();
+    // Street below the pool with a gold reflection streak.
+    ink.fillStyle = cov(0.75); ink.fillRect(-20, 914, W + 40, 60);
+    blue.fillStyle = cov(1); blue.fillRect(-20, 914, W + 40, 60);
+    gold.fillStyle = cov(0.7); gold.fillRect(CX - 5, 918, 10, 50);
+    // Lamp post and lantern (the caret is the flame).
+    ink.fillStyle = cov(1);
+    ink.beginPath(); poly(ink, [[CX - 5, CY + 30], [CX + 5, CY + 30], [CX + 7, 900], [CX - 7, 900]], 'dt:post'); ink.fill();
+    ink.beginPath(); poly(ink, [[CX - 14, 900], [CX + 14, 900], [CX + 18, 914], [CX - 18, 914]], 'dt:foot'); ink.fill();
+    knock(['blue', 'ink'], g => blob(g, CX, CY - 4, 44, 'dt:halo'));
+    gold.fillStyle = cov(1); gold.beginPath(); blob(gold, CX, CY - 4, 44, 'dt:halo'); gold.fill();
+    ink.beginPath(); poly(ink, [[CX - 32, CY - 32], [CX, CY - 58], [CX + 32, CY - 32]], 'dt:cap'); ink.fill();
+    ink.fillRect(CX - 26, CY + 26, 52, 6);
+    ink.fillRect(CX - 24, CY - 34, 3, 62); ink.fillRect(CX + 21, CY - 34, 3, 62);
+    // Detective: terracotta trench coat with indigo shade, fedora.
+    const fx = CX + 96, top = 690;
+    terra.fillStyle = cov(1); terra.beginPath();
+    poly(terra, [[fx - 22, top + 40], [fx + 24, top + 40], [fx + 36, top + 120], [fx + 42, top + 196], [fx - 44, top + 196], [fx - 34, top + 118]], 'dt:coat', 1.2);
+    terra.fill();
+    ink.fillStyle = cov(0.8); ink.beginPath();
+    poly(ink, [[fx + 4, top + 40], [fx + 24, top + 40], [fx + 36, top + 120], [fx + 42, top + 196], [fx + 6, top + 196]], 'dt:shade'); ink.fill();
+    ink.fillStyle = cov(1); ink.beginPath();
+    poly(ink, [[fx - 14, top + 196], [fx - 4, top + 196], [fx - 4, top + 216], [fx - 16, top + 216]], 'dt:leg1');
+    poly(ink, [[fx + 8, top + 196], [fx + 18, top + 196], [fx + 20, top + 216], [fx + 8, top + 216]], 'dt:leg2');
+    blob(ink, fx, top + 28, 15, 'dt:head', 0.05);
+    poly(ink, [[fx - 36, top + 16], [fx + 36, top + 16], [fx + 26, top + 7], [fx + 16, top + 7], [fx + 14, top - 16], [fx - 16, top - 16], [fx - 18, top + 7], [fx - 26, top + 7]], 'dt:hat');
+    poly(ink, [[fx - 26, top + 42], [fx - 4, top + 28], [fx + 2, top + 64]], 'dt:collar');
+    ink.fill();
+    // Rain: paper streaks in the dark, blue streaks inside the light.
+    knock(['blue', 'ink'], g => rainPath(g, 'dt:rain', t, [-40, -40, W + 40, H]));
+    blue.save(); blue.beginPath(); cone(blue); pool(blue); blue.clip();
+    blue.fillStyle = cov(0.9); blue.beginPath(); rainPath(blue, 'dt:rain2', t, [60, CY, 480, 900], 70); blue.fill();
+    blue.restore();
+    // Splash rings in the pool, rhyming with the ripples.
+    blue.fillStyle = cov(0.9);
+    for (let k = 0; k < 4; k++) {
+      const ph = (t * 1.5 + k * 0.27) % 1, x = CX - 130 + k * 85, R = 6 + ph * 22;
+      blue.save(); blue.translate(x, 878 + (k % 2) * 10); blue.scale(1, 0.25);
+      ring(blue, 0, 0, R, 3 * (1 - ph) + 0.5, 'dt:spl' + k, { gap: 0.3 }); blue.restore();
+    }
+  },
+};
+
+SCENES.dragon = {
+  inks: ['blue', 'gold', 'ink', 'terra'],
+  reg: { terra: [1.2, 0.8], gold: [-0.9, -1.0], blue: [0.9, -0.7] },
+  draw(t) {
+    const { blue, gold, ink, terra } = L;
+    nightSky('dg', H, { top: 0.7, stars: 40, starBand: 300 });
+    // Huge moon behind the head, with halo rings.
+    const mx = CX + 40, my = CY - 30, mR = 205;
+    gold.fillStyle = cov(0.9);
+    for (let k = 0; k < 3; k++) {
+      const R = mR + 26 + k * 22 + ((t * 18) % 22);
+      for (const n of ['blue', 'ink']) {
+        const g = L[n]; g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000';
+        ring(g, mx, my, R, 3.4 - k * 0.8, 'dg:halo' + k, { gap: 0.9, rot: 0.6 }); g.restore();
+      }
+      ring(gold, mx, my, R, 3.4 - k * 0.8, 'dg:halo' + k, { gap: 0.9, rot: 0.6 });
+    }
+    knock(['blue', 'ink'], g => blob(g, mx, my, mR, 'dg:moon', 0.006));
+    gold.fillStyle = cov(1); gold.beginPath(); blob(gold, mx, my, mR, 'dg:moon', 0.006); gold.fill();
+    const cr = rngFor('dg:craters');
+    terra.fillStyle = cov(0.28); terra.beginPath();
+    for (let i = 0; i < 9; i++) { const a = cr() * TAU, d = cr() * mR * 0.75; blob(terra, mx + Math.cos(a) * d, my + Math.sin(a) * d, 8 + cr() * 20, 'dgc' + i, 0.1); }
+    terra.fill();
+    // Mountain ridges.
+    const far = g => poly(g, [[-10, 760], [80, 700], [150, 730], [230, 660], [330, 720], [420, 680], [W + 10, 740], [W + 10, H + 10], [-10, H + 10]], 'dg:far', 3);
+    knock(['gold', 'terra'], far);
+    blue.fillStyle = cov(1); blue.beginPath(); far(blue); blue.fill();
+    ink.fillStyle = cov(0.55); ink.beginPath(); far(ink); ink.fill();
+    knock(['blue', 'ink'], g => { poly(g, [[230, 660], [254, 676], [240, 684], [220, 672]], 'dg:snow1', 0.5); poly(g, [[80, 700], [100, 714], [66, 712]], 'dg:snow2', 0.5); });
+    const near = g => poly(g, [[-10, 850], [60, 820], [140, 845], [210, 800], [260, 830], [W + 10, 880], [W + 10, H + 10], [-10, H + 10]], 'dg:near', 3);
+    ink.fillStyle = cov(0.95); ink.beginPath(); near(ink); ink.fill();
+    // Dragon head in profile, facing left; the eye sits on the caret.
+    const head = g => poly(g, [
+      [100, 520], [140, 500], [200, 474], [236, 452], [262, 440], [300, 432], [322, 424],
+      [440, 292], [352, 432], [372, 430], [488, 350], [390, 458], [430, 520], [468, 598],
+      [498, 700], [516, 820], [528, 970], [330, 970], [350, 820], [342, 700], [322, 616],
+      [292, 574], [230, 562], [168, 552], [118, 544], [96, 532]], 'dg:head', 1.4);
+    knock(['gold', 'terra', 'blue'], head);
+    ink.fillStyle = cov(1); ink.beginPath(); head(ink); ink.fill();
+    // Spine plates in terracotta along the back of the neck.
+    terra.fillStyle = cov(1); terra.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const u = i / 5, x = lerp(418, 522, u), y = lerp(500, 900, u), s = 24 - i * 1.5;
+      poly(terra, [[x - 6, y - s * 0.6], [x + s * 1.1, y - s * 0.1], [x - 2, y + s * 0.6]], 'dg:plate' + i, 1);
+    }
+    terra.fill();
+    // Jaw line and nostril knocked out of the ink, jaw printed terracotta.
+    const jaw = g => poly(g, [[118, 532], [230, 546], [292, 564], [232, 552]], 'dg:jaw', 0.4);
+    knock(['ink'], g => { jaw(g); blob(g, 124, 510, 3.6, 'dg:nos', 0.1); });
+    terra.beginPath(); jaw(terra); terra.fill();
+    // Eye: gold almond; the caret becomes the slit pupil.
+    const eye = g => g.ellipse(CX, CY, 36, 16, -0.12, 0, TAU);
+    knock(['ink'], eye);
+    gold.fillStyle = cov(1); gold.beginPath(); eye(gold); gold.fill();
+    // Smoke curls from the nostril.
+    ink.fillStyle = cov(0.9);
+    for (let k = 0; k < 3; k++) {
+      const ph = (t * 0.9 + k / 3) % 1;
+      arcStroke(ink, 110 - ph * 40, 470 - ph * 90, 14 + ph * 16, Math.PI * 0.2, Math.PI * 1.3, 4.5 * (1 - ph), 'dg:smoke' + k);
+    }
+  },
+};
+
+SCENES.planet = {
+  inks: ['ink', 'terra', 'gold', 'blue'],
+  reg: { terra: [-1.1, -0.9], gold: [1.2, 0.6], blue: [0.7, -1.2] },
+  draw(t) {
+    const { ink, terra, gold, blue } = L;
+    // Deep space: indigo solid with blue and terracotta nebula haze.
+    ink.fillStyle = cov(1); ink.fillRect(-20, -20, W + 40, H + 40);
+    let gr = blue.createRadialGradient(140, 780, 20, 140, 780, 440);
+    gr.addColorStop(0, cov(0.85)); gr.addColorStop(1, cov(0));
+    blue.fillStyle = gr; blue.fillRect(-20, -20, W + 40, H + 40);
+    gr = terra.createRadialGradient(470, 170, 10, 470, 170, 300);
+    gr.addColorStop(0, cov(0.5)); gr.addColorStop(1, cov(0));
+    terra.fillStyle = gr; terra.fillRect(-20, -20, W + 40, H + 40);
+    const sr = rngFor('pl:stars'), stars = [];
+    for (let i = 0; i < 90; i++) stars.push([sr() * W, sr() * H, 0.7 + sr() * 1.6]);
+    knock(['ink', 'blue', 'terra'], g => stars.forEach(([x, y, z], i) => blob(g, x, y, z, 'pls' + i, 0.2)));
+    const tilt = -0.32, rx = 250, ry = 58, thick = 46;
+    // Ring half: back = above the planet's equator line, front = below.
+    const ringHalf = (g, front, fill) => {
+      g.save(); g.translate(CX, CY); g.rotate(tilt);
+      g.beginPath(); g.rect(-420, front ? 0 : -300, 840, 300); g.clip();
+      g.beginPath(); ellipseBand(g, 0, 0, rx, ry, thick, 0);
+      if (fill) g.fill('evenodd'); else { g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.fill('evenodd'); }
+      g.restore();
+    };
+    for (const n of ['ink', 'blue', 'terra']) ringHalf(L[n], false, false);
+    gold.fillStyle = cov(0.8); ringHalf(gold, false, true);
+    // Planet body: terracotta with gold bands and a blue shade crescent.
+    const R = 128, body = g => blob(g, CX, CY, R, 'pl:body', 0.004);
+    knock(['ink', 'blue', 'gold'], body);
+    terra.fillStyle = cov(1); terra.beginPath(); body(terra); terra.fill();
+    gold.save(); gold.beginPath(); body(gold); gold.clip();
+    gold.fillStyle = cov(0.85);
+    for (let i = 0; i < 5; i++) {
+      const y = CY - 100 + i * 46 + Math.sin(i * 2.1) * 6;
+      gold.save(); gold.translate(CX, y); gold.rotate(tilt);
+      gold.beginPath(); poly(gold, [[-170, -6], [170, -9], [170, 5 + (i % 2) * 6], [-170, 8]], 'pl:band' + i, 2); gold.fill(); gold.restore();
+    }
+    gold.restore();
+    blue.save(); blue.beginPath(); body(blue); blue.clip();
+    gr = blue.createRadialGradient(CX - 70, CY - 70, 40, CX - 40, CY - 40, 250);
+    gr.addColorStop(0, cov(0)); gr.addColorStop(0.55, cov(0.12)); gr.addColorStop(1, cov(1));
+    blue.fillStyle = gr; blue.fillRect(CX - R - 4, CY - R - 4, R * 2 + 8, R * 2 + 8); blue.restore();
+    // Front half of the ring over the planet, with an indigo groove.
+    for (const n of ['terra', 'blue', 'ink']) ringHalf(L[n], true, false);
+    gold.fillStyle = cov(1); ringHalf(gold, true, true);
+    ink.save(); ink.translate(CX, CY); ink.rotate(tilt);
+    ink.beginPath(); ink.rect(-420, 0, 840, 300); ink.clip();
+    ink.fillStyle = cov(0.7); ink.beginPath(); ellipseBand(ink, 0, 0, rx - 20, ry - 20 * ry / rx, 4, 0); ink.fill('evenodd');
+    ink.restore();
+    // Rocket on a curved gold exhaust trail, upper right (live).
+    const s1 = 0.62 + ((t * 0.3) % 1) * 0.3;
+    const path = s => [lerp(40, 500, s), 330 - Math.sin(s * Math.PI) * 170 - s * 90];
+    gold.fillStyle = cov(0.9); gold.beginPath();
+    for (let i = 0; i <= 36; i++) { const s = lerp(s1 - 0.45, s1 - 0.02, i / 36), [x, y] = path(s), rr = 0.4 + 3 * i / 36; gold.moveTo(x + rr, y); gold.arc(x, y, rr, 0, TAU); }
+    gold.fill();
+    const [x0, y0] = path(s1), [x1, y1] = path(s1 + 0.01);
+    const ang = Math.atan2(y1 - y0, x1 - x0);
+    const inFrame = (g, fn) => { g.save(); g.translate(x0, y0); g.rotate(ang); fn(g); g.restore(); };
+    knock(['ink', 'blue', 'gold', 'terra'], g => inFrame(g, h => poly(h, [[30, 0], [13, -10], [-16, -10], [-24, -19], [-21, 0], [-24, 19], [-16, 10], [13, 10]], 'pl:rocketk', 0.4)));
+    terra.fillStyle = cov(1);
+    inFrame(terra, h => { h.beginPath(); poly(h, [[-22, -17], [-8, -9], [-8, 9], [-22, 17], [-19, 0]], 'pl:fins', 0.4); h.fill(); h.beginPath(); h.arc(7, 0, 3.6, 0, TAU); h.fill(); });
+    ink.fillStyle = cov(0.35);
+    inFrame(ink, h => { h.beginPath(); h.rect(-12, 1, 26, 8); h.fill(); });
+  },
+};
+
+SCENES.cafe = {
+  inks: ['green', 'terra', 'ink', 'gold'],
+  reg: { terra: [1.3, 0.7], gold: [-1.0, 1.0], ink: [0.4, -0.5] },
+  draw(t) {
+    const { green, terra, ink, gold } = L;
+    // Top-down café: checked terracotta floor, round green table centred on the caret.
+    terra.fillStyle = cov(0.5); terra.fillRect(-20, -20, W + 40, H + 40);
+    terra.fillStyle = cov(1); terra.beginPath();
+    for (let y = -40; y < H + 40; y += 60) for (let x = -40; x < W + 40; x += 60) if ((((x + 40) + (y + 40)) / 60) % 2 === 0) terra.rect(x, y, 60, 60);
+    terra.fill();
+    const R = 236;
+    ink.fillStyle = cov(0.6); ink.beginPath(); blob(ink, CX + 12, CY + 20, R + 4, 'cf:shadow', 0.01); ink.fill();
+    const table = g => blob(g, CX, CY, R, 'cf:table', 0.006);
+    knock(['ink', 'terra'], table);
+    green.fillStyle = cov(1); green.beginPath(); table(green); green.fill();
+    ink.fillStyle = cov(0.5); ring(ink, CX, CY, R - 14, 3, 'cf:rim', { gap: 0.001, taper: 0.001, amp: 0.004 });
+    // Open notebook between the cups, with scribbled lines.
+    const nbT = g => { g.translate(CX + 44, CY - 146); g.rotate(0.14); };
+    knock(['green', 'ink'], g => { g.save(); nbT(g); g.rect(-122, -60, 244, 120); g.restore(); });
+    ink.save(); nbT(ink);
+    ink.fillStyle = cov(0.16); ink.fillRect(-122, -60, 122, 120);
+    ink.fillStyle = cov(0.9); ink.fillRect(-1.5, -60, 3, 120);
+    ink.fillStyle = cov(0.8);
+    const lr = rngFor('cf:lines');
+    for (let side = 0; side < 2; side++) for (let i = 0; i < 6; i++) {
+      const x0 = side ? 14 : -108, len = 58 + lr() * 34, y = -42 + i * 16;
+      ink.beginPath(); poly(ink, [[x0, y], [x0 + len, y - 1], [x0 + len, y + 1.8], [x0, y + 2.6]], 'cf:l' + side + i, 0.5); ink.fill();
+    }
+    ink.restore();
+    // Pen resting beside the notebook.
+    gold.fillStyle = cov(1); gold.save(); gold.translate(CX - 96, CY + 150); gold.rotate(0.7);
+    gold.beginPath(); poly(gold, [[-50, -4.5], [40, -4.5], [54, 0], [40, 4.5], [-50, 4.5]], 'cf:pen', 0.3); gold.fill(); gold.restore();
+    // Two cups on saucers; the coffee holds concentric crema rings.
+    const cups = [[CX - 124, CY - 20, 0.2], [CX + 112, CY + 98, 0.55]];
+    for (const [x, y, ph] of cups) {
+      knock(['green', 'ink'], g => blob(g, x, y, 62, 'cf:saucer' + x, 0.01));
+      ink.fillStyle = cov(0.25); ring(ink, x, y, 50, 5, 'cf:sr' + x, { gap: 0.001, taper: 0.001, amp: 0.004 });
+      ink.fillStyle = cov(1); ring(ink, x, y, 39, 6, 'cf:cr' + x, { gap: 0.001, taper: 0.001, amp: 0.004 });
+      ink.beginPath(); ink.ellipse(x + 48, y + 8, 13, 8, 0.4, 0, TAU); ink.ellipse(x + 48, y + 8, 7, 3.4, 0.4, 0, TAU, true); ink.fill('evenodd');
+      terra.fillStyle = cov(1); terra.beginPath(); blob(terra, x, y, 35, 'cf:coffee' + x, 0.01); terra.fill();
+      ink.fillStyle = cov(0.6); ink.beginPath(); blob(ink, x, y, 35, 'cf:coffee' + x, 0.01); ink.fill();
+      gold.fillStyle = cov(0.95);
+      for (let k = 0; k < 3; k++) {
+        const u = (t * 1.2 + ph + k / 3) % 1;
+        ring(gold, x, y, 4 + u * 27, 3 * (1 - u) + 0.4, 'cf:crema' + x + k, { gap: 0.6 });
+      }
+    }
+  },
+};
+
+// Snow / sparks: seeded round flecks drifting down with t.
+function flecksPath(g, key, t, n, speed, box, size = [1.2, 3]) {
+  const r = rngFor(key);
+  const [x0, y0, x1, y1] = box, h = y1 - y0;
+  for (let i = 0; i < n; i++) {
+    const bx = x0 + r() * (x1 - x0), by = r() * h, z = lerp(size[0], size[1], r()), sway = r() * TAU;
+    const y = y0 + ((by + t * speed * (0.6 + z / size[1])) % h);
+    const x = bx + Math.sin(t * 2 + sway) * 6;
+    g.moveTo(x + z, y); g.arc(x, y, z, 0, TAU);
+  }
+}
+
+SCENES.castle = {
+  inks: ['green', 'ink', 'gold', 'terra'],
+  reg: { terra: [1.1, -1.0], gold: [-1.2, 0.7], green: [0.8, 1.2] },
+  draw(t) {
+    const { green, ink, gold, terra } = L;
+    // Dusk: terracotta sky fading down into gold at the horizon.
+    let gr = terra.createLinearGradient(0, 0, 0, 800);
+    gr.addColorStop(0, cov(0.95)); gr.addColorStop(0.7, cov(0.35)); gr.addColorStop(1, cov(0.1));
+    terra.fillStyle = gr; terra.fillRect(-20, -20, W + 40, H + 40);
+    gr = gold.createLinearGradient(0, 300, 0, 820);
+    gr.addColorStop(0, cov(0)); gr.addColorStop(1, cov(0.9));
+    gold.fillStyle = gr; gold.fillRect(-20, 300, W + 40, 540);
+    gr = ink.createLinearGradient(0, 0, 0, 300);
+    gr.addColorStop(0, cov(0.6)); gr.addColorStop(1, cov(0));
+    ink.fillStyle = gr; ink.fillRect(-20, -20, W + 40, 320);
+    // Thin crescent moon.
+    knock(['terra', 'ink'], g => { g.arc(110, 150, 30, 0, TAU); });
+    terra.fillStyle = cov(1); terra.beginPath(); terra.arc(124, 142, 28, 0, TAU); terra.fill();
+    // Rolling green hills.
+    const hillFar = g => poly(g, [[-10, 770], [120, 730], [260, 750], [420, 720], [W + 10, 740], [W + 10, H + 10], [-10, H + 10]], 'cs:hf', 2);
+    green.fillStyle = cov(0.7); green.beginPath(); hillFar(green); green.fill();
+    knock(['gold', 'terra'], hillFar);
+    // The tower: indigo silhouette over terracotta, one lit window on the caret.
+    const tw = 56, top = CY - 120;
+    const tower = g => poly(g, [
+      [CX - tw - 14, top], [CX - tw - 14, top - 26], [CX - tw + 4, top - 26], [CX - tw + 4, top - 12], [CX - 22, top - 12], [CX - 22, top - 26], [CX - 4, top - 26], [CX - 4, top - 12],
+      [CX + 4, top - 12], [CX + 4, top - 26], [CX + 22, top - 26], [CX + 22, top - 12], [CX + tw - 4, top - 12], [CX + tw - 4, top - 26], [CX + tw + 14, top - 26], [CX + tw + 14, top],
+      [CX + tw, top + 20], [CX + tw + 16, 880], [CX - tw - 16, 880], [CX - tw, top + 20]], 'cs:tower', 1.2);
+    knock(['gold', 'terra', 'green'], tower);
+    ink.fillStyle = cov(1); ink.beginPath(); tower(ink); ink.fill();
+    // Pointed roof on a slimmer turret beside it.
+    const turret = g => poly(g, [[CX + 90, 620], [CX + 90, 400], [CX + 78, 400], [CX + 122, 300], [CX + 166, 400], [CX + 154, 400], [CX + 154, 880], [CX + 90, 880]], 'cs:turret', 1);
+    knock(['gold', 'terra', 'green'], turret);
+    ink.fillStyle = cov(1); ink.beginPath(); turret(ink); ink.fill();
+    terra.fillStyle = cov(1); terra.beginPath(); poly(terra, [[CX + 78, 400], [CX + 122, 300], [CX + 166, 400]], 'cs:roof', 1); terra.fill();
+    // Pennant flapping (live).
+    const fl = Math.sin(t * 9) * 5;
+    ink.fillRect(CX + 121, 262, 2.5, 40);
+    terra.beginPath(); terra.moveTo(CX + 123, 262); terra.quadraticCurveTo(CX + 140, 262 + fl, CX + 160, 270 + fl * 0.6); terra.lineTo(CX + 123, 278); terra.fill();
+    // Lit window: gold arch with a warm glow and light rings.
+    const win = g => { g.moveTo(CX - 22, CY + 34); g.lineTo(CX - 22, CY - 12); g.arc(CX, CY - 12, 22, Math.PI, 0); g.lineTo(CX + 22, CY + 34); g.closePath(); };
+    knock(['ink'], win);
+    gold.fillStyle = cov(1); gold.beginPath(); win(gold); gold.fill();
+    ink.fillStyle = cov(1); ink.fillRect(CX - 1.5, CY - 30, 3, 64);
+    gold.fillStyle = cov(0.85);
+    for (let k = 0; k < 3; k++) {
+      const R = 46 + k * 18 + ((t * 20) % 18);
+      for (const n of ['ink']) { const g = L[n]; g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; arcStroke(g, CX, CY, R, -2.6, -0.54, 2.6, 'cs:glow' + k); g.restore(); }
+      arcStroke(gold, CX, CY, R, -2.6, -0.54, 2.6, 'cs:glow' + k);
+    }
+    // Brick hatching on the tower in paper-white.
+    knock(['ink'], g => {
+      const br = rngFor('cs:bricks');
+      for (let i = 0; i < 18; i++) { const x = CX - tw + br() * (tw * 2 - 20), y = top + 30 + br() * 380; if (Math.abs(y - CY) < 60 && Math.abs(x - CX) < 40) continue; g.rect(x, y, 14, 2.4); }
+    });
+    // Near hill with a winding path in front.
+    const hillNear = g => poly(g, [[-10, 850], [140, 820], [300, 860], [W + 10, 830], [W + 10, H + 10], [-10, H + 10]], 'cs:hn', 2);
+    knock(['gold', 'terra', 'ink'], hillNear);
+    green.fillStyle = cov(1); green.beginPath(); hillNear(green); green.fill();
+    ink.fillStyle = cov(0.35); ink.beginPath(); hillNear(ink); ink.fill();
+    knock(['green', 'ink'], g => poly(g, [[CX - 10, 856], [CX + 14, 856], [CX + 70, 900], [CX + 40, 970], [CX - 60, 970], [CX + 10, 900]], 'cs:path', 1));
+    gold.fillStyle = cov(0.5); gold.beginPath(); poly(gold, [[CX - 10, 856], [CX + 14, 856], [CX + 70, 900], [CX + 40, 970], [CX - 60, 970], [CX + 10, 900]], 'cs:path', 1); gold.fill();
+  },
+};
+
+SCENES.ship = {
+  inks: ['blue', 'ink', 'gold', 'terra'],
+  reg: { terra: [-1.2, -0.8], gold: [1.1, 1.0], blue: [-0.6, 1.2] },
+  draw(t) {
+    const { blue, ink, gold, terra } = L;
+    // Storm sky: heavy indigo over blue.
+    blue.fillStyle = cov(1); blue.fillRect(-20, -20, W + 40, H + 40);
+    let gr = ink.createLinearGradient(0, 0, 0, 700);
+    gr.addColorStop(0, cov(0.95)); gr.addColorStop(1, cov(0.35));
+    ink.fillStyle = gr; ink.fillRect(-20, -20, W + 40, 720);
+    // Lightning bolt, flashing on a fast cycle (live).
+    const flash = (t * 2.2) % 1 < 0.45;
+    const bolt = g => poly(g, [[500, -10], [520, -10], [486, 100], [516, 96], [470, 216], [488, 212], [444, 310], [462, 200], [444, 204], [478, 110], [452, 114]], 'sh:bolt', 1);
+    if (flash) {
+      knock(['blue', 'ink'], g => bolt(g));
+      gold.fillStyle = cov(1); gold.beginPath(); bolt(gold); gold.fill();
+      gr = gold.createRadialGradient(480, 100, 10, 480, 100, 240);
+      gr.addColorStop(0, cov(0.4)); gr.addColorStop(1, cov(0));
+      gold.fillStyle = gr; gold.fillRect(100, -20, 460, 420);
+    }
+    // Tall ship silhouette, rocking about the lantern (the caret).
+    const rock = Math.sin(t * 3.2) * 0.05;
+    const ship = (g, fn) => { g.save(); g.translate(CX, CY); g.rotate(rock); g.translate(-CX, -CY); fn(g); g.restore(); };
+    const hull = g => poly(g, [[CX - 170, 650], [CX + 190, 640], [CX + 150, 720], [CX - 140, 724]], 'sh:hull', 1.5);
+    const sails = g => {
+      poly(g, [[CX - 90, 330], [CX - 18, 318], [CX - 12, 610], [CX - 104, 600]], 'sh:sail1', 1.6);
+      poly(g, [[CX + 20, 250], [CX + 104, 262], [CX + 118, 600], [CX + 26, 604]], 'sh:sail2', 1.6);
+      poly(g, [[CX - 150, 420], [CX - 110, 410], [CX - 118, 620], [CX - 178, 612]], 'sh:jib', 1.6);
+    };
+    ship(ink, g => { g.fillStyle = cov(1); g.beginPath(); hull(g); g.fill(); g.fillRect(CX - 58, 290, 5, 360); g.fillRect(CX + 60, 220, 5, 430); });
+    ship(terra, g => { g.fillStyle = cov(1); g.beginPath(); poly(g, [[CX - 166, 660], [CX + 186, 650], [CX + 181, 664], [CX - 162, 674]], 'sh:stripe', 0.6); g.fill(); });
+    for (const n of ['blue', 'ink']) ship(L[n], g => { g.save(); g.globalCompositeOperation = 'destination-out'; g.beginPath(); sails(g); g.fill(); g.restore(); });
+    ship(blue, g => { g.fillStyle = cov(0.3); g.beginPath(); sails(g); g.fill(); });
+    ship(ink, g => { g.fillStyle = cov(0.9); g.fillRect(CX - 58, 290, 5, 360); g.fillRect(CX + 60, 220, 5, 430); });
+    // Lantern at the stern-rail on the caret, with light rings.
+    knock(['ink', 'blue'], g => blob(g, CX, CY, 30, 'sh:lamp'));
+    gold.fillStyle = cov(1); gold.beginPath(); blob(gold, CX, CY, 30, 'sh:lamp'); gold.fill();
+    gold.fillStyle = cov(0.8);
+    for (let k = 0; k < 3; k++) ring(gold, CX, CY, 44 + k * 18 + ((t * 26) % 18), 2.6, 'sh:lr' + k, { gap: 1.8, rot: 2.2 });
+    // Towering waves in front: blue crests with paper foam lines, indigo troughs.
+    const wave = (g, base, amp, ph, k) => {
+      g.moveTo(-20, H + 20);
+      for (let x = -20; x <= W + 20; x += 10) {
+        const u = x / W;
+        g.lineTo(x, base - amp * Math.sin(u * TAU * k + ph + t * 2.4) - amp * 0.45 * Math.sin(u * TAU * 2.3 + ph * 1.7 - t * 1.6));
+      }
+      g.lineTo(W + 20, H + 20); g.closePath();
+    };
+    knock(['ink', 'gold', 'terra'], g => wave(g, 720, 26, 0.4, 1.3));
+    blue.fillStyle = cov(1); blue.beginPath(); wave(blue, 720, 26, 0.4, 1.3); blue.fill();
+    ink.fillStyle = cov(0.45); ink.beginPath(); wave(ink, 800, 30, 2.1, 1.1); ink.fill();
+    knock(['blue', 'ink'], g => {
+      for (let k = 0; k < 3; k++) {
+        const base = 732 + k * 64, amp = 24 - k * 3, ph = 0.4 + k * 1.3;
+        for (let x = -20; x <= W + 20; x += 10) {
+          const u = x / W, y = base - amp * Math.sin(u * TAU * 1.3 + ph + t * 2.4) - amp * 0.45 * Math.sin(u * TAU * 2.3 + ph * 1.7 - t * 1.6);
+          g.rect(x, y, 7, 2.2);
+        }
+      }
+    });
+    // Rain streaks.
+    knock(['blue', 'ink'], g => rainPath(g, 'sh:rain', t * 1.4, [-40, -40, W + 40, H], 110));
+  },
+};
+
+SCENES.cabin = {
+  inks: ['blue', 'green', 'ink', 'gold'],
+  reg: { green: [1.2, 0.8], gold: [-1.0, -1.1], blue: [0.8, -0.9] },
+  draw(t) {
+    const { blue, green, ink, gold } = L;
+    // Snowy night: blue sky, paper-white snow ground.
+    nightSky('cb', 570, { top: 0.6, stars: 45, starBand: 300, rampEnd: 460 });
+    // Everything below the sky is laid out 130px low and lifted, so the window lands on the caret.
+    const WY = CY + 130;
+    eachInk(g => { g.save(); g.translate(0, -130); });
+    blue.fillStyle = cov(0.25); blue.fillRect(-20, 700, W + 40, H + 200);
+    // Distant pines.
+    const pine = (g, x, base, h, w) => {
+      const tiers = 4;
+      for (let i = 0; i < tiers; i++) {
+        const y0 = base - h * (i / tiers) - 10, y1 = base - h * ((i + 1.4) / tiers), ww = w * (1 - i / tiers * 0.7);
+        g.moveTo(x - ww, y0); g.lineTo(x, y1); g.lineTo(x + ww, y0); g.closePath();
+      }
+      g.rect(x - 4, base - 12, 8, 14);
+    };
+    const r = rngFor('cb:pines');
+    const far = [], near = [];
+    for (let i = 0; i < 9; i++) far.push([r() * W, 700 + r() * 16, 120 + r() * 80, 26 + r() * 12]);
+    for (const x of [30, 110, 440, 520]) near.push([x + (r() - 0.5) * 20, 800 + r() * 30, 260 + r() * 90, 60 + r() * 14]);
+    knock(['ink'], g => far.forEach(p => pine(g, ...p)));
+    green.fillStyle = cov(0.75); green.beginPath(); far.forEach(p => pine(green, ...p)); green.fill();
+    blue.fillStyle = cov(0.4); blue.beginPath(); far.forEach(p => pine(blue, ...p)); blue.fill();
+    // Cabin: indigo walls, snow-covered roof, gold window on the caret.
+    const cabin = g => poly(g, [[CX - 120, 600], [CX + 120, 600], [CX + 120, 740], [CX - 120, 740]], 'cb:walls', 1);
+    const roof = g => poly(g, [[CX - 160, 606], [CX, 430], [CX + 160, 606], [CX + 140, 616], [CX, 470], [CX - 140, 616]], 'cb:roof', 1.5);
+    const gable = g => poly(g, [[CX - 130, 604], [CX, 466], [CX + 130, 604]], 'cb:gable', 1);
+    knock(['blue', 'green', 'gold'], g => { cabin(g); gable(g); roof(g); });
+    ink.fillStyle = cov(1); ink.beginPath(); cabin(ink); gable(ink); ink.fill();
+    green.fillStyle = cov(0.6); green.beginPath(); cabin(green); green.fill();
+    // Snow roof stays paper; give it a blue shade edge.
+    blue.fillStyle = cov(0.45); blue.beginPath(); poly(blue, [[CX - 160, 606], [CX - 140, 616], [CX, 470], [CX, 452]], 'cb:roofshade', 0.6); blue.fill();
+    // Log lines knocked out of the walls.
+    knock(['ink', 'green'], g => { for (let i = 0; i < 6; i++) poly(g, [[CX - 118, 620 + i * 22], [CX + 118, 619 + i * 22], [CX + 118, 621.6 + i * 22], [CX - 118, 622.6 + i * 22]], 'cb:log' + i, 0.4); });
+    // Chimney with smoke rings drifting up (live).
+    ink.fillStyle = cov(1); ink.fillRect(CX + 70, 470, 24, 70);
+    ink.fillStyle = cov(0.5);
+    for (let k = 0; k < 4; k++) {
+      const ph = (t * 0.7 + k / 4) % 1;
+      arcStroke(ink, CX + 82 + Math.sin(ph * 5) * 10, 450 - ph * 200, 8 + ph * 18, Math.PI * 0.9, Math.PI * 2.1, 3.5 * (1 - ph) + 0.4, 'cb:smoke' + k);
+    }
+    // Window on the caret: gold with glow on the snow and light rings.
+    const win = g => g.rect(CX - 26, WY - 30, 52, 60);
+    knock(['ink', 'green'], win);
+    gold.fillStyle = cov(1); gold.beginPath(); win(gold); gold.fill();
+    ink.fillStyle = cov(1); ink.fillRect(CX - 26, WY - 1.5, 52, 3);
+    const gr = gold.createRadialGradient(CX, 760, 10, CX, 760, 190);
+    gr.addColorStop(0, cov(0.6)); gr.addColorStop(1, cov(0));
+    gold.fillStyle = gr; gold.beginPath(); gold.ellipse(CX, 770, 200, 44, 0, 0, TAU); gold.fill();
+    gold.fillStyle = cov(0.85);
+    for (let k = 0; k < 2; k++) {
+      const R = 50 + k * 18 + ((t * 20) % 18);
+      for (const n of ['blue', 'ink', 'green']) { const g = L[n]; g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; arcStroke(g, CX, WY, R, -2.5, -0.64, 2.4, 'cb:glow' + k); g.restore(); }
+      arcStroke(gold, CX, WY, R, -2.5, -0.64, 2.4, 'cb:glow' + k);
+    }
+    // Door.
+    gold.fillStyle = cov(0.35); gold.fillRect(CX - 90, 650, 34, 90);
+    // Near pines framing the cabin.
+    knock(['blue', 'gold'], g => near.forEach(p => pine(g, ...p)));
+    green.fillStyle = cov(1); green.beginPath(); near.forEach(p => pine(green, ...p)); green.fill();
+    ink.fillStyle = cov(0.55); ink.beginPath(); near.forEach(p => pine(ink, ...p)); ink.fill();
+    eachInk(g => g.restore());
+    // Falling snow.
+    knock(['green', 'ink', 'blue'], g => flecksPath(g, 'cb:snow', t, 90, 60, [-20, -20, W + 20, H + 20], [1.2, 3.2]));
+  },
+};
+
 // ─────────────────────────────────────────────────────────────── timeline
 // kind: 'ripple' | 'disc' | 'scene' | 'paper'
 const CUES = [
   { start: 0.25, dur: 0.75, kind: 'ripple', params: { key: 'r1' } },
   { start: 1.25, dur: 0.75, kind: 'ripple', params: { key: 'r2' } },
+  // Act II: the first idea dives open, then the montage.
   { start: 2.0, dur: 1.0, kind: 'disc', scene: 'lighthouse', params: { open: 0.35, hold: 0.3, dive: 0.35, R: 150 } },
-  { start: 3.0, dur: 0.5, kind: 'scene', scene: 'lighthouse' },
+  { start: 3.0, dur: 0.5, kind: 'scene', scene: 'lighthouse', params: { t0: 2.0 } },
+  { start: 3.5, dur: 0.5, kind: 'scene', scene: 'detective' },
+  { start: 4.0, dur: 0.5, kind: 'scene', scene: 'dragon' },
+  // Breathe: paper and one ripple, then the next scene irises open from the caret.
+  { start: 4.5, dur: 0.6, kind: 'ripple', params: { key: 'r3', dur: 0.6 } },
+  { start: 4.75, dur: 0.25, kind: 'disc', scene: 'planet', params: { iris: true } },
+  { start: 5.0, dur: 0.5, kind: 'scene', scene: 'planet', params: { t0: 4.75 } },
+  { start: 5.5, dur: 0.25, kind: 'scene', scene: 'cafe' },
+  { start: 5.75, dur: 0.25, kind: 'scene', scene: 'castle' },
+  { start: 6.0, dur: 0.25, kind: 'scene', scene: 'ship' },
+  { start: 6.25, dur: 0.25, kind: 'scene', scene: 'cabin' },
 ];
 const ACTS = [
   { t: 0.0, name: 'I' }, { t: 3.0, name: 'II' }, { t: 6.5, name: 'III' },
@@ -360,14 +860,18 @@ function render(t) {
     const lt = t - c.start;
     if (c.kind === 'disc') {
       const p = c.params;
-      let R = p.R * ease.outBack(span(lt, 0, p.open));
-      const du = span(lt, p.open + p.hold, p.open + p.hold + p.dive);
-      if (du > 0) R = lerp(p.R, MAX_R, ease.inOutCubic(du));
+      let R;
+      if (p.iris) R = (MAX_R - 1) * ease.inOutCubic(span(lt, 0, c.dur));
+      else {
+        R = p.R * ease.outBack(span(lt, 0, p.open));
+        const du = span(lt, p.open + p.hold, p.open + p.hold + p.dive);
+        if (du > 0) R = lerp(p.R, MAX_R, ease.inOutCubic(du));
+      }
       if (R > 0.5) drawSceneClipped(c.scene, lt, R);
       caretSolid = true;
     } else if (c.kind === 'scene') {
       // Scene clock continues from the disc that opened it, so live elements don't pop.
-      drawSceneClipped(c.scene, t - 2.0, MAX_R);
+      drawSceneClipped(c.scene, t - (c.params?.t0 ?? c.start), MAX_R);
       caretSolid = true;
     }
   }
