@@ -30,6 +30,10 @@ v.onloadedmetadata = async () => {
     const env = [];
     for (let k = 0; k < Math.floor(ab.duration * 2); k++) { const d = ab.getChannelData(0).subarray(k * ab.sampleRate / 2, (k + 1) * ab.sampleRate / 2); let e = 0; for (const s of d) e += s * s; env.push(Math.round(20 * Math.log10(Math.sqrt(e / d.length) + 1e-9))); }
     window.__env = env.join(' ');
+    // Fine look at the Act IV → V seam: loudness and high-frequency "edge" per 100 ms, 12.0–14.5 s.
+    const fine = [], L0 = ab.getChannelData(0), W = ab.sampleRate / 10;
+    for (let k = 120; k < 145; k++) { let e = 0, h = 0; for (let i = k * W; i < (k + 1) * W; i++) { e += L0[i] * L0[i]; const d = L0[i] - L0[i - 1]; h += d * d; } fine.push((k / 10).toFixed(1) + ':' + Math.round(10 * Math.log10(e / W + 1e-12)) + '/' + Math.round(10 * Math.log10(h / W + 1e-12))); }
+    window.__fine = fine.join(' ');
     audio = `audio ${ab.duration.toFixed(2)}s ${ab.numberOfChannels}ch ${ab.sampleRate}Hz peak ${peak.toFixed(2)} rms ${Math.sqrt(sq / n).toFixed(3)}`;
   } catch (e) { audio = 'audio decode failed: ' + e.message; }
   document.getElementById('info').textContent += ' · ' + audio;
