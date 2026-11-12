@@ -617,14 +617,17 @@ keyboard down and up).
      probably pre-existing y-tiptap behaviour (y-tiptap was not bumped), but that is
      unconfirmed.
    - Still unverified without a key: Gab's handling of `stream_options`.
-9. **Outline import from .docx — first user request (2026-11-11).** A paying user
-   (Gab AI BYOK user) wants to import a story outline from Word. Nothing imports today
-   (no parser, no file-open path; only a portrait-image picker). Shape: Word heading 1
-   → chapter, heading 2 → scene, body under a heading → synopsis or scene text.
-   Needs a docx reader (e.g. mammoth, new dependency) plus binder `createFolder` /
-   `createScene` / `setSceneSynopsis`. Editor core is untouched. Estimate is about
-   2–3 days with tests. No transaction API, so a failed import leaves partial
-   chapters behind.
+9. **Outline import from .docx — BUILT, unreleased (2026-11-11).** A paying user
+   (Gab AI BYOK user) asked to import a Word outline. Binder "Import outline…" →
+   `src/features/import/` (mammoth 1.13 → HTML → `planOutline` → `applyOutlinePlan`).
+   Mapping: two highest heading levels → chapter/scene. Body text → synopsis, and
+   scenes are status Outline. Text before the first heading becomes an "Outline
+   notes" short piece. No headings falls back to nested bullets. Hard limit: 1000
+   scenes. Appends only. There is no transaction: a failed write mid-import leaves
+   what was created, and the binder reloads to show it (`PartialImportError`
+   reports how far it got). Tests: `importOutline*.test.ts*`, which run on real
+   .docx bytes built with the `docx` lib. NOT yet smoked in `tauri dev`; ships as
+   CHANGELOG 0.13.3.
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.

@@ -20,6 +20,7 @@ import { BinderToastProvider } from "./binderToast";
 import { BrainstormSection } from "./BrainstormSection";
 import type { BinderTree } from "./buildTree";
 import { useChapterOpen } from "./chapterOpenState";
+import { ImportOutlineButton } from "./ImportOutlineButton";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
 /** Props shared by the inner tree components (no switcher props). */
@@ -269,6 +270,7 @@ function BinderContent({ tree, selectedSceneId, onSelectScene, callbacks }: Bind
       <button className="add-chapter" onClick={callbacks.onCreateChapter}>
         <Icon name="plus" style={{ width: 13, height: 13 }} /> New chapter
       </button>
+      {callbacks.onImportOutline && <ImportOutlineButton onImport={callbacks.onImportOutline} />}
       <ShortPiecesSection scenes={tree.shortPieces} selectedSceneId={selectedSceneId}
         onSelectScene={onSelectScene} callbacks={callbacks}
       />

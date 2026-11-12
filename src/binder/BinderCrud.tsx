@@ -13,6 +13,8 @@ import { ContextMenu } from "../components/menu/ContextMenu";
 import { buildChapterMenu, buildSceneMenu } from "../components/menu/sceneMenu";
 import { StatusGlyph } from "../components/StatusGlyph";
 import type { Scene } from "../db/binderStore";
+import type { ImportOutlineResult } from "../features/import/applyOutlinePlan";
+import type { OutlinePlan } from "../features/import/outlinePlan";
 import type { SceneStatus } from "../lib/status";
 import { normalizeStatus } from "../lib/status";
 import { useBinderToast } from "./binderToast";
@@ -58,6 +60,11 @@ export interface BinderCallbacks {
    * Optional — omitting it disables the EditorHeader toggle.
    */
   onSetSceneExcludedFromAi?: (sceneId: string, exclude: boolean) => void;
+  /**
+   * Append an imported outline's chapters and scenes to the active project.
+   * Optional — omitting it hides the binder's "Import outline…" button.
+   */
+  onImportOutline?: (plan: OutlinePlan) => Promise<ImportOutlineResult>;
 }
 
 // ── InlineRename ──────────────────────────────────────────────────────────

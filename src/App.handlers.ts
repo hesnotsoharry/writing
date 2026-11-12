@@ -11,6 +11,7 @@ import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
 import type { SqliteBinderStore } from "./db/sqliteBinderStore";
 import type { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
+import { applyOutlinePlan } from "./features/import/applyOutlinePlan";
 
 export function logCrudError(op: string) {
   return (e: unknown) => console.error(`[crud] ${op}`, e);
@@ -113,6 +114,10 @@ function buildCrudCallbacks(deps: CrudDeps): BinderCallbacks {
     onSetSceneExcludedFromAi: (id, exclude) => {
       binderStore.setSceneExcludedFromAi(id, exclude).then(doReload).catch(logCrudError("setSceneExcludedFromAi"));
     },
+    // Reload even when the import stops part-way, so whatever was created shows up.
+    onImportOutline: (plan) => applyOutlinePlan(binderStore, getProjectId(), plan).finally(() => {
+      doReload().catch(logCrudError("importOutline:reload"));
+    }),
     ...buildArchiveCallbacks(binderStore, getProjectId, doReload, onArchived),
   };
 }
