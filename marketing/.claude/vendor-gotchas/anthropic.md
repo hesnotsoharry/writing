@@ -100,3 +100,18 @@ Source: wave-52, commit 35d561b
 **Workaround:** guard 1-hour cache with the beta header via `shouldAttachCache()` logic that checks prefix length AND the model. See the linked provider file for the implementation.
 
 **Why:** the extended TTL beta has not graduated. Sending it without the header is a silent failure — Anthropic gives no error, just doesn't extend the cache beyond 5 minutes.
+
+## 2026-11-11 — non-default `temperature` is a 400 on Claude 4.7+ models (Opus 4.8, Sonnet 5, Opus 5, Fable 5, all 5.x)
+
+**Gotcha:** on `anthropic-version: 2023-06-01`, sending `temperature` (or `top_p`/`top_k`) at any value
+other than the default 1.0 to a Claude 4.7+ model returns a 400. API version `2026-10-21` removes the
+three sampling params entirely (400 even at 1.0). Haiku 4.5 and Sonnet 4.6 still accept them on
+2023-06-01. Our Ask / Beta read (0.7) and the desktop BYOK Proofread (0.3) / Critique / Beta read (0.7)
+were therefore failing on every premium model a writer picked.
+
+**Workaround:** both the proxy (`TEMPERATURE_MODELS` in `functions/_lib/providers/anthropic.ts`) and
+desktop BYOK (`accepts_temperature` in `src-tauri/src/byok.rs`) send temperature only to an explicit
+allowlist. New models omit it by default — do not add a 4.7+ model to that list.
+
+**Source:** platform.claude.com/docs/en/about-claude/model-deprecations ("API parameter deprecations")
+and /docs/en/api/migration-2026-10-21, read 2026-11-11. Inferred from docs, not yet observed live.

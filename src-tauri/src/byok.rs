@@ -118,6 +118,36 @@ fn verb_policy(verb: &str) -> (f32, u32) {
     }
 }
 
+/// Models that still accept a non-default `temperature` on API version 2023-06-01.
+/// Claude 4.7 and later (Opus 4.8, Sonnet 5, Opus 5, Fable 5 and newer) return a 400
+/// for any non-default value (platform.claude.com model-deprecations, checked
+/// 2026-11-11). Allowlist, so an unknown/new model omits it and samples at 1.0.
+/// Mirrors `TEMPERATURE_MODELS` in marketing/functions/_lib/providers/anthropic.ts.
+fn accepts_temperature(model: &str) -> bool {
+    matches!(model, "claude-haiku-4-5-20251001" | "claude-sonnet-4-6")
+}
+
+/// The Messages API request body for one BYOK turn.
+fn request_body(
+    model: &str,
+    verb: &str,
+    system: &str,
+    messages: Vec<serde_json::Value>,
+) -> serde_json::Value {
+    let (temperature, max_tokens) = verb_policy(verb);
+    let mut body = serde_json::json!({
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": messages,
+        "stream": true,
+    });
+    if accepts_temperature(model) {
+        body["temperature"] = serde_json::json!(temperature);
+    }
+    body
+}
+
 /// Extract `input_tokens` from a `message_start` SSE event.
 pub fn extract_input_tokens(data_json: &str) -> Option<u32> {
     let v: serde_json::Value = serde_json::from_str(data_json).ok()?;
@@ -267,20 +297,12 @@ pub async fn byok_chat(
 
     // 2. Build RequestSpec; delegate cancel registration, POST, drain, and
     //    terminal Done to byok_engine::run_stream (the shared engine).
-    //    verb_policy resolves temperature + max_tokens for this verb.
-    let (temperature, max_tokens) = verb_policy(&verb);
+    //    request_body resolves temperature + max_tokens for this verb.
     let messages_json: Vec<serde_json::Value> = messages
         .into_iter()
         .map(|m| serde_json::json!({"role": m.role, "content": m.content}))
         .collect();
-    let body = serde_json::json!({
-        "model": model,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "system": system,
-        "messages": messages_json,
-        "stream": true,
-    });
+    let body = request_body(&model, &verb, &system, messages_json);
 
     // api_key is MOVED into the headers vec here (not cloned) — the original
     // binding is gone after this point. run_stream drops the RequestSpec
@@ -322,6 +344,29 @@ pub async fn byok_stop(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn request_body_keeps_temperature_for_models_that_accept_it() {
+        for model in ["claude-haiku-4-5-20251001", "claude-sonnet-4-6"] {
+            let body = request_body(model, "betaread", "sys", vec![]);
+            assert_eq!(body["temperature"], serde_json::json!(0.7_f32), "{model}");
+        }
+    }
+
+    #[test]
+    fn request_body_omits_temperature_for_4_7_plus_and_unknown_models() {
+        for model in [
+            "claude-sonnet-5",
+            "claude-opus-5",
+            "claude-fable-5",
+            "claude-opus-4-8",
+            "claude-some-future-model",
+        ] {
+            let body = request_body(model, "proofread", "sys", vec![]);
+            assert!(body.get("temperature").is_none(), "{model}");
+            assert_eq!(body["max_tokens"], 2048, "{model}");
+        }
+    }
 
     // ---------------------------------------------------------------------
     // FROZEN CONTRACT — Wave 40, orchestrator-authored. Do NOT modify.

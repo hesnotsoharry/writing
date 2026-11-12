@@ -61,11 +61,12 @@ describe("AnthropicAdapter.buildRequest — effort policy", () => {
     expect(bodyFor("claude-opus-4-8")).not.toHaveProperty("output_config");
   });
 
-  // Effort is independent of the thinking/temperature mutual exclusion: a standard
-  // verb carries a temperature, and effort must ride alongside it rather than replace it.
-  it("sends effort alongside temperature on a standard verb config", () => {
+  // Effort is independent of the thinking/temperature split: a standard verb config
+  // still gets effort. Temperature itself is dropped for 4.7+ models, which reject a
+  // non-default value (see anthropic.temperature.test.ts).
+  it("sends effort on a standard verb config, without temperature on a 4.7+ model", () => {
     const body = bodyFor("claude-sonnet-5");
-    expect(body["temperature"]).toBe(1.0);
+    expect(body).not.toHaveProperty("temperature");
     expect(body["output_config"]).toEqual({ effort: "medium" });
   });
 

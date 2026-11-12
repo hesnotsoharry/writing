@@ -15,6 +15,19 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 const EXTENDED_CACHE_TTL_BETA = "extended-cache-ttl-2025-04-11";
 
+/**
+ * Models that still accept a non-default `temperature` on API version 2023-06-01.
+ * Claude 4.7 and later (Opus 4.8, Sonnet 5, Opus 5, Fable 5, and every newer model)
+ * return a 400 for any non-default value — platform.claude.com/docs/en/about-claude/
+ * model-deprecations ("API parameter deprecations"), checked 2026-11-11. An allowlist,
+ * not a denylist, so a newly added model omits temperature (samples at the default 1.0)
+ * instead of failing Ask / Beta read (temperature 0.7) until someone remembers it.
+ */
+const TEMPERATURE_MODELS: ReadonlySet<string> = new Set([
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-6",
+]);
+
 // Effort policy lives in _lib/effort.ts — shared with OpenAIAdapter and with the credit
 // reserve in chat.ts, so the wire request and the reserve can never disagree.
 
@@ -50,7 +63,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     // Mutual exclusion: thinking and temperature cannot both be present (temp+thinking = 400).
     if (config.thinking) {
       requestBody["thinking"] = config.thinking;
-    } else if (config.temperature !== undefined) {
+    } else if (config.temperature !== undefined && TEMPERATURE_MODELS.has(config.model)) {
       requestBody["temperature"] = config.temperature;
     }
     // Effort is independent of the thinking/temperature split above — it applies either way.
