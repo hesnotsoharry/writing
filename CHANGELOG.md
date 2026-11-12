@@ -21,9 +21,26 @@
   note at once, the other version is kept in your Inbox instead of thrown
   away.
 
-## [0.13.2] — Unreleased · What's new, properly
+## [0.13.2] — 2026-11-11 · Your own AI models, fixed
 
 ### Fixed
+- **Your own model server (Ollama, Gab AI and others)** — Settings → Assistant
+  now has a Model box for each endpoint (Discover models fills it in), and an
+  endpoint can't be saved without one. Before, an endpoint saved without a
+  model failed every request with "OpenAI request failed", even though OpenAI
+  wasn't involved.
+- **Clearer model-server errors** — messages now name your endpoint and say
+  what went wrong: out of credits, model not found, access refused, or a
+  redirected address (for Gab AI, use https://gab.ai/v1, without "www").
+- **The endpoint you add is the one used** — adding a second endpoint now makes
+  it the active one. Previously it sat unused until you pressed Set default.
+- **Model discovery** — the list shows only models that can chat. Gab AI also
+  offers image, video and audio models, which can't answer here.
+- **Reply length on Ollama** — the per-reply length limit is now respected.
+- **Your own Claude key** — Proofread, Critique and Beta read no longer fail on
+  Claude's newer models (Opus 4.8, Sonnet 5, Opus 5, Fable 5).
+- **Ask and Beta read on premium models** — with the AI subscription or trial,
+  these no longer fail on Sonnet 5, Opus 5, Fable 5 or Opus 4.8.
 - **What's new after an update** — the release notes now open on the first
   launch after updating, including when you updated from a version that never
   had the feature (0.12.8 and earlier). Previously that upgrade looked like a
@@ -31,6 +48,10 @@
 - **What's new layout** — headings and grouping (Added / Fixed) are shown
   instead of flattened, feature names are bold, wrapped lines stay under their
   bullet, and the scrollbar matches the rest of the app.
+
+### Security
+- **Editor update** — the writing editor's components are updated to close a
+  vulnerability in how pasted content was handled.
 
 ## [0.13.1] — 2026-09-15 · Device Sync beta, AI subscription, goals repair
 
