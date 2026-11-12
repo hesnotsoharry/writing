@@ -98,6 +98,12 @@ describe("the sweep is a full sync, not just a hello", () => {
       expect(sent.some((message) => message.t === "hello")).toBe(true);
       const rowHello = sent.find((message) => message.t === "row-hello");
       expect(rowHello).toMatchObject({ domain: "boards", project: "p1" });
-    } finally { engine.stop(); db.close(); }
+    } finally {
+      engine.stop();
+      // stop() clears the sweep timer but does not await a sweep already running; let it
+      // drain before freeing the sql.js db, or its next query throws "out of memory".
+      await new Promise((resolve) => { setTimeout(resolve, SWEEP_MS); });
+      db.close();
+    }
   });
 });
