@@ -617,7 +617,7 @@ keyboard down and up).
      probably pre-existing y-tiptap behaviour (y-tiptap was not bumped), but that is
      unconfirmed.
    - Still unverified without a key: Gab's handling of `stream_options`.
-9. **Outline import from .docx — BUILT, unreleased (2026-11-11).** A paying user
+9. **Outline import from .docx — RELEASED in 0.13.3 (tagged 2026-11-12; Cole publishes).** A paying user
    (Gab AI BYOK user) asked to import a Word outline. Binder "Import outline…" →
    `src/features/import/` (mammoth 1.13 → HTML → `planOutline` → `applyOutlinePlan`).
    Mapping: two highest heading levels → chapter/scene. Body text → synopsis, and
@@ -633,6 +633,32 @@ keyboard down and up).
    it is now fixed to 520px. The real DB was restored and its hash verified. New-manuscript option smoked 2026-11-12 (swapped DB, Cole drove the picker and dialog):
    the project was created with the typed title, filled, and switched to; the starter
    project was untouched; no console errors; the real DB was restored and its hash verified. Ships as CHANGELOG 0.13.3.
+10. **0.14 — import pipeline for any format (decided 2026-11-12, Cole: "I trust you").**
+   Goal: import works across formats and however people format their files, not only Word
+   Heading styles. Shape:
+   - **Readers** turn each format into one shared line list: text, style name,
+     heading/outline level, bold/italic/size/all-caps/centred, list depth, page-break-before,
+     and scene-break markers (`***`, `#`, `* * *`). Word: our own reader over
+     `word/document.xml` + `styles.xml` (jszip is already shipped). That catches custom
+     outline-level styles, hand formatting and page breaks, which mammoth drops. Order:
+     .docx, then .md/.txt, then .odt and .html (covers Google Docs and Notion exports), then
+     OPML. Later, as separate projects: Scrivener `.scriv` and RTF.
+   - **Classifier**, the same for every format: real structure, then Chapter/Part/Book/Act +
+     number-or-word patterns and Prologue/Epilogue, then appearance (short standalone
+     bold/large/centred/caps lines that repeat), then list nesting. It groups lines and
+     guesses a role (chapter / scene / text) per group.
+   - **Mapping step** in the preview: one Chapter/Scene/Text dropdown per group, with
+     examples and a live tree. The default guess should mean most people just press Import.
+   - **Drafts included:** a "Text under scenes goes into: synopsis / scene text" choice,
+     auto-guessed (short notes → synopsis, real prose → scene text). Scene text is written
+     as a new per-scene Yjs doc via sceneDocStore. The editor core is not touched.
+   - **No AI in the core.** It may lose text, and AI must stay optional. Later, only if the
+     default guess proves wrong often: an optional "Help me sort this" button that labels
+     candidate lines only, never rewrites them, over the existing managed / BYOK / Ollama
+     paths. Do not bundle a local model (it adds 400 MB+ to a 20 MB installer).
+   - **Test collection** of real-world-shaped files with expected trees, run on every change.
+     A badly imported user file becomes a new case.
+   Being built on branch `import-pipeline` (worktree `.scratch/wt-import`).
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.
