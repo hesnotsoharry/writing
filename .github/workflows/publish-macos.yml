@@ -22,8 +22,13 @@ jobs:
     env:
       APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      # Notarization uses the App Store Connect API key, not Apple ID + an
+      # app-specific password: those get revoked when the Apple ID password
+      # changes (v0.13.2's first macOS run failed notarization with a 401).
+      # APPLE_ID/APPLE_PASSWORD must stay unset, or Tauri uses them first.
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       GH_TOKEN: ${{ github.token }}
@@ -106,9 +111,24 @@ jobs:
           [[ "$(printf '%s\n' "$identity" | sed '/^$/d' | wc -l | tr -d ' ')" == "1" ]]
           printf 'APPLE_SIGNING_IDENTITY=%s\n' "$identity" >> "$GITHUB_ENV"
 
+      - name: Write the App Store Connect API key for notarytool
+        shell: bash
+        env:
+          API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$APPLE_API_KEY_P8" > "$API_KEY_PATH"
+          echo "APPLE_API_KEY_PATH=$API_KEY_PATH" >> "$GITHUB_ENV"
+
       - name: Build, sign, notarize, and upsert macOS release assets
         shell: bash
-        run: CI=true bash publish-mac.sh
+        # The app is built from the tag, but the pipeline script comes from the
+        # commit this workflow runs from, so pipeline fixes apply to older tags.
+        run: |
+          set -euo pipefail
+          git checkout "$GITHUB_SHA" -- publish-mac.sh
+          CI=true bash publish-mac.sh
 
       - name: Remove ephemeral signing material
         if: always()
@@ -118,4 +138,4 @@ jobs:
           KEYCHAIN_PATH: ${{ runner.temp }}/writersnook-build.keychain-db
         run: |
           security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
-          rm -f "$CERTIFICATE_PATH"
+          rm -f "$CERTIFICATE_PATH" "${{ runner.temp }}/AuthKey.p8"

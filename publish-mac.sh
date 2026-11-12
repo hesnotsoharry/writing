@@ -395,10 +395,17 @@ if ! rustup target list --installed | grep -q "^${TARGET}\$"; then
     exit 1
 fi
 # APPLE_SIGNING_IDENTITY drives codesign (maps to bundle.macOS.signingIdentity).
-# APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID drive notarytool. The TAURI_SIGNING_*
+# notarytool auth is EITHER the App Store Connect API key (APPLE_API_KEY /
+# APPLE_API_ISSUER / APPLE_API_KEY_PATH, which CI uses) OR Apple ID plus an
+# app-specific password (APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID). Tauri
+# uses the Apple ID set whenever all three are present. The TAURI_SIGNING_*
 # pair is the shared updater key (same one publish.ps1 uses on Windows).
-require_env APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID \
-            TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+require_env APPLE_SIGNING_IDENTITY TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+if [ -n "${APPLE_ID:-}" ]; then
+    require_env APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+else
+    require_env APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH
+fi
 
 publish_version="$(resolve_publish_version)" || exit 1
 tag="v${publish_version}"

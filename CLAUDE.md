@@ -33,6 +33,11 @@ Stack: Tauri 2 + React 19 + Vite + TypeScript (frontend), Rust (shell), SQLite (
   signs + notarizes on a `macos-latest` runner and calls the script with `CI=true`). The two
   publishes share ONE `latest.json` per tag: Windows writes the `windows-x86_64` key first,
   then the workflow upserts `darwin-aarch64` — contract in the `publish.ps1` header comment.
+  CI notarizes with the App Store Connect API key (repo secrets `APPLE_API_KEY` = key ID,
+  `APPLE_API_ISSUER`, `APPLE_API_KEY_P8` = the `.p8` contents; local copy
+  `~/.appstoreconnect/AuthKey_<id>.p8`). It does not use Apple ID + app-specific password, which
+  get revoked whenever the Apple ID password changes (v0.13.2's first macOS run hit a 401). The
+  workflow runs `publish-mac.sh` from the dispatching commit, not from the tag.
 
 ## Key Files
 
