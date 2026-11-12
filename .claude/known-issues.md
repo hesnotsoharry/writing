@@ -55,6 +55,11 @@ trap. Cost two broken ships in wave-28 (P7 focus mode, P8 auto-link).
 - To drive a Tauri command end to end without the UI, import the app's own client module in
   the dev page: `const m = await import('/src/features/ai/byok.local.client.ts')` (Vite serves
   source paths in dev), then call it with an event collector. Used for the v0.13.2 live Gab check.
+- You cannot stub a plugin call (e.g. `plugin:dialog|open`) by replacing
+  `window.__TAURI_INTERNALS__.invoke`: the property is non-writable, so the assignment silently
+  does nothing and the real native dialog opens. Native dialogs are outside CDP — have Cole pick
+  the file, or call the downstream module directly (fs scope `$APPDATA/portraits/**` is readable
+  without a picker). Found in the 2026-11-12 outline-import smoke.
 - dnd-kit drags still don't reproduce reliably via the synthetic `drag` tool. For drag bugs,
   instrument with `console.log` + have a human do one real drag, then read
   `list_console_messages`.

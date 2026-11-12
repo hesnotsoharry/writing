@@ -626,8 +626,10 @@ keyboard down and up).
    scenes. Appends only. There is no transaction: a failed write mid-import leaves
    what was created, and the binder reloads to show it (`PartialImportError`
    reports how far it got). Tests: `importOutline*.test.ts*`, which run on real
-   .docx bytes built with the `docx` lib. NOT yet smoked in `tauri dev`; ships as
-   CHANGELOG 0.13.3.
+   .docx bytes built with the `docx` lib. Smoked in `tauri dev` 2026-11-12 on a swapped DB. Cole picked a real .docx through
+   the native picker. The rows matched the file: 2 chapters, 4 Outline scenes with
+   synopses, plus the notes piece, and there were no console errors. The dialog was full-width;
+   it is now fixed to 520px. The real DB was restored and its hash verified. Ships as CHANGELOG 0.13.3.
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.

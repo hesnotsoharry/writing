@@ -86,12 +86,13 @@ export function ImportOutlineDialog(p: ImportOutlineDialogProps): ReactElement {
   return (
     <div className="scrim" role="presentation" style={{ position: "fixed", zIndex: 100 }} onMouseDown={busy ? undefined : p.onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="import-outline-title"
+        style={{ width: 520, maxWidth: "calc(100vw - 32px)" }}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => { if (e.key === "Escape" && !busy) { e.preventDefault(); p.onClose(); } }}>
         <div className="sheet-head"><div className="sheet-title" id="import-outline-title">Import outline</div></div>
         {picked ? <Preview picked={picked} /> : <Intro />}
         {error && <p className="byok-key-error" role="alert" style={{ padding: "0 20px" }}>{error}</p>}
-        <div className="sheet-foot">
+        <div className="sheet-foot" style={{ justifyContent: "flex-end" }}>
           <button type="button" className="btn btn-ghost" onClick={p.onClose} disabled={busy}>Cancel</button>
           {picked && phase.kind !== "busy" && <button type="button" className="btn btn-ghost" onClick={() => { void choose(); }}>Choose another file</button>}
           {picked
