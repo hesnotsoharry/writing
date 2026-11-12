@@ -596,6 +596,16 @@ keyboard down and up).
    (project, goal_type) as a merge rule in the sync apply target (LWW picks the
    newer row and tombstones the loser), then add the UNIQUE constraint behind
    it. Not a user-facing toggle. Not built yet.
+8. **2026-11-11 sweep left these open.** (a) The proxy temperature fix (`d70439c`) is
+   live only after a push to master; the BYOK half needs a desktop release. (b) TipTap
+   went 3.24 → 3.33.1 for a security fix. Run a CDP editor smoke against `tauri dev`
+   before the next release: typing, paste, undo, highlight, collaboration hydrate.
+   (c) The model catalog is a generation behind. Haiku 5.5, Sonnet 5.5, Opus 5.5 and
+   Fable 5.2 are out, and Haiku 4.5 is past its "not sooner than 2026-10-15"
+   retirement floor. Adding them touches `MANAGED_MODELS`, server and client rates,
+   `MIN_CACHEABLE_TOKENS` (512 for all four) and `effort.ts`. Haiku 5.5 also has a
+   >100k-token price tier. (d) Tauri JS 2.11 → 2.12 plus its plugins have to move
+   together with the Rust crates (`cargo update`).
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.
