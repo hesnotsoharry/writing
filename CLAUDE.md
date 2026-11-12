@@ -5,9 +5,10 @@ modern writing space with a Scrivener-style binder, owned local storage, and aut
 backup. **Opt-in AI assistant** (consent-gated, subscription-funded brainstorming; AI is never
 required for core writing and costs zero when unused).
 
-> Status: **shipped and in use**, branded as WritersNook. v0.12.6 is released on both Windows and
-> macOS via a signed GitHub-release auto-update pipeline and installed on real users' machines
-> (Cole + writing partner); working version is 0.12.7. Read `roadmap/HANDOFF.md` for current state.
+> Status: **shipped and in use**, branded as WritersNook. v0.13.1 (2026-09-15) is released on both
+> Windows and macOS via a signed GitHub-release auto-update pipeline and installed on real users'
+> machines; 0.13.2 is in progress (`CHANGELOG.md` "Unreleased" — version files still read 0.13.1
+> until the release bump). Read `roadmap/HANDOFF.md` for current state.
 
 ## Commands
 
