@@ -606,6 +606,18 @@ keyboard down and up).
    `MIN_CACHEABLE_TOKENS` (512 for all four) and `effort.ts`. Haiku 5.5 also has a
    >100k-token price tier. (d) Tauri JS 2.11 → 2.12 plus its plugins have to move
    together with the Rust crates (`cargo update`).
+   (e) Custom-endpoint fix (`d8cdf24`: required model field, endpoint-named errors,
+   `max_tokens`, Gab model filter) is unit-tested only. Click through Settings →
+   Assistant → Add endpoint in `tauri dev` before release. Gab's handling of
+   `stream_options` is unverified without a key.
+9. **Outline import from .docx — first user request (2026-11-11).** A paying user
+   (Gab AI BYOK user) wants to import a story outline from Word. Nothing imports today
+   (no parser, no file-open path; only a portrait-image picker). Shape: Word heading 1
+   → chapter, heading 2 → scene, body under a heading → synopsis or scene text.
+   Needs a docx reader (e.g. mammoth, new dependency) plus binder `createFolder` /
+   `createScene` / `setSceneSynopsis`. Editor core is untouched. Estimate is about
+   2–3 days with tests. No transaction API, so a failed import leaves partial
+   chapters behind.
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.
