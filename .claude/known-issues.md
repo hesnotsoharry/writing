@@ -48,6 +48,13 @@ trap. Cost two broken ships in wave-28 (P7 focus mode, P8 auto-link).
 - For the ProseMirror scene editor specifically: focus it, place a Selection at the end, then
   use the MCP's `type_text` (trusted keystrokes) — `fill`/native-setter tricks don't apply,
   it owns its own DOM.
+- Binder scene rows: the MCP `click` on the dnd-kit "sortable" button does NOT open the
+  scene. Call the row's handler instead —
+  `li.scene-row` → `li[Object.keys(li).find(k => k.startsWith('__reactProps'))].onClick({...})`
+  (find the row by `.scene-title` text). Verified 2026-11-11.
+- To drive a Tauri command end to end without the UI, import the app's own client module in
+  the dev page: `const m = await import('/src/features/ai/byok.local.client.ts')` (Vite serves
+  source paths in dev), then call it with an event collector. Used for the v0.13.2 live Gab check.
 - dnd-kit drags still don't reproduce reliably via the synthetic `drag` tool. For drag bugs,
   instrument with `console.log` + have a human do one real drag, then read
   `list_console_messages`.

@@ -606,10 +606,17 @@ keyboard down and up).
    `MIN_CACHEABLE_TOKENS` (512 for all four) and `effort.ts`. Haiku 5.5 also has a
    >100k-token price tier. (d) Tauri JS 2.11 → 2.12 plus its plugins have to move
    together with the Rust crates (`cargo update`).
-   (e) Custom-endpoint fix (`d8cdf24`: required model field, endpoint-named errors,
-   `max_tokens`, Gab model filter) is unit-tested only. Click through Settings →
-   Assistant → Add endpoint in `tauri dev` before release. Gab's handling of
-   `stream_options` is unverified without a key.
+   (e) DONE: CDP smoke in `tauri dev` on 2026-11-11 with the DB-swap protocol; the
+   restored DB hash matched. Results:
+   - Editor (TipTap 3.33.1): typing, undo and redo, rich paste (an injected `<img onerror>`
+     was stripped and never ran), highlight, and persistence across a full reload all work.
+   - Custom endpoint against live Gab: Save is blocked without a model, Discover returns
+     62 chat models, the endpoint saves as default, and a keyless chat shows "rejected
+     the API key".
+   - One oddity: after undo-all then redo, an extra empty first paragraph remains. It's
+     probably pre-existing y-tiptap behaviour (y-tiptap was not bumped), but that is
+     unconfirmed.
+   - Still unverified without a key: Gab's handling of `stream_options`.
 9. **Outline import from .docx — first user request (2026-11-11).** A paying user
    (Gab AI BYOK user) wants to import a story outline from Word. Nothing imports today
    (no parser, no file-open path; only a portrait-image picker). Shape: Word heading 1
