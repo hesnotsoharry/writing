@@ -134,6 +134,7 @@ describe("P6.2 — Project switch resets brainstorm view and board selection", (
     const { result } = renderHook(() =>
       useProjectActions({
         binderStore: mockBinderStore as never,
+        sceneDocStore: {} as never,
         activeProjectIdRef,
         loadProjectTokenRef,
         setTree,

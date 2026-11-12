@@ -65,6 +65,18 @@ const manuscriptKey = (projectId: string): ScopedGoalKey => ({
   projectId, scope: "manuscript", targetId: null,
 });
 
+/**
+ * Imported text isn't writing: lift today's manuscript baseline by the words an
+ * import added so they don't count toward today's goal. With no baseline yet
+ * today, the next read sets one after the import anyway, so nothing to do.
+ */
+export function excludeImportedWords(projectId: string, words: number): void {
+  const storageKey = baselineKey(manuscriptKey(projectId), today());
+  const baseline = localStorage.getItem(storageKey);
+  if (baseline === null || words <= 0) return;
+  localStorage.setItem(storageKey, String(Number(baseline) + words));
+}
+
 /** @deprecated Use ensureDailyBaselineScoped. */
 export function ensureDailyBaseline(projectId: string, currentTotal: number): void {
   ensureDailyBaselineScoped(manuscriptKey(projectId), currentTotal);

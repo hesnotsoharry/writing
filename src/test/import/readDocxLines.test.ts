@@ -67,7 +67,7 @@ describe("readDocxLines", () => {
       new Paragraph({ text: "Same page" }),
     ]);
     expect(got.map((l) => [l.text, l.pageBreakBefore])).toEqual([
-      ["End of chapter one.", false], ["Chapter Two", true], ["Starts fresh", true], ["Same page", false],
+      ["End of chapter one.", true], ["Chapter Two", true], ["Starts fresh", true], ["Same page", false],
     ]);
   });
 

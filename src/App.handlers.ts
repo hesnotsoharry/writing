@@ -11,7 +11,8 @@ import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
 import type { SqliteBinderStore } from "./db/sqliteBinderStore";
 import type { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
-import { applyOutlinePlan, type ImportOutlineResult } from "./features/import/applyOutlinePlan";
+import { excludeImportedWords } from "./features/goals/goalModel";
+import { applyOutlinePlan, type ImportOutlineResult, PartialImportError } from "./features/import/applyOutlinePlan";
 import type { OutlinePlan } from "./features/import/outlinePlan";
 
 export function logCrudError(op: string) {
@@ -67,13 +68,18 @@ interface CrudDeps {
 }
 
 function buildImportCallback(deps: CrudDeps): BinderCallbacks["onImportOutline"] {
-  const { binderStore, getProjectId, doReload, importNewManuscript } = deps;
+  const { binderStore, sceneDocStore, getProjectId, doReload, importNewManuscript } = deps;
   return (plan, target) => {
     if (target.kind === "new" && importNewManuscript) return importNewManuscript(plan, target.title);
-    // Reload even when the import stops part-way, so whatever was created shows up.
-    return applyOutlinePlan(binderStore, getProjectId(), plan).finally(() => {
-      doReload().catch(logCrudError("importOutline:reload"));
-    });
+    // Imported text doesn't count toward today's goal, and the binder reloads
+    // even when the import stops part-way so whatever was created shows up.
+    const projectId = getProjectId();
+    return applyOutlinePlan({ binder: binderStore, docs: sceneDocStore }, projectId, plan)
+      .then((r) => { excludeImportedWords(projectId, r.words); return r; }, (e: unknown) => {
+        if (e instanceof PartialImportError) excludeImportedWords(projectId, e.created.words);
+        throw e;
+      })
+      .finally(() => { doReload().catch(logCrudError("importOutline:reload")); });
   };
 }
 

@@ -202,7 +202,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   });
   const selectScene = useAutoSnapHooks(selectedSceneId, doc, handleSelectScene, flushPendingSave);
   const { onSwitchProject, onCreateProject, onImportNewManuscript } = useProjectActions({
-    binderStore, activeProjectIdRef, loadProjectTokenRef,
+    binderStore, sceneDocStore, activeProjectIdRef, loadProjectTokenRef,
     setTree: setTree as (t: BinderTree) => void,
     setProjects, setActiveProjectId: setActiveProject, handleSelectScene, clearScene,
     setView,

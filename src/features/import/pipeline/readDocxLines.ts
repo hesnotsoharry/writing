@@ -102,7 +102,9 @@ export function docxXmlToLines(documentXml: string, stylesXml: string | null): I
   const doc = new DOMParser().parseFromString(documentXml, "application/xml");
   const styles = parseDocxStyles(stylesXml);
   const lines: ImportLine[] = [];
-  let pending = false;
+  // The document's first line is at the top of a page too, so a draft whose
+  // chapters each start a page keeps its first chapter.
+  let pending = true;
   for (const p of Array.from(doc.getElementsByTagNameNS(W, "p"))) {
     if (inFallback(p)) continue;
     const para = readPara(p, styles);

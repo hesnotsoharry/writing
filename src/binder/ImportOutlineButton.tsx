@@ -1,5 +1,5 @@
 /**
- * ImportOutlineButton.tsx — the binder's "Import outline…" entry point, under
+ * ImportOutlineButton.tsx — the binder's "Import file…" entry point, under
  * "New chapter". Owns the dialog's open state; the write itself is the
  * BinderCallbacks.onImportOutline callback (App wires store + reload/switch).
  */
@@ -27,7 +27,7 @@ export function ImportOutlineButton({ onImport }: { onImport: OnImport }): React
   return (
     <>
       <button className="add-chapter" onClick={() => setOpen(true)}>
-        <Icon name="download" style={{ width: 13, height: 13 }} /> Import outline…
+        <Icon name="download" style={{ width: 13, height: 13 }} /> Import file…
       </button>
       {open && <ImportOutlineDialog onImport={importAndReport} onClose={() => setOpen(false)} />}
     </>

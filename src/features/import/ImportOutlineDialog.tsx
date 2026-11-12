@@ -1,28 +1,29 @@
 /**
- * ImportOutlineDialog.tsx — "Import outline…" from the binder.
+ * ImportOutlineDialog.tsx — "Import file…" from the binder.
  *
- * Pick a .docx → preview the chapters and scenes it will create → choose where
- * they go (end of this manuscript, or a new manuscript) → import. Nothing is
- * written until the user confirms.
+ * Pick a .docx / .md / .txt → see what kinds of line were found and what each
+ * becomes (chapter, scene, scene break, text), where text goes (synopsis or the
+ * scene itself), the resulting tree, and the destination → import. Nothing is
+ * written until the user confirms; every choice updates the preview live.
  */
-import { type ReactElement, useState } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 
 import type { ImportOutlineResult, ImportTarget } from "./applyOutlinePlan";
-import { OutlineImportError, type OutlinePlan, sceneCount } from "./outlinePlan";
-import { pickDocxOutline, type PickedOutline } from "./readDocxOutline";
+import { type Destination,ImportPreview } from "./ImportPreview";
+import { OutlineImportError, type OutlinePlan, planProblem } from "./outlinePlan";
+import { type BodyMode, buildPlan, defaultRoles, guessBodyMode, type RoleMap } from "./pipeline/buildPlan";
+import { type PickedFile, pickImportFile } from "./readImportFile";
 
 export interface ImportOutlineDialogProps {
   /** Writes the plan into the binder (BinderCallbacks.onImportOutline). */
   onImport: (plan: OutlinePlan, target: ImportTarget) => Promise<ImportOutlineResult>;
   onClose: () => void;
-  /** Injectable for tests; defaults to the native picker + .docx reader. */
-  pick?: () => Promise<PickedOutline | null>;
+  /** Injectable for tests; defaults to the native picker + readers. */
+  pick?: () => Promise<PickedFile | null>;
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 /** "Salt Road outline.docx" → "Salt Road outline". */
-export const titleFromFileName = (fileName: string) => fileName.replace(/\.docx$/i, "").trim();
+export const titleFromFileName = (fileName: string) => fileName.replace(/\.[a-z]{2,8}$/i, "").trim();
 
 function errorMessage(e: unknown): string {
   if (e instanceof OutlineImportError) return e.message;
@@ -32,119 +33,95 @@ function errorMessage(e: unknown): string {
 function Intro(): ReactElement {
   return (
     <div className="sheet-body">
-      <p>Bring in an outline from a Word document (.docx). Add it to the end of this manuscript —
-        nothing already here changes — or start a new manuscript from it.</p>
-      <ul>
-        <li><strong>Heading 1</strong> lines become chapters.</li>
-        <li><strong>Heading 2</strong> lines become scenes in that chapter.</li>
-        <li>Text under a scene heading becomes the scene&rsquo;s synopsis, marked <em>Outline</em>.</li>
-      </ul>
-      <p className="sheet-sub">No headings? A bulleted list works too: top bullets become chapters, indented
-        bullets become scenes.</p>
+      <p>Bring in an outline or a draft from a Word (.docx), Markdown (.md) or text (.txt) file.</p>
+      <p>WritersNook finds the chapter and scene titles — Heading styles, lines like &ldquo;Chapter 7&rdquo;,
+        bold or centred titles, scene breaks like &ldquo;* * *&rdquo;, or nested bullets. You&rsquo;ll see what it
+        found and can change it before anything is added.</p>
+      <p className="sheet-sub">Add it to the end of this manuscript (nothing already here changes) or start a new one.</p>
     </div>
   );
 }
 
-interface Destination { kind: ImportTarget["kind"]; title: string }
+type Busy = null | "reading" | "importing";
 
-function DestinationChoice({ dest, setDest }: { dest: Destination; setDest: (d: Destination) => void }): ReactElement {
-  return (
-    <fieldset className="import-outline-dest" style={{ border: 0, padding: 0, margin: "12px 0 0" }}>
-      <legend className="sheet-sub" style={{ padding: 0 }}>Import into</legend>
-      <label style={{ display: "block", marginTop: 6 }}>
-        <input type="radio" name="import-dest" checked={dest.kind === "current"}
-          onChange={() => setDest({ ...dest, kind: "current" })} /> The end of this manuscript
-      </label>
-      <label style={{ display: "block", marginTop: 4 }}>
-        <input type="radio" name="import-dest" checked={dest.kind === "new"}
-          onChange={() => setDest({ ...dest, kind: "new" })} /> A new manuscript
-      </label>
-      {dest.kind === "new" && (
-        <div className="fr-field" style={{ marginTop: 6 }}>
-          <input aria-label="New manuscript title" value={dest.title} maxLength={200} placeholder="Untitled manuscript"
-            onChange={(e) => setDest({ ...dest, title: e.target.value })} />
-        </div>
-      )}
-    </fieldset>
-  );
+interface Choices { roles: RoleMap; mode: BodyMode; dest: Destination }
+
+function initialChoices(picked: PickedFile, prev: Destination): Choices {
+  const c = picked.classification;
+  return { roles: defaultRoles(c), mode: guessBodyMode(c), dest: { ...prev, title: titleFromFileName(picked.fileName) } };
 }
-
-function Preview({ picked, dest, setDest }: { picked: PickedOutline; dest: Destination; setDest: (d: Destination) => void }): ReactElement {
-  const { plan } = picked;
-  return (
-    <div className="sheet-body">
-      <p><strong>{picked.fileName}</strong> — {plural(plan.chapters.length, "chapter")}, {plural(sceneCount(plan), "scene")}.</p>
-      <ol className="import-outline-preview" style={{ maxHeight: 220, overflowY: "auto", paddingLeft: 20 }}>
-        {plan.chapters.map((ch, i) => (
-          <li key={i}>
-            <strong>{ch.title}</strong>
-            {ch.scenes.length > 0 && <ul>{ch.scenes.map((s, j) => <li key={j}>{s.title}</li>)}</ul>}
-          </li>
-        ))}
-      </ol>
-      {plan.notes && <p className="sheet-sub">Text before the first heading goes into an &ldquo;Outline notes&rdquo; short piece.</p>}
-      <DestinationChoice dest={dest} setDest={setDest} />
-    </div>
-  );
-}
-
-type Phase = { kind: "intro" } | { kind: "preview"; picked: PickedOutline } | { kind: "busy"; picked: PickedOutline | null };
-
-const toTarget = (d: Destination): ImportTarget => (d.kind === "new" ? { kind: "new", title: d.title.trim() } : { kind: "current" });
 
 function useImportFlow(p: ImportOutlineDialogProps) {
-  const [phase, setPhase] = useState<Phase>({ kind: "intro" });
+  const [picked, setPicked] = useState<PickedFile | null>(null);
+  const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dest, setDest] = useState<Destination>({ kind: "current", title: "" });
+  const [choices, setChoices] = useState<Choices>({ roles: {}, mode: "synopsis", dest: { kind: "current", title: "" } });
+  const plan = useMemo(() => (picked ? buildPlan(picked.classification, choices.roles, choices.mode) : null), [picked, choices]);
   async function choose() {
-    setError(null); setPhase({ kind: "busy", picked: null });
+    setError(null); setBusy("reading");
     try {
-      const picked = await (p.pick ?? pickDocxOutline)();
-      if (picked) setDest((d) => ({ ...d, title: titleFromFileName(picked.fileName) }));
-      setPhase(picked ? { kind: "preview", picked } : { kind: "intro" });
-    } catch (e) { setError(errorMessage(e)); setPhase({ kind: "intro" }); }
+      const next = await (p.pick ?? pickImportFile)();
+      if (next) { setChoices((c) => initialChoices(next, c.dest)); setPicked(next); }
+    } catch (e) { setError(errorMessage(e)); }
+    setBusy(null);
   }
-  async function confirm(picked: PickedOutline) {
-    setError(null); setPhase({ kind: "busy", picked });
-    try { await p.onImport(picked.plan, toTarget(dest)); p.onClose(); }
-    catch (e) { setError(errorMessage(e)); setPhase({ kind: "preview", picked }); }
+  async function confirm() {
+    if (!plan) return;
+    setError(null); setBusy("importing");
+    const dest = choices.dest;
+    try { await p.onImport(plan, dest.kind === "new" ? { kind: "new", title: dest.title.trim() } : { kind: "current" }); p.onClose(); }
+    catch (e) { setError(errorMessage(e)); setBusy(null); }
   }
-  return { phase, error, dest, setDest, choose, confirm };
+  return { picked, plan, busy, error, choices, setChoices, choose, confirm };
+}
+
+type Flow = ReturnType<typeof useImportFlow>;
+
+function canImportNow(f: Flow, problem: string | null): boolean {
+  const titled = f.choices.dest.kind === "current" || f.choices.dest.title.trim() !== "";
+  return f.busy === null && !!f.plan && !problem && titled;
+}
+
+function Body({ f }: { f: Flow }): ReactElement {
+  const { choices, setChoices } = f;
+  if (!f.picked || !f.plan) return <Intro />;
+  return (
+    <ImportPreview fileName={f.picked.fileName} groups={f.picked.classification.groups} plan={f.plan}
+      roles={choices.roles} setRoles={(roles) => setChoices({ ...choices, roles })}
+      mode={choices.mode} setMode={(mode) => setChoices({ ...choices, mode })}
+      dest={choices.dest} setDest={(dest) => setChoices({ ...choices, dest })} />
+  );
 }
 
 export function ImportOutlineDialog(p: ImportOutlineDialogProps): ReactElement {
-  const { phase, error, dest, setDest, choose, confirm } = useImportFlow(p);
-  const picked = phase.kind === "intro" ? null : phase.picked;  const busy = phase.kind === "busy";
-  const canImport = !busy && (dest.kind === "current" || dest.title.trim() !== "");
+  const f = useImportFlow(p);
+  const problem = f.plan ? planProblem(f.plan) : null;
+  const canImport = canImportNow(f, problem);
   return (
-    <div className="scrim" role="presentation" style={{ position: "fixed", zIndex: 100 }} onMouseDown={busy ? undefined : p.onClose}>
+    <div className="scrim" role="presentation" style={{ position: "fixed", zIndex: 100 }} onMouseDown={f.busy ? undefined : p.onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="import-outline-title"
-        style={{ width: 520, maxWidth: "calc(100vw - 32px)" }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => { if (e.key === "Escape" && !busy) { e.preventDefault(); p.onClose(); } }}>
-        <div className="sheet-head"><div className="sheet-title" id="import-outline-title">Import outline</div></div>
-        {picked ? <Preview picked={picked} dest={dest} setDest={setDest} /> : <Intro />}
-        {error && <p className="byok-key-error" role="alert" style={{ padding: "0 20px" }}>{error}</p>}
-        <Footer picked={picked} busy={busy} canImport={canImport} onClose={p.onClose}
-          onChoose={() => { void choose(); }} onConfirm={(pk) => { void confirm(pk); }} />
+        style={{ width: 600, maxWidth: "calc(100vw - 32px)" }} onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => { if (e.key === "Escape" && !f.busy) { e.preventDefault(); p.onClose(); } }}>
+        <div className="sheet-head"><div className="sheet-title" id="import-outline-title">Import a file</div></div>
+        <Body f={f} />
+        {(f.error ?? problem) && <p className="byok-key-error" role="alert" style={{ padding: "0 20px" }}>{f.error ?? problem}</p>}
+        <Footer picked={!!f.picked} busy={f.busy} canImport={canImport} onClose={p.onClose}
+          onChoose={() => { void f.choose(); }} onConfirm={() => { void f.confirm(); }} />
       </div>
     </div>
   );
 }
 
-interface FooterProps {
-  picked: PickedOutline | null; busy: boolean; canImport: boolean;
-  onClose: () => void; onChoose: () => void; onConfirm: (picked: PickedOutline) => void;
-}
+interface FooterProps { picked: boolean; busy: Busy; canImport: boolean; onClose: () => void; onChoose: () => void; onConfirm: () => void }
 
 function Footer({ picked, busy, canImport, onClose, onChoose, onConfirm }: FooterProps): ReactElement {
   return (
     <div className="sheet-foot" style={{ justifyContent: "flex-end" }}>
-      <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+      <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy !== null}>Cancel</button>
       {picked && !busy && <button type="button" className="btn btn-ghost" onClick={onChoose}>Choose another file</button>}
       {picked
-        ? <button type="button" className="btn btn-primary" disabled={!canImport} onClick={() => onConfirm(picked)}>{busy ? "Importing…" : "Import"}</button>
-        : <button type="button" className="btn btn-primary" disabled={busy} onClick={onChoose}>{busy ? "Reading…" : "Choose Word file…"}</button>}
+        ? <button type="button" className="btn btn-primary" disabled={!canImport} onClick={onConfirm}>{busy === "importing" ? "Importing…" : "Import"}</button>
+        : <button type="button" className="btn btn-primary" disabled={busy !== null} onClick={onChoose}>{busy === "reading" ? "Reading…" : "Choose file…"}</button>}
     </div>
   );
 }

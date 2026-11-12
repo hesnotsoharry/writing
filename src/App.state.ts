@@ -11,6 +11,7 @@ import { logCrudError } from "./App.handlers";
 import type { BinderTree } from "./binder/buildTree";
 import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
+import type { SceneDocStore } from "./db/sceneDocStore";
 import type { SqliteBinderStore } from "./db/sqliteBinderStore";
 import type { ExportScope } from "./features/export/types";
 import type { GoalsInitialScope } from "./features/goals/Goals";
@@ -47,6 +48,8 @@ export async function loadProject(
 
 export interface UseProjectOpts {
   binderStore: SqliteBinderStore;
+  /** Scene text for imported drafts. */
+  sceneDocStore: SceneDocStore;
   activeProjectIdRef: MutableRefObject<string | null>;
   loadProjectTokenRef: MutableRefObject<number>;
   setTree: (t: BinderTree) => void;
@@ -58,7 +61,7 @@ export interface UseProjectOpts {
 }
 
 export function useProjectActions({
-  binderStore, activeProjectIdRef, loadProjectTokenRef, setTree, setProjects,
+  binderStore, sceneDocStore, activeProjectIdRef, loadProjectTokenRef, setTree, setProjects,
   setActiveProjectId, handleSelectScene, clearScene, setView,
 }: UseProjectOpts) {
   async function switchProject(projectId: string) {
@@ -87,19 +90,19 @@ export function useProjectActions({
   return {
     onSwitchProject: (id: string) => { switchProject(id).catch(logCrudError("switchProject")); },
     onCreateProject: (title: string) => { createProject(title).catch(logCrudError("createProject")); },
-    onImportNewManuscript: makeNewManuscriptImport(binderStore, setProjects, switchProject),
+    onImportNewManuscript: makeNewManuscriptImport({ binder: binderStore, docs: sceneDocStore }, setProjects, switchProject),
   };
 }
 
 /** Outline import into a brand-new manuscript, then refresh the project list
  *  and switch to it (also after a part-way failure, so the result is visible). */
 function makeNewManuscriptImport(
-  binderStore: SqliteBinderStore, setProjects: (ps: Project[]) => void,
+  stores: { binder: SqliteBinderStore; docs: SceneDocStore }, setProjects: (ps: Project[]) => void,
   switchProject: (id: string) => Promise<void>,
 ) {
   return (plan: OutlinePlan, title: string): Promise<ImportOutlineResult> =>
-    importIntoNewProject(binderStore, plan, title, (newId) =>
-      binderStore.listProjects().then(setProjects).then(() => switchProject(newId))
+    importIntoNewProject(stores, plan, title, (newId) =>
+      stores.binder.listProjects().then(setProjects).then(() => switchProject(newId))
         .catch(logCrudError("importOutline:switchProject")));
 }
 

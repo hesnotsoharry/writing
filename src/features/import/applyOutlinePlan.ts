@@ -1,23 +1,35 @@
 /**
- * applyOutlinePlan.ts — create an outline plan's chapters and scenes in the binder.
+ * applyOutlinePlan.ts — create an import plan's chapters and scenes in the binder.
  *
  * Writes go through BinderStore, so each row also lands in the sync meta doc
- * (runLocalMetaWrite) exactly like a hand-made chapter or scene. Calls are
- * sequential: createFolder/createScene compute sort_order from the rows already
- * there. tauri-plugin-sql has no transactions, so a failure part-way leaves what
- * was created so far — the error says how much, and nothing is ever deleted.
+ * (runLocalMetaWrite) exactly like a hand-made chapter or scene. Scene text goes
+ * through SceneDocStore the way "promote quick note to scene" does: an encoded
+ * Yjs doc of paragraphs plus its plain-text projection, then a local-write
+ * notification so sync picks it up. Calls are sequential: createFolder /
+ * createScene compute sort_order from the rows already there. tauri-plugin-sql
+ * has no transactions, so a failure part-way leaves what was created so far —
+ * the error says how much, and nothing is ever deleted.
  */
 import type { BinderStore } from "../../db/binderStore";
-import { FALLBACK_CHAPTER_TITLE, type OutlinePlan, type OutlineScene } from "./outlinePlan";
+import type { SceneDocStore } from "../../db/sceneDocStore";
+import { notifyLocalSceneWrite } from "../../sync/localSceneWrites";
+import { noteBodyToSceneDoc } from "../quickcapture/promoteNoteToScene";
+import { FALLBACK_CHAPTER_TITLE, type OutlinePlan, type OutlineScene, wordCount } from "./outlinePlan";
 
-export const OUTLINE_NOTES_TITLE = "Outline notes";
-
-export interface ImportOutlineResult { chapters: number; scenes: number }
+export interface ImportOutlineResult {
+  chapters: number;
+  scenes: number;
+  /** Words of scene text written (drafts); 0 for an outline. */
+  words: number;
+}
 
 /** Where the import goes: the open manuscript, or a new one with this title. */
 export type ImportTarget = { kind: "current" } | { kind: "new"; title: string };
 
-type ImportStore = Pick<BinderStore, "createFolder" | "createScene" | "setSceneSynopsis" | "setSceneStatus">;
+export interface ImportStores {
+  binder: Pick<BinderStore, "createFolder" | "createScene" | "setSceneSynopsis" | "setSceneStatus" | "setSceneWordCount">;
+  docs: Pick<SceneDocStore, "save">;
+}
 
 /** Thrown when the import stops part-way; carries what was already created. */
 export class PartialImportError extends Error {
@@ -26,25 +38,36 @@ export class PartialImportError extends Error {
   }
 }
 
-async function addScene(store: ImportStore, projectId: string, folderId: string | null, s: OutlineScene): Promise<void> {
-  const id = await store.createScene({ projectId, folderId, title: s.title });
-  if (s.synopsis) await store.setSceneSynopsis(id, s.synopsis);
-  await store.setSceneStatus(id, "outline");
+async function writeBody(stores: ImportStores, sceneId: string, paragraphs: string[]): Promise<number> {
+  const text = paragraphs.join("\n");
+  const words = wordCount(text);
+  await stores.docs.save(sceneId, noteBodyToSceneDoc(text), text);
+  await stores.binder.setSceneWordCount(sceneId, words);
+  notifyLocalSceneWrite(sceneId);
+  return words;
+}
+
+interface Target { stores: ImportStores; projectId: string; done: ImportOutlineResult }
+
+async function addScene({ stores, projectId, done }: Target, folderId: string | null, s: OutlineScene): Promise<void> {
+  const id = await stores.binder.createScene({ projectId, folderId, title: s.title });
+  done.scenes += 1;
+  if (s.synopsis) await stores.binder.setSceneSynopsis(id, s.synopsis);
+  if (s.body) done.words += await writeBody(stores, id, s.body);
+  await stores.binder.setSceneStatus(id, s.body ? "draft" : "outline");
 }
 
 /** Append the plan to the end of the project's binder. */
-export async function applyOutlinePlan(store: ImportStore, projectId: string, plan: OutlinePlan): Promise<ImportOutlineResult> {
-  const done: ImportOutlineResult = { chapters: 0, scenes: 0 };
+export async function applyOutlinePlan(stores: ImportStores, projectId: string, plan: OutlinePlan): Promise<ImportOutlineResult> {
+  const done: ImportOutlineResult = { chapters: 0, scenes: 0, words: 0 };
+  const t: Target = { stores, projectId, done };
   try {
     for (const chapter of plan.chapters) {
-      const folderId = await store.createFolder({ projectId, title: chapter.title });
+      const folderId = await stores.binder.createFolder({ projectId, title: chapter.title });
       done.chapters += 1;
-      for (const scene of chapter.scenes) { await addScene(store, projectId, folderId, scene); done.scenes += 1; }
+      for (const scene of chapter.scenes) await addScene(t, folderId, scene);
     }
-    if (plan.notes) {
-      await addScene(store, projectId, null, { title: OUTLINE_NOTES_TITLE, synopsis: plan.notes });
-      done.scenes += 1;
-    }
+    if (plan.notes) await addScene(t, null, plan.notes);
   } catch (e) {
     throw new PartialImportError({ ...done }, e);
   }
@@ -57,12 +80,12 @@ export async function applyOutlinePlan(store: ImportStore, projectId: string, pl
  * whether or not the import finished, so a part-way import is never invisible.
  */
 export async function importIntoNewProject(
-  store: ImportStore & Pick<BinderStore, "createProject">, plan: OutlinePlan, title: string,
+  stores: ImportStores & { binder: Pick<BinderStore, "createProject"> }, plan: OutlinePlan, title: string,
   afterCreate: (projectId: string) => Promise<void>,
 ): Promise<ImportOutlineResult> {
-  const projectId = await store.createProject({ title: title.trim() || FALLBACK_CHAPTER_TITLE, type: "novel" });
+  const projectId = await stores.binder.createProject({ title: title.trim() || FALLBACK_CHAPTER_TITLE, type: "novel" });
   try {
-    return await applyOutlinePlan(store, projectId, plan);
+    return await applyOutlinePlan(stores, projectId, plan);
   } finally {
     await afterCreate(projectId);
   }
