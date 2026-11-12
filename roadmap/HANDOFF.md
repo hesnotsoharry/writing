@@ -659,6 +659,17 @@ keyboard down and up).
    - **Test collection** of real-world-shaped files with expected trees, run on every change.
      A badly imported user file becomes a new case.
    Being built on branch `import-pipeline` (worktree `.scratch/wt-import`).
+   **Progress 2026-11-12:** .docx, .md and .txt readers, the classifier, the mapping preview
+   and drafts are all built (`src/features/import/pipeline/`, `ImportPreview.tsx`).
+   mammoth is removed. Imported words are kept out of today's goal (`excludeImportedWords`).
+   There are 51 import tests, including the collection in `src/test/import/corpus.test.ts`;
+   lint and tsc are clean; the full suite is green.
+   `mobileRelayUrl.test.ts` fails in the worktree only, because there is no
+   `mobile/node_modules`; it passes in the main checkout. **Left to do:**
+   1. A DB-swap smoke in `tauri dev` (needs Cole's OK) with a real .docx outline, a draft and an .md.
+   2. Merge to master.
+   3. .odt / .html, then OPML readers.
+   4. Ship as 0.14.0 (CHANGELOG entry is drafted).
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.

@@ -21,6 +21,28 @@
   note at once, the other version is kept in your Inbox instead of thrown
   away.
 
+## [0.14.0] — Unreleased · Import almost anything
+
+> Not released yet. Date it, and re-check each claim, when publishing.
+
+### Added
+- **Import Markdown and text files, as well as Word.** "Import file…" in the binder
+  now takes .docx, .md and .txt.
+- **Finds your chapters however you marked them.** It recognises:
+  - heading styles, including a template's own chapter style;
+  - lines like "Chapter 7", "Part Two" or "Prologue";
+  - bold, larger or centred titles;
+  - titles that start a new page;
+  - nested bullets.
+
+  Scene breaks like "* * *" or "#" start a new scene.
+- **You choose what each kind of line becomes.** The preview lists every kind of
+  title it found, with examples. Set each one to Chapter, Scene or Text, and the
+  tree updates as you go.
+- **Import a draft, not just an outline.** Text under a scene can go into the scene
+  itself instead of its synopsis. WritersNook guesses which from the file. Imported
+  scenes are marked Draft, and imported words don't count toward today's writing goal.
+
 ## [0.13.3] — 2026-11-12 · Import your outline
 
 ### Added
