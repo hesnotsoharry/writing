@@ -60,6 +60,9 @@ trap. Cost two broken ships in wave-28 (P7 focus mode, P8 auto-link).
   does nothing and the real native dialog opens. Native dialogs are outside CDP — have Cole pick
   the file, or call the downstream module directly (fs scope `$APPDATA/portraits/**` is readable
   without a picker). Found in the 2026-11-12 outline-import smoke.
+- If the CDP target is still `about:blank` after `tauri dev` starts (the window opened before
+  Vite answered), `navigate_page` to `http://localhost:1420/` — the Tauri IPC still works.
+  Seen 2026-11-12.
 - dnd-kit drags still don't reproduce reliably via the synthetic `drag` tool. For drag bugs,
   instrument with `console.log` + have a human do one real drag, then read
   `list_console_messages`.
