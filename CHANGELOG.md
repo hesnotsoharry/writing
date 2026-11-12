@@ -21,18 +21,17 @@
   note at once, the other version is kept in your Inbox instead of thrown
   away.
 
-## [0.13.3] — Unreleased · Import your outline
+## [0.13.3] — 2026-11-12 · Import your outline
 
 ### Added
-- **Import an outline from Word.** "Import outline…" under New chapter in
-  the binder reads a .docx and adds its chapters and scenes to the end of
-  your manuscript. Heading 1 lines become chapters, Heading 2 lines become
-  scenes, and the text under a scene heading becomes its synopsis. Scenes
-  arrive marked Outline. No headings? A bulleted list works too: top bullets
-  become chapters, indented bullets become scenes. You see a preview first.
-  Choose to add the outline to the end of the open manuscript (nothing
-  already there changes) or to start a new manuscript from it, titled after
-  the file — you can rename it before importing.
+- **Import an outline from Word.** Click "Import outline…" under New chapter
+  in the binder and pick a .docx. Heading 1 lines become chapters, Heading 2
+  lines become scenes, and the text under a scene heading becomes its
+  synopsis. Scenes arrive marked Outline. No headings? A bulleted list works
+  too: top bullets become chapters, indented bullets become scenes. You see
+  a preview first, then choose where it goes: the end of the open manuscript
+  (nothing already there changes) or a new manuscript, named after the file
+  — rename it before importing if you like.
 
 ## [0.13.2] — 2026-11-11 · Your own AI models, fixed
 
