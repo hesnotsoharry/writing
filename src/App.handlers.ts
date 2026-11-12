@@ -11,7 +11,8 @@ import { buildTree } from "./binder/buildTree";
 import type { Project } from "./db/binderStore";
 import type { SqliteBinderStore } from "./db/sqliteBinderStore";
 import type { SqliteSceneDocStore } from "./db/sqliteSceneDocStore";
-import { applyOutlinePlan } from "./features/import/applyOutlinePlan";
+import { applyOutlinePlan, type ImportOutlineResult } from "./features/import/applyOutlinePlan";
+import type { OutlinePlan } from "./features/import/outlinePlan";
 
 export function logCrudError(op: string) {
   return (e: unknown) => console.error(`[crud] ${op}`, e);
@@ -61,6 +62,19 @@ interface CrudDeps {
   clearScene: () => void;
   /** Called after a successful archive operation so callers can bump version counters. */
   onArchived?: () => void;
+  /** Creates a new project, imports into it and switches to it (App.state useProjectActions). */
+  importNewManuscript?: (plan: OutlinePlan, title: string) => Promise<ImportOutlineResult>;
+}
+
+function buildImportCallback(deps: CrudDeps): BinderCallbacks["onImportOutline"] {
+  const { binderStore, getProjectId, doReload, importNewManuscript } = deps;
+  return (plan, target) => {
+    if (target.kind === "new" && importNewManuscript) return importNewManuscript(plan, target.title);
+    // Reload even when the import stops part-way, so whatever was created shows up.
+    return applyOutlinePlan(binderStore, getProjectId(), plan).finally(() => {
+      doReload().catch(logCrudError("importOutline:reload"));
+    });
+  };
 }
 
 function buildArchiveCallbacks(
@@ -114,10 +128,7 @@ function buildCrudCallbacks(deps: CrudDeps): BinderCallbacks {
     onSetSceneExcludedFromAi: (id, exclude) => {
       binderStore.setSceneExcludedFromAi(id, exclude).then(doReload).catch(logCrudError("setSceneExcludedFromAi"));
     },
-    // Reload even when the import stops part-way, so whatever was created shows up.
-    onImportOutline: (plan) => applyOutlinePlan(binderStore, getProjectId(), plan).finally(() => {
-      doReload().catch(logCrudError("importOutline:reload"));
-    }),
+    onImportOutline: buildImportCallback(deps),
     ...buildArchiveCallbacks(binderStore, getProjectId, doReload, onArchived),
   };
 }
@@ -131,10 +142,11 @@ interface CrudHookArgs {
   clearScene: () => void;
   /** Called after a successful archive operation so callers can bump version counters. */
   onArchived?: () => void;
+  importNewManuscript?: CrudDeps["importNewManuscript"];
 }
 
 export function useCrudHandlers(args: CrudHookArgs): BinderCallbacks {
-  const { binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene, onArchived } = args;
+  const { binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene, onArchived, importNewManuscript } = args;
   function getProjectId() {
     const id = activeProjectIdRef.current;
     if (!id) throw new Error("No active project");
@@ -143,7 +155,7 @@ export function useCrudHandlers(args: CrudHookArgs): BinderCallbacks {
   async function doReload() {
     await reloadTree(binderStore, getProjectId(), setTree as (t: BinderTree) => void);
   }
-  return buildCrudCallbacks({ binderStore, sceneDocStore, getProjectId, doReload, selectedSceneId, clearScene, onArchived });
+  return buildCrudCallbacks({ binderStore, sceneDocStore, getProjectId, doReload, selectedSceneId, clearScene, onArchived, importNewManuscript });
 }
 
 interface DragHookArgs {

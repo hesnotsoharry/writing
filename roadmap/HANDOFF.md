@@ -623,13 +623,15 @@ keyboard down and up).
    Mapping: two highest heading levels → chapter/scene. Body text → synopsis, and
    scenes are status Outline. Text before the first heading becomes an "Outline
    notes" short piece. No headings falls back to nested bullets. Hard limit: 1000
-   scenes. Appends only. There is no transaction: a failed write mid-import leaves
+   scenes. Destination is chosen at preview: append to the open manuscript, or a new
+   manuscript (`importIntoNewProject`; App switches to it, including after a part-way failure). There is no transaction: a failed write mid-import leaves
    what was created, and the binder reloads to show it (`PartialImportError`
    reports how far it got). Tests: `importOutline*.test.ts*`, which run on real
    .docx bytes built with the `docx` lib. Smoked in `tauri dev` 2026-11-12 on a swapped DB. Cole picked a real .docx through
    the native picker. The rows matched the file: 2 chapters, 4 Outline scenes with
    synopses, plus the notes piece, and there were no console errors. The dialog was full-width;
-   it is now fixed to 520px. The real DB was restored and its hash verified. Ships as CHANGELOG 0.13.3.
+   it is now fixed to 520px. The real DB was restored and its hash verified. The new-manuscript option (added after that smoke) has unit tests only and has not been
+   smoked yet. Ships as CHANGELOG 0.13.3.
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.

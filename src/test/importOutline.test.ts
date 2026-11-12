@@ -7,7 +7,7 @@ import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 import { describe, expect, it } from "vitest";
 
 import { InMemoryBinderStore } from "../db/binderStore";
-import { applyOutlinePlan, OUTLINE_NOTES_TITLE, PartialImportError } from "../features/import/applyOutlinePlan";
+import { applyOutlinePlan, importIntoNewProject, OUTLINE_NOTES_TITLE, PartialImportError } from "../features/import/applyOutlinePlan";
 import { CHAPTER_NOTES_TITLE, FALLBACK_CHAPTER_TITLE, OutlineImportError, planOutline } from "../features/import/outlinePlan";
 import { planFromDocx } from "../features/import/readDocxOutline";
 
@@ -130,5 +130,32 @@ describe("applyOutlinePlan", () => {
     const err = await applyOutlinePlan(flaky, projectId, plan).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(PartialImportError);
     expect((err as PartialImportError).created).toEqual({ chapters: 1, scenes: 1 });
+  });
+});
+
+describe("importIntoNewProject", () => {
+  const plan = planOutline("<h1>One</h1><h2>A</h2><h1>Two</h1><h2>B</h2>");
+
+  it("creates a titled novel, fills it, then hands its id over", async () => {
+    const store = new InMemoryBinderStore();
+    const existing = await store.createProject({ title: "Old book", type: "novel" });
+    const after: string[] = [];
+    const result = await importIntoNewProject(store, plan, "  The Salt Road ", (id) => { after.push(id); return Promise.resolve(); });
+    expect(result).toEqual({ chapters: 2, scenes: 2 });
+    const created = (await store.listProjects()).find((pr) => pr.id !== existing)!;
+    expect([created.title, created.type, after]).toEqual(["The Salt Road", "novel", [created.id]]);
+    expect((await store.loadProject(created.id)).folders.map((f) => f.title)).toEqual(["One", "Two"]);
+    expect((await store.loadProject(existing)).folders).toEqual([]);
+  });
+
+  it("still hands the new project over when the import stops part-way", async () => {
+    const store = new InMemoryBinderStore();
+    const flaky = Object.assign(Object.create(store) as InMemoryBinderStore, {
+      createFolder: () => Promise.reject(new Error("disk full")),
+    });
+    const after: string[] = [];
+    await expect(importIntoNewProject(flaky, plan, "Book", (id) => { after.push(id); return Promise.resolve(); }))
+      .rejects.toBeInstanceOf(PartialImportError);
+    expect(after).toHaveLength(1);
   });
 });

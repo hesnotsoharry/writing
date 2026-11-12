@@ -15,6 +15,8 @@ import type { SqliteBinderStore } from "./db/sqliteBinderStore";
 import type { ExportScope } from "./features/export/types";
 import type { GoalsInitialScope } from "./features/goals/Goals";
 import { readGoalsOn } from "./features/goals/goalStorage";
+import { importIntoNewProject,type ImportOutlineResult } from "./features/import/applyOutlinePlan";
+import type { OutlinePlan } from "./features/import/outlinePlan";
 
 export interface ExportTarget {
   scope: ExportScope;
@@ -85,7 +87,20 @@ export function useProjectActions({
   return {
     onSwitchProject: (id: string) => { switchProject(id).catch(logCrudError("switchProject")); },
     onCreateProject: (title: string) => { createProject(title).catch(logCrudError("createProject")); },
+    onImportNewManuscript: makeNewManuscriptImport(binderStore, setProjects, switchProject),
   };
+}
+
+/** Outline import into a brand-new manuscript, then refresh the project list
+ *  and switch to it (also after a part-way failure, so the result is visible). */
+function makeNewManuscriptImport(
+  binderStore: SqliteBinderStore, setProjects: (ps: Project[]) => void,
+  switchProject: (id: string) => Promise<void>,
+) {
+  return (plan: OutlinePlan, title: string): Promise<ImportOutlineResult> =>
+    importIntoNewProject(binderStore, plan, title, (newId) =>
+      binderStore.listProjects().then(setProjects).then(() => switchProject(newId))
+        .catch(logCrudError("importOutline:switchProject")));
 }
 
 

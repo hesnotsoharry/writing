@@ -13,7 +13,7 @@ import { ContextMenu } from "../components/menu/ContextMenu";
 import { buildChapterMenu, buildSceneMenu } from "../components/menu/sceneMenu";
 import { StatusGlyph } from "../components/StatusGlyph";
 import type { Scene } from "../db/binderStore";
-import type { ImportOutlineResult } from "../features/import/applyOutlinePlan";
+import type { ImportOutlineResult, ImportTarget } from "../features/import/applyOutlinePlan";
 import type { OutlinePlan } from "../features/import/outlinePlan";
 import type { SceneStatus } from "../lib/status";
 import { normalizeStatus } from "../lib/status";
@@ -61,10 +61,11 @@ export interface BinderCallbacks {
    */
   onSetSceneExcludedFromAi?: (sceneId: string, exclude: boolean) => void;
   /**
-   * Append an imported outline's chapters and scenes to the active project.
+   * Create an imported outline's chapters and scenes — appended to the active
+   * project, or in a new project (which then becomes active).
    * Optional — omitting it hides the binder's "Import outline…" button.
    */
-  onImportOutline?: (plan: OutlinePlan) => Promise<ImportOutlineResult>;
+  onImportOutline?: (plan: OutlinePlan, target: ImportTarget) => Promise<ImportOutlineResult>;
 }
 
 // ── InlineRename ──────────────────────────────────────────────────────────

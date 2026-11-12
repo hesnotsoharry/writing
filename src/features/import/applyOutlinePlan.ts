@@ -8,11 +8,14 @@
  * was created so far — the error says how much, and nothing is ever deleted.
  */
 import type { BinderStore } from "../../db/binderStore";
-import type { OutlinePlan, OutlineScene } from "./outlinePlan";
+import { FALLBACK_CHAPTER_TITLE, type OutlinePlan, type OutlineScene } from "./outlinePlan";
 
 export const OUTLINE_NOTES_TITLE = "Outline notes";
 
 export interface ImportOutlineResult { chapters: number; scenes: number }
+
+/** Where the import goes: the open manuscript, or a new one with this title. */
+export type ImportTarget = { kind: "current" } | { kind: "new"; title: string };
 
 type ImportStore = Pick<BinderStore, "createFolder" | "createScene" | "setSceneSynopsis" | "setSceneStatus">;
 
@@ -46,4 +49,21 @@ export async function applyOutlinePlan(store: ImportStore, projectId: string, pl
     throw new PartialImportError({ ...done }, e);
   }
   return done;
+}
+
+/**
+ * Create a new novel project titled `title` and import the plan into it.
+ * `afterCreate` (refresh the list, switch to it) runs once the project exists,
+ * whether or not the import finished, so a part-way import is never invisible.
+ */
+export async function importIntoNewProject(
+  store: ImportStore & Pick<BinderStore, "createProject">, plan: OutlinePlan, title: string,
+  afterCreate: (projectId: string) => Promise<void>,
+): Promise<ImportOutlineResult> {
+  const projectId = await store.createProject({ title: title.trim() || FALLBACK_CHAPTER_TITLE, type: "novel" });
+  try {
+    return await applyOutlinePlan(store, projectId, plan);
+  } finally {
+    await afterCreate(projectId);
+  }
 }

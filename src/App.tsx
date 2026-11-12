@@ -201,7 +201,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
     setProjects, setActiveProjectId: setActiveProject, onSavedRef,
   });
   const selectScene = useAutoSnapHooks(selectedSceneId, doc, handleSelectScene, flushPendingSave);
-  const { onSwitchProject, onCreateProject } = useProjectActions({
+  const { onSwitchProject, onCreateProject, onImportNewManuscript } = useProjectActions({
     binderStore, activeProjectIdRef, loadProjectTokenRef,
     setTree: setTree as (t: BinderTree) => void,
     setProjects, setActiveProjectId: setActiveProject, handleSelectScene, clearScene,
@@ -210,7 +210,7 @@ function useAppWiring(state: ReturnType<typeof useAppState>): AppWiring {
   const { bumpArchivedVersion } = state;
   const callbacks = useCrudHandlers({
     binderStore, sceneDocStore, activeProjectIdRef, setTree, selectedSceneId, clearScene,
-    onArchived: bumpArchivedVersion,
+    onArchived: bumpArchivedVersion, importNewManuscript: onImportNewManuscript,
   });
   const dragCallbacks = useDragHandlers({ binderStore, activeProjectIdRef, setTree });
   const { doReloadTree, doRefreshProjects } =

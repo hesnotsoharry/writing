@@ -29,8 +29,10 @@
   your manuscript. Heading 1 lines become chapters, Heading 2 lines become
   scenes, and the text under a scene heading becomes its synopsis. Scenes
   arrive marked Outline. No headings? A bulleted list works too: top bullets
-  become chapters, indented bullets become scenes. You see a preview first,
-  and nothing already in the manuscript changes.
+  become chapters, indented bullets become scenes. You see a preview first.
+  Choose to add the outline to the end of the open manuscript (nothing
+  already there changes) or to start a new manuscript from it, titled after
+  the file — you can rename it before importing.
 
 ## [0.13.2] — 2026-11-11 · Your own AI models, fixed
 
