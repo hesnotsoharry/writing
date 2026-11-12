@@ -32,3 +32,5 @@ mobile/credentials.json
 mobile/credentials/
 
 release-archive/
+
+.scratch/
