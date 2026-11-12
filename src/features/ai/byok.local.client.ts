@@ -99,6 +99,17 @@ export interface StreamByokLocalChatOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * Phase 5 D3: prefer the endpoint's saved model (typed or picked from discovery in
+ * Settings) over the picker seed. "local" is a placeholder id, never a real model —
+ * sending it 404s on every server, so refuse instead.
+ */
+function resolveModel(endpoint: { name: string; model: string | null }, pickerModel: string): string {
+  const resolved = endpoint.model?.trim() || (pickerModel === "local" ? "" : pickerModel);
+  if (!resolved) throw new Error(`${endpoint.name} has no model chosen — pick one in Settings → Assistant`);
+  return resolved;
+}
+
 /** Wire an AbortSignal to stop the given stream. */
 function wireSignal(signal: AbortSignal, streamId: string): void {
   signal.addEventListener("abort", () => void byokLocalStop(streamId));
@@ -137,10 +148,7 @@ export async function streamByokLocalChat(
     throw new Error("No local endpoint configured — add one in Settings → Assistant");
   }
 
-  // Phase 5 D3: prefer the endpoint's saved model (set via discovery or manual
-  // entry) over the picker seed "local". When discovery failed, endpoint.model
-  // holds the manually-entered name; the picker may still pass "local".
-  const resolvedModel = endpoint.model ?? model;
+  const resolvedModel = resolveModel(endpoint, model);
 
   const ch = new Channel<NormalizedEvent>();
   ch.onmessage = onEvent;

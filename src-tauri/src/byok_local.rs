@@ -69,15 +69,7 @@ pub async fn byok_local_chat(
             .into_iter()
             .map(|m| serde_json::json!({ "role": m.role, "content": m.content })),
     );
-    let body = serde_json::json!({
-        "model": model,
-        "messages": messages_json,
-        "stream": true,
-        "stream_options": { "include_usage": true },
-        "max_completion_tokens": max_completion_tokens,
-        "temperature": temperature,
-        // reasoning_effort INTENTIONALLY OMITTED — local servers reject unknown params
-    });
+    let body = local_body(&model, messages_json, max_completion_tokens, temperature);
 
     // Build headers.
     // W45 invariant #2: Authorization omitted when no key (keyless local servers).
@@ -107,10 +99,32 @@ pub async fn byok_local_chat(
         &state,
         stream_id,
         on_event,
-        WireFormat::OpenAiCompatible,
+        WireFormat::CustomEndpoint,
         request,
     )
     .await
+}
+
+/// The Chat Completions body for a custom endpoint.
+///
+/// `max_tokens`, not OpenAI's newer `max_completion_tokens`: Ollama, Gab AI,
+/// LM Studio and llama.cpp document only `max_tokens` (Ollama silently ignores
+/// the other name, so replies were uncapped). `reasoning_effort` is
+/// INTENTIONALLY OMITTED — local servers reject unknown params (W45 invariant #3).
+fn local_body(
+    model: &str,
+    messages: Vec<serde_json::Value>,
+    max_tokens: u32,
+    temperature: f32,
+) -> serde_json::Value {
+    serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": true,
+        "stream_options": { "include_usage": true },
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    })
 }
 
 /// Cancel an in-flight `byok_local_chat` stream by stream_id.
@@ -163,15 +177,7 @@ pub(crate) fn build_local_request_spec(
     max_completion_tokens: u32,
     temperature: f32,
 ) -> RequestSpec {
-    let body = serde_json::json!({
-        "model": model,
-        "messages": [],
-        "stream": true,
-        "stream_options": { "include_usage": true },
-        "max_completion_tokens": max_completion_tokens,
-        "temperature": temperature,
-        // reasoning_effort absent by design
-    });
+    let body = local_body(model, vec![], max_completion_tokens, temperature);
     let mut headers: Vec<(&'static str, String)> = vec![
         ("Content-Type", "application/json".to_string()),
     ];
@@ -219,6 +225,22 @@ mod tests {
             spec.body.get("reasoning_effort").is_none(),
             "reasoning_effort must be absent from the local request body"
         );
+    }
+
+    // ── Token cap uses max_tokens (the name every OpenAI-compatible server knows) ─
+
+    #[test]
+    fn body_caps_with_max_tokens_not_max_completion_tokens() {
+        let spec = build_local_request_spec(
+            "https://gab.ai/v1/chat/completions".to_string(),
+            "arya",
+            None,
+            2048,
+            0.7,
+        );
+        assert_eq!(spec.body["max_tokens"], 2048);
+        assert!(spec.body.get("max_completion_tokens").is_none());
+        assert_eq!(spec.body["model"], "arya");
     }
 
     // ── W45 invariant #3 (a): Authorization present when key provided ─────────

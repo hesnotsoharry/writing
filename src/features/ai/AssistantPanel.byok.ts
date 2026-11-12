@@ -173,7 +173,21 @@ export type ByokLocalStreamArgs = ByokStreamArgs;
  */
 const RUST_CONNECTION_ERROR_PREFIX = "Failed to connect";
 
+/**
+ * An active endpoint saved without a model used to send the placeholder model
+ * "local", which every server rejects as "model not found". Catch it before
+ * sending. With no endpoint at all, fall through: streamByokLocalChat throws and
+ * the caller shows "Couldn't reach …".
+ */
+function missingModelMessage(): string | null {
+  const endpoint = getDefault(loadEndpoints());
+  if (!endpoint || endpoint.model?.trim()) return null;
+  return `[${endpoint.name} has no model chosen — pick one in Settings → Assistant]`;
+}
+
 export async function streamByokLocalResponse(a: ByokLocalStreamArgs): Promise<void> {
+  const missing = missingModelMessage();
+  if (missing) { a.setConvos(patchByokMessage(a.convId, a.msgId, { text: missing, streaming: false })); return; }
   const endpointName = getDefault(loadEndpoints())?.name ?? "the model server";
   const ctx = await assembleContext({ verb: a.verb, cfg: a.aiCtx, sceneTitle: a.sceneTitle, sceneId: a.sceneId, doc: a.doc, store: a.store, projectId: a.projectId, selectionText: a.selectionText });
   const { system, messages } = buildMessages(a.verb, ctx, a.userQuestion, a.history);
@@ -192,7 +206,8 @@ export async function streamByokLocalResponse(a: ByokLocalStreamArgs): Promise<v
         if (ev.message.includes(RUST_CONNECTION_ERROR_PREFIX)) {
           terminalError = `[Couldn't reach ${endpointName} — is your model server running?]`;
         } else {
-          terminalError = `[Something went wrong — ${ev.message}]`;
+          // Rust's CustomEndpoint messages are fragments ("couldn't find that model — …").
+          terminalError = `[Something went wrong: ${endpointName} ${ev.message}]`;
         }
       }
     }, { system, verb: a.verb, model: a.model, signal: a.ctrl.signal });

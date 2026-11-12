@@ -47,3 +47,21 @@ Source: wave-49, commit 83f216d
 **Gotcha:** GPT-5 models expect the parameter name `max_completion_tokens`, not `max_tokens`. Sending `max_tokens` either has no effect (ignored) or returns an error depending on the model version and endpoint version. Older code (pre-GPT-5) used `max_tokens`; migration to GPT-5 requires updating all occurrences. The Chat Completions endpoint documentation lists both names with a note that GPT-5+ requires the new name.
 **Workaround:** For all GPT-5 models (5.4, 5.4-mini, 5.5) in the BYOK picker, use `"max_completion_tokens": <limit>` in the request JSON, not `"max_tokens"`. If the writing-assistant architecture ever supports model-agnostic request building, conditional logic is needed: `if model.starts_with("gpt-5") { "max_completion_tokens" } else { "max_tokens" }`. Verify the request body with a real API call to confirm it parses cleanly.
 **Why:** OpenAI renamed the parameter in GPT-5's API contract to distinguish completion token limits from other token budgets (e.g., reasoning-token budgets). The old name is no longer recognized.
+
+## 2026-11-11 — custom OpenAI-compatible endpoints (Ollama, Gab AI): model, max_tokens, error labels
+
+**Gotcha:** three traps on the `byok_local` path, all surfacing as one generic message.
+(1) An endpoint saved without a model sent the picker placeholder `"local"`; Ollama (404 `model 'local'
+not found`) and Gab (404 `invalid_model`) both reject it. The form now requires a model.
+(2) `max_completion_tokens` is OpenAI-only — Ollama silently ignores it (uncapped replies) and Gab
+documents only `max_tokens`. The local path sends `max_tokens`.
+(3) Every non-401/429 status was shown as "OpenAI request failed". The `WireFormat::CustomEndpoint`
+variant in `byok_engine.rs` maps 402 (Gab `credits_exhausted`), 403 (`plus_required`), 404, 3xx
+(`www.gab.ai` 301s; redirects are not followed) to specific fragments the JS prefixes with the
+endpoint name.
+
+**Gab AI facts (docs + unauthenticated probes, 2026-11-11):** base URL `https://gab.ai/v1`; API use needs
+Plus + credits; `GET /v1/models` needs no key (so discovery succeeding does NOT prove the key works);
+it lists ~215 models, filtered to chat by `capabilities.text && capabilities.streaming`
+(`local_endpoint.rs` `can_chat`). Unverified without a key: whether Gab rejects `stream_options`,
+and its Chat Completions SSE shape.

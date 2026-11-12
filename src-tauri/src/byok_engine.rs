@@ -21,7 +21,36 @@ use futures::StreamExt;
 /// `parse_line` arm — a compile error, not a silent `Ignore`.
 pub enum WireFormat {
     Anthropic,
+    /// api.openai.com (byok_openai.rs).
     OpenAiCompatible,
+    /// A user-saved OpenAI-compatible server (Ollama, Gab AI, LM Studio, …) —
+    /// same wire format as OpenAI, but its errors must not be branded "OpenAI".
+    /// Messages are fragments; the JS side prefixes the endpoint's saved name.
+    CustomEndpoint,
+}
+
+/// `true` when an OpenAI-compatible stream chunk is an error object
+/// (`{"error": {...}}`) rather than a completion delta.
+fn is_openai_stream_error(json: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(json)
+        .map(|v| v.get("error").is_some_and(|e| !e.is_null()))
+        .unwrap_or(false)
+}
+
+/// Fixed messages for a custom endpoint's HTTP status. Fragments — the JS side
+/// renders them as "<endpoint name> <fragment>". No response body ever included.
+fn custom_endpoint_http_msg(status: u16) -> &'static str {
+    match status {
+        401 => "rejected the API key — check it in Settings → Assistant",
+        402 => "says your account is out of credits",
+        403 => "refused access — check your plan or account permissions",
+        404 => "couldn't find that model — choose one in Settings → Assistant",
+        429 => "is rate limiting requests — wait a moment",
+        300..=399 => "redirected the request — check the URL (for example, drop \"www.\")",
+        400 | 422 => "rejected the request",
+        500..=599 => "had a server error — try again later",
+        _ => "returned an error — try again later",
+    }
 }
 
 // ── ParseLine ─────────────────────────────────────────────────────────────────
@@ -68,7 +97,8 @@ impl WireFormat {
                     ParseLine::Ignore
                 }
             }
-            WireFormat::OpenAiCompatible => {
+            WireFormat::CustomEndpoint if is_openai_stream_error(json) => ParseLine::StreamError,
+            WireFormat::OpenAiCompatible | WireFormat::CustomEndpoint => {
                 if let Some(text) = crate::byok_openai::extract_openai_text_delta(json) {
                     ParseLine::Token(text)
                 } else if let Some(u) = crate::byok_openai::extract_openai_usage(json) {
@@ -100,6 +130,7 @@ impl WireFormat {
                 429 => "Rate limited by OpenAI — wait a moment",
                 _ => "OpenAI request failed — try again later",
             },
+            WireFormat::CustomEndpoint => custom_endpoint_http_msg(status),
         }
     }
 
@@ -108,6 +139,9 @@ impl WireFormat {
         match self {
             WireFormat::Anthropic => "Failed to connect to Anthropic — check your network",
             WireFormat::OpenAiCompatible => "Failed to connect to OpenAI — check your network",
+            // Keeps the "Failed to connect" prefix the JS side keys off
+            // (AssistantPanel.byok.ts RUST_CONNECTION_ERROR_PREFIX).
+            WireFormat::CustomEndpoint => "Failed to connect to the model server",
         }
     }
 
@@ -116,6 +150,7 @@ impl WireFormat {
         match self {
             WireFormat::Anthropic => "Anthropic returned an error — try again",
             WireFormat::OpenAiCompatible => "OpenAI returned an error — try again",
+            WireFormat::CustomEndpoint => "sent an error partway through the reply — try again",
         }
     }
 }
@@ -498,6 +533,43 @@ mod tests {
             matches!(result, ParseLine::Ignore),
             "OpenAI finish_reason chunk must route to ParseLine::Ignore"
         );
+    }
+
+    // Custom-endpoint arm ─────────────────────────────────────────────────────
+
+    #[test]
+    fn custom_endpoint_parses_content_like_openai() {
+        let json = r#"{"choices":[{"index":0,"delta":{"content":"Hi"},"finish_reason":null}]}"#;
+        assert!(matches!(WireFormat::CustomEndpoint.parse_line(json), ParseLine::Token(t) if t == "Hi"));
+    }
+
+    #[test]
+    fn custom_endpoint_mid_stream_error_object_routes_to_stream_error() {
+        let json = r#"{"error":{"code":"credits_exhausted","message":"no credits"}}"#;
+        assert!(matches!(WireFormat::CustomEndpoint.parse_line(json), ParseLine::StreamError));
+        // A null error field is not an error.
+        let ok = r#"{"error":null,"choices":[{"index":0,"delta":{"content":"x"}}]}"#;
+        assert!(matches!(WireFormat::CustomEndpoint.parse_line(ok), ParseLine::Token(_)));
+    }
+
+    #[test]
+    fn custom_endpoint_messages_are_never_openai_branded() {
+        for status in [301, 400, 401, 402, 403, 404, 418, 429, 500, 503] {
+            let msg = WireFormat::CustomEndpoint.http_error_msg(status);
+            assert!(!msg.contains("OpenAI"), "status {status}: {msg}");
+        }
+        assert!(WireFormat::CustomEndpoint.connection_error_msg().starts_with("Failed to connect"));
+        assert!(!WireFormat::CustomEndpoint.stream_error_msg().contains("OpenAI"));
+    }
+
+    #[test]
+    fn custom_endpoint_statuses_map_to_specific_causes() {
+        let m = |s| WireFormat::CustomEndpoint.http_error_msg(s);
+        assert!(m(404).contains("model"));
+        assert!(m(402).contains("credits"));
+        assert!(m(403).contains("refused access"));
+        assert!(m(301).contains("redirected"));
+        assert!(m(401).contains("API key"));
     }
 
     // SSRF tripwire ───────────────────────────────────────────────────────────

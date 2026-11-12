@@ -90,6 +90,27 @@ struct OllamaTags {
 #[derive(Deserialize)]
 struct OpenAiModel {
     id: String,
+    /// Non-standard per-model flags some servers add (Gab AI: `{"text":true,
+    /// "streaming":true,"images":false,…}`). Absent on Ollama/LM Studio/OpenAI.
+    #[serde(default)]
+    capabilities: Option<ModelCapabilities>,
+}
+
+#[derive(Deserialize)]
+struct ModelCapabilities {
+    #[serde(default)]
+    text: bool,
+    #[serde(default)]
+    streaming: bool,
+}
+
+impl OpenAiModel {
+    /// Keep a model unless the server says it can't do streaming text chat.
+    /// Gab lists 215 models (image, video, TTS, upscalers…) of which ~62 can chat;
+    /// picking one of the others fails every request.
+    fn can_chat(&self) -> bool {
+        self.capabilities.as_ref().is_none_or(|c| c.text && c.streaming)
+    }
 }
 
 #[derive(Deserialize)]
@@ -105,10 +126,11 @@ pub fn parse_ollama_tags(body: &str) -> Result<Vec<String>, String> {
 }
 
 /// Extract model ids from an OpenAI-compatible `GET /v1/models` JSON body
-/// (`{ "data": [ { "id": "...", ... } ] }`). Order preserved.
+/// (`{ "data": [ { "id": "...", ... } ] }`). Order preserved. Models whose
+/// `capabilities` say they can't stream text (Gab AI's image/audio models) are dropped.
 pub fn parse_openai_models(body: &str) -> Result<Vec<String>, String> {
     let parsed: OpenAiList = serde_json::from_str(body).map_err(|e| e.to_string())?;
-    Ok(parsed.data.into_iter().map(|m| m.id).collect())
+    Ok(parsed.data.into_iter().filter(OpenAiModel::can_chat).map(|m| m.id).collect())
 }
 
 const MAX_BODY_BYTES: usize = 2 * 1024 * 1024; // 2 MB
@@ -310,3 +332,27 @@ pub async fn local_endpoint_clear_key(endpoint_id: String) -> Result<(), String>
     .map_err(|_| "Keychain task failed".to_string())?
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn openai_models_without_capabilities_are_all_kept() {
+        // Ollama / LM Studio / OpenAI list shape — no capability flags.
+        let body = r#"{"data":[{"id":"llama3.2:latest"},{"id":"qwen3"}]}"#;
+        assert_eq!(parse_openai_models(body).unwrap(), vec!["llama3.2:latest", "qwen3"]);
+    }
+
+    #[test]
+    fn openai_models_drops_non_chat_models_when_capabilities_present() {
+        // Gab AI shape (trimmed from a live GET /v1/models, 2026-11-11).
+        let body = r#"{"object":"list","data":[
+          {"id":"arya","capabilities":{"text":true,"streaming":true,"images":false}},
+          {"id":"flux-3-image","capabilities":{"text":false,"images":true,"streaming":false}},
+          {"id":"wizper","capabilities":{"text":true,"streaming":false,"audio_input":true}},
+          {"id":"claude-sonnet-5","capabilities":{"text":true,"streaming":true}}
+        ]}"#;
+        assert_eq!(parse_openai_models(body).unwrap(), vec!["arya", "claude-sonnet-5"]);
+    }
+}

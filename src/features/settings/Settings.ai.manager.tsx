@@ -23,6 +23,7 @@ import {
   setEndpointKey,
 } from "../ai/customEndpoints.client";
 import { endpointPrivacyCopy } from "../ai/endpointPrivacy";
+import { ModelField } from "./Settings.ai.discover";
 
 // ── Internal types ─────────────────────────────────────────────────────────────
 
@@ -89,7 +90,12 @@ function useEndpointActions(
   const [keyError, setKeyError] = useState<string | null>(null);
 
   async function handleAddSave(payload: FormPayload): Promise<void> {
-    const { store: next, id } = addEndpoint(store, { name: payload.name, url: payload.url, model: payload.model, hasKey: false });
+    const added = addEndpoint(store, { name: payload.name, url: payload.url, model: payload.model, hasKey: false });
+    const id = added.id;
+    // The endpoint someone just added is the one they mean to use. Previously only
+    // the first-ever endpoint became active, so a second one (say Gab after Ollama)
+    // was saved but never used.
+    const next = setDefault(added.store, id);
     mutate(next);
     if (payload.newKey && await safeSetKey(id, payload.newKey, setKeyError)) {
       mutate(updateEndpoint(next, id, { hasKey: true }));
@@ -143,73 +149,6 @@ function KeySection({ hasExistingKey, keyInput, onKeyInput, onClearKey }: KeySec
   );
 }
 
-// ── DiscoveredModels — renders the model list or empty hint after discovery ────
-
-function DiscoveredModels({ models, emptyHint, onPick }: { models: string[]; emptyHint: boolean; onPick: (m: string) => void }) {
-  if (models.length > 0) {
-    return (
-      <ul className="endpoint-models-list">
-        {models.map((m) => (
-          <li key={m} className="endpoint-model-item" style={{ cursor: "pointer" }} onClick={() => onPick(m)}>{m}</li>
-        ))}
-      </ul>
-    );
-  }
-  if (emptyHint) {
-    return <p className="endpoint-empty-hint">No models found — have you pulled one? (e.g. <code>ollama pull llama3.2</code>)</p>;
-  }
-  return null;
-}
-
-// ── DiscoverSection — probe URL for models, list them as clickable picks ───────
-
-interface DiscoverSectionProps {
-  url: string;
-  endpointId?: string;
-  keyInput: string;
-  hasExistingKey: boolean;
-  selectedModel: string | null;
-  onModelPick: (model: string) => void;
-}
-
-function DiscoverSection({ url, endpointId, keyInput, hasExistingKey, selectedModel, onModelPick }: DiscoverSectionProps) {
-  const [models, setModels] = useState<string[]>([]);
-  const [discovering, setDiscovering] = useState(false);
-  const [hasDiscovered, setHasDiscovered] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleDiscover() {
-    const trimmed = url.trim();
-    if (!trimmed) { setError("Enter an endpoint URL first."); return; }
-    setDiscovering(true); setError(""); setModels([]); setHasDiscovered(false);
-    try {
-      // Saved endpoint: Rust loads the key from keychain — raw key never crosses to JS.
-      // Add-form: key (if any) is the value typed in the form field, passed directly.
-      const result = (endpointId && hasExistingKey)
-        ? await invoke<string[]>("discover_models", { url: trimmed, endpointId })
-        : await invoke<string[]>("discover_models", { url: trimmed, apiKey: keyInput.trim() || null });
-      setModels(result);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDiscovering(false); setHasDiscovered(true);
-    }
-  }
-
-  return (
-    <div className="discover-section">
-      <div className="byok-key-entry">
-        <button className="btn btn-soft" onClick={() => { void handleDiscover(); }} disabled={discovering}>
-          {discovering ? "Discovering…" : "Discover models"}
-        </button>
-        {selectedModel && <span className="endpoint-model-tag">Model: {selectedModel}</span>}
-        {error && <span className="byok-key-error">{error}</span>}
-      </div>
-      <DiscoveredModels models={models} emptyHint={hasDiscovered && !error} onPick={onModelPick} />
-    </div>
-  );
-}
-
 // ── EndpointPrivacyNote — live privacy hint below the URL input ───────────────
 
 function EndpointPrivacyNote({ url }: { url: string }) {
@@ -236,19 +175,20 @@ interface EndpointFormProps {
 function EndpointForm({ initialName, initialUrl, initialModel, hasExistingKey, endpointId, onSave, onCancel }: EndpointFormProps) {
   const [name, setName] = useState(initialName);
   const [url, setUrl] = useState(initialUrl);
-  const [model, setModel] = useState<string | null>(initialModel);
+  const [model, setModel] = useState(initialModel ?? ""); // required — see ModelField
+  const canSave = Boolean(name.trim() && url.trim() && model.trim());
   const [keyInput, setKeyInput] = useState("");
   const [keyCleared, setKeyCleared] = useState(false);
   const [saveError, setSaveError] = useState("");
   const effectiveHasKey = hasExistingKey && !keyCleared;
 
   async function handleSave() {
-    if (!name.trim() || !url.trim()) return;
+    if (!canSave) return;
     setSaveError("");
     try { await invoke("validate_endpoint", { url: url.trim() }); }
     catch (e: unknown) { setSaveError(e instanceof Error ? e.message : String(e)); return; }
     const newKey = keyInput.trim() || null;
-    onSave({ name: name.trim(), url: url.trim(), model, newKey, clearKey: keyCleared && !newKey });
+    onSave({ name: name.trim(), url: url.trim(), model: model.trim(), newKey, clearKey: keyCleared && !newKey });
   }
 
   return (
@@ -262,12 +202,13 @@ function EndpointForm({ initialName, initialUrl, initialModel, hasExistingKey, e
       </div>
       <KeySection hasExistingKey={effectiveHasKey} keyInput={keyInput}
         onKeyInput={(v) => { setKeyInput(v); }} onClearKey={() => setKeyCleared(true)} />
-      <DiscoverSection url={url} endpointId={endpointId} keyInput={keyInput}
-        hasExistingKey={effectiveHasKey} selectedModel={model} onModelPick={setModel} />
+      <ModelField model={model} onModelChange={setModel} url={url} endpointId={endpointId}
+        keyInput={keyInput} hasExistingKey={effectiveHasKey} />
       <div className="endpoint-form-actions">
         <button className="btn btn-soft" onClick={onCancel}>Cancel</button>
         <button className="btn btn-soft" onClick={() => { void handleSave(); }}
-          disabled={!name.trim() || !url.trim()}>Save endpoint</button>
+          disabled={!canSave}>Save endpoint</button>
+        {!model.trim() && name.trim() && url.trim() && <span className="byok-key-hint">Choose a model to save</span>}
         {saveError && <span className="byok-key-error">{saveError}</span>}
       </div>
     </div>
@@ -291,7 +232,9 @@ function EndpointItemDisplay({ ep, isDefault, onEdit, onDelete, onSetDefault }: 
         {isDefault && <span className="endpoint-default-badge">default</span>}
         <strong>{ep.name}</strong>
         <span className="endpoint-url">{ep.url}</span>
-        {ep.model && <span className="endpoint-model-tag">{ep.model}</span>}
+        {ep.model
+          ? <span className="endpoint-model-tag">{ep.model}</span>
+          : <span className="byok-key-error">No model chosen — Edit to pick one</span>}
         {ep.hasKey && <span className="byok-key-hint">key saved</span>}
       </div>
       <div className="endpoint-item-actions">
