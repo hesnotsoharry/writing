@@ -146,8 +146,18 @@ function assignByLists(groups: LineGroup[]): boolean {
   return true;
 }
 
+/** Chapters found but no scenes: a repeated look under them (e.g. bold scene
+ *  titles beneath "Chapter 7" lines), at least as common as the chapters, is scenes. */
+function assignSceneLook(groups: LineGroup[]): void {
+  const chapters = groups.filter((g) => g.role === "chapter");
+  const count = chapters.reduce((n, g) => n + g.lines.length, 0);
+  const first = Math.min(...chapters.map((g) => g.lines[0]));
+  setRole(groups.find((g) => g.kind === "look" && g.role === "text" && g.lines.length >= Math.max(2, count)
+    && g.lines[g.lines.length - 1] > first), "scene");
+}
+
 function assignDefaultRoles(groups: LineGroup[]): void {
   setRole(find(groups, "break"), "split");
-  if (assignByLevels(groups) || assignByPatterns(groups) || assignByLooks(groups)) return;
-  assignByLists(groups);
+  if (!(assignByLevels(groups) || assignByPatterns(groups) || assignByLooks(groups))) { assignByLists(groups); return; }
+  if (!groups.some((g) => g.role === "scene")) assignSceneLook(groups);
 }

@@ -69,6 +69,17 @@ describe("import collection — Word", () => {
     expect(tree(plan)).toEqual([["CHAPTER ONE", ["CHAPTER ONE"]], ["CHAPTER TWO", ["CHAPTER TWO"]]]);
   });
 
+  it("CHAPTER lines with bold scene titles under them → chapters and scenes", async () => {
+    const title = (t: string) => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: t, bold: true, size: 32 })] });
+    const scene = (t: string) => new Paragraph({ children: [new TextRun({ text: t, bold: true })] });
+    const { plan } = await importDefault("beats.docx", await docx([
+      title("CHAPTER ONE"), scene("The letter"), p("Maren finds it."), scene("The sea wall"), p("She reads it."),
+      title("CHAPTER TWO"), scene("Arrival"), p("Tomas comes."),
+    ]));
+    expect(tree(plan)).toEqual([["CHAPTER ONE", ["The letter", "The sea wall"]], ["CHAPTER TWO", ["Arrival"]]]);
+    expect(plan.chapters[0].scenes[0].synopsis).toBe("Maren finds it.");
+  });
+
   it("plain short titles that start a new page → chapters", async () => {
     const { plan } = await importDefault("pages.docx", await docx([
       p("The Tide"), p(prose("A.")), p(prose("B.")), new Paragraph({ children: [new PageBreak()] }),
