@@ -21,13 +21,12 @@
   note at once, the other version is kept in your Inbox instead of thrown
   away.
 
-## [0.14.0] — Unreleased · Import almost anything
-
-> Not released yet. Date it, and re-check each claim, when publishing.
+## [0.14.0] — 2026-11-13 · Import your outline or draft
 
 ### Added
-- **Import Markdown and text files, as well as Word.** "Import file…" in the binder
-  now takes .docx, .md and .txt.
+- **Import a Word, Markdown or text file.** Click "Import file…" under New
+  chapter in the binder and pick a .docx, .md or .txt. Bring in an outline, or
+  a whole draft.
 - **Finds your chapters however you marked them.** It recognises:
   - heading styles, including a template's own chapter style;
   - lines like "Chapter 7", "Part Two" or "Prologue";
@@ -38,22 +37,14 @@
   Scene breaks like "* * *" or "#" start a new scene.
 - **You choose what each kind of line becomes.** The preview lists every kind of
   title it found, with examples. Set each one to Chapter, Scene or Text, and the
-  tree updates as you go.
-- **Import a draft, not just an outline.** Text under a scene can go into the scene
-  itself instead of its synopsis. WritersNook guesses which from the file. Imported
-  scenes are marked Draft, and imported words don't count toward today's writing goal.
-
-## [0.13.3] — 2026-11-12 · Import your outline
-
-### Added
-- **Import an outline from Word.** Click "Import outline…" under New chapter
-  in the binder and pick a .docx. Heading 1 lines become chapters, Heading 2
-  lines become scenes, and the text under a scene heading becomes its
-  synopsis. Scenes arrive marked Outline. No headings? A bulleted list works
-  too: top bullets become chapters, indented bullets become scenes. You see
-  a preview first, then choose where it goes: the end of the open manuscript
-  (nothing already there changes) or a new manuscript, named after the file
-  — rename it before importing if you like.
+  chapters and scenes update as you go. Nothing is added until you press Import.
+- **Outline or draft.** Text under a scene can become its synopsis (the scene
+  is set to Outlined) or the scene itself (set to Drafting, with its word
+  count). WritersNook guesses which from the file. Imported words don't count
+  toward today's writing goal.
+- **Choose where it goes:** the end of the open manuscript (nothing already
+  there changes) or a new manuscript, named after the file. You can rename it
+  before importing.
 
 ## [0.13.2] — 2026-11-11 · Your own AI models, fixed
 

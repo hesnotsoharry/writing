@@ -617,7 +617,7 @@ keyboard down and up).
      probably pre-existing y-tiptap behaviour (y-tiptap was not bumped), but that is
      unconfirmed.
    - Still unverified without a key: Gab's handling of `stream_options`.
-9. **Outline import from .docx — RELEASED in 0.13.3 (tagged 2026-11-12; Cole publishes).** A paying user
+9. **Outline import from .docx — folded into 0.14.0 (0.13.3 was tagged 2026-11-12 but never published; the `v0.13.3` tag has no release).** A paying user
    (Gab AI BYOK user) asked to import a Word outline. Binder "Import outline…" →
    `src/features/import/` (mammoth 1.13 → HTML → `planOutline` → `applyOutlinePlan`).
    Mapping: two highest heading levels → chapter/scene. Body text → synopsis, and
@@ -632,8 +632,8 @@ keyboard down and up).
    synopses, plus the notes piece, and there were no console errors. The dialog was full-width;
    it is now fixed to 520px. The real DB was restored and its hash verified. New-manuscript option smoked 2026-11-12 (swapped DB, Cole drove the picker and dialog):
    the project was created with the typed title, filled, and switched to; the starter
-   project was untouched; no console errors; the real DB was restored and its hash verified. Ships as CHANGELOG 0.13.3.
-10. **0.14 — import pipeline for any format (decided 2026-11-12, Cole: "I trust you").**
+   project was untouched; no console errors; the real DB was restored and its hash verified. Ships in 0.14.0 (superseded by item 10).
+10. **0.14.0 — import pipeline for any format — merged to master and tagged v0.14.0 2026-11-13; Cole publishes.** (Decided 2026-11-12, Cole: "I trust you".)
    Goal: import works across formats and however people format their files, not only Word
    Heading styles. Shape:
    - **Readers** turn each format into one shared line list: text, style name,
@@ -680,9 +680,10 @@ keyboard down and up).
    There were no console errors or warnings. The real DB was restored and its hash verified.
    The smoke also caught that bold scene titles under "Chapter N" lines weren't scenes; that
    is fixed, with a test. **Left to do:**
-   1. Merge to master.
-   2. .odt / .html, then OPML readers.
-   3. Ship as 0.14.0 (CHANGELOG entry is drafted).
+   1. Publish 0.14.0. Cole runs `.\publish.ps1`. Then run `gh workflow run publish-macos.yml
+      -R hesnotsoharry/writing --ref master -f tag=v0.14.0`, and check that `latest.json` has
+      both platforms.
+   2. Later: .odt / .html, then OPML readers.
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.

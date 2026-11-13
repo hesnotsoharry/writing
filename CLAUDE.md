@@ -7,7 +7,7 @@ required for core writing and costs zero when unused).
 
 > Status: **shipped and in use**, branded as WritersNook. v0.13.2 (2026-11-11) is released on both
 > Windows and macOS via a signed GitHub-release auto-update pipeline and installed on real users'
-> machines; 0.13.3 (Word outline import) is version-bumped and awaiting publish. Read `roadmap/HANDOFF.md` for current state.
+> machines; 0.14.0 (Word, Markdown and text import) is tagged and awaiting publish. Read `roadmap/HANDOFF.md` for current state.
 
 ## Commands
 
