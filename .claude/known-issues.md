@@ -256,6 +256,13 @@ manuscripts AND his real `app_meta` license row.
 5. Teardown: kill the app, delete the throwaway db (+ `-wal`/`-shm`), `Move-Item` the original
    back, verify `Get-FileHash` matches the backup.
 
+**A session restart kills the dev app mid-smoke, but the swap stays in place.** The new
+session finds no `writing.exe`, a throwaway `writing.db`, and the real one still moved aside
+(e.g. `writing.db.real-aside`). Check for the aside file before anything else, then
+re-launch and carry on, or tear down. From a worktree, set
+`$env:CARGO_TARGET_DIR` to the main checkout's `src-tauri\target` so only the app crate
+rebuilds (~1 min instead of a cold build).
+
 **Scope narrower than it looks — localStorage is NOT shared.** `localStorage` (settings:
 `writing.*` keys — `customEndpoints`, theme, AI prefs) is origin-scoped; dev
 (`http://localhost:1420`) and the installed build (Tauri's bundled-asset protocol origin) are

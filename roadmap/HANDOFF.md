@@ -665,11 +665,24 @@ keyboard down and up).
    There are 51 import tests, including the collection in `src/test/import/corpus.test.ts`;
    lint and tsc are clean; the full suite is green.
    `mobileRelayUrl.test.ts` fails in the worktree only, because there is no
-   `mobile/node_modules`; it passes in the main checkout. **Left to do:**
-   1. A DB-swap smoke in `tauri dev` (needs Cole's OK) with a real .docx outline, a draft and an .md.
-   2. Merge to master.
-   3. .odt / .html, then OPML readers.
-   4. Ship as 0.14.0 (CHANGELOG entry is drafted).
+   `mobile/node_modules`; it passes in the main checkout.
+   **Smoked 2026-11-13** in `tauri dev` from the worktree, on a swapped DB. Cole picked each
+   file in the native picker and pressed Import with the default guesses. The files came
+   from `.scratch/smoke/make-files.mjs` in the worktree. All three matched in the DB:
+   - **Hand-formatted Word outline** (bold, centred "CHAPTER ONE" and bold scene titles, no
+     Heading styles): 2 chapters, 3 Outline scenes with the right synopses, plus Outline notes.
+   - **Word draft** (custom "Chapter Title" style, `***` break, page break): The Tide had
+     Scene 1 and Scene 2, Arrival had one scene. Each was Draft at 106 words, with text in
+     `scene_docs`. Opening Scene 2 showed both paragraphs. The manuscript went 0 → 318 and
+     today's goal baseline was raised by 318.
+   - **Markdown outline:** chapters and scenes from `#`/`##`, with bullets kept in the synopsis.
+
+   There were no console errors or warnings. The real DB was restored and its hash verified.
+   The smoke also caught that bold scene titles under "Chapter N" lines weren't scenes; that
+   is fixed, with a test. **Left to do:**
+   1. Merge to master.
+   2. .odt / .html, then OPML readers.
+   3. Ship as 0.14.0 (CHANGELOG entry is drafted).
 7. **Supabase keep-alive — now urgent, it cost a purchase record** — a
    scheduled ping (Cloudflare cron hitting a cheap read endpoint, or pg_cron)
    so the project never idles into a pause again.
